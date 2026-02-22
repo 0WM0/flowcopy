@@ -32,6 +32,134 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##02-22-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+FlowCopy remains a local-first, three-view product (`account` → `dashboard` → `editor`) but the editor is now a dual-surface system with a persistent mode:
+
+- `canvas` view (React Flow graph + side panel)
+- `table` view (full-screen, project-scoped editable table)
+
+The key product outcome this session is operational parity between these two surfaces for project data editing and file transfer (CSV/XML import/export).
+
+## 2) Core Data Model
+
+The session finalized a flat export/import contract while keeping the hierarchical in-app store:
+
+- `AppStore`
+  - `accounts: AccountRecord[]`
+  - `session: { activeAccountId, activeProjectId, view, editorMode }`
+- `editorMode: "canvas" | "table"` persisted in `session`
+
+Tabular model additions are now explicit:
+
+- `FLAT_EXPORT_COLUMNS` includes session, account, project, ordering, node fields, and serialized project-level payloads
+- `FlatExportRow` / `ParsedTabularPayload` formalize row parsing and generation
+- Node identity and ordering are first-class in flat rows:
+  - `node_id`
+  - `node_order_id`
+  - `sequence_index`
+  - `project_sequence_id`
+- Project-level connectivity/options are embedded for transfer:
+  - `project_edges_json`
+  - `project_admin_options_json`
+
+For table editing, field contracts were fully defined via `TABLE_EDITABLE_FIELDS`, `TABLE_FIELD_LABELS`, `TABLE_SELECT_FIELDS`, and `TABLE_TEXTAREA_FIELDS`.
+
+## 3) Persistence and Migration Strategy
+
+Persistence now consistently carries editor surface state and synchronized project data:
+
+- `createEmptyStore()`, `sanitizeAppStore()`, and legacy migration defaults include `editorMode: "canvas"`
+- `updateStore(...)` remains the single write path to localStorage (`flowcopy.store.v1`)
+- `persistCurrentProjectState(...)` keeps active project canvas/admin data continuously synced to store
+
+Import is now project-scoped by design:
+
+- Imported rows are filtered to the active `project_id`
+- Non-matching files are rejected with user feedback
+- Hydrated nodes/edges/admin options are applied back into current editor state
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering architecture remains graph-first and is now exported/imported in flat form:
+
+- `computeFlowOrdering(...)` supplies deterministic node sequence
+- `computeProjectSequenceId(...)` provides stable project ordering identity
+- `createFlatExportRows(...)` writes sequence outputs (`node_order_id`, `sequence_index`, `project_sequence_id`) per node row
+
+Import respects order by sorting incoming node records using `node_order_id` (or `sequence_index`) before hydration.
+
+## 5) Node Rendering and Shape System
+
+Canvas rendering contracts (including shape system and action-color styling) were preserved and made table-compatible:
+
+- Table editor writes directly into node fields used by React Flow rendering
+- `node_shape` remains validated through `isNodeShape(...)`
+- Select-backed fields (tone/polarity/reversibility/concept/action/card style) reuse admin/global option sets
+
+Result: canvas visuals and table values now represent one shared node data source.
+
+## 6) Editor Interaction Model
+
+Interaction model now supports persistent mode switching and project-scoped table editing:
+
+- `handleEditorModeChange(...)` toggles/stores `canvas` ↔ `table`
+- Toggle controls are available in editor UI (including canvas-side control section)
+- Table mode is full-screen and focused on project data only
+- Table intentionally omits higher-level IDs from user editing scope while still showing node-level identifiers/order
+
+Table edits are immediate and bi-directionally reflected:
+
+- `updateNodeFieldById(...)` mutates live node state
+- Switching back to canvas instantly reflects table changes
+
+Import/export controls (CSV/XML) are wired into editor surfaces with status feedback and file picker integration.
+
+## 7) Refactor Outcomes
+
+This session moved the architecture from “prepared contracts” to fully integrated transfer + table operations:
+
+- Added CSV/XML transfer stack end-to-end:
+  - `buildCsvFromRows`, `parseCsvText`
+  - `buildXmlFromRows`, `parseXmlText`
+  - `detectTabularFormat`, `downloadTextFile`
+- Added row assembly + import hydration paths:
+  - `createFlatExportRows`
+  - `importProjectDataFromFile`
+- Added project-scoped full-table editor UI with inline inputs/selects/textareas
+- Added transfer feedback UX and hidden file input trigger path
+
+Quality refactors were also completed during lint resolution:
+
+- Removed unused helper code
+- Moved ref assignment (`captureUndoSnapshotRef`) into effect-safe update
+- Added explicit lint suppressions where effect-driven bootstrap/autosave setState is intentional
+
+## 8) Validation and Operational Notes
+
+Validation completed with ESLint after wiring and refactors:
+
+- `npm run lint` passes
+
+Operational observations from this session:
+
+- ESLint flat-config invocation does not support `--file` in this repo; full lint command is required
+- Import requires matching `project_id` rows for active project
+- Import supports both extension-based and content-based CSV/XML detection
+- Row-level edge/options JSON are consumed from imported data and re-sanitized before hydration
+
+## 9) Recommended Next Steps
+
+1. Add automated tests for CSV/XML parse/build, row shaping, and import hydration edge cases.
+2. Add optional import modes (replace vs merge-by-node-id) with explicit conflict handling.
+3. Extend table editing to support position/order editing workflows (with validation guards).
+4. Extract transfer and table modules from `app/page.tsx` to reduce component size and improve maintainability.
+5. Add schema/version metadata to exported payloads for forward-compatible migrations.
+
 ##02-21-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -354,6 +482,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 
