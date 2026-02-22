@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ReactFlow,
   addEdge,
+  applyEdgeChanges,
+  applyNodeChanges,
   reconnectEdge,
   Background,
   Controls,
@@ -17,7 +19,9 @@ import {
   type Connection,
   type DefaultEdgeOptions,
   type Edge,
+  type EdgeChange,
   type Node,
+  type NodeChange,
   type NodeProps,
   type ReactFlowInstance,
 } from "@xyflow/react";
@@ -80,7 +84,41 @@ type FlowOrderingResult = {
   hasCycle: boolean;
 };
 
-const STORAGE_KEY = "flowcopy.canvas.v2";
+type AppView = "account" | "dashboard" | "editor";
+
+type ProjectRecord = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  canvas: PersistedCanvasState;
+};
+
+type AccountRecord = {
+  id: string;
+  code: string;
+  projects: ProjectRecord[];
+};
+
+type AppStore = {
+  version: 1;
+  accounts: AccountRecord[];
+  session: {
+    activeAccountId: string | null;
+    activeProjectId: string | null;
+    view: AppView;
+  };
+};
+
+type EditorSnapshot = {
+  nodes: FlowNode[];
+  edges: Edge[];
+  adminOptions: GlobalOptionConfig;
+};
+
+const APP_STORAGE_KEY = "flowcopy.store.v1";
+const LEGACY_STORAGE_KEY = "flowcopy.canvas.v2";
+const SINGLE_ACCOUNT_CODE = "000";
 
 const NODE_SHAPE_OPTIONS: NodeShape[] = [
   "rectangle",
@@ -95,6 +133,8 @@ const EDGE_BASE_STYLE: React.CSSProperties = {
   stroke: EDGE_STROKE_COLOR,
   strokeWidth: 2.6,
 };
+
+const DIAMOND_CLIP_PATH = "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)";
 
 const DEFAULT_EDGE_OPTIONS: DefaultEdgeOptions = {
   type: "smoothstep",
@@ -171,8 +211,49 @@ const createNodeId = (): string =>
     ? crypto.randomUUID()
     : `node-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 
+const createProjectId = (): string =>
+  `PRJ-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+const createAccountId = (code: string): string => `acct-${code}`;
+
 const isNodeShape = (value: unknown): value is NodeShape =>
   typeof value === "string" && NODE_SHAPE_OPTIONS.includes(value as NodeShape);
+
+const cloneGlobalOptions = (options: GlobalOptionConfig): GlobalOptionConfig => ({
+  tone: [...options.tone],
+  polarity: [...options.polarity],
+  reversibility: [...options.reversibility],
+  concept: [...options.concept],
+  action_type_name: [...options.action_type_name],
+  action_type_color: [...options.action_type_color],
+  card_style: [...options.card_style],
+});
+
+const cloneFlowNodes = (nodes: FlowNode[]): FlowNode[] =>
+  nodes.map((node) => ({
+    ...node,
+    position: { ...node.position },
+    data: { ...node.data },
+  }));
+
+const cloneEdges = (edges: Edge[]): Edge[] =>
+  edges.map((edge) => ({
+    ...edge,
+    markerEnd:
+      edge.markerEnd && typeof edge.markerEnd === "object"
+        ? { ...edge.markerEnd }
+        : edge.markerEnd,
+    style:
+      edge.style && typeof edge.style === "object" ? { ...edge.style } : edge.style,
+    labelStyle:
+      edge.labelStyle && typeof edge.labelStyle === "object"
+        ? { ...edge.labelStyle }
+        : edge.labelStyle,
+    labelBgStyle:
+      edge.labelBgStyle && typeof edge.labelBgStyle === "object"
+        ? { ...edge.labelBgStyle }
+        : edge.labelBgStyle,
+  }));
 
 const ensureArrayOfStrings = (value: unknown, fallback: string[]): string[] => {
   if (!Array.isArray(value)) {
@@ -209,32 +290,45 @@ const normalizeGlobalOptionConfig = (value: unknown): GlobalOptionConfig => {
   };
 };
 
-const readPersistedCanvasState = (): PersistedCanvasState | null => {
-  if (typeof window === "undefined") {
-    return null;
+const sanitizeSerializableFlowNodes = (value: unknown): SerializableFlowNode[] => {
+  if (!Array.isArray(value)) {
+    return [];
   }
 
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return null;
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+
+    const source = item as Partial<SerializableFlowNode>;
+    const rawId = typeof source.id === "string" ? source.id.trim() : "";
+    const id = rawId.length > 0 ? rawId : createNodeId();
+
+    const position =
+      source.position &&
+      typeof source.position === "object" &&
+      typeof source.position.x === "number" &&
+      typeof source.position.y === "number"
+        ? { x: source.position.x, y: source.position.y }
+        : { x: 0, y: 0 };
+
+    const data =
+      source.data && typeof source.data === "object"
+        ? (source.data as Partial<PersistableMicrocopyNodeData>)
+        : undefined;
+
+    return [{ id, position, data }];
+  });
+};
+
+const sanitizeEdgesForStorage = (value: unknown): Edge[] => {
+  if (!Array.isArray(value)) {
+    return [];
   }
 
-  try {
-    const parsed = JSON.parse(raw) as {
-      nodes?: SerializableFlowNode[];
-      edges?: Edge[];
-      adminOptions?: Partial<GlobalOptionConfig>;
-    };
-
-    return {
-      nodes: Array.isArray(parsed.nodes) ? parsed.nodes : [],
-      edges: Array.isArray(parsed.edges) ? parsed.edges : [],
-      adminOptions: normalizeGlobalOptionConfig(parsed.adminOptions),
-    };
-  } catch (error) {
-    console.error("Failed to parse saved canvas state", error);
-    return null;
-  }
+  return value
+    .filter((item): item is Edge => Boolean(item && typeof item === "object"))
+    .map((edge) => ({ ...edge }));
 };
 
 const cleanedOptions = (options: string[]): string[] =>
@@ -502,15 +596,22 @@ const computeProjectSequenceId = (
 
 const getNodeShapeStyle = (
   shape: NodeShape,
-  selected: boolean
+  selected: boolean,
+  accentColor: string
 ): React.CSSProperties => {
+  const resolvedAccentColor = accentColor?.trim() || "#4f46e5";
+
   const baseStyle: React.CSSProperties = {
+    boxSizing: "border-box",
     width: 260,
     minHeight: 120,
+    position: "relative",
     background: "#ffffff",
-    border: selected ? "2px solid #2563eb" : "1px solid #d4d4d8",
+    border: `2px solid ${resolvedAccentColor}`,
     padding: 10,
-    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+    boxShadow: selected
+      ? "0 0 0 3px rgba(37, 99, 235, 0.35), 0 3px 10px rgba(0, 0, 0, 0.12)"
+      : "0 1px 3px rgba(0,0,0,0.08)",
   };
 
   switch (shape) {
@@ -523,17 +624,24 @@ const getNodeShapeStyle = (
     case "pill":
       return {
         ...baseStyle,
+        width: 380,
+        minHeight: 190,
+        padding: "18px 28px",
         borderRadius: 999,
       };
 
     case "diamond":
       return {
         ...baseStyle,
-        width: 290,
-        minHeight: 190,
-        borderRadius: 0,
-        clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
-        padding: "26px 30px",
+        width: 460,
+        minHeight: 340,
+        borderRadius: 8,
+        border: "none",
+        background: "transparent",
+        padding: 0,
+        boxShadow: selected
+          ? "0 0 0 3px rgba(37, 99, 235, 0.35)"
+          : "none",
       };
 
     case "rectangle":
@@ -543,6 +651,39 @@ const getNodeShapeStyle = (
         borderRadius: 8,
       };
   }
+};
+
+const getDiamondBorderLayerStyle = (accentColor: string): React.CSSProperties => ({
+  position: "absolute",
+  inset: 0,
+  background: accentColor,
+  clipPath: DIAMOND_CLIP_PATH,
+  zIndex: 0,
+  pointerEvents: "none",
+});
+
+const getDiamondSurfaceLayerStyle = (): React.CSSProperties => ({
+  position: "absolute",
+  inset: 6,
+  background: "#ffffff",
+  clipPath: DIAMOND_CLIP_PATH,
+  zIndex: 1,
+  pointerEvents: "none",
+});
+
+const getNodeContentStyle = (shape: NodeShape): React.CSSProperties => {
+  if (shape !== "diamond") {
+    return { display: "block", position: "relative", zIndex: 1 };
+  }
+
+  return {
+    position: "relative",
+    zIndex: 2,
+    width: "100%",
+    minHeight: "100%",
+    boxSizing: "border-box",
+    padding: "92px 92px",
+  };
 };
 
 const serializeNodesForStorage = (nodes: FlowNode[]): SerializableFlowNode[] =>
@@ -572,104 +713,318 @@ const serializeNodesForStorage = (nodes: FlowNode[]): SerializableFlowNode[] =>
     };
   });
 
-const initialNodes: FlowNode[] = [
-  normalizeNode(
-    {
-      id: "1",
-      position: { x: 100, y: 120 },
-      data: {
-        title: "Start",
-        primary_cta: "Send",
-        action_type_name: "Submit Data",
-        concept: "Entry point",
-      },
-    },
-    DEFAULT_GLOBAL_OPTIONS
-  ),
-  normalizeNode(
-    {
-      id: "2",
-      position: { x: 420, y: 120 },
-      data: {
-        title: "Confirmation",
-        primary_cta: "Done",
-        action_type_name: "Acknowledge",
-        action_type_color: "#047857",
-      },
-    },
-    DEFAULT_GLOBAL_OPTIONS
-  ),
-];
+const createEmptyCanvasState = (): PersistedCanvasState => ({
+  nodes: [],
+  edges: [],
+  adminOptions: cloneGlobalOptions(DEFAULT_GLOBAL_OPTIONS),
+});
 
-const initialEdges: Edge[] = [
-  applyEdgeVisuals({
-    id: "e1-2",
-    source: "1",
-    target: "2",
-    label: "",
-  }),
-];
+const readLegacyCanvasState = (): PersistedCanvasState | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
 
-function FlowCopyNode({ id, data, selected }: NodeProps<FlowNode>) {
+  const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      nodes?: unknown;
+      edges?: unknown;
+      adminOptions?: unknown;
+    };
+
+    return {
+      nodes: sanitizeSerializableFlowNodes(parsed.nodes),
+      edges: sanitizeEdgesForStorage(parsed.edges),
+      adminOptions: normalizeGlobalOptionConfig(parsed.adminOptions),
+    };
+  } catch (error) {
+    console.error("Failed to parse legacy canvas state", error);
+    return null;
+  }
+};
+
+const createProjectRecord = (
+  name: string,
+  canvas: PersistedCanvasState = createEmptyCanvasState()
+): ProjectRecord => {
+  const now = new Date().toISOString();
+
+  return {
+    id: createProjectId(),
+    name: name.trim() || "Untitled Project",
+    createdAt: now,
+    updatedAt: now,
+    canvas: {
+      nodes: sanitizeSerializableFlowNodes(canvas.nodes),
+      edges: sanitizeEdgesForStorage(canvas.edges),
+      adminOptions: normalizeGlobalOptionConfig(canvas.adminOptions),
+    },
+  };
+};
+
+const createEmptyStore = (): AppStore => ({
+  version: 1,
+  accounts: [],
+  session: {
+    activeAccountId: null,
+    activeProjectId: null,
+    view: "account",
+  },
+});
+
+const sanitizeProjectRecord = (value: unknown): ProjectRecord | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const source = value as Partial<ProjectRecord> & {
+    canvas?: Partial<PersistedCanvasState>;
+  };
+
+  const now = new Date().toISOString();
+  const id =
+    typeof source.id === "string" && source.id.trim().length > 0
+      ? source.id.trim()
+      : createProjectId();
+
+  const name =
+    typeof source.name === "string" && source.name.trim().length > 0
+      ? source.name.trim()
+      : "Untitled Project";
+
+  const createdAt =
+    typeof source.createdAt === "string" && source.createdAt.length > 0
+      ? source.createdAt
+      : now;
+
+  const updatedAt =
+    typeof source.updatedAt === "string" && source.updatedAt.length > 0
+      ? source.updatedAt
+      : createdAt;
+
+  return {
+    id,
+    name,
+    createdAt,
+    updatedAt,
+    canvas: {
+      nodes: sanitizeSerializableFlowNodes(source.canvas?.nodes),
+      edges: sanitizeEdgesForStorage(source.canvas?.edges),
+      adminOptions: normalizeGlobalOptionConfig(source.canvas?.adminOptions),
+    },
+  };
+};
+
+const sanitizeAccountRecord = (value: unknown): AccountRecord | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const source = value as Partial<AccountRecord>;
+
+  const code =
+    typeof source.code === "string" && /^\d{3}$/.test(source.code)
+      ? source.code
+      : SINGLE_ACCOUNT_CODE;
+
+  const id =
+    typeof source.id === "string" && source.id.trim().length > 0
+      ? source.id.trim()
+      : createAccountId(code);
+
+  const projects = Array.isArray(source.projects)
+    ? source.projects
+        .map((project) => sanitizeProjectRecord(project))
+        .filter((project): project is ProjectRecord => Boolean(project))
+    : [];
+
+  return {
+    id,
+    code,
+    projects,
+  };
+};
+
+const sanitizeAppStore = (value: unknown): AppStore => {
+  const emptyStore = createEmptyStore();
+
+  if (!value || typeof value !== "object") {
+    return emptyStore;
+  }
+
+  const source = value as Partial<AppStore>;
+
+  const accounts = Array.isArray(source.accounts)
+    ? source.accounts
+        .map((account) => sanitizeAccountRecord(account))
+        .filter((account): account is AccountRecord => Boolean(account))
+    : [];
+
+  const sessionSource =
+    source.session && typeof source.session === "object" ? source.session : null;
+
+  const requestedAccountId =
+    sessionSource && typeof sessionSource.activeAccountId === "string"
+      ? sessionSource.activeAccountId
+      : null;
+
+  const fallbackAccountId = accounts.find((account) => account.code === SINGLE_ACCOUNT_CODE)?.id;
+
+  const activeAccountId = accounts.some((account) => account.id === requestedAccountId)
+    ? requestedAccountId
+    : fallbackAccountId ?? null;
+
+  return {
+    version: 1,
+    accounts,
+    session: {
+      activeAccountId,
+      activeProjectId: null,
+      view: activeAccountId ? "dashboard" : "account",
+    },
+  };
+};
+
+const migrateLegacyCanvasToStore = (): AppStore | null => {
+  const legacyCanvasState = readLegacyCanvasState();
+  if (!legacyCanvasState) {
+    return null;
+  }
+
+  const accountId = createAccountId(SINGLE_ACCOUNT_CODE);
+  const migratedProject = createProjectRecord("Migrated Project", legacyCanvasState);
+
+  return {
+    version: 1,
+    accounts: [
+      {
+        id: accountId,
+        code: SINGLE_ACCOUNT_CODE,
+        projects: [migratedProject],
+      },
+    ],
+    session: {
+      activeAccountId: accountId,
+      activeProjectId: null,
+      view: "dashboard",
+    },
+  };
+};
+
+const readAppStore = (): AppStore => {
+  if (typeof window === "undefined") {
+    return createEmptyStore();
+  }
+
+  const rawStore = window.localStorage.getItem(APP_STORAGE_KEY);
+  if (rawStore) {
+    try {
+      const parsed = JSON.parse(rawStore);
+      return sanitizeAppStore(parsed);
+    } catch (error) {
+      console.error("Failed to parse app store", error);
+    }
+  }
+
+  const migratedStore = migrateLegacyCanvasToStore();
+  if (migratedStore) {
+    window.localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(migratedStore));
+    return migratedStore;
+  }
+
+  return createEmptyStore();
+};
+
+const formatDateTime = (isoDate: string): string => {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.valueOf())) {
+    return isoDate;
+  }
+
+  return date.toLocaleString();
+};
+
+type FlowCopyNodeProps = NodeProps<FlowNode> & {
+  onBeforeChange: () => void;
+};
+
+function FlowCopyNode({ id, data, selected, onBeforeChange }: FlowCopyNodeProps) {
   const { setNodes } = useReactFlow<FlowNode, Edge>();
 
   const updateField = useCallback(
-    (field: EditableMicrocopyField, value: string) => {
+    <K extends EditableMicrocopyField>(
+      field: K,
+      value: PersistableMicrocopyNodeData[K]
+    ) => {
+      onBeforeChange();
       setNodes((nds) =>
         nds.map((n) =>
           n.id === id ? { ...n, data: { ...n.data, [field]: value } } : n
         )
       );
     },
-    [id, setNodes]
+    [id, onBeforeChange, setNodes]
   );
 
   return (
-    <div style={getNodeShapeStyle(data.node_shape, selected)}>
+    <div style={getNodeShapeStyle(data.node_shape, selected, data.action_type_color)}>
       <Handle type="target" position={Position.Left} />
 
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: data.action_type_color,
-            border: `1px solid ${data.action_type_color}`,
-            borderRadius: 999,
-            padding: "2px 8px",
-            background: "#fff",
-          }}
-        >
-          {data.action_type_name}
-        </span>
-        <span style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600 }}>
-          #{data.sequence_index ?? "-"}
-        </span>
-      </div>
+      {data.node_shape === "diamond" && (
+        <>
+          <div style={getDiamondBorderLayerStyle(data.action_type_color)} />
+          <div style={getDiamondSurfaceLayerStyle()} />
+        </>
+      )}
 
-      <div style={{ marginTop: 8 }}>
-        <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Title</div>
-        <input
-          className="nodrag"
-          style={inputStyle}
-          value={data.title}
-          onChange={(event) => updateField("title", event.target.value)}
-        />
-      </div>
-
-      <div style={{ marginTop: 8 }}>
-        <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>
-          Primary CTA
+      <div style={getNodeContentStyle(data.node_shape)}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: data.action_type_color,
+              border: `1px solid ${data.action_type_color}`,
+              borderRadius: 999,
+              padding: "2px 8px",
+              background: "#fff",
+            }}
+          >
+            {data.action_type_name}
+          </span>
+          <span style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600 }}>
+            #{data.sequence_index ?? "-"}
+          </span>
         </div>
-        <input
-          className="nodrag"
-          style={inputStyle}
-          value={data.primary_cta}
-          onChange={(event) => updateField("primary_cta", event.target.value)}
-        />
-      </div>
 
-      <div style={{ marginTop: 8, fontSize: 10, color: "#71717a" }}>id: {id}</div>
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Title</div>
+          <input
+            className="nodrag"
+            style={inputStyle}
+            value={data.title}
+            onChange={(event) => updateField("title", event.target.value)}
+          />
+        </div>
+
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>
+            Primary CTA
+          </div>
+          <input
+            className="nodrag"
+            style={inputStyle}
+            value={data.primary_cta}
+            onChange={(event) => updateField("primary_cta", event.target.value)}
+          />
+        </div>
+
+        <div style={{ marginTop: 8, fontSize: 10, color: "#71717a" }}>id: {id}</div>
+      </div>
 
       <Handle type="source" position={Position.Right} />
     </div>
@@ -677,65 +1032,448 @@ function FlowCopyNode({ id, data, selected }: NodeProps<FlowNode>) {
 }
 
 export default function Page() {
-  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
-    initialNodes[0]?.id ?? null
-  );
+  const [store, setStore] = useState<AppStore>(createEmptyStore);
+  const [accountCodeInput, setAccountCodeInput] = useState(SINGLE_ACCOUNT_CODE);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [newProjectName, setNewProjectName] = useState("");
+
+  const [nodes, setNodes] = useNodesState<FlowNode>([]);
+  const [edges, setEdges] = useEdgesState<Edge>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [adminOptions, setAdminOptions] =
     useState<GlobalOptionConfig>(DEFAULT_GLOBAL_OPTIONS);
   const [pendingOptionInputs, setPendingOptionInputs] = useState<
     Record<GlobalOptionField, string>
   >(createEmptyPendingOptionInputs);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [undoStack, setUndoStack] = useState<EditorSnapshot[]>([]);
 
   const rfRef = useRef<ReactFlowInstance<FlowNode, Edge> | null>(null);
-  const hasLoadedRef = useRef(false);
+  const hasLoadedStoreRef = useRef(false);
+  const undoCaptureTimeoutRef = useRef<number | null>(null);
+  const captureUndoSnapshotRef = useRef<() => void>(() => undefined);
 
-  const nodeTypes = useMemo(() => ({ flowcopyNode: FlowCopyNode }), []);
+  const updateStore = useCallback((updater: (prev: AppStore) => AppStore) => {
+    setStore((prev) => {
+      const next = updater(prev);
 
-  useEffect(() => {
-    if (hasLoadedRef.current) return;
-    hasLoadedRef.current = true;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(next));
+      }
 
-    const persistedState = readPersistedCanvasState();
-    if (!persistedState) return;
-
-    const timeoutId = window.setTimeout(() => {
-      const normalizedAdminOptions = normalizeGlobalOptionConfig(
-        persistedState.adminOptions
-      );
-      setAdminOptions(normalizedAdminOptions);
-
-      const hydratedNodes =
-        persistedState.nodes.length > 0
-          ? sanitizePersistedNodes(persistedState.nodes, normalizedAdminOptions)
-          : initialNodes;
-
-      const hydratedEdges = sanitizeEdges(persistedState.edges, hydratedNodes);
-
-      setNodes(hydratedNodes);
-      setEdges(hydratedEdges);
-      setSelectedNodeId(hydratedNodes[0]?.id ?? null);
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [setEdges, setNodes]);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (hasLoadedStoreRef.current) {
       return;
     }
 
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        nodes: serializeNodesForStorage(nodes),
-        edges,
-        adminOptions,
-      })
-    );
-  }, [adminOptions, edges, nodes]);
+    hasLoadedStoreRef.current = true;
+    setStore(readAppStore());
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (undoCaptureTimeoutRef.current !== null) {
+        window.clearTimeout(undoCaptureTimeoutRef.current);
+      }
+    },
+    []
+  );
+
+  const activeAccount = useMemo(
+    () =>
+      store.accounts.find((account) => account.id === store.session.activeAccountId) ??
+      null,
+    [store.accounts, store.session.activeAccountId]
+  );
+
+  const activeProject = useMemo(
+    () =>
+      activeAccount?.projects.find(
+        (project) => project.id === store.session.activeProjectId
+      ) ?? null,
+    [activeAccount, store.session.activeProjectId]
+  );
+
+  const loadProjectIntoEditor = useCallback(
+    (project: ProjectRecord) => {
+      const normalizedAdminOptions = normalizeGlobalOptionConfig(
+        project.canvas.adminOptions
+      );
+
+      const hydratedNodes = sanitizePersistedNodes(
+        project.canvas.nodes,
+        normalizedAdminOptions
+      );
+      const hydratedEdges = sanitizeEdges(project.canvas.edges, hydratedNodes);
+
+      setAdminOptions(normalizedAdminOptions);
+      setNodes(hydratedNodes);
+      setEdges(hydratedEdges);
+      setSelectedNodeId(hydratedNodes[0]?.id ?? null);
+      setUndoStack([]);
+      setPendingOptionInputs(createEmptyPendingOptionInputs());
+    },
+    [setEdges, setNodes]
+  );
+
+  const persistCurrentProjectState = useCallback(() => {
+    const { view, activeAccountId, activeProjectId } = store.session;
+
+    if (view !== "editor" || !activeAccountId || !activeProjectId) {
+      return;
+    }
+
+    const serializedNodes = serializeNodesForStorage(nodes);
+    const serializedEdges = cloneEdges(edges);
+    const serializedAdminOptions = cloneGlobalOptions(adminOptions);
+    const updatedAt = new Date().toISOString();
+
+    updateStore((prev) => {
+      const accountIndex = prev.accounts.findIndex(
+        (account) => account.id === activeAccountId
+      );
+
+      if (accountIndex < 0) {
+        return prev;
+      }
+
+      const account = prev.accounts[accountIndex];
+      const projectIndex = account.projects.findIndex(
+        (project) => project.id === activeProjectId
+      );
+
+      if (projectIndex < 0) {
+        return prev;
+      }
+
+      const projects = [...account.projects];
+      projects[projectIndex] = {
+        ...projects[projectIndex],
+        updatedAt,
+        canvas: {
+          nodes: serializedNodes,
+          edges: serializedEdges,
+          adminOptions: serializedAdminOptions,
+        },
+      };
+
+      const accounts = [...prev.accounts];
+      accounts[accountIndex] = {
+        ...account,
+        projects,
+      };
+
+      return {
+        ...prev,
+        accounts,
+      };
+    });
+  }, [adminOptions, edges, nodes, store.session, updateStore]);
+
+  useEffect(() => {
+    persistCurrentProjectState();
+  }, [persistCurrentProjectState]);
+
+  const queueUndoSnapshot = useCallback(() => {
+    if (store.session.view !== "editor") {
+      return;
+    }
+
+    if (undoCaptureTimeoutRef.current !== null) {
+      return;
+    }
+
+    const snapshot: EditorSnapshot = {
+      nodes: cloneFlowNodes(nodes),
+      edges: cloneEdges(edges),
+      adminOptions: cloneGlobalOptions(adminOptions),
+    };
+
+    undoCaptureTimeoutRef.current = window.setTimeout(() => {
+      setUndoStack((prev) => [...prev, snapshot].slice(-3));
+      undoCaptureTimeoutRef.current = null;
+    }, 220);
+  }, [adminOptions, edges, nodes, store.session.view]);
+
+  captureUndoSnapshotRef.current = queueUndoSnapshot;
+
+  const handleUndo = useCallback(() => {
+    if (undoCaptureTimeoutRef.current !== null) {
+      window.clearTimeout(undoCaptureTimeoutRef.current);
+      undoCaptureTimeoutRef.current = null;
+    }
+
+    setUndoStack((prev) => {
+      const previousSnapshot = prev[prev.length - 1];
+      if (!previousSnapshot) {
+        return prev;
+      }
+
+      setNodes(cloneFlowNodes(previousSnapshot.nodes));
+      setEdges(cloneEdges(previousSnapshot.edges));
+      setAdminOptions(cloneGlobalOptions(previousSnapshot.adminOptions));
+
+      setSelectedNodeId((currentSelected) => {
+        if (
+          currentSelected &&
+          previousSnapshot.nodes.some((node) => node.id === currentSelected)
+        ) {
+          return currentSelected;
+        }
+
+        return previousSnapshot.nodes[0]?.id ?? null;
+      });
+
+      return prev.slice(0, -1);
+    });
+  }, [setEdges, setNodes]);
+
+  const nodeTypes = useMemo(
+    () => ({
+      flowcopyNode: (props: NodeProps<FlowNode>) => (
+        <FlowCopyNode
+          {...props}
+          onBeforeChange={() => captureUndoSnapshotRef.current()}
+        />
+      ),
+    }),
+    []
+  );
+
+  const handleAccountEntry = useCallback(() => {
+    const enteredCode = accountCodeInput.trim();
+
+    if (!/^\d{3}$/.test(enteredCode)) {
+      setAccountError("Account code must be exactly 3 digits.");
+      return;
+    }
+
+    if (enteredCode !== SINGLE_ACCOUNT_CODE) {
+      setAccountError("For now, only account code 000 is available.");
+      return;
+    }
+
+    setAccountError(null);
+
+    updateStore((prev) => {
+      const existingAccount = prev.accounts.find(
+        (account) => account.code === enteredCode
+      );
+
+      const account =
+        existingAccount ?? {
+          id: createAccountId(enteredCode),
+          code: enteredCode,
+          projects: [],
+        };
+
+      const accounts = existingAccount ? prev.accounts : [...prev.accounts, account];
+
+      return {
+        ...prev,
+        accounts,
+        session: {
+          activeAccountId: account.id,
+          activeProjectId: null,
+          view: "dashboard",
+        },
+      };
+    });
+  }, [accountCodeInput, updateStore]);
+
+  const handleSignOut = useCallback(() => {
+    updateStore((prev) => ({
+      ...prev,
+      session: {
+        activeAccountId: null,
+        activeProjectId: null,
+        view: "account",
+      },
+    }));
+
+    setUndoStack([]);
+  }, [updateStore]);
+
+  const createProjectFromDashboard = useCallback(() => {
+    if (!activeAccount) {
+      return;
+    }
+
+    const projectName = newProjectName.trim();
+    if (!projectName) {
+      return;
+    }
+
+    const newProject = createProjectRecord(projectName, createEmptyCanvasState());
+
+    updateStore((prev) => {
+      const accountIndex = prev.accounts.findIndex(
+        (account) => account.id === activeAccount.id
+      );
+
+      if (accountIndex < 0) {
+        return prev;
+      }
+
+      const accounts = [...prev.accounts];
+      const account = accounts[accountIndex];
+
+      accounts[accountIndex] = {
+        ...account,
+        projects: [...account.projects, newProject],
+      };
+
+      return {
+        ...prev,
+        accounts,
+      };
+    });
+
+    setNewProjectName("");
+  }, [activeAccount, newProjectName, updateStore]);
+
+  const openProject = useCallback(
+    (projectId: string) => {
+      if (!activeAccount) {
+        return;
+      }
+
+      const project = activeAccount.projects.find((item) => item.id === projectId);
+      if (!project) {
+        return;
+      }
+
+      loadProjectIntoEditor(project);
+
+      updateStore((prev) => ({
+        ...prev,
+        session: {
+          activeAccountId: activeAccount.id,
+          activeProjectId: project.id,
+          view: "editor",
+        },
+      }));
+    },
+    [activeAccount, loadProjectIntoEditor, updateStore]
+  );
+
+  const handleBackToDashboard = useCallback(() => {
+    persistCurrentProjectState();
+
+    updateStore((prev) => ({
+      ...prev,
+      session: {
+        ...prev.session,
+        activeProjectId: null,
+        view: "dashboard",
+      },
+    }));
+
+    setUndoStack([]);
+  }, [persistCurrentProjectState, updateStore]);
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange<FlowNode>[]) => {
+      if (changes.length === 0) {
+        return;
+      }
+
+      queueUndoSnapshot();
+      setNodes((currentNodes) => applyNodeChanges(changes, currentNodes));
+    },
+    [queueUndoSnapshot, setNodes]
+  );
+
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange<Edge>[]) => {
+      if (changes.length === 0) {
+        return;
+      }
+
+      queueUndoSnapshot();
+      setEdges((currentEdges) => applyEdgeChanges(changes, currentEdges));
+    },
+    [queueUndoSnapshot, setEdges]
+  );
+
+  const onConnect = useCallback(
+    (params: Connection) => {
+      if (!params.source || !params.target) {
+        return;
+      }
+
+      queueUndoSnapshot();
+
+      const newEdge = applyEdgeVisuals({
+        id: `e-${params.source}-${params.target}-${createNodeId().slice(0, 8)}`,
+        source: params.source,
+        target: params.target,
+        sourceHandle: params.sourceHandle,
+        targetHandle: params.targetHandle,
+        label: "",
+      });
+
+      setEdges((eds) => addEdge(newEdge, eds));
+    },
+    [queueUndoSnapshot, setEdges]
+  );
+
+  const onReconnect = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => {
+      queueUndoSnapshot();
+      setEdges((currentEdges) =>
+        reconnectEdge(oldEdge, newConnection, currentEdges).map(applyEdgeVisuals)
+      );
+    },
+    [queueUndoSnapshot, setEdges]
+  );
+
+  const onInit = useCallback((instance: ReactFlowInstance<FlowNode, Edge>) => {
+    rfRef.current = instance;
+  }, []);
+
+  const addNodeAtEvent = useCallback(
+    (event: React.MouseEvent) => {
+      const rf = rfRef.current;
+      if (!rf) return;
+
+      queueUndoSnapshot();
+
+      const position = rf.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      const id = createNodeId();
+
+      setNodes((nds) => [
+        ...nds,
+        normalizeNode({ id, position }, normalizeGlobalOptionConfig(adminOptions)),
+      ]);
+      setSelectedNodeId(id);
+    },
+    [adminOptions, queueUndoSnapshot, setNodes]
+  );
+
+  const onPaneClick = useCallback(
+    (event: React.MouseEvent) => {
+      if (event.detail === 2) {
+        addNodeAtEvent(event);
+        return;
+      }
+
+      setSelectedNodeId(null);
+    },
+    [addNodeAtEvent]
+  );
+
+  const onNodeClick = useCallback((_: React.MouseEvent, node: FlowNode) => {
+    setSelectedNodeId(node.id);
+  }, []);
 
   const ordering = useMemo(() => computeFlowOrdering(nodes, edges), [nodes, edges]);
 
@@ -800,79 +1538,14 @@ export default function Page() {
       ? null
       : nodes.find((node) => node.id === effectiveSelectedNodeId) ?? null;
 
-  const onConnect = useCallback(
-    (params: Connection) => {
-      if (!params.source || !params.target) {
-        return;
-      }
-
-      const newEdge = applyEdgeVisuals({
-        id: `e-${params.source}-${params.target}-${createNodeId().slice(0, 8)}`,
-        source: params.source,
-        target: params.target,
-        sourceHandle: params.sourceHandle,
-        targetHandle: params.targetHandle,
-        label: "",
-      });
-
-      setEdges((eds) => addEdge(newEdge, eds));
-    },
-    [setEdges]
-  );
-
-  const onReconnect = useCallback(
-    (oldEdge: Edge, newConnection: Connection) => {
-      setEdges((currentEdges) =>
-        reconnectEdge(oldEdge, newConnection, currentEdges).map(applyEdgeVisuals)
-      );
-    },
-    [setEdges]
-  );
-
-  const onInit = useCallback((instance: ReactFlowInstance<FlowNode, Edge>) => {
-    rfRef.current = instance;
-  }, []);
-
-  const addNodeAtEvent = useCallback(
-    (event: React.MouseEvent) => {
-      const rf = rfRef.current;
-      if (!rf) return;
-
-      const position = rf.screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-
-      const id = createNodeId();
-
-      setNodes((nds) => [
-        ...nds,
-        normalizeNode({ id, position }, normalizeGlobalOptionConfig(adminOptions)),
-      ]);
-      setSelectedNodeId(id);
-    },
-    [adminOptions, setNodes]
-  );
-
-  const onPaneClick = useCallback(
-    (event: React.MouseEvent) => {
-      if (event.detail === 2) {
-        addNodeAtEvent(event);
-        return;
-      }
-
-      setSelectedNodeId(null);
-    },
-    [addNodeAtEvent]
-  );
-
-  const onNodeClick = useCallback((_: React.MouseEvent, node: FlowNode) => {
-    setSelectedNodeId(node.id);
-  }, []);
-
   const updateSelectedField = useCallback(
-    (field: EditableMicrocopyField, value: string) => {
+    <K extends EditableMicrocopyField>(
+      field: K,
+      value: PersistableMicrocopyNodeData[K]
+    ) => {
       if (!effectiveSelectedNodeId) return;
+
+      queueUndoSnapshot();
 
       setNodes((nds) =>
         nds.map((node) =>
@@ -882,7 +1555,7 @@ export default function Page() {
         )
       );
     },
-    [effectiveSelectedNodeId, setNodes]
+    [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
   );
 
   const updatePendingOptionInput = useCallback(
@@ -897,6 +1570,8 @@ export default function Page() {
       const nextValue = pendingOptionInputs[field].trim();
       if (!nextValue) return;
 
+      queueUndoSnapshot();
+
       setAdminOptions((prev) => {
         if (prev[field].includes(nextValue)) {
           return prev;
@@ -910,11 +1585,13 @@ export default function Page() {
 
       setPendingOptionInputs((prev) => ({ ...prev, [field]: "" }));
     },
-    [pendingOptionInputs]
+    [pendingOptionInputs, queueUndoSnapshot]
   );
 
   const removeAdminOption = useCallback(
     (field: GlobalOptionField, optionValue: string) => {
+      queueUndoSnapshot();
+
       setAdminOptions((prev) => {
         const filtered = prev[field].filter((option) => option !== optionValue);
 
@@ -928,8 +1605,234 @@ export default function Page() {
         };
       });
     },
-    []
+    [queueUndoSnapshot]
   );
+
+  if (store.session.view === "account") {
+    return (
+      <main
+        style={{
+          width: "100vw",
+          height: "100vh",
+          display: "grid",
+          placeItems: "center",
+          background: "#f8fafc",
+          padding: 16,
+        }}
+      >
+        <section
+          style={{
+            width: "min(420px, 100%)",
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 12,
+            padding: 16,
+            boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
+          }}
+        >
+          <h1 style={{ marginTop: 0, marginBottom: 8 }}>FlowCopy Account</h1>
+          <p style={{ marginTop: 0, fontSize: 13, color: "#475569" }}>
+            Enter your 3-digit code to continue. For now, use <strong>000</strong>.
+          </p>
+
+          <label>
+            <div style={{ fontSize: 12, marginBottom: 6 }}>Account code</div>
+            <input
+              style={{ ...inputStyle, fontSize: 16, letterSpacing: 3, textAlign: "center" }}
+              maxLength={3}
+              value={accountCodeInput}
+              onChange={(event) =>
+                setAccountCodeInput(event.target.value.replace(/\D/g, "").slice(0, 3))
+              }
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleAccountEntry();
+                }
+              }}
+            />
+          </label>
+
+          {accountError && (
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 12,
+                color: "#b91c1c",
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: 6,
+                padding: "6px 8px",
+              }}
+            >
+              {accountError}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleAccountEntry}
+            style={{
+              ...buttonStyle,
+              marginTop: 12,
+              width: "100%",
+              fontWeight: 600,
+            }}
+          >
+            Enter Account
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  if (store.session.view === "dashboard") {
+    const projects = (activeAccount?.projects ?? [])
+      .slice()
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+    return (
+      <main
+        style={{
+          width: "100vw",
+          minHeight: "100vh",
+          background: "#f8fafc",
+          padding: 16,
+          display: "grid",
+          gap: 12,
+        }}
+      >
+        <header
+          style={{
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 10,
+            padding: 12,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <div>
+            <h1 style={{ margin: 0, fontSize: 20 }}>Project Dashboard</h1>
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b" }}>
+              Account code: <strong>{activeAccount?.code ?? SINGLE_ACCOUNT_CODE}</strong>
+            </p>
+          </div>
+
+          <button type="button" style={buttonStyle} onClick={handleSignOut}>
+            Back to Account Code
+          </button>
+        </header>
+
+        <section
+          style={{
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 10,
+            padding: 12,
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            gap: 8,
+            alignItems: "end",
+          }}
+        >
+          <label>
+            <div style={{ fontSize: 12, marginBottom: 4 }}>New project name</div>
+            <input
+              style={inputStyle}
+              placeholder="e.g. Checkout Microcopy"
+              value={newProjectName}
+              onChange={(event) => setNewProjectName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  createProjectFromDashboard();
+                }
+              }}
+            />
+          </label>
+          <button type="button" style={buttonStyle} onClick={createProjectFromDashboard}>
+            Create Project
+          </button>
+        </section>
+
+        {projects.length === 0 ? (
+          <section
+            style={{
+              border: "1px dashed #cbd5e1",
+              borderRadius: 10,
+              padding: 24,
+              textAlign: "center",
+              color: "#64748b",
+              background: "#fff",
+            }}
+          >
+            No projects yet. Create your first project above.
+          </section>
+        ) : (
+          <section
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+              gap: 10,
+            }}
+          >
+            {projects.map((project) => (
+              <button
+                key={project.id}
+                type="button"
+                onClick={() => openProject(project.id)}
+                style={{
+                  textAlign: "left",
+                  border: "1px solid #dbeafe",
+                  borderRadius: 10,
+                  padding: 12,
+                  background: "#fff",
+                  cursor: "pointer",
+                  display: "grid",
+                  gap: 6,
+                }}
+              >
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>
+                  {project.name}
+                </div>
+                <div style={{ fontSize: 12, color: "#475569" }}>
+                  Nodes: {project.canvas.nodes.length}
+                </div>
+                <div style={{ fontSize: 12, color: "#475569" }}>Project ID: {project.id}</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                  Updated: {formatDateTime(project.updatedAt)}
+                </div>
+              </button>
+            ))}
+          </section>
+        )}
+      </main>
+    );
+  }
+
+  if (!activeAccount || !activeProject) {
+    return (
+      <main
+        style={{
+          width: "100vw",
+          height: "100vh",
+          display: "grid",
+          placeItems: "center",
+          padding: 16,
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <p>Project not found. Returning to dashboard…</p>
+          <button type="button" style={buttonStyle} onClick={handleBackToDashboard}>
+            Back to Dashboard
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <div
@@ -937,7 +1840,7 @@ export default function Page() {
         width: "100vw",
         height: "100vh",
         display: "grid",
-        gridTemplateColumns: "1fr 400px",
+        gridTemplateColumns: "1fr 420px",
       }}
     >
       <div style={{ borderRight: "1px solid #e4e4e7" }}>
@@ -964,14 +1867,49 @@ export default function Page() {
         </ReactFlow>
       </div>
 
-      <aside style={{ padding: 12, overflowY: "auto" }}>
-        <div
+      <aside style={{ padding: 12, overflowY: "auto", display: "grid", gap: 10 }}>
+        <section
+          style={{
+            border: "1px solid #d4d4d8",
+            borderRadius: 8,
+            padding: 10,
+            display: "grid",
+            gap: 8,
+          }}
+        >
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" style={buttonStyle} onClick={handleBackToDashboard}>
+              ← Back to Dashboard (saves)
+            </button>
+            <button
+              type="button"
+              style={{
+                ...buttonStyle,
+                opacity: undoStack.length === 0 ? 0.5 : 1,
+                cursor: undoStack.length === 0 ? "not-allowed" : "pointer",
+              }}
+              onClick={handleUndo}
+              disabled={undoStack.length === 0}
+            >
+              Undo ({undoStack.length}/3)
+            </button>
+          </div>
+
+          <div style={{ fontSize: 12, color: "#334155" }}>
+            <strong>Project Name:</strong> {activeProject.name}
+            <br />
+            <strong>Project ID:</strong> {activeProject.id}
+            <br />
+            <strong>Last Saved:</strong> {formatDateTime(activeProject.updatedAt)}
+          </div>
+        </section>
+
+        <section
           style={{
             border: "1px solid #dbeafe",
             borderRadius: 8,
             background: "#f8fbff",
             padding: 10,
-            marginBottom: 12,
           }}
         >
           <div style={{ fontSize: 12, color: "#1e3a8a", fontWeight: 700 }}>
@@ -1016,19 +1954,19 @@ export default function Page() {
           <ol style={{ marginTop: 10, marginBottom: 0, paddingLeft: 18, fontSize: 12 }}>
             {orderedNodes.map((node) => (
               <li key={`order:${node.id}`} style={{ marginBottom: 4 }}>
-                <strong>#{ordering.sequenceByNodeId[node.id]}</strong> {node.data.title || "Untitled"}
+                <strong>#{ordering.sequenceByNodeId[node.id]}</strong>{" "}
+                {node.data.title || "Untitled"}
                 <div style={{ color: "#64748b", fontSize: 11 }}>id: {node.id}</div>
               </li>
             ))}
           </ol>
-        </div>
+        </section>
 
         <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            marginBottom: 8,
           }}
         >
           <h2 style={{ margin: 0 }}>Node Data Panel</h2>
@@ -1041,9 +1979,9 @@ export default function Page() {
           </button>
         </div>
 
-        <p style={{ marginTop: 0, fontSize: 12, color: "#52525b" }}>
+        <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#52525b" }}>
           Click a node to edit structured fields. Double-click empty canvas to add a
-          node.
+          node. All changes autosave.
         </p>
 
         {isAdminPanelOpen && (
@@ -1052,7 +1990,6 @@ export default function Page() {
               border: "1px solid #d4d4d8",
               borderRadius: 8,
               padding: 10,
-              marginBottom: 12,
               display: "grid",
               gap: 10,
             }}
