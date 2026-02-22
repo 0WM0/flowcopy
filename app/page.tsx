@@ -24,11 +24,23 @@ import {
   type NodeChange,
   type NodeProps,
   type ReactFlowInstance,
+  type OnSelectionChangeParams,
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
 
 type NodeShape = "rectangle" | "rounded" | "pill" | "diamond";
+type EdgeKind = "sequential" | "parallel";
+type EdgeLineStyle = "solid" | "dashed" | "dotted";
+
+type EdgeDirection = "forward" | "reversed";
+
+type FlowEdgeData = {
+  edge_kind: EdgeKind;
+  stroke_color?: string;
+  line_style?: EdgeLineStyle;
+  is_reversed?: boolean;
+};
 
 type MicrocopyNodeData = {
   title: string;
@@ -46,11 +58,15 @@ type MicrocopyNodeData = {
   action_type_color: string;
   card_style: string;
   node_shape: NodeShape;
+  parallel_group_id: string | null;
   sequence_index: number | null;
 };
 
 type PersistableMicrocopyNodeData = Omit<MicrocopyNodeData, "sequence_index">;
-type EditableMicrocopyField = keyof PersistableMicrocopyNodeData;
+type EditableMicrocopyField = Exclude<
+  keyof PersistableMicrocopyNodeData,
+  "parallel_group_id"
+>;
 
 type GlobalOptionConfig = {
   tone: string[];
@@ -65,6 +81,7 @@ type GlobalOptionConfig = {
 type GlobalOptionField = keyof GlobalOptionConfig;
 
 type FlowNode = Node<MicrocopyNodeData, "flowcopyNode">;
+type FlowEdge = Edge<FlowEdgeData>;
 
 type SerializableFlowNode = {
   id: string;
@@ -74,14 +91,21 @@ type SerializableFlowNode = {
 
 type PersistedCanvasState = {
   nodes: SerializableFlowNode[];
-  edges: Edge[];
+  edges: FlowEdge[];
   adminOptions: GlobalOptionConfig;
 };
 
 type FlowOrderingResult = {
   orderedNodeIds: string[];
+  sequentialOrderedNodeIds: string[];
   sequenceByNodeId: Partial<Record<string, number>>;
+  parallelGroupByNodeId: Partial<Record<string, string>>;
   hasCycle: boolean;
+};
+
+type ParallelGroupInfo = {
+  parallelGroupByNodeId: Partial<Record<string, string>>;
+  componentNodeIds: string[][];
 };
 
 type AppView = "account" | "dashboard" | "editor";
@@ -127,6 +151,7 @@ const FLAT_EXPORT_COLUMNS = [
   "node_id",
   "node_order_id",
   "sequence_index",
+  "parallel_group_id",
   "position_x",
   "position_y",
   "title",
@@ -163,7 +188,7 @@ type ImportFeedback = {
 
 type EditorSnapshot = {
   nodes: FlowNode[];
-  edges: Edge[];
+  edges: FlowEdge[];
   adminOptions: GlobalOptionConfig;
 };
 
@@ -179,24 +204,36 @@ const NODE_SHAPE_OPTIONS: NodeShape[] = [
 ];
 
 const EDGE_STROKE_COLOR = "#1d4ed8";
+const PARALLEL_EDGE_STROKE_COLOR = "#64748b";
+
+const EDGE_LINE_STYLE_OPTIONS: EdgeLineStyle[] = ["solid", "dashed", "dotted"];
+
+const EDGE_LINE_STYLE_DASH: Record<EdgeLineStyle, string | undefined> = {
+  solid: undefined,
+  dashed: "6 4",
+  dotted: "2 4",
+};
 
 const EDGE_BASE_STYLE: React.CSSProperties = {
   stroke: EDGE_STROKE_COLOR,
   strokeWidth: 2.6,
 };
 
+const SEQUENTIAL_SOURCE_HANDLE_ID = "s-src";
+const SEQUENTIAL_TARGET_HANDLE_ID = "s-tgt";
+const PARALLEL_SOURCE_HANDLE_ID = "p-src";
+const PARALLEL_TARGET_HANDLE_ID = "p-tgt";
+const PARALLEL_ALT_SOURCE_HANDLE_ID = "p-src-top";
+const PARALLEL_ALT_TARGET_HANDLE_ID = "p-tgt-bottom";
+
+const SEQUENTIAL_SELECTED_STROKE_COLOR = "#0f172a";
+const PARALLEL_SELECTED_STROKE_COLOR = "#334155";
+
 const DIAMOND_CLIP_PATH = "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)";
 
 const DEFAULT_EDGE_OPTIONS: DefaultEdgeOptions = {
   type: "smoothstep",
   animated: true,
-  markerEnd: {
-    type: MarkerType.ArrowClosed,
-    color: EDGE_STROKE_COLOR,
-    width: 20,
-    height: 20,
-  },
-  style: EDGE_BASE_STYLE,
 };
 
 const GLOBAL_OPTION_FIELDS: GlobalOptionField[] = [
@@ -308,6 +345,93 @@ const GLOBAL_OPTION_TO_NODE_FIELD: Record<GlobalOptionField, EditableMicrocopyFi
 
 const isEditorSurfaceMode = (value: unknown): value is EditorSurfaceMode =>
   value === "canvas" || value === "table";
+
+const isEdgeKind = (value: unknown): value is EdgeKind =>
+  value === "sequential" || value === "parallel";
+
+const isEdgeLineStyle = (value: unknown): value is EdgeLineStyle =>
+  value === "solid" || value === "dashed" || value === "dotted";
+
+const getDefaultEdgeStrokeColor = (edgeKind: EdgeKind): string =>
+  edgeKind === "parallel" ? PARALLEL_EDGE_STROKE_COLOR : EDGE_STROKE_COLOR;
+
+const inferEdgeKindFromHandles = (
+  sourceHandle?: string | null,
+  targetHandle?: string | null
+): EdgeKind =>
+  (typeof sourceHandle === "string" && sourceHandle.startsWith("p-")) ||
+  (typeof targetHandle === "string" && targetHandle.startsWith("p-"))
+    ? "parallel"
+    : "sequential";
+
+const normalizeEdgeData = (
+  value: unknown,
+  fallbackKind: EdgeKind
+): FlowEdgeData => {
+  const source =
+    value && typeof value === "object" ? (value as Partial<FlowEdgeData>) : undefined;
+
+  const edge_kind = isEdgeKind(source?.edge_kind) ? source.edge_kind : fallbackKind;
+  const line_style = isEdgeLineStyle(source?.line_style)
+    ? source.line_style
+    : "solid";
+  const stroke_color =
+    typeof source?.stroke_color === "string" && source.stroke_color.trim().length > 0
+      ? source.stroke_color
+      : getDefaultEdgeStrokeColor(edge_kind);
+
+  return {
+    edge_kind,
+    stroke_color,
+    line_style,
+    is_reversed:
+      edge_kind === "sequential" && typeof source?.is_reversed === "boolean"
+        ? source.is_reversed
+        : undefined,
+  };
+};
+
+const getEdgeDirection = (edgeData: FlowEdgeData): EdgeDirection =>
+  edgeData.edge_kind === "sequential" && edgeData.is_reversed ? "reversed" : "forward";
+
+const getEdgeKind = (
+  edge: Pick<FlowEdge, "data" | "sourceHandle" | "targetHandle">
+): EdgeKind =>
+  isEdgeKind(edge.data?.edge_kind)
+    ? edge.data.edge_kind
+    : inferEdgeKindFromHandles(edge.sourceHandle, edge.targetHandle);
+
+const isSequentialEdge = (
+  edge: Pick<FlowEdge, "data" | "sourceHandle" | "targetHandle">
+): boolean => getEdgeKind(edge) === "sequential";
+
+const isParallelEdge = (
+  edge: Pick<FlowEdge, "data" | "sourceHandle" | "targetHandle">
+): boolean => getEdgeKind(edge) === "parallel";
+
+const isEditableEventTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  const tagName = target.tagName;
+  return (
+    tagName === "INPUT" ||
+    tagName === "TEXTAREA" ||
+    tagName === "SELECT" ||
+    target.closest("[contenteditable='true']") !== null
+  );
+};
+
+const hasNonSelectionNodeChanges = (changes: NodeChange<FlowNode>[]): boolean =>
+  changes.some((change) => change.type !== "select");
+
+const hasNonSelectionEdgeChanges = (changes: EdgeChange<FlowEdge>[]): boolean =>
+  changes.some((change) => change.type !== "select");
 
 const escapeCsvCell = (value: string): string => {
   if (/[",\n\r]/.test(value)) {
@@ -603,7 +727,7 @@ const createFlatExportRows = ({
   nodes: FlowNode[];
   ordering: FlowOrderingResult;
   adminOptions: GlobalOptionConfig;
-  edges: Edge[];
+  edges: FlowEdge[];
 }): FlatExportRow[] => {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
 
@@ -632,6 +756,9 @@ const createFlatExportRows = ({
       node_id: node?.id ?? "",
       node_order_id: sequence !== null ? String(sequence) : "",
       sequence_index: sequence !== null ? String(sequence) : "",
+      parallel_group_id:
+        node?.data.parallel_group_id ??
+        (node ? ordering.parallelGroupByNodeId[node.id] ?? "" : ""),
       position_x: node ? String(node.position.x) : "",
       position_y: node ? String(node.position.y) : "",
       title: node?.data.title ?? "",
@@ -701,13 +828,18 @@ const cloneFlowNodes = (nodes: FlowNode[]): FlowNode[] =>
     data: { ...node.data },
   }));
 
-const cloneEdges = (edges: Edge[]): Edge[] =>
+const cloneEdges = (edges: FlowEdge[]): FlowEdge[] =>
   edges.map((edge) => ({
     ...edge,
+    data: edge.data ? { ...edge.data } : edge.data,
     markerEnd:
       edge.markerEnd && typeof edge.markerEnd === "object"
         ? { ...edge.markerEnd }
         : edge.markerEnd,
+    markerStart:
+      edge.markerStart && typeof edge.markerStart === "object"
+        ? { ...edge.markerStart }
+        : edge.markerStart,
     style:
       edge.style && typeof edge.style === "object" ? { ...edge.style } : edge.style,
     labelStyle:
@@ -786,14 +918,55 @@ const sanitizeSerializableFlowNodes = (value: unknown): SerializableFlowNode[] =
   });
 };
 
-const sanitizeEdgesForStorage = (value: unknown): Edge[] => {
+const sanitizeEdgesForStorage = (value: unknown): FlowEdge[] => {
   if (!Array.isArray(value)) {
     return [];
   }
 
-  return value
-    .filter((item): item is Edge => Boolean(item && typeof item === "object"))
-    .map((edge) => ({ ...edge }));
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+
+    const sourceEdge = item as Partial<FlowEdge>;
+    const source =
+      typeof sourceEdge.source === "string" ? sourceEdge.source.trim() : "";
+    const target =
+      typeof sourceEdge.target === "string" ? sourceEdge.target.trim() : "";
+
+    if (!source || !target) {
+      return [];
+    }
+
+    const fallbackKind = inferEdgeKindFromHandles(
+      sourceEdge.sourceHandle,
+      sourceEdge.targetHandle
+    );
+
+    const markerStart =
+      sourceEdge.markerStart && typeof sourceEdge.markerStart === "object"
+        ? { ...sourceEdge.markerStart }
+        : sourceEdge.markerStart;
+    const markerEnd =
+      sourceEdge.markerEnd && typeof sourceEdge.markerEnd === "object"
+        ? { ...sourceEdge.markerEnd }
+        : sourceEdge.markerEnd;
+
+    return [
+      {
+        ...sourceEdge,
+        source,
+        target,
+        id:
+          typeof sourceEdge.id === "string" && sourceEdge.id.trim().length > 0
+            ? sourceEdge.id
+            : `e-${source}-${target}`,
+        data: normalizeEdgeData(sourceEdge.data, fallbackKind),
+        markerStart,
+        markerEnd,
+      } as FlowEdge,
+    ];
+  });
 };
 
 const cleanedOptions = (options: string[]): string[] =>
@@ -843,6 +1016,11 @@ const createDefaultNodeData = (
     firstOptionOrFallback(globalOptions.action_type_color, "#4f46e5"),
   card_style: overrides.card_style ?? firstOptionOrFallback(globalOptions.card_style, "default"),
   node_shape: isNodeShape(overrides.node_shape) ? overrides.node_shape : "rectangle",
+  parallel_group_id:
+    typeof overrides.parallel_group_id === "string" &&
+    overrides.parallel_group_id.trim().length > 0
+      ? overrides.parallel_group_id.trim()
+      : null,
   sequence_index: null,
 });
 
@@ -856,16 +1034,62 @@ const normalizeNode = (
   data: createDefaultNodeData(globalOptions, node.data ?? {}),
 });
 
-const applyEdgeVisuals = (edge: Edge): Edge => ({
-  ...edge,
-  type: edge.type ?? DEFAULT_EDGE_OPTIONS.type,
-  animated: edge.animated ?? DEFAULT_EDGE_OPTIONS.animated,
-  markerEnd: edge.markerEnd ?? DEFAULT_EDGE_OPTIONS.markerEnd,
-  style: {
+const applyEdgeVisuals = (
+  edge: FlowEdge,
+  options: { selected?: boolean } = {}
+): FlowEdge => {
+  const edgeKind = getEdgeKind(edge);
+  const normalizedData = normalizeEdgeData(edge.data, edgeKind);
+  const edgeDirection = getEdgeDirection(normalizedData);
+  const dashPattern = EDGE_LINE_STYLE_DASH[normalizedData.line_style ?? "solid"];
+  const baseStroke = normalizedData.stroke_color ?? getDefaultEdgeStrokeColor(edgeKind);
+  const selected = options.selected ?? false;
+  const selectedStroke =
+    edgeKind === "parallel"
+      ? PARALLEL_SELECTED_STROKE_COLOR
+      : SEQUENTIAL_SELECTED_STROKE_COLOR;
+
+  const sequentialArrowMarker = {
+    type: MarkerType.ArrowClosed,
+    color: selected ? selectedStroke : baseStroke,
+    width: 16,
+    height: 16,
+  };
+
+  const style: React.CSSProperties = {
     ...EDGE_BASE_STYLE,
     ...(edge.style ?? {}),
-  },
-});
+    stroke: selected ? selectedStroke : baseStroke,
+    strokeWidth: selected ? 3.4 : EDGE_BASE_STYLE.strokeWidth,
+    strokeDasharray: dashPattern,
+    opacity: selected ? 1 : edgeKind === "parallel" ? 0.9 : 1,
+  };
+
+  return {
+    ...edge,
+    data: normalizedData,
+    type: edge.type ?? DEFAULT_EDGE_OPTIONS.type,
+    animated:
+      edgeKind === "parallel"
+        ? false
+        : typeof edge.animated === "boolean"
+          ? edge.animated
+          : true,
+    markerStart:
+      edgeKind === "parallel"
+        ? undefined
+        : edgeDirection === "reversed"
+          ? edge.markerStart ?? sequentialArrowMarker
+          : undefined,
+    markerEnd:
+      edgeKind === "parallel"
+        ? undefined
+        : edgeDirection === "reversed"
+          ? undefined
+          : edge.markerEnd ?? sequentialArrowMarker,
+    style,
+  };
+};
 
 const sanitizePersistedNodes = (
   persistedNodes: SerializableFlowNode[],
@@ -896,7 +1120,7 @@ const sanitizePersistedNodes = (
   });
 };
 
-const sanitizeEdges = (persistedEdges: Edge[], nodes: FlowNode[]): Edge[] => {
+const sanitizeEdges = (persistedEdges: FlowEdge[], nodes: FlowNode[]): FlowEdge[] => {
   const validNodeIds = new Set(nodes.map((node) => node.id));
   const usedEdgeIds = new Set<string>();
 
@@ -924,12 +1148,15 @@ const sanitizeEdges = (persistedEdges: Edge[], nodes: FlowNode[]): Edge[] => {
 
     usedEdgeIds.add(uniqueId);
 
+    const fallbackKind = inferEdgeKindFromHandles(edge.sourceHandle, edge.targetHandle);
+
     return [
       applyEdgeVisuals({
         ...edge,
         id: uniqueId,
         source,
         target,
+        data: normalizeEdgeData(edge.data, fallbackKind),
       }),
     ];
   });
@@ -947,8 +1174,99 @@ const compareNodeOrder = (a: FlowNode, b: FlowNode): number => {
   return a.id.localeCompare(b.id);
 };
 
-const computeFlowOrdering = (nodes: FlowNode[], edges: Edge[]): FlowOrderingResult => {
+const buildParallelGroupId = (componentNodeIds: string[]): string =>
+  `PG-${componentNodeIds.slice().sort((a, b) => a.localeCompare(b)).join("|")}`;
+
+const computeParallelGroups = (
+  nodes: FlowNode[],
+  edges: FlowEdge[]
+): ParallelGroupInfo => {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const adjacency = new Map<string, Set<string>>();
+  const visited = new Set<string>();
+
+  nodes.forEach((node) => {
+    adjacency.set(node.id, new Set<string>());
+  });
+
+  edges.forEach((edge) => {
+    if (!isParallelEdge(edge)) {
+      return;
+    }
+
+    if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) {
+      return;
+    }
+
+    adjacency.get(edge.source)?.add(edge.target);
+    adjacency.get(edge.target)?.add(edge.source);
+  });
+
+  const sortedNodes = nodes.slice().sort(compareNodeOrder);
+  const componentNodeIds: string[][] = [];
+  const parallelGroupByNodeId: Partial<Record<string, string>> = {};
+
+  sortedNodes.forEach((node) => {
+    if (visited.has(node.id)) {
+      return;
+    }
+
+    visited.add(node.id);
+
+    const neighbors = adjacency.get(node.id);
+    if (!neighbors || neighbors.size === 0) {
+      return;
+    }
+
+    const component: string[] = [];
+    const stack = [node.id];
+
+    while (stack.length > 0) {
+      const currentNodeId = stack.pop();
+      if (!currentNodeId) {
+        continue;
+      }
+
+      component.push(currentNodeId);
+
+      const currentNeighbors = Array.from(adjacency.get(currentNodeId) ?? []).sort((a, b) =>
+        a.localeCompare(b)
+      );
+
+      currentNeighbors.forEach((neighborNodeId) => {
+        if (visited.has(neighborNodeId)) {
+          return;
+        }
+
+        visited.add(neighborNodeId);
+        stack.push(neighborNodeId);
+      });
+    }
+
+    const normalizedComponent = component.sort((a, b) => a.localeCompare(b));
+    const groupId = buildParallelGroupId(normalizedComponent);
+
+    componentNodeIds.push(normalizedComponent);
+    normalizedComponent.forEach((nodeId) => {
+      parallelGroupByNodeId[nodeId] = groupId;
+    });
+  });
+
+  componentNodeIds.sort((a, b) => {
+    const first = a[0] ?? "";
+    const second = b[0] ?? "";
+    return first.localeCompare(second);
+  });
+
+  return {
+    parallelGroupByNodeId,
+    componentNodeIds,
+  };
+};
+
+const computeFlowOrdering = (nodes: FlowNode[], edges: FlowEdge[]): FlowOrderingResult => {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const sequentialEdges = edges.filter((edge) => isSequentialEdge(edge));
   const adjacency = new Map<string, Set<string>>();
   const indegree = new Map<string, number>();
 
@@ -957,7 +1275,7 @@ const computeFlowOrdering = (nodes: FlowNode[], edges: Edge[]): FlowOrderingResu
     indegree.set(node.id, 0);
   });
 
-  edges.forEach((edge) => {
+  sequentialEdges.forEach((edge) => {
     if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) {
       return;
     }
@@ -1019,9 +1337,41 @@ const computeFlowOrdering = (nodes: FlowNode[], edges: Edge[]): FlowOrderingResu
     {}
   );
 
+  const parallelGroupInfo = computeParallelGroups(nodes, edges);
+  parallelGroupInfo.componentNodeIds.forEach((component) => {
+    const componentIndices = component
+      .map((nodeId) => sequenceByNodeId[nodeId])
+      .filter((value): value is number => typeof value === "number");
+
+    if (componentIndices.length === 0) {
+      return;
+    }
+
+    const normalizedIndex = Math.min(...componentIndices);
+    component.forEach((nodeId) => {
+      sequenceByNodeId[nodeId] = normalizedIndex;
+    });
+  });
+
+  const orderedNodeIdsBySequence = nodes
+    .slice()
+    .sort((a, b) => {
+      const sequenceA = sequenceByNodeId[a.id] ?? Number.MAX_SAFE_INTEGER;
+      const sequenceB = sequenceByNodeId[b.id] ?? Number.MAX_SAFE_INTEGER;
+
+      if (sequenceA !== sequenceB) {
+        return sequenceA - sequenceB;
+      }
+
+      return compareNodeOrder(a, b);
+    })
+    .map((node) => node.id);
+
   return {
-    orderedNodeIds,
+    orderedNodeIds: orderedNodeIdsBySequence,
+    sequentialOrderedNodeIds: orderedNodeIds,
     sequenceByNodeId,
+    parallelGroupByNodeId: parallelGroupInfo.parallelGroupByNodeId,
     hasCycle,
   };
 };
@@ -1045,12 +1395,15 @@ const hashToBase36 = (value: string): string => {
 const computeProjectSequenceId = (
   orderedNodeIds: string[],
   nodes: FlowNode[],
-  edges: Edge[]
+  edges: FlowEdge[]
 ): string => {
   const validNodeIds = new Set(nodes.map((node) => node.id));
 
   const edgeSignature = edges
-    .filter((edge) => validNodeIds.has(edge.source) && validNodeIds.has(edge.target))
+    .filter(
+      (edge) =>
+        isSequentialEdge(edge) && validNodeIds.has(edge.source) && validNodeIds.has(edge.target)
+    )
     .map((edge) => `${edge.source}->${edge.target}`)
     .sort()
     .join("|");
@@ -1151,7 +1504,10 @@ const getNodeContentStyle = (shape: NodeShape): React.CSSProperties => {
   };
 };
 
-const serializeNodesForStorage = (nodes: FlowNode[]): SerializableFlowNode[] =>
+const serializeNodesForStorage = (
+  nodes: FlowNode[],
+  parallelGroupByNodeId: Partial<Record<string, string>> = {}
+): SerializableFlowNode[] =>
   nodes.map((node) => {
     const persistableData: PersistableMicrocopyNodeData = {
       title: node.data.title,
@@ -1169,6 +1525,8 @@ const serializeNodesForStorage = (nodes: FlowNode[]): SerializableFlowNode[] =>
       action_type_color: node.data.action_type_color,
       card_style: node.data.card_style,
       node_shape: node.data.node_shape,
+      parallel_group_id:
+        parallelGroupByNodeId[node.id] ?? node.data.parallel_group_id ?? null,
     };
 
     return {
@@ -1431,7 +1789,7 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
 };
 
 function FlowCopyNode({ id, data, selected, onBeforeChange }: FlowCopyNodeProps) {
-  const { setNodes } = useReactFlow<FlowNode, Edge>();
+  const { setNodes } = useReactFlow<FlowNode, FlowEdge>();
 
   const updateField = useCallback(
     <K extends EditableMicrocopyField>(
@@ -1450,7 +1808,21 @@ function FlowCopyNode({ id, data, selected, onBeforeChange }: FlowCopyNodeProps)
 
   return (
     <div style={getNodeShapeStyle(data.node_shape, selected, data.action_type_color)}>
-      <Handle type="target" position={Position.Left} />
+      <Handle
+        type="target"
+        position={Position.Left}
+        id={SEQUENTIAL_TARGET_HANDLE_ID}
+      />
+      <Handle
+        type="target"
+        position={Position.Top}
+        id={PARALLEL_TARGET_HANDLE_ID}
+      />
+      <Handle
+        type="source"
+        position={Position.Top}
+        id={PARALLEL_ALT_SOURCE_HANDLE_ID}
+      />
 
       {data.node_shape === "diamond" && (
         <>
@@ -1504,7 +1876,21 @@ function FlowCopyNode({ id, data, selected, onBeforeChange }: FlowCopyNodeProps)
         <div style={{ marginTop: 8, fontSize: 10, color: "#71717a" }}>id: {id}</div>
       </div>
 
-      <Handle type="source" position={Position.Right} />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id={SEQUENTIAL_SOURCE_HANDLE_ID}
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id={PARALLEL_SOURCE_HANDLE_ID}
+      />
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id={PARALLEL_ALT_TARGET_HANDLE_ID}
+      />
     </div>
   );
 }
@@ -1516,8 +1902,9 @@ export default function Page() {
   const [newProjectName, setNewProjectName] = useState("");
 
   const [nodes, setNodes] = useNodesState<FlowNode>([]);
-  const [edges, setEdges] = useEdgesState<Edge>([]);
+  const [edges, setEdges] = useEdgesState<FlowEdge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [adminOptions, setAdminOptions] =
     useState<GlobalOptionConfig>(DEFAULT_GLOBAL_OPTIONS);
   const [pendingOptionInputs, setPendingOptionInputs] = useState<
@@ -1527,7 +1914,7 @@ export default function Page() {
   const [undoStack, setUndoStack] = useState<EditorSnapshot[]>([]);
   const [transferFeedback, setTransferFeedback] = useState<ImportFeedback | null>(null);
 
-  const rfRef = useRef<ReactFlowInstance<FlowNode, Edge> | null>(null);
+  const rfRef = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const hasLoadedStoreRef = useRef(false);
   const undoCaptureTimeoutRef = useRef<number | null>(null);
@@ -1595,6 +1982,7 @@ export default function Page() {
       setNodes(hydratedNodes);
       setEdges(hydratedEdges);
       setSelectedNodeId(hydratedNodes[0]?.id ?? null);
+      setSelectedEdgeId(null);
       setUndoStack([]);
       setPendingOptionInputs(createEmptyPendingOptionInputs());
     },
@@ -1608,7 +1996,8 @@ export default function Page() {
       return;
     }
 
-    const serializedNodes = serializeNodesForStorage(nodes);
+    const parallelGroupByNodeId = computeParallelGroups(nodes, edges).parallelGroupByNodeId;
+    const serializedNodes = serializeNodesForStorage(nodes, parallelGroupByNodeId);
     const serializedEdges = cloneEdges(edges);
     const serializedAdminOptions = cloneGlobalOptions(adminOptions);
     const updatedAt = new Date().toISOString();
@@ -1711,6 +2100,12 @@ export default function Page() {
 
         return previousSnapshot.nodes[0]?.id ?? null;
       });
+      setSelectedEdgeId((currentSelected) =>
+        currentSelected &&
+        previousSnapshot.edges.some((edge) => edge.id === currentSelected)
+          ? currentSelected
+          : null
+      );
 
       return prev.slice(0, -1);
     });
@@ -1869,19 +2264,23 @@ export default function Page() {
         return;
       }
 
-      queueUndoSnapshot();
+      if (hasNonSelectionNodeChanges(changes)) {
+        queueUndoSnapshot();
+      }
       setNodes((currentNodes) => applyNodeChanges(changes, currentNodes));
     },
     [queueUndoSnapshot, setNodes]
   );
 
   const onEdgesChange = useCallback(
-    (changes: EdgeChange<Edge>[]) => {
+    (changes: EdgeChange<FlowEdge>[]) => {
       if (changes.length === 0) {
         return;
       }
 
-      queueUndoSnapshot();
+      if (hasNonSelectionEdgeChanges(changes)) {
+        queueUndoSnapshot();
+      }
       setEdges((currentEdges) => applyEdgeChanges(changes, currentEdges));
     },
     [queueUndoSnapshot, setEdges]
@@ -1910,18 +2309,23 @@ export default function Page() {
   );
 
   const onReconnect = useCallback(
-    (oldEdge: Edge, newConnection: Connection) => {
+    (oldEdge: FlowEdge, newConnection: Connection) => {
       queueUndoSnapshot();
       setEdges((currentEdges) =>
-        reconnectEdge(oldEdge, newConnection, currentEdges).map(applyEdgeVisuals)
+        reconnectEdge<FlowEdge>(oldEdge, newConnection, currentEdges).map((edge) =>
+          applyEdgeVisuals(edge)
+        )
       );
     },
     [queueUndoSnapshot, setEdges]
   );
 
-  const onInit = useCallback((instance: ReactFlowInstance<FlowNode, Edge>) => {
+  const onInit = useCallback(
+    (instance: ReactFlowInstance<FlowNode, FlowEdge>) => {
     rfRef.current = instance;
-  }, []);
+    },
+    []
+  );
 
   const addNodeAtEvent = useCallback(
     (event: React.MouseEvent) => {
@@ -1954,19 +2358,95 @@ export default function Page() {
       }
 
       setSelectedNodeId(null);
+      setSelectedEdgeId(null);
     },
     [addNodeAtEvent]
   );
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: FlowNode) => {
     setSelectedNodeId(node.id);
+    setSelectedEdgeId(null);
   }, []);
+
+  const onEdgeClick = useCallback((_: React.MouseEvent, edge: FlowEdge) => {
+    setSelectedEdgeId(edge.id);
+    setSelectedNodeId(null);
+  }, []);
+
+  const onSelectionChange = useCallback(
+    ({ nodes: selectedNodes, edges: selectedEdges }: OnSelectionChangeParams<FlowNode, FlowEdge>) => {
+      const nextSelectedEdgeId = selectedEdges[0]?.id ?? null;
+      const nextSelectedNodeId = selectedNodes[0]?.id ?? null;
+
+      setSelectedEdgeId(nextSelectedEdgeId);
+      setSelectedNodeId(nextSelectedEdgeId ? null : nextSelectedNodeId);
+    },
+    []
+  );
+
+  const handleDeleteSelection = useCallback(() => {
+    if (selectedEdgeId) {
+      queueUndoSnapshot();
+      setEdges((currentEdges) => currentEdges.filter((edge) => edge.id !== selectedEdgeId));
+      setSelectedEdgeId(null);
+      return;
+    }
+
+    if (!selectedNodeId) {
+      return;
+    }
+
+    queueUndoSnapshot();
+    setNodes((currentNodes) => currentNodes.filter((node) => node.id !== selectedNodeId));
+    setEdges((currentEdges) =>
+      currentEdges.filter(
+        (edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId
+      )
+    );
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+  }, [queueUndoSnapshot, selectedEdgeId, selectedNodeId, setEdges, setNodes]);
+
+  useEffect(() => {
+    if (store.session.view !== "editor" || store.session.editorMode !== "canvas") {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") {
+        return;
+      }
+
+      if (isEditableEventTarget(event.target)) {
+        return;
+      }
+
+      if (!selectedEdgeId && !selectedNodeId) {
+        return;
+      }
+
+      event.preventDefault();
+      handleDeleteSelection();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [
+    handleDeleteSelection,
+    selectedEdgeId,
+    selectedNodeId,
+    store.session.editorMode,
+    store.session.view,
+  ]);
 
   const ordering = useMemo(() => computeFlowOrdering(nodes, edges), [nodes, edges]);
 
   const projectSequenceId = useMemo(
-    () => computeProjectSequenceId(ordering.orderedNodeIds, nodes, edges),
-    [edges, nodes, ordering.orderedNodeIds]
+    () => computeProjectSequenceId(ordering.sequentialOrderedNodeIds, nodes, edges),
+    [edges, nodes, ordering.sequentialOrderedNodeIds]
   );
 
   const nodesWithSequence = useMemo(
@@ -1984,27 +2464,33 @@ export default function Page() {
   const displayEdges = useMemo(
     () =>
       edges.map((edge) => {
+        const edgeKind = getEdgeKind(edge);
+        const edgeIsSequential = edgeKind === "sequential";
+        const edgeIsSelected = selectedEdgeId === edge.id || Boolean(edge.selected);
         const sourceOrder = ordering.sequenceByNodeId[edge.source];
         const targetOrder = ordering.sequenceByNodeId[edge.target];
 
         return applyEdgeVisuals({
           ...edge,
           label:
-            sourceOrder && targetOrder ? `${sourceOrder} → ${targetOrder}` : edge.label,
+            edgeIsSequential && sourceOrder && targetOrder
+              ? `${sourceOrder} → ${targetOrder}`
+              : undefined,
           labelStyle: {
-            fill: EDGE_STROKE_COLOR,
+            fill:
+              edgeKind === "parallel" ? PARALLEL_EDGE_STROKE_COLOR : EDGE_STROKE_COLOR,
             fontWeight: 700,
             fontSize: 11,
           },
           labelBgStyle: {
-            fill: "#eff6ff",
+            fill: edgeKind === "parallel" ? "#f1f5f9" : "#eff6ff",
             fillOpacity: 0.95,
           },
           labelBgPadding: [4, 2],
           labelBgBorderRadius: 4,
-        });
+        }, { selected: edgeIsSelected });
       }),
-    [edges, ordering.sequenceByNodeId]
+    [edges, ordering.sequenceByNodeId, selectedEdgeId]
   );
 
   const orderedNodes = useMemo(() => {
@@ -2018,12 +2504,53 @@ export default function Page() {
   const effectiveSelectedNodeId =
     selectedNodeId && nodes.some((node) => node.id === selectedNodeId)
       ? selectedNodeId
-      : nodes[0]?.id ?? null;
+      : null;
+
+  const effectiveSelectedEdgeId =
+    selectedEdgeId && edges.some((edge) => edge.id === selectedEdgeId)
+      ? selectedEdgeId
+      : null;
 
   const selectedNode =
     effectiveSelectedNodeId === null
       ? null
       : nodes.find((node) => node.id === effectiveSelectedNodeId) ?? null;
+
+  const selectedEdge =
+    effectiveSelectedEdgeId === null
+      ? null
+      : edges.find((edge) => edge.id === effectiveSelectedEdgeId) ?? null;
+
+  const normalizedSelectedEdgeData =
+    selectedEdge === null
+      ? null
+      : normalizeEdgeData(selectedEdge.data, getEdgeKind(selectedEdge));
+
+  const updateSelectedEdgeData = useCallback(
+    (updater: (currentData: FlowEdgeData, edge: FlowEdge) => FlowEdgeData) => {
+      if (!selectedEdgeId) {
+        return;
+      }
+
+      queueUndoSnapshot();
+
+      setEdges((currentEdges) =>
+        currentEdges.map((edge) => {
+          if (edge.id !== selectedEdgeId) {
+            return edge;
+          }
+
+          const currentData = normalizeEdgeData(edge.data, getEdgeKind(edge));
+
+          return applyEdgeVisuals({
+            ...edge,
+            data: updater(currentData, edge),
+          });
+        })
+      );
+    },
+    [queueUndoSnapshot, selectedEdgeId, setEdges]
+  );
 
   const updateSelectedField = useCallback(
     <K extends EditableMicrocopyField>(
@@ -2100,8 +2627,9 @@ export default function Page() {
       orderedNodes.map((node) => ({
         node,
         sequenceIndex: ordering.sequenceByNodeId[node.id] ?? null,
+        parallelGroupId: ordering.parallelGroupByNodeId[node.id] ?? null,
       })),
-    [orderedNodes, ordering.sequenceByNodeId]
+    [orderedNodes, ordering.parallelGroupByNodeId, ordering.sequenceByNodeId]
   );
 
   const handleEditorModeChange = useCallback(
@@ -2374,6 +2902,7 @@ export default function Page() {
         setNodes(hydratedNodes);
         setEdges(hydratedEdges);
         setSelectedNodeId(hydratedNodes[0]?.id ?? null);
+        setSelectedEdgeId(null);
 
         setTransferFeedback({
           type: "success",
@@ -2393,6 +2922,7 @@ export default function Page() {
       queueUndoSnapshot,
       setEdges,
       setNodes,
+      setSelectedEdgeId,
       setSelectedNodeId,
     ]
   );
@@ -2728,7 +3258,10 @@ export default function Page() {
               <tr>
                 <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>node_id</th>
                 <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
-                  node_order_id
+                  sequence_index
+                </th>
+                <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                  parallel_group_id
                 </th>
                 <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>position_x</th>
                 <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>position_y</th>
@@ -2747,20 +3280,23 @@ export default function Page() {
               {projectTableRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={4 + TABLE_EDITABLE_FIELDS.length}
+                    colSpan={5 + TABLE_EDITABLE_FIELDS.length}
                     style={{ border: "1px solid #e4e4e7", padding: 12, fontSize: 12 }}
                   >
                     No nodes in this project yet. Switch to Canvas View to add nodes.
                   </td>
                 </tr>
               ) : (
-                projectTableRows.map(({ node, sequenceIndex }) => (
+                projectTableRows.map(({ node, sequenceIndex, parallelGroupId }) => (
                   <tr key={`table-row:${node.id}`}>
                     <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
                       <code>{node.id}</code>
                     </td>
                     <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
                       {sequenceIndex ?? ""}
+                    </td>
+                    <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                      {parallelGroupId ?? ""}
                     </td>
                     <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
                       {Math.round(node.position.x)}
@@ -2843,7 +3379,7 @@ export default function Page() {
       }}
     >
       <div style={{ borderRight: "1px solid #e4e4e7" }}>
-        <ReactFlow<FlowNode, Edge>
+        <ReactFlow<FlowNode, FlowEdge>
           nodes={nodesWithSequence}
           edges={displayEdges}
           nodeTypes={nodeTypes}
@@ -2856,6 +3392,8 @@ export default function Page() {
           onReconnect={onReconnect}
           onPaneClick={onPaneClick}
           onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
+          onSelectionChange={onSelectionChange}
           zoomOnDoubleClick={false}
           fitView
           connectionLineStyle={EDGE_BASE_STYLE}
@@ -3144,9 +3682,114 @@ export default function Page() {
           </section>
         )}
 
-        {!selectedNode ? (
+        {selectedEdge && normalizedSelectedEdgeData ? (
+          <section
+            style={{
+              border: "1px solid #cbd5e1",
+              borderRadius: 8,
+              padding: 10,
+              display: "grid",
+              gap: 8,
+              background: "#f8fafc",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 14 }}>Edge Inspector</h3>
+              <button type="button" style={buttonStyle} onClick={handleDeleteSelection}>
+                Delete Edge
+              </button>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#334155" }}>
+              <strong>edge_id:</strong> {selectedEdge.id}
+              <br />
+              <strong>source → target:</strong> {selectedEdge.source} → {selectedEdge.target}
+            </div>
+
+            <label>
+              <div style={{ fontSize: 12, marginBottom: 4 }}>Kind</div>
+              <input
+                style={inputStyle}
+                value={normalizedSelectedEdgeData.edge_kind}
+                readOnly
+              />
+            </label>
+
+            <label>
+              <div style={{ fontSize: 12, marginBottom: 4 }}>Color</div>
+              <input
+                style={inputStyle}
+                type="color"
+                value={normalizedSelectedEdgeData.stroke_color ?? "#1d4ed8"}
+                onChange={(event) => {
+                  const nextColor = event.target.value;
+                  updateSelectedEdgeData((currentData) => ({
+                    ...currentData,
+                    stroke_color: nextColor,
+                  }));
+                }}
+              />
+            </label>
+
+            <label>
+              <div style={{ fontSize: 12, marginBottom: 4 }}>Line Style</div>
+              <select
+                style={inputStyle}
+                value={normalizedSelectedEdgeData.line_style ?? "solid"}
+                onChange={(event) => {
+                  const nextStyle =
+                    (event.target.value as EdgeLineStyle) ?? "solid";
+                  updateSelectedEdgeData((currentData) => ({
+                    ...currentData,
+                    line_style: nextStyle,
+                  }));
+                }}
+              >
+                {EDGE_LINE_STYLE_OPTIONS.map((option) => (
+                  <option key={`edge-line-style:${option}`} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {normalizedSelectedEdgeData.edge_kind === "sequential" && (
+              <label>
+                <div style={{ fontSize: 12, marginBottom: 4 }}>Direction</div>
+                <select
+                  style={inputStyle}
+                  value={
+                    normalizedSelectedEdgeData.is_reversed ? "reversed" : "forward"
+                  }
+                  onChange={(event) => {
+                    const nextDirection =
+                      (event.target.value as EdgeDirection) ?? "forward";
+                    updateSelectedEdgeData((currentData) => ({
+                      ...currentData,
+                      is_reversed: nextDirection === "reversed",
+                    }));
+                  }}
+                >
+                  <option value="forward">forward</option>
+                  <option value="reversed">reversed</option>
+                </select>
+              </label>
+            )}
+
+            <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
+              Tip: press Delete / Backspace to remove this edge.
+            </p>
+          </section>
+        ) : !selectedNode ? (
           <p style={{ fontSize: 13, color: "#71717a" }}>
-            No node selected. Click any node on the canvas.
+            No selection. Click a node or edge on the canvas.
           </p>
         ) : (
           <div style={{ display: "grid", gap: 10 }}>

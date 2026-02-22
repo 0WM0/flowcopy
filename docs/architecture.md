@@ -38,6 +38,129 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+FlowCopy’s editor remains a local-first project canvas/table system, but this session expanded the graph model from a single generic connection type into a typed-edge interaction model.
+
+The primary product-level additions were:
+
+- explicit edge selection + deletion UX parity with node selection/deletion
+- two semantic edge kinds (`sequential` and `parallel`) with distinct visuals and behavior
+- ordering semantics that preserve step progression while supporting parallel grouping at the same sequence position
+
+## 2) Core Data Model
+
+The graph edge and node contracts were extended to capture edge semantics and parallel grouping:
+
+- `EdgeKind = "sequential" | "parallel"`
+- `FlowEdgeData` now carries:
+  - `edge_kind`
+  - `stroke_color?`
+  - `line_style?` (`solid | dashed | dotted`)
+  - `is_reversed?` (sequential-only direction hint)
+- `MicrocopyNodeData` includes:
+  - `sequence_index: number | null`
+  - `parallel_group_id: string | null`
+
+Connection handle IDs also became semantic contracts:
+
+- sequential: left/right handles (`s-tgt`, `s-src`)
+- parallel: top/bottom handles (`p-tgt`, `p-src`, plus opposite-direction alternates)
+
+## 3) Persistence and Migration Strategy
+
+Persistence now round-trips typed edges and parallel grouping through the existing project canvas storage.
+
+- `sanitizeEdgesForStorage(...)` normalizes edge payloads and guarantees `edge_kind` + style defaults.
+- `serializeNodesForStorage(...)` persists computed `parallel_group_id` on nodes.
+- `persistCurrentProjectState(...)` writes nodes, edges, and admin options back into active project snapshots.
+
+Flat export/import compatibility was updated without changing the file contract shape:
+
+- `project_edges_json` now carries `edge_kind`, `stroke_color`, `line_style`, and `is_reversed`.
+- import hydration sanitizes unknown/missing edge kinds to a deterministic fallback (`sequential` unless parallel handles imply otherwise).
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering now explicitly separates sequential progression from parallel grouping.
+
+- `computeFlowOrdering(...)` uses **only sequential edges** for topological ordering.
+- `computeParallelGroups(...)` builds undirected connected components from **only parallel edges**.
+- each parallel component receives deterministic `parallel_group_id` (`PG-` + sorted node IDs).
+- sequence normalization applies a deterministic rule: all nodes in a parallel group take the minimum sequence index found in that group.
+- tie-break ordering remains stable by `(x, y, id)`.
+
+`computeProjectSequenceId(...)` was aligned with these semantics:
+
+- sequence ID is derived from sequential order + sequential edge signature only
+- parallel edges no longer perturb progression identity
+
+## 5) Node Rendering and Shape System
+
+Node rendering preserved the existing shape system while extending connection affordances for typed edges.
+
+- Added top/bottom handles to the custom `flowcopyNode` renderer for parallel edge creation.
+- Existing left/right handles continue to drive sequential edge creation.
+
+Edge rendering was centralized through `applyEdgeVisuals(...)`:
+
+- sequential edges: directional arrow marker, animated by default
+- parallel edges: no markers, static/non-directional styling, neutral stroke defaults
+- style mapping now supports line style variants and selected-edge emphasis
+
+## 6) Editor Interaction Model
+
+Selection and deletion behavior now supports both nodes and edges while preserving existing node UX.
+
+- edge selection tracked via `onSelectionChange` / `onEdgeClick` (`selectedEdgeId`)
+- node selection remains independent (`selectedNodeId`)
+- keyboard deletion (`Delete` / `Backspace`) respects editable target guards
+- deletion priority:
+  1) selected edge
+  2) selected node + incident edges
+
+An edge inspector panel is shown when an edge is selected:
+
+- kind (read-only currently)
+- color picker
+- line style selector
+- direction selector (sequential only)
+- explicit “Delete Edge” action
+
+## 7) Refactor Outcomes
+
+Key implementation outcomes from this session:
+
+- introduced typed-edge model end-to-end (creation, rendering, persistence, import/export)
+- implemented parallel connected-component grouping with deterministic IDs
+- normalized sequence index within parallel groups while preserving stable display order
+- implemented atomic undo snapshots for edge/node deletion and edge edits
+- resolved selection robustness by using effective selected IDs derived from current graph state
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully after implementation and cleanup:
+
+- `npm run lint` passes
+- `npx tsc --noEmit` passes
+
+Operational notes:
+
+- sequential cycles remain detectable in ordering; parallel edges are excluded from sequential cycle semantics
+- edge visuals are recomputed from semantic data at render time (markers are not trusted as persisted truth)
+
+## 9) Recommended Next Steps
+
+1. Add edge context menu actions (delete, reset style) for faster canvas operations.
+2. Add optional edge-kind toggling in inspector with guardrails for handle compatibility.
+3. Add automated tests for parallel group computation and sequence normalization edge cases.
+4. Add dedicated badges/legend for sequential vs parallel edges in canvas and table surfaces.
+5. Extract ordering/grouping and edge-style logic into dedicated modules to reduce `app/page.tsx` complexity.
+
+##02-22-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 FlowCopy remains a local-first, three-view product (`account` → `dashboard` → `editor`) but the editor is now a dual-surface system with a persistent mode:
 
 - `canvas` view (React Flow graph + side panel)
@@ -482,6 +605,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 
