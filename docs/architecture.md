@@ -34,6 +34,107 @@ This document captures the architecture and refactors for this session.
 
 ##02-21-2026##
 # FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+The app remains a three-view local-first editor (`account` → `dashboard` → `editor`) in a single `app/page.tsx` surface, with this session focused on making the editor architecture ready for two authoring surfaces:
+
+- canvas view (current primary UI)
+- table view (project-scoped, synced dataset)
+
+The key product-level change this session is the addition of persistent editor surface state in session data.
+
+## 2) Core Data Model
+
+`AppStore.session` was expanded to include:
+
+- `editorMode: "canvas" | "table"`
+
+Tabular data contracts were formalized for export/import work:
+
+- `FLAT_EXPORT_COLUMNS` (session/account/project/node + ordering + JSON payload columns)
+- `FlatExportRow` (`Record<FlatExportColumn, string>`)
+- `ParsedTabularPayload` for parsed file rows/headers
+- `ImportFeedback` message envelope for import status handling
+
+Node-table metadata contracts were also defined:
+
+- `TABLE_EDITABLE_FIELDS`
+- `TABLE_FIELD_LABELS`
+- `TABLE_SELECT_FIELDS`
+- `TABLE_TEXTAREA_FIELDS`
+
+## 3) Persistence and Migration Strategy
+
+Session persistence paths were updated so editor mode is durable:
+
+- `createEmptyStore()` now initializes `editorMode: "canvas"`
+- `sanitizeAppStore()` validates incoming mode via `isEditorSurfaceMode(...)`, defaulting to `"canvas"`
+- legacy migration (`migrateLegacyCanvasToStore`) now writes `editorMode: "canvas"`
+- account/dashboard/editor transitions were updated so session writes always include `editorMode`
+
+This prevents store-shape drift and keeps session payloads type-safe.
+
+## 4) Ordering Model and Project Sequence ID
+
+Existing ordering/sequence architecture remains in place (`computeFlowOrdering`, `computeProjectSequenceId`) and is now integrated into flat export shaping.
+
+`createFlatExportRows(...)` maps the ordered node set to row output and writes:
+
+- `node_id` as the node key
+- `node_order_id` and `sequence_index` from `ordering.sequenceByNodeId`
+- `project_sequence_id` to retain project-level ordering identity in exports
+
+This keeps row-level tabular data aligned with the graph ordering model.
+
+## 5) Node Rendering and Shape System
+
+Canvas rendering architecture (shape system, edge visuals, side panel editing) was not replaced in this session. Instead, this session added table-facing metadata and option synchronization utilities so table editing can remain compatible with current node rendering contracts.
+
+In practical terms, node rendering remains React Flow-based, while export/table contracts now describe the same node fields in a flat form.
+
+## 6) Editor Interaction Model
+
+Interaction behavior is now modeled for persistent surface state, even though full table-mode UI wiring is still pending:
+
+- `editorMode` is preserved in session while opening projects
+- auth/sign-out paths reset to `"canvas"`
+
+This is the architectural basis for a persistent canvas/table toggle and full-screen table mode requested for project scope.
+
+## 7) Refactor Outcomes
+
+This session produced reusable helper primitives for tabular interoperability:
+
+- CSV/XML serialization/parsing stack:
+  - `buildCsvFromRows`, `parseCsvText`
+  - `buildXmlFromRows`, `parseXmlText`
+  - `detectTabularFormat`
+- admin-option merge/sync helpers:
+  - `mergeAdminOptionConfigs`
+  - `syncAdminOptionsWithNodes`
+- row factory:
+  - `createFlatExportRows`
+
+Overall outcome: the codebase now has explicit contracts for flat export/import and project-scoped node row generation, while preserving current graph-based editing.
+
+## 8) Validation and Operational Notes
+
+During this session, TypeScript session-shape issues were resolved by ensuring every session write includes `editorMode`.
+
+Operationally, the architecture layer for CSV/XML + table synchronization is in place, but end-user controls (import/export buttons, full-screen table mode toggle, and import merge execution path) still require UI wiring and integration callbacks.
+
+## 9) Recommended Next Steps
+
+1. Wire export actions to generate and download CSV/XML using `createFlatExportRows(...)` + format builders.
+2. Implement import upload flow using format detection/parsers and merge by `node_id` into the active project.
+3. Add persistent canvas/table toggle UI bound to `session.editorMode`.
+4. Implement full-screen project-scoped table view with inline editing mapped to node fields and immediate canvas sync.
+5. Run `npx tsc --noEmit` and `npx eslint app/page.tsx` after wiring to confirm type/lint stability.
+
+##02-21-2026##
+# FlowCopy Architecture (Session Summary)
 
 This document captures the architecture that emerged during the current implementation session, including the major refactors, algorithmic decisions, and UI rendering changes.
 
@@ -253,6 +354,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 
