@@ -32,6 +32,423 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##02-23-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session focused on a dashboard-only UI refinement pass to improve scanability and visual hierarchy while preserving the existing product flow (`account` → `dashboard` → `editor`).
+
+The outcome was a cleaner top-level dashboard surface with clearer section separation, stronger call-to-action emphasis, and better heading placement relative to the account-code block.
+
+## 2) Core Data Model
+
+No data model changes were introduced.
+
+- No updates to `AppStore`, `AccountRecord`, `ProjectRecord`, or canvas node/edge schemas.
+- No new persisted fields were added for dashboard styling.
+
+All changes in this session were presentational and contained in dashboard view styling within `app/page.tsx`.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged.
+
+- Existing localStorage keys and migration paths remain intact.
+- Dashboard visual updates do not alter serialized project/account/session payloads.
+
+This was intentionally kept as a pure UI-layer change with zero storage contract impact.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changes were made.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Dashboard refinements are independent from graph ordering and sequence identity generation.
+
+## 5) Node Rendering and Shape System
+
+Node/edge rendering systems in the editor were not modified.
+
+Session-specific rendering work was limited to dashboard layout/styling:
+
+- Continued use of constrained dashboard content width (`width: "min(1080px, 100%)"`).
+- Stronger section framing via `dashboardBlockStyle` (`2px` border, radius, soft shadow).
+- More prominent button hierarchy using:
+  - `dashboardButtonStyle` (stronger border/weight)
+  - `dashboardPrimaryButtonStyle` (blue primary fill + shadow)
+
+## 6) Editor Interaction Model
+
+No editor interaction behavior was changed in this session.
+
+Dashboard interaction semantics remained the same:
+
+- create project
+- open project
+- sign out/back to account code
+
+Only visual prominence and spacing of these controls were adjusted.
+
+## 7) Refactor Outcomes
+
+The dashboard UI refactor produced three concrete outcomes:
+
+1. **Tighter and clearer top layout structure**
+   - Dashboard top container spacing was adjusted to better balance whitespace at the page top.
+2. **Defined section boundaries**
+   - Account and project-creation blocks now read as clearly separated cards through stronger border treatment.
+3. **Improved heading placement and emphasis**
+   - `Project Dashboard` was wrapped in a dedicated container (`minHeight: 124`, centered content), and top padding was reduced so the heading sits centered between the viewport top and the account-code block.
+
+## 8) Validation and Operational Notes
+
+Validation was executed after the updates:
+
+- `npm run lint`
+- confirmed successful run with `LINT_OK`
+
+Operational note:
+
+- The lint command prints a shell spinner artifact in this environment, but the explicit `LINT_OK` marker confirms completion status.
+
+## 9) Recommended Next Steps
+
+1. Extract dashboard inline style objects into a dedicated style module/CSS layer to reduce `app/page.tsx` size.
+2. Add hover/focus/active states for dashboard buttons and project cards for stronger interaction affordance.
+3. Add responsive breakpoints for project card columns (e.g., 3 → 2 → 1) for smaller viewports.
+4. Add visual regression coverage for dashboard layout/spacing to protect heading-position refinements.
+5. Consider introducing shared card/button design tokens across account/dashboard/editor surfaces for consistency.
+
+##02-23-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session focused on editor ergonomics by making the canvas-side properties panel resizable while preserving all existing project/canvas behavior.
+
+The key product outcome is a persistently sized side panel that users can drag from the left edge, improving usability for large forms (Controlled Language + node metadata) without changing the overall app flow (`account` → `dashboard` → `editor`).
+
+## 2) Core Data Model
+
+No project schema changes were introduced, but panel-resize state/constraints were formalized in `app/page.tsx`:
+
+- `SIDE_PANEL_MIN_WIDTH = 420`
+- `SIDE_PANEL_MAX_WIDTH = Math.round(SIDE_PANEL_MIN_WIDTH * 1.5)` (effective max: `630`)
+- `SIDE_PANEL_WIDTH_STORAGE_KEY = "flowcopy.editor.canvasSidePanelWidth"`
+
+Supporting helpers/state added:
+
+- `clampSidePanelWidth(value)`
+- `readInitialSidePanelWidth()`
+- `sidePanelWidth` state
+- `isResizingSidePanel` state
+- `sidePanelResizeStartXRef` / `sidePanelResizeStartWidthRef`
+
+## 3) Persistence and Migration Strategy
+
+Panel width persistence is localStorage-based and intentionally isolated from the project canvas schema:
+
+- Initial width is restored through lazy state init: `useState<number>(readInitialSidePanelWidth)`.
+- Width writes are performed in an effect using a clamped value.
+- Invalid, missing, or non-numeric stored values safely fall back to `SIDE_PANEL_MIN_WIDTH`.
+- SSR-safe guards (`typeof window === "undefined"`) are used for reads/writes.
+
+No migration changes were required for `AppStore` / project records.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering changes were made in this session.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Panel resizing is UI-layout behavior and does not affect graph sequencing or export ordering identity.
+
+## 5) Node Rendering and Shape System
+
+Node shape rendering (`rectangle/rounded/pill/diamond`) and edge visuals were not modified.
+
+Layout-level rendering changes:
+
+- Editor root grid changed from fixed right column to dynamic sizing:
+  - `gridTemplateColumns: \`1fr ${sidePanelWidth}px\``
+- Side panel now includes a left-edge draggable separator (`role="separator"`, `aria-orientation="vertical"`).
+
+## 6) Editor Interaction Model
+
+Resize interaction was implemented with pointer events:
+
+- `onPointerDown` on the separator (left mouse button only)
+- Captures start position/width refs
+- While resizing, global listeners are attached:
+  - `pointermove` → compute delta and clamp width
+  - `pointerup` / `pointercancel` → stop resizing
+
+UX polish and safety:
+
+- During resize, `document.body.style.cursor = "col-resize"`
+- During resize, `document.body.style.userSelect = "none"`
+- All listeners and temporary body styles are cleaned up on stop/unmount
+
+## 7) Refactor Outcomes
+
+The resize implementation also resolved a lint issue by refactoring initialization strategy:
+
+- Replaced effect-driven `setSidePanelWidth(...)` initialization with lazy initializer `readInitialSidePanelWidth()`.
+- This removed the `react-hooks/set-state-in-effect` warning and simplified startup behavior.
+
+Code was organized into small callbacks:
+
+- `handleSidePanelResizePointerDown`
+- `handleSidePanelPointerMove`
+- `stopSidePanelResize`
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully after implementation:
+
+- `npx tsc --noEmit`
+- `npm run lint`
+
+Operational notes:
+
+- Persisted width is global to the editor session via one storage key (`flowcopy.editor.canvasSidePanelWidth`).
+- Width is always constrained to the `[420, 630]` range, even if localStorage is manually edited.
+
+## 9) Recommended Next Steps
+
+1. Add a visible drag grip/icon so the separator affordance is more discoverable.
+2. Add a “Reset panel width” action to return to default (`420`).
+3. Add keyboard-accessible resizing increments for accessibility.
+4. Consider per-project panel width persistence if different projects need different panel density.
+5. Extract resize behavior into a reusable hook (e.g., `useResizablePanel`) to reduce `app/page.tsx` complexity.
+
+##02-23-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session focused on a targeted QA hardening pass for Controlled Language behavior in the editor side panel.
+
+The product-level change is that existing glossary audit rows are now treated as stable `Field Type + Term` records, rather than mutable field-type assignments. This protects the semantic meaning of occurrence counts and reduces accidental drift during editorial cleanup.
+
+## 2) Core Data Model
+
+No new top-level types were added, but interaction rules around the existing controlled-language model were tightened:
+
+- `ControlledLanguageGlossaryEntry` remains keyed by `field_type + term` identity.
+- `ControlledLanguageAuditRow.occurrences` continues to represent counts for that exact identity pair.
+- Existing-row Field Type is now rendered as read-only display, enforcing key stability through UI constraints.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration contracts were unchanged in this session:
+
+- glossary entries still persist in `PersistedCanvasState.controlledLanguageGlossary`
+- import/export mapping still uses `project_controlled_language_json`
+- undo/persistence behavior remains routed through existing snapshot/autosave flows
+
+No storage schema updates or migration logic changes were required.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering-model changes were made.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Controlled Language QA refinements remain orthogonal to graph ordering and sequence identity.
+
+## 5) Node Rendering and Shape System
+
+Canvas node shape and edge rendering systems were not modified.
+
+The only UI rendering adjustment in this session was inside the Controlled Language table:
+
+- existing-row Field Type changed from editable select control to read-only display input
+
+## 6) Editor Interaction Model
+
+Controlled Language interaction behavior was clarified as follows:
+
+- Existing glossary/audit rows:
+  - Field Type is no longer editable
+  - Glossary Term remains editable
+  - Include toggle remains editable
+- Add-new draft row:
+  - retains Field Type dropdown for creating new entries
+
+This preserves the intended meaning of Occurrences as count per stable `Field Type + Term` key.
+
+## 7) Refactor Outcomes
+
+Code-level cleanup aligned with the interaction change:
+
+- removed obsolete `moveControlledLanguageRowFieldType(...)` mutation path
+- removed existing-row Field Type `<select>` wiring inside `controlledLanguageAuditRows.map(...)`
+- replaced with read-only Field Type rendering for existing rows
+
+Outcome: reduced risk of occurrence-count corruption caused by in-place field-type reassignment.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully after the QA fix:
+
+- `npx tsc --noEmit`
+- `npm run lint`
+
+Operational note:
+
+- field-type reassignment is intentionally constrained to the add-new flow; existing rows are classification-stable by design.
+
+## 9) Recommended Next Steps
+
+1. Add a lock icon and tooltip to existing-row Field Type cells to make immutability explicit.
+2. Add an intentional “duplicate term into another field type” action rather than allowing in-place reassignment.
+3. Add tests/assertions for controlled-language audit invariants (occurrence stability under row edits).
+4. Add table filtering/sorting for larger glossaries.
+5. Continue extracting Controlled Language logic from `app/page.tsx` into dedicated modules.
+
+##02-23-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session added a dedicated **Controlled Language** workflow to the editor side panel so teams can manage glossary terms while authoring node copy.
+
+The core UX outcome is a compact glossary/audit surface that sits in the existing editor panel and supports:
+
+- auditing real usage in node fields
+- deciding which terms are reusable in field-level pick lists
+- adding approved terms before they are used in-flow
+
+## 2) Core Data Model
+
+Controlled-language behavior is now explicitly modeled around the existing field taxonomy:
+
+- `ControlledLanguageFieldType`:
+  - `primary_cta`
+  - `secondary_cta`
+  - `helper_text`
+  - `error_text`
+
+Glossary state uses and extends existing typed structures:
+
+- `ControlledLanguageGlossaryEntry` (`field_type`, `term`, `include`)
+- `ControlledLanguageAuditRow` (`field_type`, `term`, `include`, `occurrences`)
+- `ControlledLanguageDraftRow` (new editable row state for adding terms)
+
+Normalization and dedupe continue to rely on field+term identity keys via:
+
+- `buildControlledLanguageGlossaryKey(...)`
+- `parseControlledLanguageGlossaryKey(...)`
+- `sanitizeControlledLanguageGlossary(...)`
+
+## 3) Persistence and Migration Strategy
+
+Controlled-language terms remain project-scoped and are persisted through the existing canvas store pipeline:
+
+- `PersistedCanvasState.controlledLanguageGlossary`
+- autosave through `persistCurrentProjectState(...)`
+- import/export via `project_controlled_language_json`
+
+This session also ensured glossary interactions remain in undo history by continuing to snapshot glossary state in `EditorSnapshot` and routing glossary edits through `queueUndoSnapshot()`.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering algorithm changes were introduced in this session.
+
+- `computeFlowOrdering(...)` and `computeProjectSequenceId(...)` behavior remains unchanged.
+- Controlled Language features are orthogonal to flow ordering and sequence identity.
+
+## 5) Node Rendering and Shape System
+
+Graph node rendering and shape visuals were not structurally changed.
+
+The node side-panel editing experience was extended so each controlled-language field now supports:
+
+- direct text editing (unchanged)
+- optional glossary term insertion via a gated dropdown interaction
+
+## 6) Editor Interaction Model
+
+### 6.1 Controlled Language panel
+
+A new button was added near Admin controls:
+
+- `Show/Hide Controlled Language`
+
+When open, the panel renders a compact table with:
+
+- **Field Type** (editable select)
+- **Glossary Term** (editable text)
+- **Occurrences** (read-only count, plus `Not Used` when 0)
+- **Include** (checkbox to expose term in field dropdown)
+
+Rows are built from a merged audit of:
+
+- currently used node values in the four controlled fields
+- explicitly tracked glossary entries
+
+This guarantees one row per unique `field_type + term` pair with accurate occurrence counts.
+
+### 6.2 Add-term draft row
+
+An always-visible draft row was added to support authoring terms that are not yet used in the canvas:
+
+- select field type
+- enter term
+- choose include state
+- add row (occurrence remains `0`, shown as `Not Used`)
+
+### 6.3 Alt+Click-only dropdown access
+
+Each controlled-language field in the node panel now has a `Glossary ▾` button.
+
+- dropdown toggles **only** on `Alt+Click`
+- normal click does nothing (prevents accidental pop-open)
+- dropdown choices come from `include === true` terms for the matching field type
+- choosing a term writes it into the editable input and closes the dropdown
+
+### 6.4 Selection-state hygiene
+
+To satisfy lint requirements and avoid effect-driven cascading state updates, dropdown reset behavior is handled directly in interaction handlers (`onPaneClick`, `onNodeClick`, `onEdgeClick`, `onSelectionChange`) rather than via a `useEffect` that synchronously set state.
+
+## 7) Refactor Outcomes
+
+Primary architecture outcomes from this session:
+
+- added in-editor controlled-language governance UI without introducing a separate route/view
+- established occurrence auditing by unique field+term identity
+- connected include-checked glossary terms to contextual field insertion
+- preserved editable-first inputs while adding constrained optional insertion behavior
+
+## 8) Validation and Operational Notes
+
+Validation for this session completed successfully:
+
+- `npx tsc --noEmit`
+- `npm run lint`
+
+Operational note:
+
+- Alt+Click is intentionally required for glossary dropdown activation to minimize accidental interactions during normal copy editing.
+
+## 9) Recommended Next Steps
+
+1. Add search/filter and sort controls in the controlled-language table for larger glossaries.
+2. Add optional status flags (e.g., preferred/forbidden/deprecated) beyond simple include/exclude.
+3. Add bulk actions (include all in field type, export glossary-only CSV/XML).
+4. Add validation rules for canonical casing/punctuation and duplicate-near-match warnings.
+5. Consider extracting Controlled Language UI/state into dedicated modules to reduce `app/page.tsx` size.
+
 ##02-22-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -605,6 +1022,10 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
+
+
+
 
 
 

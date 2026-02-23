@@ -26,12 +26,19 @@ import {
   type ReactFlowInstance,
   type OnSelectionChangeParams,
 } from "@xyflow/react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import "@xyflow/react/dist/style.css";
 
 type NodeShape = "rectangle" | "rounded" | "pill" | "diamond";
 type EdgeKind = "sequential" | "parallel";
 type EdgeLineStyle = "solid" | "dashed" | "dotted";
+type ControlledLanguageFieldType =
+  | "primary_cta"
+  | "secondary_cta"
+  | "helper_text"
+  | "error_text";
 
 type EdgeDirection = "forward" | "reversed";
 
@@ -93,6 +100,23 @@ type PersistedCanvasState = {
   nodes: SerializableFlowNode[];
   edges: FlowEdge[];
   adminOptions: GlobalOptionConfig;
+  controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
+};
+
+type ControlledLanguageGlossaryEntry = {
+  field_type: ControlledLanguageFieldType;
+  term: string;
+  include: boolean;
+};
+
+type ControlledLanguageAuditRow = ControlledLanguageGlossaryEntry & {
+  occurrences: number;
+};
+
+type ControlledLanguageDraftRow = {
+  field_type: ControlledLanguageFieldType;
+  term: string;
+  include: boolean;
 };
 
 type FlowOrderingResult = {
@@ -170,6 +194,7 @@ const FLAT_EXPORT_COLUMNS = [
   "card_style",
   "node_shape",
   "project_admin_options_json",
+  "project_controlled_language_json",
   "project_edges_json",
 ] as const;
 
@@ -190,6 +215,7 @@ type EditorSnapshot = {
   nodes: FlowNode[];
   edges: FlowEdge[];
   adminOptions: GlobalOptionConfig;
+  controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
 };
 
 const APP_STORAGE_KEY = "flowcopy.store.v1";
@@ -266,6 +292,27 @@ const DEFAULT_GLOBAL_OPTIONS: GlobalOptionConfig = {
   card_style: ["default", "subtle", "warning", "success"],
 };
 
+const CONTROLLED_LANGUAGE_FIELDS: ControlledLanguageFieldType[] = [
+  "primary_cta",
+  "secondary_cta",
+  "helper_text",
+  "error_text",
+];
+
+const CONTROLLED_LANGUAGE_FIELD_LABELS: Record<ControlledLanguageFieldType, string> = {
+  primary_cta: "Primary CTA",
+  secondary_cta: "Secondary CTA",
+  helper_text: "Helper Text",
+  error_text: "Error Text",
+};
+
+const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<ControlledLanguageFieldType, number> = {
+  primary_cta: 0,
+  secondary_cta: 1,
+  helper_text: 2,
+  error_text: 3,
+};
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
   border: "1px solid #d4d4d8",
@@ -282,6 +329,31 @@ const buttonStyle: React.CSSProperties = {
   padding: "6px 10px",
   cursor: "pointer",
   fontSize: 12,
+};
+
+const SIDE_PANEL_MIN_WIDTH = 420;
+const SIDE_PANEL_MAX_WIDTH = Math.round(SIDE_PANEL_MIN_WIDTH * 1.5);
+const SIDE_PANEL_WIDTH_STORAGE_KEY = "flowcopy.editor.canvasSidePanelWidth";
+
+const clampSidePanelWidth = (value: number): number =>
+  Math.min(SIDE_PANEL_MAX_WIDTH, Math.max(SIDE_PANEL_MIN_WIDTH, Math.round(value)));
+
+const readInitialSidePanelWidth = (): number => {
+  if (typeof window === "undefined") {
+    return SIDE_PANEL_MIN_WIDTH;
+  }
+
+  const rawWidth = window.localStorage.getItem(SIDE_PANEL_WIDTH_STORAGE_KEY);
+  if (!rawWidth) {
+    return SIDE_PANEL_MIN_WIDTH;
+  }
+
+  const parsedWidth = Number(rawWidth);
+  if (!Number.isFinite(parsedWidth)) {
+    return SIDE_PANEL_MIN_WIDTH;
+  }
+
+  return clampSidePanelWidth(parsedWidth);
 };
 
 const TABLE_TEXTAREA_FIELDS = new Set<EditableMicrocopyField>(["body_text", "notes"]);
@@ -351,6 +423,200 @@ const isEdgeKind = (value: unknown): value is EdgeKind =>
 
 const isEdgeLineStyle = (value: unknown): value is EdgeLineStyle =>
   value === "solid" || value === "dashed" || value === "dotted";
+
+const isControlledLanguageFieldType = (
+  value: unknown
+): value is ControlledLanguageFieldType =>
+  value === "primary_cta" ||
+  value === "secondary_cta" ||
+  value === "helper_text" ||
+  value === "error_text";
+
+const normalizeControlledLanguageTerm = (value: string): string => value.trim();
+
+const buildControlledLanguageGlossaryKey = (
+  fieldType: ControlledLanguageFieldType,
+  term: string
+): string => `${fieldType}\u241F${term}`;
+
+const parseControlledLanguageGlossaryKey = (
+  key: string
+): { field_type: ControlledLanguageFieldType; term: string } | null => {
+  const separatorIndex = key.indexOf("\u241F");
+  if (separatorIndex <= 0) {
+    return null;
+  }
+
+  const rawFieldType = key.slice(0, separatorIndex);
+  const term = key.slice(separatorIndex + 1);
+
+  if (!isControlledLanguageFieldType(rawFieldType)) {
+    return null;
+  }
+
+  return {
+    field_type: rawFieldType,
+    term,
+  };
+};
+
+const sortControlledLanguageEntries = <
+  T extends Pick<ControlledLanguageGlossaryEntry, "field_type" | "term">
+>(entries: T[]): T[] =>
+  entries
+    .slice()
+    .sort((a, b) => {
+      const fieldOrderDifference =
+        CONTROLLED_LANGUAGE_FIELD_ORDER[a.field_type] -
+        CONTROLLED_LANGUAGE_FIELD_ORDER[b.field_type];
+
+      if (fieldOrderDifference !== 0) {
+        return fieldOrderDifference;
+      }
+
+      return a.term.localeCompare(b.term);
+    });
+
+const sanitizeControlledLanguageGlossary = (
+  value: unknown
+): ControlledLanguageGlossaryEntry[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const byKey = new Map<string, ControlledLanguageGlossaryEntry>();
+
+  value.forEach((item) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+
+    const source = item as Partial<ControlledLanguageGlossaryEntry>;
+    if (!isControlledLanguageFieldType(source.field_type)) {
+      return;
+    }
+
+    const term =
+      typeof source.term === "string"
+        ? normalizeControlledLanguageTerm(source.term)
+        : "";
+    if (!term) {
+      return;
+    }
+
+    const key = buildControlledLanguageGlossaryKey(source.field_type, term);
+    const existing = byKey.get(key);
+
+    byKey.set(key, {
+      field_type: source.field_type,
+      term,
+      include:
+        typeof source.include === "boolean"
+          ? source.include
+          : existing?.include ?? false,
+    });
+  });
+
+  return sortControlledLanguageEntries(Array.from(byKey.values()));
+};
+
+const cloneControlledLanguageGlossary = (
+  entries: ControlledLanguageGlossaryEntry[]
+): ControlledLanguageGlossaryEntry[] =>
+  entries.map((entry) => ({
+    field_type: entry.field_type,
+    term: entry.term,
+    include: entry.include,
+  }));
+
+const createEmptyControlledLanguageDraftRow = (): ControlledLanguageDraftRow => ({
+  field_type: "primary_cta",
+  term: "",
+  include: true,
+});
+
+const createEmptyControlledLanguageTermsByField = (): Record<
+  ControlledLanguageFieldType,
+  string[]
+> => ({
+  primary_cta: [],
+  secondary_cta: [],
+  helper_text: [],
+  error_text: [],
+});
+
+const buildControlledLanguageTermsByField = (
+  glossary: ControlledLanguageGlossaryEntry[]
+): Record<ControlledLanguageFieldType, string[]> => {
+  const byField = createEmptyControlledLanguageTermsByField();
+
+  sanitizeControlledLanguageGlossary(glossary)
+    .filter((entry) => entry.include)
+    .forEach((entry) => {
+      if (!byField[entry.field_type].includes(entry.term)) {
+        byField[entry.field_type].push(entry.term);
+      }
+    });
+
+  CONTROLLED_LANGUAGE_FIELDS.forEach((fieldType) => {
+    byField[fieldType].sort((a, b) => a.localeCompare(b));
+  });
+
+  return byField;
+};
+
+const buildControlledLanguageAuditRows = (
+  nodes: FlowNode[],
+  glossary: ControlledLanguageGlossaryEntry[]
+): ControlledLanguageAuditRow[] => {
+  const rowByKey = new Map<string, ControlledLanguageAuditRow>();
+
+  nodes.forEach((node) => {
+    CONTROLLED_LANGUAGE_FIELDS.forEach((fieldType) => {
+      const rawValue = node.data[fieldType];
+      if (typeof rawValue !== "string") {
+        return;
+      }
+
+      const term = normalizeControlledLanguageTerm(rawValue);
+      if (!term) {
+        return;
+      }
+
+      const key = buildControlledLanguageGlossaryKey(fieldType, term);
+      const existing = rowByKey.get(key);
+
+      if (existing) {
+        rowByKey.set(key, {
+          ...existing,
+          occurrences: existing.occurrences + 1,
+        });
+        return;
+      }
+
+      rowByKey.set(key, {
+        field_type: fieldType,
+        term,
+        include: false,
+        occurrences: 1,
+      });
+    });
+  });
+
+  sanitizeControlledLanguageGlossary(glossary).forEach((entry) => {
+    const key = buildControlledLanguageGlossaryKey(entry.field_type, entry.term);
+    const existing = rowByKey.get(key);
+
+    rowByKey.set(key, {
+      field_type: entry.field_type,
+      term: entry.term,
+      include: entry.include,
+      occurrences: existing?.occurrences ?? 0,
+    });
+  });
+
+  return sortControlledLanguageEntries(Array.from(rowByKey.values()));
+};
 
 const getDefaultEdgeStrokeColor = (edgeKind: EdgeKind): string =>
   edgeKind === "parallel" ? PARALLEL_EDGE_STROKE_COLOR : EDGE_STROKE_COLOR;
@@ -718,6 +984,7 @@ const createFlatExportRows = ({
   nodes,
   ordering,
   adminOptions,
+  controlledLanguageGlossary,
   edges,
 }: {
   session: AppStore["session"];
@@ -727,6 +994,7 @@ const createFlatExportRows = ({
   nodes: FlowNode[];
   ordering: FlowOrderingResult;
   adminOptions: GlobalOptionConfig;
+  controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
   edges: FlowEdge[];
 }): FlatExportRow[] => {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -737,6 +1005,9 @@ const createFlatExportRows = ({
 
   const edgesJson = JSON.stringify(sanitizeEdgesForStorage(edges));
   const adminOptionsJson = JSON.stringify(adminOptions);
+  const controlledLanguageJson = JSON.stringify(
+    sanitizeControlledLanguageGlossary(controlledLanguageGlossary)
+  );
 
   const buildRow = (node: FlowNode | null): FlatExportRow => {
     const sequence = node ? ordering.sequenceByNodeId[node.id] ?? null : null;
@@ -777,6 +1048,7 @@ const createFlatExportRows = ({
       card_style: node?.data.card_style ?? "",
       node_shape: node?.data.node_shape ?? "",
       project_admin_options_json: adminOptionsJson,
+      project_controlled_language_json: controlledLanguageJson,
       project_edges_json: edgesJson,
     };
   };
@@ -1540,6 +1812,7 @@ const createEmptyCanvasState = (): PersistedCanvasState => ({
   nodes: [],
   edges: [],
   adminOptions: cloneGlobalOptions(DEFAULT_GLOBAL_OPTIONS),
+  controlledLanguageGlossary: [],
 });
 
 const readLegacyCanvasState = (): PersistedCanvasState | null => {
@@ -1557,12 +1830,16 @@ const readLegacyCanvasState = (): PersistedCanvasState | null => {
       nodes?: unknown;
       edges?: unknown;
       adminOptions?: unknown;
+      controlledLanguageGlossary?: unknown;
     };
 
     return {
       nodes: sanitizeSerializableFlowNodes(parsed.nodes),
       edges: sanitizeEdgesForStorage(parsed.edges),
       adminOptions: normalizeGlobalOptionConfig(parsed.adminOptions),
+      controlledLanguageGlossary: sanitizeControlledLanguageGlossary(
+        parsed.controlledLanguageGlossary
+      ),
     };
   } catch (error) {
     console.error("Failed to parse legacy canvas state", error);
@@ -1585,6 +1862,9 @@ const createProjectRecord = (
       nodes: sanitizeSerializableFlowNodes(canvas.nodes),
       edges: sanitizeEdgesForStorage(canvas.edges),
       adminOptions: normalizeGlobalOptionConfig(canvas.adminOptions),
+      controlledLanguageGlossary: sanitizeControlledLanguageGlossary(
+        canvas.controlledLanguageGlossary
+      ),
     },
   };
 };
@@ -1639,6 +1919,9 @@ const sanitizeProjectRecord = (value: unknown): ProjectRecord | null => {
       nodes: sanitizeSerializableFlowNodes(source.canvas?.nodes),
       edges: sanitizeEdgesForStorage(source.canvas?.edges),
       adminOptions: normalizeGlobalOptionConfig(source.canvas?.adminOptions),
+      controlledLanguageGlossary: sanitizeControlledLanguageGlossary(
+        source.canvas?.controlledLanguageGlossary
+      ),
     },
   };
 };
@@ -1784,6 +2067,31 @@ const formatDateTime = (isoDate: string): string => {
   return date.toLocaleString();
 };
 
+function BodyTextPreview({ value }: { value: string }) {
+  if (value.trim().length === 0) {
+    return (
+      <p
+        style={{
+          margin: 0,
+          fontSize: 11,
+          color: "#94a3b8",
+          fontStyle: "italic",
+        }}
+      >
+        Markdown preview will appear here.
+      </p>
+    );
+  }
+
+  return (
+    <div className="body-text-preview">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+        {value}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
 type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onBeforeChange: () => void;
 };
@@ -1907,18 +2215,32 @@ export default function Page() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [adminOptions, setAdminOptions] =
     useState<GlobalOptionConfig>(DEFAULT_GLOBAL_OPTIONS);
+  const [controlledLanguageGlossary, setControlledLanguageGlossary] = useState<
+    ControlledLanguageGlossaryEntry[]
+  >([]);
+  const [isControlledLanguagePanelOpen, setIsControlledLanguagePanelOpen] =
+    useState(false);
+  const [controlledLanguageDraftRow, setControlledLanguageDraftRow] =
+    useState<ControlledLanguageDraftRow>(createEmptyControlledLanguageDraftRow);
+  const [openControlledLanguageFieldType, setOpenControlledLanguageFieldType] = useState<
+    ControlledLanguageFieldType | null
+  >(null);
   const [pendingOptionInputs, setPendingOptionInputs] = useState<
     Record<GlobalOptionField, string>
   >(createEmptyPendingOptionInputs);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [undoStack, setUndoStack] = useState<EditorSnapshot[]>([]);
   const [transferFeedback, setTransferFeedback] = useState<ImportFeedback | null>(null);
+  const [sidePanelWidth, setSidePanelWidth] = useState<number>(readInitialSidePanelWidth);
+  const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
 
   const rfRef = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const hasLoadedStoreRef = useRef(false);
   const undoCaptureTimeoutRef = useRef<number | null>(null);
   const captureUndoSnapshotRef = useRef<() => void>(() => undefined);
+  const sidePanelResizeStartXRef = useRef(0);
+  const sidePanelResizeStartWidthRef = useRef(SIDE_PANEL_MIN_WIDTH);
 
   const updateStore = useCallback((updater: (prev: AppStore) => AppStore) => {
     setStore((prev) => {
@@ -1951,6 +2273,41 @@ export default function Page() {
     []
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      SIDE_PANEL_WIDTH_STORAGE_KEY,
+      String(clampSidePanelWidth(sidePanelWidth))
+    );
+  }, [sidePanelWidth]);
+
+  useEffect(() => {
+    if (!isResizingSidePanel) {
+      return;
+    }
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [isResizingSidePanel]);
+
+  useEffect(
+    () => () => {
+      setIsResizingSidePanel(false);
+    },
+    []
+  );
+
   const activeAccount = useMemo(
     () =>
       store.accounts.find((account) => account.id === store.session.activeAccountId) ??
@@ -1979,6 +2336,11 @@ export default function Page() {
       const hydratedEdges = sanitizeEdges(project.canvas.edges, hydratedNodes);
 
       setAdminOptions(normalizedAdminOptions);
+      setControlledLanguageGlossary(
+        sanitizeControlledLanguageGlossary(project.canvas.controlledLanguageGlossary)
+      );
+      setControlledLanguageDraftRow(createEmptyControlledLanguageDraftRow());
+      setOpenControlledLanguageFieldType(null);
       setNodes(hydratedNodes);
       setEdges(hydratedEdges);
       setSelectedNodeId(hydratedNodes[0]?.id ?? null);
@@ -2000,6 +2362,9 @@ export default function Page() {
     const serializedNodes = serializeNodesForStorage(nodes, parallelGroupByNodeId);
     const serializedEdges = cloneEdges(edges);
     const serializedAdminOptions = cloneGlobalOptions(adminOptions);
+    const serializedControlledLanguageGlossary = sanitizeControlledLanguageGlossary(
+      controlledLanguageGlossary
+    );
     const updatedAt = new Date().toISOString();
 
     updateStore((prev) => {
@@ -2028,6 +2393,7 @@ export default function Page() {
           nodes: serializedNodes,
           edges: serializedEdges,
           adminOptions: serializedAdminOptions,
+          controlledLanguageGlossary: serializedControlledLanguageGlossary,
         },
       };
 
@@ -2042,7 +2408,14 @@ export default function Page() {
         accounts,
       };
     });
-  }, [adminOptions, edges, nodes, store.session, updateStore]);
+  }, [
+    adminOptions,
+    controlledLanguageGlossary,
+    edges,
+    nodes,
+    store.session,
+    updateStore,
+  ]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -2062,13 +2435,16 @@ export default function Page() {
       nodes: cloneFlowNodes(nodes),
       edges: cloneEdges(edges),
       adminOptions: cloneGlobalOptions(adminOptions),
+      controlledLanguageGlossary: cloneControlledLanguageGlossary(
+        controlledLanguageGlossary
+      ),
     };
 
     undoCaptureTimeoutRef.current = window.setTimeout(() => {
       setUndoStack((prev) => [...prev, snapshot].slice(-3));
       undoCaptureTimeoutRef.current = null;
     }, 220);
-  }, [adminOptions, edges, nodes, store.session.view]);
+  }, [adminOptions, controlledLanguageGlossary, edges, nodes, store.session.view]);
 
   useEffect(() => {
     captureUndoSnapshotRef.current = queueUndoSnapshot;
@@ -2089,6 +2465,9 @@ export default function Page() {
       setNodes(cloneFlowNodes(previousSnapshot.nodes));
       setEdges(cloneEdges(previousSnapshot.edges));
       setAdminOptions(cloneGlobalOptions(previousSnapshot.adminOptions));
+      setControlledLanguageGlossary(
+        cloneControlledLanguageGlossary(previousSnapshot.controlledLanguageGlossary)
+      );
 
       setSelectedNodeId((currentSelected) => {
         if (
@@ -2353,10 +2732,12 @@ export default function Page() {
   const onPaneClick = useCallback(
     (event: React.MouseEvent) => {
       if (event.detail === 2) {
+        setOpenControlledLanguageFieldType(null);
         addNodeAtEvent(event);
         return;
       }
 
+      setOpenControlledLanguageFieldType(null);
       setSelectedNodeId(null);
       setSelectedEdgeId(null);
     },
@@ -2364,11 +2745,13 @@ export default function Page() {
   );
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: FlowNode) => {
+    setOpenControlledLanguageFieldType(null);
     setSelectedNodeId(node.id);
     setSelectedEdgeId(null);
   }, []);
 
   const onEdgeClick = useCallback((_: React.MouseEvent, edge: FlowEdge) => {
+    setOpenControlledLanguageFieldType(null);
     setSelectedEdgeId(edge.id);
     setSelectedNodeId(null);
   }, []);
@@ -2378,6 +2761,7 @@ export default function Page() {
       const nextSelectedEdgeId = selectedEdges[0]?.id ?? null;
       const nextSelectedNodeId = selectedNodes[0]?.id ?? null;
 
+      setOpenControlledLanguageFieldType(null);
       setSelectedEdgeId(nextSelectedEdgeId);
       setSelectedNodeId(nextSelectedEdgeId ? null : nextSelectedNodeId);
     },
@@ -2632,6 +3016,159 @@ export default function Page() {
     [orderedNodes, ordering.parallelGroupByNodeId, ordering.sequenceByNodeId]
   );
 
+  const controlledLanguageAuditRows = useMemo(
+    () => buildControlledLanguageAuditRows(nodes, controlledLanguageGlossary),
+    [nodes, controlledLanguageGlossary]
+  );
+
+  const controlledLanguageTermsByField = useMemo(
+    () => buildControlledLanguageTermsByField(controlledLanguageGlossary),
+    [controlledLanguageGlossary]
+  );
+
+  const updateControlledLanguageGlossaryEntries = useCallback(
+    (
+      updater: (
+        current: ControlledLanguageGlossaryEntry[]
+      ) => ControlledLanguageGlossaryEntry[]
+    ) => {
+      queueUndoSnapshot();
+      setControlledLanguageGlossary((current) =>
+        sanitizeControlledLanguageGlossary(
+          updater(cloneControlledLanguageGlossary(current))
+        )
+      );
+    },
+    [queueUndoSnapshot]
+  );
+
+  const setControlledLanguageRowInclude = useCallback(
+    (rowKey: string, include: boolean) => {
+      const parsed = parseControlledLanguageGlossaryKey(rowKey);
+      if (!parsed) {
+        return;
+      }
+
+      updateControlledLanguageGlossaryEntries((current) => {
+        const byKey = new Map<string, ControlledLanguageGlossaryEntry>(
+          sanitizeControlledLanguageGlossary(current).map((entry) => [
+            buildControlledLanguageGlossaryKey(entry.field_type, entry.term),
+            entry,
+          ])
+        );
+
+        byKey.set(rowKey, {
+          field_type: parsed.field_type,
+          term: parsed.term,
+          include,
+        });
+
+        return Array.from(byKey.values());
+      });
+    },
+    [updateControlledLanguageGlossaryEntries]
+  );
+
+  const renameControlledLanguageRowTerm = useCallback(
+    (rowKey: string, nextTermRaw: string) => {
+      const parsed = parseControlledLanguageGlossaryKey(rowKey);
+      if (!parsed) {
+        return;
+      }
+
+      const nextTerm = normalizeControlledLanguageTerm(nextTermRaw);
+      if (!nextTerm || nextTerm === parsed.term) {
+        return;
+      }
+
+      updateControlledLanguageGlossaryEntries((current) => {
+        const byKey = new Map<string, ControlledLanguageGlossaryEntry>(
+          sanitizeControlledLanguageGlossary(current).map((entry) => [
+            buildControlledLanguageGlossaryKey(entry.field_type, entry.term),
+            entry,
+          ])
+        );
+
+        const existingRowEntry = byKey.get(rowKey);
+        byKey.delete(rowKey);
+
+        const nextKey = buildControlledLanguageGlossaryKey(parsed.field_type, nextTerm);
+        const existingNextEntry = byKey.get(nextKey);
+
+        byKey.set(nextKey, {
+          field_type: parsed.field_type,
+          term: nextTerm,
+          include: existingRowEntry?.include ?? existingNextEntry?.include ?? false,
+        });
+
+        return Array.from(byKey.values());
+      });
+    },
+    [updateControlledLanguageGlossaryEntries]
+  );
+
+  const addControlledLanguageDraftTerm = useCallback(() => {
+    const nextTerm = normalizeControlledLanguageTerm(controlledLanguageDraftRow.term);
+    if (!nextTerm) {
+      return;
+    }
+
+    const nextFieldType = controlledLanguageDraftRow.field_type;
+    const nextInclude = controlledLanguageDraftRow.include;
+
+    updateControlledLanguageGlossaryEntries((current) => {
+      const byKey = new Map<string, ControlledLanguageGlossaryEntry>(
+        sanitizeControlledLanguageGlossary(current).map((entry) => [
+          buildControlledLanguageGlossaryKey(entry.field_type, entry.term),
+          entry,
+        ])
+      );
+
+      const key = buildControlledLanguageGlossaryKey(nextFieldType, nextTerm);
+      const existing = byKey.get(key);
+
+      byKey.set(key, {
+        field_type: nextFieldType,
+        term: nextTerm,
+        include: existing?.include ?? nextInclude,
+      });
+
+      return Array.from(byKey.values());
+    });
+
+    setControlledLanguageDraftRow(createEmptyControlledLanguageDraftRow());
+  }, [controlledLanguageDraftRow, updateControlledLanguageGlossaryEntries]);
+
+  const toggleControlledLanguageFieldDropdown = useCallback(
+    (
+      fieldType: ControlledLanguageFieldType,
+      event: React.MouseEvent<HTMLElement>
+    ) => {
+      if (!event.altKey) {
+        return;
+      }
+
+      event.preventDefault();
+      setOpenControlledLanguageFieldType((current) =>
+        current === fieldType ? null : fieldType
+      );
+    },
+    []
+  );
+
+  const applyControlledLanguageTermToField = useCallback(
+    (fieldType: ControlledLanguageFieldType, term: string) => {
+      const normalizedTerm = normalizeControlledLanguageTerm(term);
+      if (!normalizedTerm) {
+        return;
+      }
+
+      updateSelectedField(fieldType, normalizedTerm);
+      setOpenControlledLanguageFieldType(null);
+    },
+    [updateSelectedField]
+  );
+
   const handleEditorModeChange = useCallback(
     (editorMode: EditorSurfaceMode) => {
       updateStore((prev) => ({
@@ -2766,6 +3303,7 @@ export default function Page() {
         nodes,
         ordering,
         adminOptions,
+        controlledLanguageGlossary,
         edges,
       });
 
@@ -2781,6 +3319,7 @@ export default function Page() {
       activeAccount,
       activeProject,
       adminOptions,
+      controlledLanguageGlossary,
       downloadTextFile,
       edges,
       nodes,
@@ -2885,6 +3424,9 @@ export default function Page() {
         const firstRow = projectRows[0];
         const parsedEdgesRaw = safeJsonParse(firstRow.project_edges_json ?? "");
         const parsedAdminOptionsRaw = safeJsonParse(firstRow.project_admin_options_json ?? "");
+        const parsedControlledLanguageRaw = safeJsonParse(
+          firstRow.project_controlled_language_json ?? ""
+        );
 
         const nextAdminOptions = syncAdminOptionsWithNodes(
           mergeAdminOptionConfigs(
@@ -2899,6 +3441,9 @@ export default function Page() {
 
         queueUndoSnapshot();
         setAdminOptions(nextAdminOptions);
+        setControlledLanguageGlossary(
+          sanitizeControlledLanguageGlossary(parsedControlledLanguageRaw)
+        );
         setNodes(hydratedNodes);
         setEdges(hydratedEdges);
         setSelectedNodeId(hydratedNodes[0]?.id ?? null);
@@ -2926,6 +3471,50 @@ export default function Page() {
       setSelectedNodeId,
     ]
   );
+
+  const stopSidePanelResize = useCallback(() => {
+    setIsResizingSidePanel(false);
+  }, []);
+
+  const handleSidePanelPointerMove = useCallback((event: PointerEvent) => {
+    const deltaX = sidePanelResizeStartXRef.current - event.clientX;
+    const nextWidth = clampSidePanelWidth(sidePanelResizeStartWidthRef.current + deltaX);
+    setSidePanelWidth(nextWidth);
+  }, []);
+
+  const handleSidePanelResizePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      event.preventDefault();
+      sidePanelResizeStartXRef.current = event.clientX;
+      sidePanelResizeStartWidthRef.current = sidePanelWidth;
+      setIsResizingSidePanel(true);
+    },
+    [sidePanelWidth]
+  );
+
+  useEffect(() => {
+    if (!isResizingSidePanel) {
+      return;
+    }
+
+    const handlePointerUp = () => {
+      stopSidePanelResize();
+    };
+
+    window.addEventListener("pointermove", handleSidePanelPointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handleSidePanelPointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [handleSidePanelPointerMove, isResizingSidePanel, stopSidePanelResize]);
 
   if (store.session.view === "account") {
     return (
@@ -3010,124 +3599,212 @@ export default function Page() {
       .slice()
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
+    const dashboardBlockStyle: React.CSSProperties = {
+      background: "#fff",
+      border: "2px solid #cbd5e1",
+      borderRadius: 12,
+      boxShadow: "0 8px 20px rgba(15, 23, 42, 0.05)",
+    };
+
+    const dashboardButtonStyle: React.CSSProperties = {
+      ...buttonStyle,
+      border: "1px solid #64748b",
+      borderRadius: 8,
+      padding: "8px 12px",
+      fontSize: 13,
+      fontWeight: 700,
+      color: "#0f172a",
+      background: "#f8fafc",
+    };
+
+    const dashboardPrimaryButtonStyle: React.CSSProperties = {
+      ...dashboardButtonStyle,
+      borderColor: "#1d4ed8",
+      color: "#fff",
+      background: "#1d4ed8",
+      boxShadow: "0 4px 12px rgba(29, 78, 216, 0.28)",
+    };
+
     return (
       <main
         style={{
           width: "100vw",
           minHeight: "100vh",
           background: "#f8fafc",
-          padding: 16,
+          padding: "0 16px 22px",
           display: "grid",
-          gap: 12,
+          justifyItems: "center",
         }}
       >
-        <header
+        <div
           style={{
-            background: "#fff",
-            border: "1px solid #e2e8f0",
-            borderRadius: 10,
-            padding: 12,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
+            width: "min(1080px, 100%)",
+            display: "grid",
+            gap: 6,
           }}
         >
-          <div>
-            <h1 style={{ margin: 0, fontSize: 20 }}>Project Dashboard</h1>
-            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b" }}>
-              Account code: <strong>{activeAccount?.code ?? SINGLE_ACCOUNT_CODE}</strong>
-            </p>
+          <div
+            style={{
+              minHeight: 124,
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            <h1
+              style={{
+                margin: 0,
+                textAlign: "center",
+                fontSize: 54,
+                lineHeight: 1.05,
+                fontWeight: 900,
+                color: "#0f172a",
+              }}
+            >
+              Project Dashboard
+            </h1>
           </div>
 
-          <button type="button" style={buttonStyle} onClick={handleSignOut}>
-            Back to Account Code
-          </button>
-        </header>
-
-        <section
-          style={{
-            background: "#fff",
-            border: "1px solid #e2e8f0",
-            borderRadius: 10,
-            padding: 12,
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            gap: 8,
-            alignItems: "end",
-          }}
-        >
-          <label>
-            <div style={{ fontSize: 12, marginBottom: 4 }}>New project name</div>
-            <input
-              style={inputStyle}
-              placeholder="e.g. Checkout Microcopy"
-              value={newProjectName}
-              onChange={(event) => setNewProjectName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  createProjectFromDashboard();
-                }
-              }}
-            />
-          </label>
-          <button type="button" style={buttonStyle} onClick={createProjectFromDashboard}>
-            Create Project
-          </button>
-        </section>
-
-        {projects.length === 0 ? (
           <section
             style={{
-              border: "1px dashed #cbd5e1",
-              borderRadius: 10,
-              padding: 24,
-              textAlign: "center",
-              color: "#64748b",
-              background: "#fff",
+              ...dashboardBlockStyle,
+              padding: "14px 16px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
             }}
           >
-            No projects yet. Create your first project above.
-          </section>
-        ) : (
-          <section
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-              gap: 10,
-            }}
-          >
-            {projects.map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                onClick={() => openProject(project.id)}
+            <div style={{ display: "grid", gap: 4 }}>
+              <div
                 style={{
-                  textAlign: "left",
-                  border: "1px solid #dbeafe",
-                  borderRadius: 10,
-                  padding: 12,
-                  background: "#fff",
-                  cursor: "pointer",
-                  display: "grid",
-                  gap: 6,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: 0.4,
+                  textTransform: "uppercase",
+                  color: "#64748b",
                 }}
               >
-                <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>
-                  {project.name}
-                </div>
-                <div style={{ fontSize: 12, color: "#475569" }}>
-                  Nodes: {project.canvas.nodes.length}
-                </div>
-                <div style={{ fontSize: 12, color: "#475569" }}>Project ID: {project.id}</div>
-                <div style={{ fontSize: 11, color: "#94a3b8" }}>
-                  Updated: {formatDateTime(project.updatedAt)}
-                </div>
-              </button>
-            ))}
+                User Account Code
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>
+                {activeAccount?.code ?? SINGLE_ACCOUNT_CODE}
+              </div>
+            </div>
+
+            <button type="button" style={dashboardButtonStyle} onClick={handleSignOut}>
+              Back to Account Code
+            </button>
           </section>
-        )}
+
+          <section
+            style={{
+              ...dashboardBlockStyle,
+              padding: "14px 16px",
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              gap: 10,
+              alignItems: "center",
+            }}
+          >
+            <label style={{ display: "grid", gap: 4 }}>
+              <div style={{ fontSize: 12, color: "#334155", fontWeight: 600 }}>
+                New project name
+              </div>
+              <input
+                style={inputStyle}
+                placeholder="e.g. Checkout Microcopy"
+                value={newProjectName}
+                onChange={(event) => setNewProjectName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    createProjectFromDashboard();
+                  }
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              style={dashboardPrimaryButtonStyle}
+              onClick={createProjectFromDashboard}
+            >
+              Create Project
+            </button>
+          </section>
+
+          <section style={{ display: "grid", gap: 3 }}>
+            <div style={{ display: "grid", justifyItems: "center", gap: 2 }}>
+              <h2 style={{ margin: 0, fontSize: 51, fontWeight: 900, color: "#1e293b" }}>
+                Projects
+              </h2>
+              <p style={{ margin: 0, fontSize: 17, color: "#475569", textAlign: "center" }}>
+                Click on a project to enter.
+              </p>
+            </div>
+
+            {projects.length === 0 ? (
+              <div
+                style={{
+                  ...dashboardBlockStyle,
+                  borderStyle: "dashed",
+                  borderColor: "#94a3b8",
+                  padding: "14px 16px",
+                  textAlign: "center",
+                  color: "#475569",
+                  fontSize: 13,
+                }}
+              >
+                No projects yet. Create your first project above.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: 10,
+                }}
+              >
+                {projects.map((project) => (
+                  <button
+                    key={project.id}
+                    type="button"
+                    onClick={() => openProject(project.id)}
+                    style={{
+                      textAlign: "left",
+                      border: "2px solid #bfdbfe",
+                      borderRadius: 12,
+                      padding: "9px 10px",
+                      background: "#fff",
+                      cursor: "pointer",
+                      display: "grid",
+                      gap: 3,
+                      boxShadow: "0 3px 10px rgba(37, 99, 235, 0.1)",
+                      lineHeight: 1.25,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: "#1e293b",
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {project.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#475569" }}>
+                      Nodes: {project.canvas.nodes.length}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#475569" }}>Project ID: {project.id}</div>
+                    <div style={{ fontSize: 10, color: "#94a3b8" }}>
+                      Updated: {formatDateTime(project.updatedAt)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       </main>
     );
   }
@@ -3375,7 +4052,7 @@ export default function Page() {
         width: "100vw",
         height: "100vh",
         display: "grid",
-        gridTemplateColumns: "1fr 420px",
+        gridTemplateColumns: `1fr ${sidePanelWidth}px`,
       }}
     >
       <div style={{ borderRight: "1px solid #e4e4e7" }}>
@@ -3404,7 +4081,32 @@ export default function Page() {
         </ReactFlow>
       </div>
 
-      <aside style={{ padding: 12, overflowY: "auto", display: "grid", gap: 10 }}>
+      <aside
+        style={{
+          position: "relative",
+          padding: 12,
+          overflowY: "auto",
+          display: "grid",
+          gap: 10,
+        }}
+      >
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize side panel"
+          title="Drag to resize panel"
+          onPointerDown={handleSidePanelResizePointerDown}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: -4,
+            width: 8,
+            height: "100%",
+            cursor: "col-resize",
+            zIndex: 20,
+            background: isResizingSidePanel ? "#bfdbfe" : "transparent",
+          }}
+        />
         <section
           style={{
             border: "1px solid #d4d4d8",
@@ -3567,19 +4269,327 @@ export default function Page() {
           }}
         >
           <h2 style={{ margin: 0 }}>Node Data Panel</h2>
-          <button
-            type="button"
-            style={buttonStyle}
-            onClick={() => setIsAdminPanelOpen((open) => !open)}
-          >
-            {isAdminPanelOpen ? "Hide" : "Show"} Admin
-          </button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              style={{
+                ...buttonStyle,
+                background: isControlledLanguagePanelOpen ? "#dbeafe" : "#fff",
+                borderColor: isControlledLanguagePanelOpen ? "#93c5fd" : "#d4d4d8",
+              }}
+              onClick={() =>
+                setIsControlledLanguagePanelOpen((open) => !open)
+              }
+            >
+              {isControlledLanguagePanelOpen ? "Hide" : "Show"} Controlled Language
+            </button>
+            <button
+              type="button"
+              style={buttonStyle}
+              onClick={() => setIsAdminPanelOpen((open) => !open)}
+            >
+              {isAdminPanelOpen ? "Hide" : "Show"} Admin
+            </button>
+          </div>
         </div>
 
         <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#52525b" }}>
           Click a node to edit structured fields. Double-click empty canvas to add a
-          node. All changes autosave.
+          node. All changes autosave. For glossary dropdowns, use Alt+Click on each
+          field’s “Glossary” button.
         </p>
+
+        {isControlledLanguagePanelOpen && (
+          <section
+            style={{
+              border: "1px solid #bfdbfe",
+              borderRadius: 8,
+              padding: 10,
+              display: "grid",
+              gap: 8,
+              background: "#f8fbff",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 14, color: "#1e3a8a" }}>
+                Controlled Language
+              </h3>
+              <span style={{ fontSize: 11, color: "#1e3a8a", fontWeight: 700 }}>
+                {controlledLanguageAuditRows.length} term row(s)
+              </span>
+            </div>
+
+            <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
+              Audit terms by field type. Mark <strong>Include</strong> to expose a
+              term in the Alt+Click glossary dropdown beside node text fields.
+            </p>
+
+            <div style={{ overflowX: "auto" }}>
+              <table
+                style={{
+                  borderCollapse: "collapse",
+                  width: "100%",
+                  minWidth: 560,
+                  border: "1px solid #dbeafe",
+                  background: "#fff",
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        fontSize: 11,
+                        textAlign: "left",
+                        background: "#eff6ff",
+                      }}
+                    >
+                      Field Type
+                    </th>
+                    <th
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        fontSize: 11,
+                        textAlign: "left",
+                        background: "#eff6ff",
+                      }}
+                    >
+                      Glossary Term
+                    </th>
+                    <th
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        fontSize: 11,
+                        textAlign: "left",
+                        background: "#eff6ff",
+                        width: 110,
+                      }}
+                    >
+                      Occurrences
+                    </th>
+                    <th
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        fontSize: 11,
+                        textAlign: "center",
+                        background: "#eff6ff",
+                        width: 110,
+                      }}
+                    >
+                      Include
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {controlledLanguageAuditRows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        style={{
+                          border: "1px solid #dbeafe",
+                          padding: 8,
+                          fontSize: 11,
+                          color: "#64748b",
+                        }}
+                      >
+                        No terms found in Primary CTA / Secondary CTA / Helper Text /
+                        Error Text yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    controlledLanguageAuditRows.map((row) => {
+                      const rowKey = buildControlledLanguageGlossaryKey(
+                        row.field_type,
+                        row.term
+                      );
+
+                      return (
+                        <tr key={`controlled-language-row:${rowKey}`}>
+                          <td style={{ border: "1px solid #e2e8f0", padding: 6 }}>
+                            <input
+                              style={{
+                                ...inputStyle,
+                                fontSize: 11,
+                                background: "#f8fafc",
+                                color: "#334155",
+                                cursor: "not-allowed",
+                              }}
+                              value={CONTROLLED_LANGUAGE_FIELD_LABELS[row.field_type]}
+                              readOnly
+                              aria-label="Field Type"
+                            >
+                            </input>
+                          </td>
+
+                          <td style={{ border: "1px solid #e2e8f0", padding: 6 }}>
+                            <input
+                              style={{ ...inputStyle, fontSize: 11 }}
+                              defaultValue={row.term}
+                              onBlur={(event) =>
+                                renameControlledLanguageRowTerm(
+                                  rowKey,
+                                  event.target.value
+                                )
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  event.currentTarget.blur();
+                                }
+                              }}
+                            />
+                          </td>
+
+                          <td
+                            style={{
+                              border: "1px solid #e2e8f0",
+                              padding: 6,
+                              fontSize: 11,
+                              color: "#0f172a",
+                            }}
+                          >
+                            <strong>{row.occurrences}</strong>
+                            {row.occurrences === 0 && (
+                              <div style={{ marginTop: 2, color: "#64748b" }}>
+                                Not Used
+                              </div>
+                            )}
+                          </td>
+
+                          <td
+                            style={{
+                              border: "1px solid #e2e8f0",
+                              padding: 6,
+                              textAlign: "center",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={row.include}
+                              onChange={(event) =>
+                                setControlledLanguageRowInclude(
+                                  rowKey,
+                                  event.target.checked
+                                )
+                              }
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+
+                  <tr style={{ background: "#f8fafc" }}>
+                    <td style={{ border: "1px solid #dbeafe", padding: 6 }}>
+                      <select
+                        style={{ ...inputStyle, fontSize: 11 }}
+                        value={controlledLanguageDraftRow.field_type}
+                        onChange={(event) => {
+                          const nextFieldType = event.target.value;
+                          if (!isControlledLanguageFieldType(nextFieldType)) {
+                            return;
+                          }
+
+                          setControlledLanguageDraftRow((current) => ({
+                            ...current,
+                            field_type: nextFieldType,
+                          }));
+                        }}
+                      >
+                        {CONTROLLED_LANGUAGE_FIELDS.map((fieldTypeOption) => (
+                          <option
+                            key={`controlled-language-draft-field-option:${fieldTypeOption}`}
+                            value={fieldTypeOption}
+                          >
+                            {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldTypeOption]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+
+                    <td style={{ border: "1px solid #dbeafe", padding: 6 }}>
+                      <input
+                        style={{ ...inputStyle, fontSize: 11 }}
+                        placeholder="Add glossary term"
+                        value={controlledLanguageDraftRow.term}
+                        onChange={(event) =>
+                          setControlledLanguageDraftRow((current) => ({
+                            ...current,
+                            term: event.target.value,
+                          }))
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addControlledLanguageDraftTerm();
+                          }
+                        }}
+                      />
+                    </td>
+
+                    <td
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        fontSize: 11,
+                        color: "#64748b",
+                      }}
+                    >
+                      <strong style={{ color: "#0f172a" }}>0</strong>
+                      <div style={{ marginTop: 2 }}>Not Used</div>
+                    </td>
+
+                    <td
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={controlledLanguageDraftRow.include}
+                          onChange={(event) =>
+                            setControlledLanguageDraftRow((current) => ({
+                              ...current,
+                              include: event.target.checked,
+                            }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          style={{ ...buttonStyle, fontSize: 11, padding: "4px 8px" }}
+                          onClick={addControlledLanguageDraftTerm}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         {isAdminPanelOpen && (
           <section
@@ -3838,49 +4848,108 @@ export default function Page() {
               />
             </label>
 
-            <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>primary_cta</div>
-              <input
-                style={inputStyle}
-                value={selectedNode.data.primary_cta}
-                onChange={(event) =>
-                  updateSelectedField("primary_cta", event.target.value)
-                }
-              />
-            </label>
+            <div>
+              <div style={{ fontSize: 12, marginBottom: 4, color: "#334155" }}>
+                body_text preview (markdown)
+              </div>
+              <div
+                style={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 6,
+                  background: "#f8fafc",
+                  padding: 8,
+                }}
+              >
+                <BodyTextPreview value={selectedNode.data.body_text} />
+              </div>
+            </div>
 
-            <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>secondary_cta</div>
-              <input
-                style={inputStyle}
-                value={selectedNode.data.secondary_cta}
-                onChange={(event) =>
-                  updateSelectedField("secondary_cta", event.target.value)
-                }
-              />
-            </label>
+            {CONTROLLED_LANGUAGE_FIELDS.map((fieldType) => {
+              const isDropdownOpen = openControlledLanguageFieldType === fieldType;
+              const includedTerms = controlledLanguageTermsByField[fieldType];
 
-            <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>helper_text</div>
-              <input
-                style={inputStyle}
-                value={selectedNode.data.helper_text}
-                onChange={(event) =>
-                  updateSelectedField("helper_text", event.target.value)
-                }
-              />
-            </label>
+              return (
+                <label key={`controlled-language-field:${fieldType}`}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginBottom: 4,
+                    }}
+                  >
+                    <div style={{ fontSize: 12 }}>{fieldType}</div>
+                    <button
+                      type="button"
+                      style={{
+                        ...buttonStyle,
+                        fontSize: 10,
+                        padding: "2px 6px",
+                        background: isDropdownOpen ? "#dbeafe" : "#fff",
+                        borderColor: isDropdownOpen ? "#93c5fd" : "#d4d4d8",
+                      }}
+                      title="Alt+Click to toggle glossary dropdown"
+                      onClick={(event) =>
+                        toggleControlledLanguageFieldDropdown(fieldType, event)
+                      }
+                    >
+                      Glossary ▾
+                    </button>
+                  </div>
 
-            <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>error_text</div>
-              <input
-                style={inputStyle}
-                value={selectedNode.data.error_text}
-                onChange={(event) =>
-                  updateSelectedField("error_text", event.target.value)
-                }
-              />
-            </label>
+                  <input
+                    style={inputStyle}
+                    value={selectedNode.data[fieldType]}
+                    onChange={(event) =>
+                      updateSelectedField(fieldType, event.target.value)
+                    }
+                  />
+
+                  {isDropdownOpen && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        border: "1px solid #dbeafe",
+                        borderRadius: 6,
+                        background: "#f8fbff",
+                        padding: 6,
+                      }}
+                    >
+                      {includedTerms.length === 0 ? (
+                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                          No included glossary terms for this field type yet.
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {includedTerms.map((term) => (
+                            <button
+                              key={`controlled-language-option:${fieldType}:${term}`}
+                              type="button"
+                              style={{
+                                ...buttonStyle,
+                                padding: "3px 8px",
+                                fontSize: 11,
+                                background: "#fff",
+                              }}
+                              onClick={() =>
+                                applyControlledLanguageTermToField(fieldType, term)
+                              }
+                            >
+                              {term}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: 6, fontSize: 10, color: "#64748b" }}>
+                        Alt+Click the Glossary button to open/close this list.
+                      </div>
+                    </div>
+                  )}
+                </label>
+              );
+            })}
 
             <label>
               <div style={{ fontSize: 12, marginBottom: 4 }}>tone</div>
