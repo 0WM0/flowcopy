@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ReactFlow,
   addEdge,
@@ -16,6 +22,7 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
+  useUpdateNodeInternals,
   type Connection,
   type DefaultEdgeOptions,
   type Edge,
@@ -34,11 +41,23 @@ import "@xyflow/react/dist/style.css";
 type NodeShape = "rectangle" | "rounded" | "pill" | "diamond";
 type EdgeKind = "sequential" | "parallel";
 type EdgeLineStyle = "solid" | "dashed" | "dotted";
-type ControlledLanguageFieldType =
+type NodeType = "default" | "menu";
+type NodeControlledLanguageFieldType =
   | "primary_cta"
   | "secondary_cta"
   | "helper_text"
   | "error_text";
+type ControlledLanguageFieldType = NodeControlledLanguageFieldType | "list_item";
+
+type MenuNodeTerm = {
+  id: string;
+  term: string;
+};
+
+type MenuNodeConfig = {
+  max_right_connections: number;
+  terms: MenuNodeTerm[];
+};
 
 type EdgeDirection = "forward" | "reversed";
 
@@ -65,6 +84,8 @@ type MicrocopyNodeData = {
   action_type_color: string;
   card_style: string;
   node_shape: NodeShape;
+  node_type: NodeType;
+  menu_config: MenuNodeConfig;
   parallel_group_id: string | null;
   sequence_index: number | null;
 };
@@ -72,7 +93,7 @@ type MicrocopyNodeData = {
 type PersistableMicrocopyNodeData = Omit<MicrocopyNodeData, "sequence_index">;
 type EditableMicrocopyField = Exclude<
   keyof PersistableMicrocopyNodeData,
-  "parallel_group_id"
+  "parallel_group_id" | "menu_config" | "node_type"
 >;
 
 type GlobalOptionConfig = {
@@ -107,6 +128,11 @@ type ControlledLanguageGlossaryEntry = {
   field_type: ControlledLanguageFieldType;
   term: string;
   include: boolean;
+};
+
+type ControlledLanguageAuditTermEntry = {
+  field_type: ControlledLanguageFieldType;
+  term: string;
 };
 
 type ControlledLanguageAuditRow = ControlledLanguageGlossaryEntry & {
@@ -193,6 +219,8 @@ const FLAT_EXPORT_COLUMNS = [
   "action_type_color",
   "card_style",
   "node_shape",
+  "node_type",
+  "menu_config_json",
   "project_admin_options_json",
   "project_controlled_language_json",
   "project_edges_json",
@@ -228,6 +256,12 @@ const NODE_SHAPE_OPTIONS: NodeShape[] = [
   "pill",
   "diamond",
 ];
+
+const NODE_TYPE_OPTIONS: NodeType[] = ["default", "menu"];
+
+const MENU_NODE_RIGHT_CONNECTIONS_MIN = 1;
+const MENU_NODE_RIGHT_CONNECTIONS_MAX = 12;
+const MENU_SOURCE_HANDLE_PREFIX = "menu-src-";
 
 const EDGE_STROKE_COLOR = "#1d4ed8";
 const PARALLEL_EDGE_STROKE_COLOR = "#64748b";
@@ -297,6 +331,14 @@ const CONTROLLED_LANGUAGE_FIELDS: ControlledLanguageFieldType[] = [
   "secondary_cta",
   "helper_text",
   "error_text",
+  "list_item",
+];
+
+const CONTROLLED_LANGUAGE_NODE_FIELDS: NodeControlledLanguageFieldType[] = [
+  "primary_cta",
+  "secondary_cta",
+  "helper_text",
+  "error_text",
 ];
 
 const CONTROLLED_LANGUAGE_FIELD_LABELS: Record<ControlledLanguageFieldType, string> = {
@@ -304,6 +346,7 @@ const CONTROLLED_LANGUAGE_FIELD_LABELS: Record<ControlledLanguageFieldType, stri
   secondary_cta: "Secondary CTA",
   helper_text: "Helper Text",
   error_text: "Error Text",
+  list_item: "List Item",
 };
 
 const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<ControlledLanguageFieldType, number> = {
@@ -311,6 +354,7 @@ const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<ControlledLanguageFieldType, numbe
   secondary_cta: 1,
   helper_text: 2,
   error_text: 3,
+  list_item: 4,
 };
 
 const inputStyle: React.CSSProperties = {
@@ -430,7 +474,297 @@ const isControlledLanguageFieldType = (
   value === "primary_cta" ||
   value === "secondary_cta" ||
   value === "helper_text" ||
-  value === "error_text";
+  value === "error_text" ||
+  value === "list_item";
+
+const isNodeType = (value: unknown): value is NodeType =>
+  value === "default" || value === "menu";
+
+const createMenuTermId = (): string =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? `menu-${crypto.randomUUID()}`
+    : `menu-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+
+const createMenuNodeTerm = (term: string): MenuNodeTerm => ({
+  id: createMenuTermId(),
+  term,
+});
+
+const clampMenuRightConnections = (
+  value: number,
+  minimum: number = MENU_NODE_RIGHT_CONNECTIONS_MIN
+): number => {
+  const sanitizedMinimum = Math.min(
+    MENU_NODE_RIGHT_CONNECTIONS_MAX,
+    Math.max(MENU_NODE_RIGHT_CONNECTIONS_MIN, Math.round(minimum))
+  );
+
+  if (!Number.isFinite(value)) {
+    return sanitizedMinimum;
+  }
+
+  return Math.min(
+    MENU_NODE_RIGHT_CONNECTIONS_MAX,
+    Math.max(sanitizedMinimum, Math.round(value))
+  );
+};
+
+const buildMenuSourceHandleId = (termId: string): string =>
+  `${MENU_SOURCE_HANDLE_PREFIX}${termId}`;
+
+const buildMenuSourceHandleIds = (menuConfig: MenuNodeConfig): string[] =>
+  menuConfig.terms.map((term) => buildMenuSourceHandleId(term.id));
+
+const isMenuSourceHandleId = (value: string | null | undefined): value is string =>
+  typeof value === "string" && value.startsWith(MENU_SOURCE_HANDLE_PREFIX);
+
+const syncSequentialEdgesForMenuNode = (
+  edges: FlowEdge[],
+  nodeId: string,
+  menuConfig: MenuNodeConfig
+): FlowEdge[] => {
+  const allowedHandleIds = buildMenuSourceHandleIds(menuConfig);
+  const allowedHandleIdSet = new Set(allowedHandleIds);
+  const fallbackHandleId = allowedHandleIds[0] ?? null;
+
+  return edges.flatMap((edge) => {
+    if (edge.source !== nodeId || !isSequentialEdge(edge)) {
+      return [edge];
+    }
+
+    if (!fallbackHandleId) {
+      return [];
+    }
+
+    if (isMenuSourceHandleId(edge.sourceHandle)) {
+      if (allowedHandleIdSet.has(edge.sourceHandle)) {
+        return [edge];
+      }
+
+      return [];
+    }
+
+    return [
+      {
+        ...edge,
+        sourceHandle: fallbackHandleId,
+      },
+    ];
+  });
+};
+
+const assignSequentialEdgesToMenuHandles = (
+  edges: FlowEdge[],
+  nodeId: string,
+  menuHandleIds: string[]
+): FlowEdge[] => {
+  if (menuHandleIds.length === 0) {
+    return edges.filter((edge) => !(edge.source === nodeId && isSequentialEdge(edge)));
+  }
+
+  let sequentialIndex = 0;
+
+  return edges.flatMap((edge) => {
+    if (edge.source !== nodeId || !isSequentialEdge(edge)) {
+      return [edge];
+    }
+
+    const nextHandleId = menuHandleIds[sequentialIndex];
+    sequentialIndex += 1;
+
+    if (!nextHandleId) {
+      return [];
+    }
+
+    return [
+      {
+        ...edge,
+        sourceHandle: nextHandleId,
+      },
+    ];
+  });
+};
+
+const remapMenuSequentialEdgesToDefaultHandle = (
+  edges: FlowEdge[],
+  nodeId: string
+): FlowEdge[] =>
+  edges.map((edge) => {
+    if (
+      edge.source !== nodeId ||
+      !isSequentialEdge(edge) ||
+      !isMenuSourceHandleId(edge.sourceHandle)
+    ) {
+      return edge;
+    }
+
+    return {
+      ...edge,
+      sourceHandle: SEQUENTIAL_SOURCE_HANDLE_ID,
+    };
+  });
+
+const getSequentialOutgoingEdgesForNode = (
+  edges: FlowEdge[],
+  nodeId: string,
+  options: { ignoreEdgeId?: string } = {}
+): FlowEdge[] =>
+  edges.filter(
+    (edge) =>
+      edge.source === nodeId &&
+      edge.id !== options.ignoreEdgeId &&
+      isSequentialEdge(edge)
+  );
+
+const getFirstAvailableMenuSourceHandleId = (
+  edges: FlowEdge[],
+  nodeId: string,
+  menuConfig: MenuNodeConfig,
+  options: { ignoreEdgeId?: string } = {}
+): string | null => {
+  const usedHandleIds = new Set(
+    getSequentialOutgoingEdgesForNode(edges, nodeId, options)
+      .map((edge) => edge.sourceHandle)
+      .filter((handleId): handleId is string => isMenuSourceHandleId(handleId))
+  );
+
+  return (
+    buildMenuSourceHandleIds(menuConfig).find(
+      (handleId) => !usedHandleIds.has(handleId)
+    ) ?? null
+  );
+};
+
+const isMenuSequentialConnectionAllowed = (
+  edges: FlowEdge[],
+  nodeId: string,
+  menuConfig: MenuNodeConfig,
+  sourceHandle: string | null | undefined,
+  options: { ignoreEdgeId?: string } = {}
+): boolean => {
+  if (!isMenuSourceHandleId(sourceHandle)) {
+    return false;
+  }
+
+  const allowedHandleIds = new Set(buildMenuSourceHandleIds(menuConfig));
+  if (!allowedHandleIds.has(sourceHandle)) {
+    return false;
+  }
+
+  const outgoingSequentialEdges = getSequentialOutgoingEdgesForNode(
+    edges,
+    nodeId,
+    options
+  );
+
+  if (outgoingSequentialEdges.length >= menuConfig.max_right_connections) {
+    return false;
+  }
+
+  if (outgoingSequentialEdges.some((edge) => edge.sourceHandle === sourceHandle)) {
+    return false;
+  }
+
+  return true;
+};
+
+const normalizeMenuNodeConfig = (
+  value: unknown,
+  fallbackPrimaryTerm: string,
+  minimumConnections: number = MENU_NODE_RIGHT_CONNECTIONS_MIN
+): MenuNodeConfig => {
+  const source =
+    value && typeof value === "object" ? (value as Partial<MenuNodeConfig>) : undefined;
+
+  const requestedMax =
+    typeof source?.max_right_connections === "number"
+      ? source.max_right_connections
+      : Array.isArray(source?.terms)
+        ? source.terms.length
+        : minimumConnections;
+
+  const maxRightConnections = clampMenuRightConnections(requestedMax, minimumConnections);
+
+  const normalizedTerms: MenuNodeTerm[] = [];
+  const usedTermIds = new Set<string>();
+  const sourceTerms = Array.isArray(source?.terms) ? source.terms : [];
+
+  sourceTerms.forEach((termValue) => {
+    if (!termValue || typeof termValue !== "object") {
+      return;
+    }
+
+    const sourceTerm = termValue as Partial<MenuNodeTerm>;
+    const term = typeof sourceTerm.term === "string" ? sourceTerm.term : "";
+
+    const rawTermId = typeof sourceTerm.id === "string" ? sourceTerm.id.trim() : "";
+    let nextTermId = rawTermId.length > 0 ? rawTermId : createMenuTermId();
+
+    while (usedTermIds.has(nextTermId)) {
+      nextTermId = createMenuTermId();
+    }
+
+    usedTermIds.add(nextTermId);
+
+    normalizedTerms.push({
+      id: nextTermId,
+      term,
+    });
+  });
+
+  if (normalizedTerms.length === 0) {
+    normalizedTerms.push(createMenuNodeTerm(fallbackPrimaryTerm || "Continue"));
+  }
+
+  const terms = normalizedTerms.slice(0, maxRightConnections);
+
+  while (terms.length < maxRightConnections) {
+    terms.push(createMenuNodeTerm(""));
+  }
+
+  return {
+    max_right_connections: maxRightConnections,
+    terms,
+  };
+};
+
+const getPrimaryMenuTermValue = (
+  menuConfig: MenuNodeConfig,
+  fallbackValue: string
+): string => menuConfig.terms[0]?.term ?? fallbackValue;
+
+const getSecondaryMenuTermValue = (
+  menuConfig: MenuNodeConfig,
+  fallbackValue: string
+): string => menuConfig.terms[1]?.term ?? fallbackValue;
+
+const applyMenuConfigToNodeData = (
+  nodeData: MicrocopyNodeData,
+  nextMenuConfig: MenuNodeConfig
+): MicrocopyNodeData => ({
+  ...nodeData,
+  menu_config: nextMenuConfig,
+  primary_cta: getPrimaryMenuTermValue(nextMenuConfig, nodeData.primary_cta),
+  secondary_cta: getSecondaryMenuTermValue(nextMenuConfig, nodeData.secondary_cta),
+});
+
+const collectControlledLanguageTermsFromNode = (
+  node: FlowNode
+): ControlledLanguageAuditTermEntry[] => {
+  if (node.data.node_type === "menu") {
+    const menuTerms = node.data.menu_config.terms.map((menuTerm) => ({
+      field_type: "list_item" as const,
+      term: menuTerm.term,
+    }));
+
+    return menuTerms;
+  }
+
+  return CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => ({
+    field_type: fieldType,
+    term: node.data[fieldType],
+  }));
+};
 
 const normalizeControlledLanguageTerm = (value: string): string => value.trim();
 
@@ -530,7 +864,7 @@ const cloneControlledLanguageGlossary = (
   }));
 
 const createEmptyControlledLanguageDraftRow = (): ControlledLanguageDraftRow => ({
-  field_type: "primary_cta",
+  field_type: "list_item",
   term: "",
   include: true,
 });
@@ -543,6 +877,7 @@ const createEmptyControlledLanguageTermsByField = (): Record<
   secondary_cta: [],
   helper_text: [],
   error_text: [],
+  list_item: [],
 });
 
 const buildControlledLanguageTermsByField = (
@@ -572,18 +907,13 @@ const buildControlledLanguageAuditRows = (
   const rowByKey = new Map<string, ControlledLanguageAuditRow>();
 
   nodes.forEach((node) => {
-    CONTROLLED_LANGUAGE_FIELDS.forEach((fieldType) => {
-      const rawValue = node.data[fieldType];
-      if (typeof rawValue !== "string") {
-        return;
-      }
-
-      const term = normalizeControlledLanguageTerm(rawValue);
+    collectControlledLanguageTermsFromNode(node).forEach(({ field_type, term: rawTerm }) => {
+      const term = normalizeControlledLanguageTerm(rawTerm);
       if (!term) {
         return;
       }
 
-      const key = buildControlledLanguageGlossaryKey(fieldType, term);
+      const key = buildControlledLanguageGlossaryKey(field_type, term);
       const existing = rowByKey.get(key);
 
       if (existing) {
@@ -595,7 +925,7 @@ const buildControlledLanguageAuditRows = (
       }
 
       rowByKey.set(key, {
-        field_type: fieldType,
+        field_type,
         term,
         include: false,
         occurrences: 1,
@@ -1047,6 +1377,8 @@ const createFlatExportRows = ({
       action_type_color: node?.data.action_type_color ?? "",
       card_style: node?.data.card_style ?? "",
       node_shape: node?.data.node_shape ?? "",
+      node_type: node?.data.node_type ?? "default",
+      menu_config_json: node ? JSON.stringify(node.data.menu_config) : "",
       project_admin_options_json: adminOptionsJson,
       project_controlled_language_json: controlledLanguageJson,
       project_edges_json: edgesJson,
@@ -1288,6 +1620,12 @@ const createDefaultNodeData = (
     firstOptionOrFallback(globalOptions.action_type_color, "#4f46e5"),
   card_style: overrides.card_style ?? firstOptionOrFallback(globalOptions.card_style, "default"),
   node_shape: isNodeShape(overrides.node_shape) ? overrides.node_shape : "rectangle",
+  node_type: isNodeType(overrides.node_type) ? overrides.node_type : "default",
+  menu_config: normalizeMenuNodeConfig(
+    overrides.menu_config,
+    overrides.primary_cta ?? "Continue",
+    1
+  ),
   parallel_group_id:
     typeof overrides.parallel_group_id === "string" &&
     overrides.parallel_group_id.trim().length > 0
@@ -1797,6 +2135,14 @@ const serializeNodesForStorage = (
       action_type_color: node.data.action_type_color,
       card_style: node.data.card_style,
       node_shape: node.data.node_shape,
+      node_type: node.data.node_type,
+      menu_config: normalizeMenuNodeConfig(
+        node.data.menu_config,
+        node.data.primary_cta,
+        node.data.node_type === "menu"
+          ? node.data.menu_config.max_right_connections
+          : 1
+      ),
       parallel_group_id:
         parallelGroupByNodeId[node.id] ?? node.data.parallel_group_id ?? null,
     };
@@ -2094,10 +2440,51 @@ function BodyTextPreview({ value }: { value: string }) {
 
 type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onBeforeChange: () => void;
+  listItemGlossaryTerms: string[];
+  onMenuNodeConfigChange: (
+    nodeId: string,
+    updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig
+  ) => void;
 };
 
-function FlowCopyNode({ id, data, selected, onBeforeChange }: FlowCopyNodeProps) {
-  const { setNodes } = useReactFlow<FlowNode, FlowEdge>();
+function FlowCopyNode({
+  id,
+  data,
+  selected,
+  onBeforeChange,
+  listItemGlossaryTerms,
+  onMenuNodeConfigChange,
+}: FlowCopyNodeProps) {
+  const { setNodes, setEdges } = useReactFlow<FlowNode, FlowEdge>();
+  const updateNodeInternals = useUpdateNodeInternals();
+  const [openMenuGlossaryTermId, setOpenMenuGlossaryTermId] = useState<string | null>(
+    null
+  );
+
+  const isMenuNode = data.node_type === "menu";
+  const menuConfig = useMemo(
+    () =>
+      normalizeMenuNodeConfig(
+        data.menu_config,
+        data.primary_cta,
+        Math.max(
+          MENU_NODE_RIGHT_CONNECTIONS_MIN,
+          data.menu_config.max_right_connections
+        )
+      ),
+    [data.menu_config, data.primary_cta]
+  );
+
+  const visibleMenuGlossaryTermId =
+    isMenuNode &&
+    openMenuGlossaryTermId &&
+    menuConfig.terms.some((term) => term.id === openMenuGlossaryTermId)
+      ? openMenuGlossaryTermId
+      : null;
+
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, menuConfig.terms.length, updateNodeInternals]);
 
   const updateField = useCallback(
     <K extends EditableMicrocopyField>(
@@ -2112,6 +2499,190 @@ function FlowCopyNode({ id, data, selected, onBeforeChange }: FlowCopyNodeProps)
       );
     },
     [id, onBeforeChange, setNodes]
+  );
+
+  const updateNodeType = useCallback(
+    (nextType: NodeType) => {
+      if (nextType === data.node_type) {
+        return;
+      }
+
+      onBeforeChange();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== id) {
+            return node;
+          }
+
+          if (nextType === "menu") {
+            const normalizedMenuConfig = normalizeMenuNodeConfig(
+              node.data.menu_config,
+              node.data.primary_cta,
+              Math.max(
+                MENU_NODE_RIGHT_CONNECTIONS_MIN,
+                node.data.menu_config.max_right_connections
+              )
+            );
+
+            const nextMenuConfig: MenuNodeConfig = {
+              ...normalizedMenuConfig,
+              terms: normalizedMenuConfig.terms.map((menuTerm, termIndex) =>
+                termIndex === 0
+                  ? {
+                      ...menuTerm,
+                      term: node.data.primary_cta,
+                    }
+                  : menuTerm
+              ),
+            };
+
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                node_type: "menu",
+                menu_config: nextMenuConfig,
+                primary_cta: getPrimaryMenuTermValue(nextMenuConfig, node.data.primary_cta),
+                secondary_cta: getSecondaryMenuTermValue(
+                  nextMenuConfig,
+                  node.data.secondary_cta
+                ),
+              },
+            };
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              node_type: "default",
+              primary_cta: getPrimaryMenuTermValue(
+                node.data.menu_config,
+                node.data.primary_cta
+              ),
+              secondary_cta: getSecondaryMenuTermValue(
+                node.data.menu_config,
+                node.data.secondary_cta
+              ),
+            },
+          };
+        })
+      );
+
+      setEdges((currentEdges) =>
+        nextType === "menu"
+          ? assignSequentialEdgesToMenuHandles(
+              currentEdges,
+              id,
+              buildMenuSourceHandleIds(
+                normalizeMenuNodeConfig(
+                  data.menu_config,
+                  data.primary_cta,
+                  Math.max(
+                    MENU_NODE_RIGHT_CONNECTIONS_MIN,
+                    data.menu_config.max_right_connections
+                  )
+                )
+              )
+            )
+          : remapMenuSequentialEdgesToDefaultHandle(currentEdges, id)
+      );
+
+      updateNodeInternals(id);
+      if (nextType !== "menu") {
+        setOpenMenuGlossaryTermId(null);
+      }
+    },
+    [
+      data.menu_config,
+      data.node_type,
+      data.primary_cta,
+      onBeforeChange,
+      id,
+      setEdges,
+      setNodes,
+      updateNodeInternals,
+    ]
+  );
+
+  const replaceMenuConfig = useCallback(
+    (nextMenuConfig: MenuNodeConfig) => {
+      if (!isMenuNode) {
+        return;
+      }
+
+      onMenuNodeConfigChange(id, () => nextMenuConfig);
+    },
+    [id, isMenuNode, onMenuNodeConfigChange]
+  );
+
+  const updateMenuTermById = useCallback(
+    (termId: string, term: string) => {
+      if (!isMenuNode) {
+        return;
+      }
+
+      const nextTerms = menuConfig.terms.map((menuTerm) =>
+        menuTerm.id === termId
+          ? {
+              ...menuTerm,
+              term,
+            }
+          : menuTerm
+      );
+
+      replaceMenuConfig({
+        ...menuConfig,
+        terms: nextTerms,
+      });
+    },
+    [isMenuNode, menuConfig, replaceMenuConfig]
+  );
+
+  const deleteMenuTermById = useCallback(
+    (termId: string) => {
+      if (!isMenuNode) {
+        return;
+      }
+
+      const termToDelete = menuConfig.terms.find((term) => term.id === termId);
+      if (!termToDelete) {
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Delete this menu term (${termToDelete.term || "Untitled"})? This will also remove any sequential edge attached to it.`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      const filteredTerms = menuConfig.terms.filter((term) => term.id !== termId);
+      const nextMax = clampMenuRightConnections(
+        Math.max(filteredTerms.length, MENU_NODE_RIGHT_CONNECTIONS_MIN)
+      );
+
+      replaceMenuConfig({
+        max_right_connections: nextMax,
+        terms: filteredTerms,
+      });
+      setOpenMenuGlossaryTermId((current) => (current === termId ? null : current));
+    },
+    [isMenuNode, menuConfig, replaceMenuConfig]
+  );
+
+  const toggleMenuTermGlossary = useCallback((termId: string) => {
+    setOpenMenuGlossaryTermId((current) => (current === termId ? null : termId));
+  }, []);
+
+  const applyGlossaryTermToMenuTerm = useCallback(
+    (termId: string, glossaryTerm: string) => {
+      updateMenuTermById(termId, glossaryTerm);
+      setOpenMenuGlossaryTermId(null);
+    },
+    [updateMenuTermById]
   );
 
   return (
@@ -2160,6 +2731,29 @@ function FlowCopyNode({ id, data, selected, onBeforeChange }: FlowCopyNodeProps)
         </div>
 
         <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Node Type</div>
+          <select
+            className="nodrag"
+            style={inputStyle}
+            value={data.node_type}
+            onChange={(event) => {
+              const nextType = event.target.value;
+              if (!isNodeType(nextType)) {
+                return;
+              }
+
+              updateNodeType(nextType);
+            }}
+          >
+            {NODE_TYPE_OPTIONS.map((nodeTypeOption) => (
+              <option key={`node-type:${nodeTypeOption}`} value={nodeTypeOption}>
+                {nodeTypeOption}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ marginTop: 8 }}>
           <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Title</div>
           <input
             className="nodrag"
@@ -2169,17 +2763,171 @@ function FlowCopyNode({ id, data, selected, onBeforeChange }: FlowCopyNodeProps)
           />
         </div>
 
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>
-            Primary CTA
+        {!isMenuNode && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>
+              Primary CTA
+            </div>
+            <input
+              className="nodrag"
+              style={inputStyle}
+              value={data.primary_cta}
+              onChange={(event) => updateField("primary_cta", event.target.value)}
+            />
           </div>
-          <input
-            className="nodrag"
-            style={inputStyle}
-            value={data.primary_cta}
-            onChange={(event) => updateField("primary_cta", event.target.value)}
-          />
-        </div>
+        )}
+
+        {isMenuNode && (
+          <div
+            style={{
+              marginTop: 8,
+              border: "1px solid #dbeafe",
+              borderRadius: 8,
+              padding: 8,
+              background: "#f8fbff",
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+              Menu Terms
+            </div>
+
+            {menuConfig.terms.map((menuTerm, index) => (
+              <div
+                key={`menu-term:${menuTerm.id}`}
+                style={{
+                  border: "1px solid #bfdbfe",
+                  borderRadius: 6,
+                  padding: 6,
+                  display: "grid",
+                  gap: 6,
+                  background: "#fff",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 6,
+                  }}
+                >
+                  <span style={{ fontSize: 10, color: "#64748b" }}>
+                    Handle {index + 1}
+                  </span>
+                  <button
+                    type="button"
+                    className="nodrag"
+                    style={{
+                      ...buttonStyle,
+                      fontSize: 10,
+                      padding: "2px 6px",
+                      borderColor: "#fca5a5",
+                      color: "#b91c1c",
+                    }}
+                    title="Delete this term"
+                    onClick={() => deleteMenuTermById(menuTerm.id)}
+                  >
+                    X
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gap: 4 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ fontSize: 10, color: "#334155" }}>Term</div>
+                    <button
+                      type="button"
+                      className="nodrag"
+                      style={{
+                        ...buttonStyle,
+                        fontSize: 10,
+                        padding: "2px 6px",
+                        background:
+                          visibleMenuGlossaryTermId === menuTerm.id ? "#dbeafe" : "#fff",
+                        borderColor:
+                          visibleMenuGlossaryTermId === menuTerm.id ? "#93c5fd" : "#d4d4d8",
+                      }}
+                      onClick={() => toggleMenuTermGlossary(menuTerm.id)}
+                    >
+                      Glossary ▾
+                    </button>
+                  </div>
+
+                  <div style={{ position: "relative", paddingRight: 14 }}>
+                    <input
+                      className="nodrag"
+                      data-menu-term-input="true"
+                      style={inputStyle}
+                      value={menuTerm.term}
+                      onChange={(event) => updateMenuTermById(menuTerm.id, event.target.value)}
+                    />
+
+                    <Handle
+                      type="source"
+                      position={Position.Right}
+                      id={buildMenuSourceHandleId(menuTerm.id)}
+                      style={{
+                        top: "50%",
+                        right: -9,
+                        transform: "translateY(-50%)",
+                        width: 10,
+                        height: 10,
+                        borderRadius: 999,
+                        background: "#2563eb",
+                        border: "2px solid #fff",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {visibleMenuGlossaryTermId === menuTerm.id && (
+                  <div
+                    style={{
+                      border: "1px solid #dbeafe",
+                      borderRadius: 6,
+                      background: "#f8fbff",
+                      padding: 6,
+                    }}
+                  >
+                    {listItemGlossaryTerms.length === 0 ? (
+                      <div style={{ fontSize: 10, color: "#64748b" }}>
+                        No included List Item glossary terms yet.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {listItemGlossaryTerms.map((glossaryTerm) => (
+                          <button
+                            key={`menu-node-glossary:${menuTerm.id}:${glossaryTerm}`}
+                            type="button"
+                            className="nodrag"
+                            style={{
+                              ...buttonStyle,
+                              fontSize: 10,
+                              padding: "2px 6px",
+                            }}
+                            onClick={() =>
+                              applyGlossaryTermToMenuTerm(menuTerm.id, glossaryTerm)
+                            }
+                          >
+                            {glossaryTerm}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{ marginTop: 8, fontSize: 10, color: "#71717a" }}>id: {id}</div>
       </div>
@@ -2188,7 +2936,10 @@ function FlowCopyNode({ id, data, selected, onBeforeChange }: FlowCopyNodeProps)
         type="source"
         position={Position.Right}
         id={SEQUENTIAL_SOURCE_HANDLE_ID}
+        style={{ opacity: isMenuNode ? 0 : 1 }}
+        isConnectable={!isMenuNode}
       />
+
       <Handle
         type="source"
         position={Position.Bottom}
@@ -2223,7 +2974,10 @@ export default function Page() {
   const [controlledLanguageDraftRow, setControlledLanguageDraftRow] =
     useState<ControlledLanguageDraftRow>(createEmptyControlledLanguageDraftRow);
   const [openControlledLanguageFieldType, setOpenControlledLanguageFieldType] = useState<
-    ControlledLanguageFieldType | null
+    NodeControlledLanguageFieldType | null
+  >(null);
+  const [openInspectorMenuGlossaryTermId, setOpenInspectorMenuGlossaryTermId] = useState<
+    string | null
   >(null);
   const [pendingOptionInputs, setPendingOptionInputs] = useState<
     Record<GlobalOptionField, string>
@@ -2490,16 +3244,9 @@ export default function Page() {
     });
   }, [setEdges, setNodes]);
 
-  const nodeTypes = useMemo(
-    () => ({
-      flowcopyNode: (props: NodeProps<FlowNode>) => (
-        <FlowCopyNode
-          {...props}
-          onBeforeChange={() => captureUndoSnapshotRef.current()}
-        />
-      ),
-    }),
-    []
+  const listItemGlossaryTerms = useMemo(
+    () => buildControlledLanguageTermsByField(controlledLanguageGlossary).list_item,
+    [controlledLanguageGlossary]
   );
 
   const handleAccountEntry = useCallback(() => {
@@ -2671,32 +3418,135 @@ export default function Page() {
         return;
       }
 
+      const sourceNode = nodes.find((node) => node.id === params.source);
+      const nextEdgeKind = inferEdgeKindFromHandles(
+        params.sourceHandle,
+        params.targetHandle
+      );
+
+      let nextSourceHandle = params.sourceHandle;
+
+      if (sourceNode?.data.node_type === "menu" && nextEdgeKind === "sequential") {
+        const menuConfig = normalizeMenuNodeConfig(
+          sourceNode.data.menu_config,
+          sourceNode.data.primary_cta,
+          Math.max(
+            MENU_NODE_RIGHT_CONNECTIONS_MIN,
+            sourceNode.data.menu_config.max_right_connections
+          )
+        );
+
+        if (
+          !isMenuSequentialConnectionAllowed(
+            edges,
+            sourceNode.id,
+            menuConfig,
+            nextSourceHandle
+          )
+        ) {
+          nextSourceHandle = getFirstAvailableMenuSourceHandleId(
+            edges,
+            sourceNode.id,
+            menuConfig
+          );
+        }
+
+        if (
+          !isMenuSequentialConnectionAllowed(
+            edges,
+            sourceNode.id,
+            menuConfig,
+            nextSourceHandle
+          )
+        ) {
+          return;
+        }
+      }
+
       queueUndoSnapshot();
 
       const newEdge = applyEdgeVisuals({
         id: `e-${params.source}-${params.target}-${createNodeId().slice(0, 8)}`,
         source: params.source,
         target: params.target,
-        sourceHandle: params.sourceHandle,
+        sourceHandle: nextSourceHandle,
         targetHandle: params.targetHandle,
         label: "",
       });
 
       setEdges((eds) => addEdge(newEdge, eds));
     },
-    [queueUndoSnapshot, setEdges]
+    [edges, nodes, queueUndoSnapshot, setEdges]
   );
 
   const onReconnect = useCallback(
     (oldEdge: FlowEdge, newConnection: Connection) => {
+      if (!newConnection.source || !newConnection.target) {
+        return;
+      }
+
+      const sourceNode = nodes.find((node) => node.id === newConnection.source);
+      const nextEdgeKind = inferEdgeKindFromHandles(
+        newConnection.sourceHandle,
+        newConnection.targetHandle
+      );
+
+      let nextSourceHandle = newConnection.sourceHandle;
+
+      if (sourceNode?.data.node_type === "menu" && nextEdgeKind === "sequential") {
+        const menuConfig = normalizeMenuNodeConfig(
+          sourceNode.data.menu_config,
+          sourceNode.data.primary_cta,
+          Math.max(
+            MENU_NODE_RIGHT_CONNECTIONS_MIN,
+            sourceNode.data.menu_config.max_right_connections
+          )
+        );
+
+        if (
+          !isMenuSequentialConnectionAllowed(
+            edges,
+            sourceNode.id,
+            menuConfig,
+            nextSourceHandle,
+            { ignoreEdgeId: oldEdge.id }
+          )
+        ) {
+          nextSourceHandle = getFirstAvailableMenuSourceHandleId(
+            edges,
+            sourceNode.id,
+            menuConfig,
+            { ignoreEdgeId: oldEdge.id }
+          );
+        }
+
+        if (
+          !isMenuSequentialConnectionAllowed(
+            edges,
+            sourceNode.id,
+            menuConfig,
+            nextSourceHandle,
+            { ignoreEdgeId: oldEdge.id }
+          )
+        ) {
+          return;
+        }
+      }
+
       queueUndoSnapshot();
+
+      const nextConnection: Connection = {
+        ...newConnection,
+        sourceHandle: nextSourceHandle,
+      };
+
       setEdges((currentEdges) =>
-        reconnectEdge<FlowEdge>(oldEdge, newConnection, currentEdges).map((edge) =>
+        reconnectEdge<FlowEdge>(oldEdge, nextConnection, currentEdges).map((edge) =>
           applyEdgeVisuals(edge)
         )
       );
     },
-    [queueUndoSnapshot, setEdges]
+    [edges, nodes, queueUndoSnapshot, setEdges]
   );
 
   const onInit = useCallback(
@@ -2733,11 +3583,13 @@ export default function Page() {
     (event: React.MouseEvent) => {
       if (event.detail === 2) {
         setOpenControlledLanguageFieldType(null);
+        setOpenInspectorMenuGlossaryTermId(null);
         addNodeAtEvent(event);
         return;
       }
 
       setOpenControlledLanguageFieldType(null);
+      setOpenInspectorMenuGlossaryTermId(null);
       setSelectedNodeId(null);
       setSelectedEdgeId(null);
     },
@@ -2746,12 +3598,14 @@ export default function Page() {
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: FlowNode) => {
     setOpenControlledLanguageFieldType(null);
+    setOpenInspectorMenuGlossaryTermId(null);
     setSelectedNodeId(node.id);
     setSelectedEdgeId(null);
   }, []);
 
   const onEdgeClick = useCallback((_: React.MouseEvent, edge: FlowEdge) => {
     setOpenControlledLanguageFieldType(null);
+    setOpenInspectorMenuGlossaryTermId(null);
     setSelectedEdgeId(edge.id);
     setSelectedNodeId(null);
   }, []);
@@ -2762,6 +3616,7 @@ export default function Page() {
       const nextSelectedNodeId = selectedNodes[0]?.id ?? null;
 
       setOpenControlledLanguageFieldType(null);
+      setOpenInspectorMenuGlossaryTermId(null);
       setSelectedEdgeId(nextSelectedEdgeId);
       setSelectedNodeId(nextSelectedEdgeId ? null : nextSelectedNodeId);
     },
@@ -2956,6 +3811,201 @@ export default function Page() {
     [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
   );
 
+  const updateMenuNodeConfigById = useCallback(
+    (
+      nodeId: string,
+      updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig
+    ) => {
+      const targetNode = nodes.find((node) => node.id === nodeId);
+      if (!targetNode || targetNode.data.node_type !== "menu") {
+        return;
+      }
+
+      const currentMenuConfig = normalizeMenuNodeConfig(
+        targetNode.data.menu_config,
+        targetNode.data.primary_cta,
+        Math.max(
+          MENU_NODE_RIGHT_CONNECTIONS_MIN,
+          targetNode.data.menu_config.max_right_connections
+        )
+      );
+
+      const requestedNextMenuConfig = updater(currentMenuConfig);
+      const normalizedNextMenuConfig = normalizeMenuNodeConfig(
+        requestedNextMenuConfig,
+        targetNode.data.primary_cta,
+        Math.max(
+          MENU_NODE_RIGHT_CONNECTIONS_MIN,
+          requestedNextMenuConfig.max_right_connections
+        )
+      );
+
+      queueUndoSnapshot();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== nodeId) {
+            return node;
+          }
+
+          return {
+            ...node,
+            data: applyMenuConfigToNodeData(node.data, normalizedNextMenuConfig),
+          };
+        })
+      );
+
+      setEdges((currentEdges) =>
+        syncSequentialEdgesForMenuNode(currentEdges, nodeId, normalizedNextMenuConfig)
+      );
+
+      setOpenInspectorMenuGlossaryTermId((current) =>
+        current && normalizedNextMenuConfig.terms.some((term) => term.id === current)
+          ? current
+          : null
+      );
+    },
+    [nodes, queueUndoSnapshot, setEdges, setNodes]
+  );
+
+  const selectedMenuNodeConfig = useMemo(() => {
+    if (!selectedNode || selectedNode.data.node_type !== "menu") {
+      return null;
+    }
+
+    return normalizeMenuNodeConfig(
+      selectedNode.data.menu_config,
+      selectedNode.data.primary_cta,
+      Math.max(
+        MENU_NODE_RIGHT_CONNECTIONS_MIN,
+        selectedNode.data.menu_config.max_right_connections
+      )
+    );
+  }, [selectedNode]);
+
+  const visibleInspectorMenuGlossaryTermId =
+    selectedMenuNodeConfig &&
+    openInspectorMenuGlossaryTermId &&
+    selectedMenuNodeConfig.terms.some(
+      (term) => term.id === openInspectorMenuGlossaryTermId
+    )
+      ? openInspectorMenuGlossaryTermId
+      : null;
+
+  const updateSelectedMenuMaxRightConnections = useCallback(
+    (nextValue: number) => {
+      if (!effectiveSelectedNodeId || !selectedMenuNodeConfig) {
+        return;
+      }
+
+      updateMenuNodeConfigById(effectiveSelectedNodeId, (currentConfig) => {
+        const nextMax = clampMenuRightConnections(nextValue);
+        const nextTerms = currentConfig.terms.slice(0, nextMax);
+
+        while (nextTerms.length < nextMax) {
+          nextTerms.push(createMenuNodeTerm(""));
+        }
+
+        return {
+          max_right_connections: nextMax,
+          terms: nextTerms,
+        };
+      });
+    },
+    [effectiveSelectedNodeId, selectedMenuNodeConfig, updateMenuNodeConfigById]
+  );
+
+  const updateSelectedMenuTermById = useCallback(
+    (termId: string, term: string) => {
+      if (!effectiveSelectedNodeId || !selectedMenuNodeConfig) {
+        return;
+      }
+
+      updateMenuNodeConfigById(effectiveSelectedNodeId, (currentConfig) => ({
+        ...currentConfig,
+        terms: currentConfig.terms.map((menuTerm) =>
+          menuTerm.id === termId
+            ? {
+                ...menuTerm,
+                term,
+              }
+            : menuTerm
+        ),
+      }));
+    },
+    [effectiveSelectedNodeId, selectedMenuNodeConfig, updateMenuNodeConfigById]
+  );
+
+  const deleteSelectedMenuTermById = useCallback(
+    (termId: string) => {
+      if (!effectiveSelectedNodeId || !selectedMenuNodeConfig) {
+        return;
+      }
+
+      const termToDelete = selectedMenuNodeConfig.terms.find(
+        (term) => term.id === termId
+      );
+      if (!termToDelete) {
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Delete this menu term (${termToDelete.term || "Untitled"})? This will also remove any sequential edge attached to it.`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      updateMenuNodeConfigById(effectiveSelectedNodeId, (currentConfig) => {
+        const filteredTerms = currentConfig.terms.filter(
+          (term) => term.id !== termId
+        );
+        const nextMax = clampMenuRightConnections(
+          Math.max(filteredTerms.length, MENU_NODE_RIGHT_CONNECTIONS_MIN)
+        );
+
+        return {
+          max_right_connections: nextMax,
+          terms: filteredTerms,
+        };
+      });
+
+      setOpenInspectorMenuGlossaryTermId((current) =>
+        current === termId ? null : current
+      );
+    },
+    [effectiveSelectedNodeId, selectedMenuNodeConfig, updateMenuNodeConfigById]
+  );
+
+  const toggleInspectorMenuTermGlossary = useCallback((termId: string) => {
+    setOpenInspectorMenuGlossaryTermId((current) =>
+      current === termId ? null : termId
+    );
+  }, []);
+
+  const applyGlossaryTermToInspectorMenuTerm = useCallback(
+    (termId: string, glossaryTerm: string) => {
+      updateSelectedMenuTermById(termId, glossaryTerm);
+      setOpenInspectorMenuGlossaryTermId(null);
+    },
+    [updateSelectedMenuTermById]
+  );
+
+  const nodeTypes = useMemo(
+    () => ({
+      flowcopyNode: (props: NodeProps<FlowNode>) => (
+        <FlowCopyNode
+          {...props}
+          onBeforeChange={() => captureUndoSnapshotRef.current()}
+          listItemGlossaryTerms={listItemGlossaryTerms}
+          onMenuNodeConfigChange={updateMenuNodeConfigById}
+        />
+      ),
+    }),
+    [listItemGlossaryTerms, updateMenuNodeConfigById]
+  );
+
   const updatePendingOptionInput = useCallback(
     (field: GlobalOptionField, value: string) => {
       setPendingOptionInputs((prev) => ({ ...prev, [field]: value }));
@@ -3140,15 +4190,7 @@ export default function Page() {
   }, [controlledLanguageDraftRow, updateControlledLanguageGlossaryEntries]);
 
   const toggleControlledLanguageFieldDropdown = useCallback(
-    (
-      fieldType: ControlledLanguageFieldType,
-      event: React.MouseEvent<HTMLElement>
-    ) => {
-      if (!event.altKey) {
-        return;
-      }
-
-      event.preventDefault();
+    (fieldType: NodeControlledLanguageFieldType) => {
       setOpenControlledLanguageFieldType((current) =>
         current === fieldType ? null : fieldType
       );
@@ -3157,7 +4199,7 @@ export default function Page() {
   );
 
   const applyControlledLanguageTermToField = useCallback(
-    (fieldType: ControlledLanguageFieldType, term: string) => {
+    (fieldType: NodeControlledLanguageFieldType, term: string) => {
       const normalizedTerm = normalizeControlledLanguageTerm(term);
       if (!normalizedTerm) {
         return;
@@ -3394,6 +4436,8 @@ export default function Page() {
 
           const x = toNumeric(row.position_x);
           const y = toNumeric(row.position_y);
+          const importedNodeType = isNodeType(row.node_type) ? row.node_type : "default";
+          const importedMenuConfigRaw = safeJsonParse(row.menu_config_json ?? "");
 
           return {
             id: nodeId,
@@ -3417,6 +4461,11 @@ export default function Page() {
               action_type_color: row.action_type_color ?? "",
               card_style: row.card_style ?? "",
               node_shape: isNodeShape(row.node_shape) ? row.node_shape : "rectangle",
+              node_type: importedNodeType,
+              menu_config: normalizeMenuNodeConfig(
+                importedMenuConfigRaw,
+                row.primary_cta ?? ""
+              ),
             },
           };
         });
@@ -4295,9 +5344,16 @@ export default function Page() {
 
         <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#52525b" }}>
           Click a node to edit structured fields. Double-click empty canvas to add a
-          node. All changes autosave. For glossary dropdowns, use Alt+Click on each
-          field’s “Glossary” button.
+          node. All changes autosave. Use each field’s “Glossary” button to open a
+          term picker.
         </p>
+
+        {selectedNode?.data.node_type === "menu" && (
+          <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
+            Menu node mode: edit Right side connections and menu Handle terms below. These
+            terms use the List Item glossary.
+          </p>
+        )}
 
         {isControlledLanguagePanelOpen && (
           <section
@@ -4328,7 +5384,7 @@ export default function Page() {
 
             <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
               Audit terms by field type. Mark <strong>Include</strong> to expose a
-              term in the Alt+Click glossary dropdown beside node text fields.
+              term in glossary dropdowns beside editable text fields.
             </p>
 
             <div style={{ overflowX: "auto" }}>
@@ -4393,104 +5449,6 @@ export default function Page() {
                 </thead>
 
                 <tbody>
-                  {controlledLanguageAuditRows.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        style={{
-                          border: "1px solid #dbeafe",
-                          padding: 8,
-                          fontSize: 11,
-                          color: "#64748b",
-                        }}
-                      >
-                        No terms found in Primary CTA / Secondary CTA / Helper Text /
-                        Error Text yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    controlledLanguageAuditRows.map((row) => {
-                      const rowKey = buildControlledLanguageGlossaryKey(
-                        row.field_type,
-                        row.term
-                      );
-
-                      return (
-                        <tr key={`controlled-language-row:${rowKey}`}>
-                          <td style={{ border: "1px solid #e2e8f0", padding: 6 }}>
-                            <input
-                              style={{
-                                ...inputStyle,
-                                fontSize: 11,
-                                background: "#f8fafc",
-                                color: "#334155",
-                                cursor: "not-allowed",
-                              }}
-                              value={CONTROLLED_LANGUAGE_FIELD_LABELS[row.field_type]}
-                              readOnly
-                              aria-label="Field Type"
-                            >
-                            </input>
-                          </td>
-
-                          <td style={{ border: "1px solid #e2e8f0", padding: 6 }}>
-                            <input
-                              style={{ ...inputStyle, fontSize: 11 }}
-                              defaultValue={row.term}
-                              onBlur={(event) =>
-                                renameControlledLanguageRowTerm(
-                                  rowKey,
-                                  event.target.value
-                                )
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  event.currentTarget.blur();
-                                }
-                              }}
-                            />
-                          </td>
-
-                          <td
-                            style={{
-                              border: "1px solid #e2e8f0",
-                              padding: 6,
-                              fontSize: 11,
-                              color: "#0f172a",
-                            }}
-                          >
-                            <strong>{row.occurrences}</strong>
-                            {row.occurrences === 0 && (
-                              <div style={{ marginTop: 2, color: "#64748b" }}>
-                                Not Used
-                              </div>
-                            )}
-                          </td>
-
-                          <td
-                            style={{
-                              border: "1px solid #e2e8f0",
-                              padding: 6,
-                              textAlign: "center",
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={row.include}
-                              onChange={(event) =>
-                                setControlledLanguageRowInclude(
-                                  rowKey,
-                                  event.target.checked
-                                )
-                              }
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-
                   <tr style={{ background: "#f8fafc" }}>
                     <td style={{ border: "1px solid #dbeafe", padding: 6 }}>
                       <select
@@ -4585,6 +5543,104 @@ export default function Page() {
                       </div>
                     </td>
                   </tr>
+
+                  {controlledLanguageAuditRows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        style={{
+                          border: "1px solid #dbeafe",
+                          padding: 8,
+                          fontSize: 11,
+                          color: "#64748b",
+                        }}
+                      >
+                        No terms found in Primary CTA / Secondary CTA / Helper Text /
+                        Error Text / List Item yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    controlledLanguageAuditRows.map((row) => {
+                      const rowKey = buildControlledLanguageGlossaryKey(
+                        row.field_type,
+                        row.term
+                      );
+
+                      return (
+                        <tr key={`controlled-language-row:${rowKey}`}>
+                          <td style={{ border: "1px solid #e2e8f0", padding: 6 }}>
+                            <input
+                              style={{
+                                ...inputStyle,
+                                fontSize: 11,
+                                background: "#f8fafc",
+                                color: "#334155",
+                                cursor: "not-allowed",
+                              }}
+                              value={CONTROLLED_LANGUAGE_FIELD_LABELS[row.field_type]}
+                              readOnly
+                              aria-label="Field Type"
+                            >
+                            </input>
+                          </td>
+
+                          <td style={{ border: "1px solid #e2e8f0", padding: 6 }}>
+                            <input
+                              style={{ ...inputStyle, fontSize: 11 }}
+                              defaultValue={row.term}
+                              onBlur={(event) =>
+                                renameControlledLanguageRowTerm(
+                                  rowKey,
+                                  event.target.value
+                                )
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  event.currentTarget.blur();
+                                }
+                              }}
+                            />
+                          </td>
+
+                          <td
+                            style={{
+                              border: "1px solid #e2e8f0",
+                              padding: 6,
+                              fontSize: 11,
+                              color: "#0f172a",
+                            }}
+                          >
+                            <strong>{row.occurrences}</strong>
+                            {row.occurrences === 0 && (
+                              <div style={{ marginTop: 2, color: "#64748b" }}>
+                                Not Used
+                              </div>
+                            )}
+                          </td>
+
+                          <td
+                            style={{
+                              border: "1px solid #e2e8f0",
+                              padding: 6,
+                              textAlign: "center",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={row.include}
+                              onChange={(event) =>
+                                setControlledLanguageRowInclude(
+                                  rowKey,
+                                  event.target.checked
+                                )
+                              }
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -4813,143 +5869,300 @@ export default function Page() {
               <strong>y_position:</strong> {Math.round(selectedNode.position.y)}
             </div>
 
-            <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>node_shape</div>
-              <select
-                style={inputStyle}
-                value={selectedNode.data.node_shape}
-                onChange={(event) =>
-                  updateSelectedField("node_shape", event.target.value as NodeShape)
-                }
-              >
-                {NODE_SHAPE_OPTIONS.map((shape) => (
-                  <option key={`shape:${shape}`} value={shape}>
-                    {shape}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>title</div>
-              <input
-                style={inputStyle}
-                value={selectedNode.data.title}
-                onChange={(event) => updateSelectedField("title", event.target.value)}
-              />
-            </label>
-
-            <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>body_text</div>
-              <textarea
-                style={{ ...inputStyle, minHeight: 68, resize: "vertical" }}
-                value={selectedNode.data.body_text}
-                onChange={(event) => updateSelectedField("body_text", event.target.value)}
-              />
-            </label>
-
-            <div>
-              <div style={{ fontSize: 12, marginBottom: 4, color: "#334155" }}>
-                body_text preview (markdown)
-              </div>
-              <div
-                style={{
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 6,
-                  background: "#f8fafc",
-                  padding: 8,
-                }}
-              >
-                <BodyTextPreview value={selectedNode.data.body_text} />
-              </div>
-            </div>
-
-            {CONTROLLED_LANGUAGE_FIELDS.map((fieldType) => {
-              const isDropdownOpen = openControlledLanguageFieldType === fieldType;
-              const includedTerms = controlledLanguageTermsByField[fieldType];
-
-              return (
-                <label key={`controlled-language-field:${fieldType}`}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      marginBottom: 4,
-                    }}
-                  >
-                    <div style={{ fontSize: 12 }}>{fieldType}</div>
-                    <button
-                      type="button"
-                      style={{
-                        ...buttonStyle,
-                        fontSize: 10,
-                        padding: "2px 6px",
-                        background: isDropdownOpen ? "#dbeafe" : "#fff",
-                        borderColor: isDropdownOpen ? "#93c5fd" : "#d4d4d8",
-                      }}
-                      title="Alt+Click to toggle glossary dropdown"
-                      onClick={(event) =>
-                        toggleControlledLanguageFieldDropdown(fieldType, event)
-                      }
-                    >
-                      Glossary ▾
-                    </button>
-                  </div>
-
+            {selectedNode.data.node_type === "menu" ? (
+              <>
+                <label>
+                  <div style={{ fontSize: 12, marginBottom: 4 }}>title</div>
                   <input
                     style={inputStyle}
-                    value={selectedNode.data[fieldType]}
+                    value={selectedNode.data.title}
+                    onChange={(event) => updateSelectedField("title", event.target.value)}
+                  />
+                </label>
+
+                <label>
+                  <div style={{ fontSize: 12, marginBottom: 4 }}>Right side connections</div>
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min={MENU_NODE_RIGHT_CONNECTIONS_MIN}
+                    max={MENU_NODE_RIGHT_CONNECTIONS_MAX}
+                    value={selectedMenuNodeConfig?.max_right_connections ?? MENU_NODE_RIGHT_CONNECTIONS_MIN}
                     onChange={(event) =>
-                      updateSelectedField(fieldType, event.target.value)
+                      updateSelectedMenuMaxRightConnections(Number(event.target.value))
                     }
                   />
+                </label>
 
-                  {isDropdownOpen && (
-                    <div
-                      style={{
-                        marginTop: 6,
-                        border: "1px solid #dbeafe",
-                        borderRadius: 6,
-                        background: "#f8fbff",
-                        padding: 6,
-                      }}
-                    >
-                      {includedTerms.length === 0 ? (
-                        <div style={{ fontSize: 11, color: "#64748b" }}>
-                          No included glossary terms for this field type yet.
+                <div
+                  style={{
+                    border: "1px solid #dbeafe",
+                    borderRadius: 8,
+                    padding: 8,
+                    background: "#f8fbff",
+                    display: "grid",
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                    Menu Terms
+                  </div>
+
+                  {(selectedMenuNodeConfig?.terms ?? []).map((menuTerm, index) => {
+                    const isGlossaryOpen =
+                      visibleInspectorMenuGlossaryTermId === menuTerm.id;
+
+                    return (
+                      <div
+                        key={`inspector-menu-term:${menuTerm.id}`}
+                        style={{
+                          border: "1px solid #bfdbfe",
+                          borderRadius: 6,
+                          padding: 6,
+                          display: "grid",
+                          gap: 6,
+                          background: "#fff",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 6,
+                          }}
+                        >
+                          <span style={{ fontSize: 10, color: "#64748b" }}>
+                            Handle {index + 1}
+                          </span>
+                          <button
+                            type="button"
+                            style={{
+                              ...buttonStyle,
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              borderColor: "#fca5a5",
+                              color: "#b91c1c",
+                            }}
+                            title="Delete this term"
+                            onClick={() => deleteSelectedMenuTermById(menuTerm.id)}
+                          >
+                            X
+                          </button>
                         </div>
-                      ) : (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                          {includedTerms.map((term) => (
+
+                        <div style={{ display: "grid", gap: 4 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 6,
+                            }}
+                          >
+                            <div style={{ fontSize: 10, color: "#334155" }}>Term</div>
                             <button
-                              key={`controlled-language-option:${fieldType}:${term}`}
                               type="button"
                               style={{
                                 ...buttonStyle,
-                                padding: "3px 8px",
-                                fontSize: 11,
-                                background: "#fff",
+                                fontSize: 10,
+                                padding: "2px 6px",
+                                background: isGlossaryOpen ? "#dbeafe" : "#fff",
+                                borderColor: isGlossaryOpen ? "#93c5fd" : "#d4d4d8",
                               }}
-                              onClick={() =>
-                                applyControlledLanguageTermToField(fieldType, term)
-                              }
+                              onClick={() => toggleInspectorMenuTermGlossary(menuTerm.id)}
                             >
-                              {term}
+                              Glossary ▾
                             </button>
-                          ))}
+                          </div>
+
+                          <input
+                            style={inputStyle}
+                            value={menuTerm.term}
+                            onChange={(event) =>
+                              updateSelectedMenuTermById(menuTerm.id, event.target.value)
+                            }
+                          />
+                        </div>
+
+                        {isGlossaryOpen && (
+                          <div
+                            style={{
+                              border: "1px solid #dbeafe",
+                              borderRadius: 6,
+                              background: "#f8fbff",
+                              padding: 6,
+                            }}
+                          >
+                            {listItemGlossaryTerms.length === 0 ? (
+                              <div style={{ fontSize: 10, color: "#64748b" }}>
+                                No included List Item glossary terms yet.
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                {listItemGlossaryTerms.map((glossaryTerm) => (
+                                  <button
+                                    key={`inspector-menu-glossary:${menuTerm.id}:${glossaryTerm}`}
+                                    type="button"
+                                    style={{
+                                      ...buttonStyle,
+                                      fontSize: 10,
+                                      padding: "2px 6px",
+                                    }}
+                                    onClick={() =>
+                                      applyGlossaryTermToInspectorMenuTerm(
+                                        menuTerm.id,
+                                        glossaryTerm
+                                      )
+                                    }
+                                  >
+                                    {glossaryTerm}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                <label>
+                  <div style={{ fontSize: 12, marginBottom: 4 }}>node_shape</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.node_shape}
+                    onChange={(event) =>
+                      updateSelectedField("node_shape", event.target.value as NodeShape)
+                    }
+                  >
+                    {NODE_SHAPE_OPTIONS.map((shape) => (
+                      <option key={`shape:${shape}`} value={shape}>
+                        {shape}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <div style={{ fontSize: 12, marginBottom: 4 }}>title</div>
+                  <input
+                    style={inputStyle}
+                    value={selectedNode.data.title}
+                    onChange={(event) => updateSelectedField("title", event.target.value)}
+                  />
+                </label>
+
+                <label>
+                  <div style={{ fontSize: 12, marginBottom: 4 }}>body_text</div>
+                  <textarea
+                    style={{ ...inputStyle, minHeight: 68, resize: "vertical" }}
+                    value={selectedNode.data.body_text}
+                    onChange={(event) => updateSelectedField("body_text", event.target.value)}
+                  />
+                </label>
+
+                <div>
+                  <div style={{ fontSize: 12, marginBottom: 4, color: "#334155" }}>
+                    body_text preview (markdown)
+                  </div>
+                  <div
+                    style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 6,
+                      background: "#f8fafc",
+                      padding: 8,
+                    }}
+                  >
+                    <BodyTextPreview value={selectedNode.data.body_text} />
+                  </div>
+                </div>
+
+                {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => {
+                  const isDropdownOpen = openControlledLanguageFieldType === fieldType;
+                  const includedTerms = controlledLanguageTermsByField[fieldType];
+
+                  return (
+                    <label key={`controlled-language-field:${fieldType}`}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          marginBottom: 4,
+                        }}
+                      >
+                        <div style={{ fontSize: 12 }}>{fieldType}</div>
+                        <button
+                          type="button"
+                          style={{
+                            ...buttonStyle,
+                            fontSize: 10,
+                            padding: "2px 6px",
+                            background: isDropdownOpen ? "#dbeafe" : "#fff",
+                            borderColor: isDropdownOpen ? "#93c5fd" : "#d4d4d8",
+                          }}
+                          title="Click to toggle glossary dropdown"
+                          onClick={() => toggleControlledLanguageFieldDropdown(fieldType)}
+                        >
+                          Glossary ▾
+                        </button>
+                      </div>
+
+                      <input
+                        style={inputStyle}
+                        value={selectedNode.data[fieldType]}
+                        onChange={(event) =>
+                          updateSelectedField(fieldType, event.target.value)
+                        }
+                      />
+
+                      {isDropdownOpen && (
+                        <div
+                          style={{
+                            marginTop: 6,
+                            border: "1px solid #dbeafe",
+                            borderRadius: 6,
+                            background: "#f8fbff",
+                            padding: 6,
+                          }}
+                        >
+                          {includedTerms.length === 0 ? (
+                            <div style={{ fontSize: 11, color: "#64748b" }}>
+                              No included glossary terms for this field type yet.
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {includedTerms.map((term) => (
+                                <button
+                                  key={`controlled-language-option:${fieldType}:${term}`}
+                                  type="button"
+                                  style={{
+                                    ...buttonStyle,
+                                    padding: "3px 8px",
+                                    fontSize: 11,
+                                    background: "#fff",
+                                  }}
+                                  onClick={() =>
+                                    applyControlledLanguageTermToField(fieldType, term)
+                                  }
+                                >
+                                  {term}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
-
-                      <div style={{ marginTop: 6, fontSize: 10, color: "#64748b" }}>
-                        Alt+Click the Glossary button to open/close this list.
-                      </div>
-                    </div>
-                  )}
-                </label>
-              );
-            })}
+                    </label>
+                  );
+                })}
+              </>
+            )}
 
             <label>
               <div style={{ fontSize: 12, marginBottom: 4 }}>tone</div>
