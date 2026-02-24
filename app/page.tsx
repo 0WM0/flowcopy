@@ -2457,6 +2457,7 @@ function BodyTextPreview({ value }: { value: string }) {
 type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onBeforeChange: () => void;
   menuTermGlossaryTerms: string[];
+  showNodeId: boolean;
   onMenuNodeConfigChange: (
     nodeId: string,
     updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig
@@ -2469,9 +2470,10 @@ function FlowCopyNode({
   selected,
   onBeforeChange,
   menuTermGlossaryTerms,
+  showNodeId,
   onMenuNodeConfigChange,
 }: FlowCopyNodeProps) {
-  const { setNodes, setEdges } = useReactFlow<FlowNode, FlowEdge>();
+  const { setNodes } = useReactFlow<FlowNode, FlowEdge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const [openMenuGlossaryTermId, setOpenMenuGlossaryTermId] = useState<string | null>(
     null
@@ -2500,7 +2502,7 @@ function FlowCopyNode({
 
   useEffect(() => {
     updateNodeInternals(id);
-  }, [id, menuConfig.terms.length, updateNodeInternals]);
+  }, [data.node_type, id, menuConfig.terms.length, updateNodeInternals]);
 
   const updateField = useCallback(
     <K extends EditableMicrocopyField>(
@@ -2515,111 +2517,6 @@ function FlowCopyNode({
       );
     },
     [id, onBeforeChange, setNodes]
-  );
-
-  const updateNodeType = useCallback(
-    (nextType: NodeType) => {
-      if (nextType === data.node_type) {
-        return;
-      }
-
-      onBeforeChange();
-
-      setNodes((currentNodes) =>
-        currentNodes.map((node) => {
-          if (node.id !== id) {
-            return node;
-          }
-
-          if (nextType === "menu") {
-            const normalizedMenuConfig = normalizeMenuNodeConfig(
-              node.data.menu_config,
-              node.data.primary_cta,
-              Math.max(
-                MENU_NODE_RIGHT_CONNECTIONS_MIN,
-                node.data.menu_config.max_right_connections
-              )
-            );
-
-            const nextMenuConfig: MenuNodeConfig = {
-              ...normalizedMenuConfig,
-              terms: normalizedMenuConfig.terms.map((menuTerm, termIndex) =>
-                termIndex === 0
-                  ? {
-                      ...menuTerm,
-                      term: node.data.primary_cta,
-                    }
-                  : menuTerm
-              ),
-            };
-
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                node_type: "menu",
-                menu_config: nextMenuConfig,
-                primary_cta: getPrimaryMenuTermValue(nextMenuConfig, node.data.primary_cta),
-                secondary_cta: getSecondaryMenuTermValue(
-                  nextMenuConfig,
-                  node.data.secondary_cta
-                ),
-              },
-            };
-          }
-
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              node_type: "default",
-              primary_cta: getPrimaryMenuTermValue(
-                node.data.menu_config,
-                node.data.primary_cta
-              ),
-              secondary_cta: getSecondaryMenuTermValue(
-                node.data.menu_config,
-                node.data.secondary_cta
-              ),
-            },
-          };
-        })
-      );
-
-      setEdges((currentEdges) =>
-        nextType === "menu"
-          ? assignSequentialEdgesToMenuHandles(
-              currentEdges,
-              id,
-              buildMenuSourceHandleIds(
-                normalizeMenuNodeConfig(
-                  data.menu_config,
-                  data.primary_cta,
-                  Math.max(
-                    MENU_NODE_RIGHT_CONNECTIONS_MIN,
-                    data.menu_config.max_right_connections
-                  )
-                )
-              )
-            )
-          : remapMenuSequentialEdgesToDefaultHandle(currentEdges, id)
-      );
-
-      updateNodeInternals(id);
-      if (nextType !== "menu") {
-        setOpenMenuGlossaryTermId(null);
-      }
-    },
-    [
-      data.menu_config,
-      data.node_type,
-      data.primary_cta,
-      onBeforeChange,
-      id,
-      setEdges,
-      setNodes,
-      updateNodeInternals,
-    ]
   );
 
   const replaceMenuConfig = useCallback(
@@ -2744,29 +2641,6 @@ function FlowCopyNode({
           <span style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600 }}>
             #{data.sequence_index ?? "-"}
           </span>
-        </div>
-
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Node Type</div>
-          <select
-            className="nodrag"
-            style={inputStyle}
-            value={data.node_type}
-            onChange={(event) => {
-              const nextType = event.target.value;
-              if (!isNodeType(nextType)) {
-                return;
-              }
-
-              updateNodeType(nextType);
-            }}
-          >
-            {NODE_TYPE_OPTIONS.map((nodeTypeOption) => (
-              <option key={`node-type:${nodeTypeOption}`} value={nodeTypeOption}>
-                {nodeTypeOption}
-              </option>
-            ))}
-          </select>
         </div>
 
         <div style={{ marginTop: 8 }}>
@@ -2945,7 +2819,9 @@ function FlowCopyNode({
           </div>
         )}
 
-        <div style={{ marginTop: 8, fontSize: 10, color: "#71717a" }}>id: {id}</div>
+        {showNodeId && (
+          <div style={{ marginTop: 8, fontSize: 10, color: "#71717a" }}>id: {id}</div>
+        )}
       </div>
 
       <Handle
@@ -2999,6 +2875,7 @@ export default function Page() {
     Record<GlobalOptionField, string>
   >(createEmptyPendingOptionInputs);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [showNodeIdsOnCanvas, setShowNodeIdsOnCanvas] = useState(false);
   const [undoStack, setUndoStack] = useState<EditorSnapshot[]>([]);
   const [transferFeedback, setTransferFeedback] = useState<ImportFeedback | null>(null);
   const [sidePanelWidth, setSidePanelWidth] = useState<number>(readInitialSidePanelWidth);
@@ -3833,6 +3710,112 @@ export default function Page() {
     [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
   );
 
+  const updateNodeTypeById = useCallback(
+    (nodeId: string, nextType: NodeType) => {
+      const targetNode = nodes.find((node) => node.id === nodeId);
+      if (!targetNode || targetNode.data.node_type === nextType) {
+        return;
+      }
+
+      queueUndoSnapshot();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== nodeId) {
+            return node;
+          }
+
+          if (nextType === "menu") {
+            const normalizedMenuConfig = normalizeMenuNodeConfig(
+              node.data.menu_config,
+              node.data.primary_cta,
+              Math.max(
+                MENU_NODE_RIGHT_CONNECTIONS_MIN,
+                node.data.menu_config.max_right_connections
+              )
+            );
+
+            const nextMenuConfig: MenuNodeConfig = {
+              ...normalizedMenuConfig,
+              terms: normalizedMenuConfig.terms.map((menuTerm, termIndex) =>
+                termIndex === 0
+                  ? {
+                      ...menuTerm,
+                      term: node.data.primary_cta,
+                    }
+                  : menuTerm
+              ),
+            };
+
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                node_type: "menu",
+                menu_config: nextMenuConfig,
+                primary_cta: getPrimaryMenuTermValue(nextMenuConfig, node.data.primary_cta),
+                secondary_cta: getSecondaryMenuTermValue(
+                  nextMenuConfig,
+                  node.data.secondary_cta
+                ),
+              },
+            };
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              node_type: "default",
+              primary_cta: getPrimaryMenuTermValue(
+                node.data.menu_config,
+                node.data.primary_cta
+              ),
+              secondary_cta: getSecondaryMenuTermValue(
+                node.data.menu_config,
+                node.data.secondary_cta
+              ),
+            },
+          };
+        })
+      );
+
+      setEdges((currentEdges) =>
+        nextType === "menu"
+          ? assignSequentialEdgesToMenuHandles(
+              currentEdges,
+              nodeId,
+              buildMenuSourceHandleIds(
+                normalizeMenuNodeConfig(
+                  targetNode.data.menu_config,
+                  targetNode.data.primary_cta,
+                  Math.max(
+                    MENU_NODE_RIGHT_CONNECTIONS_MIN,
+                    targetNode.data.menu_config.max_right_connections
+                  )
+                )
+              )
+            )
+          : remapMenuSequentialEdgesToDefaultHandle(currentEdges, nodeId)
+      );
+
+      setOpenControlledLanguageFieldType(null);
+      setOpenInspectorMenuGlossaryTermId(null);
+    },
+    [nodes, queueUndoSnapshot, setEdges, setNodes]
+  );
+
+  const updateSelectedNodeType = useCallback(
+    (nextType: NodeType) => {
+      if (!effectiveSelectedNodeId) {
+        return;
+      }
+
+      updateNodeTypeById(effectiveSelectedNodeId, nextType);
+    },
+    [effectiveSelectedNodeId, updateNodeTypeById]
+  );
+
   const updateMenuNodeConfigById = useCallback(
     (
       nodeId: string,
@@ -4025,13 +4008,14 @@ export default function Page() {
           {...props}
           onBeforeChange={() => captureUndoSnapshotRef.current()}
           menuTermGlossaryTerms={menuTermGlossaryTerms}
+          showNodeId={showNodeIdsOnCanvas}
           onMenuNodeConfigChange={(nodeId, updater) =>
             updateMenuNodeConfigByIdRef.current(nodeId, updater)
           }
         />
       ),
     }),
-    [menuTermGlossaryTerms]
+    [menuTermGlossaryTerms, showNodeIdsOnCanvas]
   );
 
   const updatePendingOptionInput = useCallback(
@@ -5376,6 +5360,23 @@ export default function Page() {
           term picker.
         </p>
 
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 12,
+            color: "#334155",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={showNodeIdsOnCanvas}
+            onChange={(event) => setShowNodeIdsOnCanvas(event.target.checked)}
+          />
+          Show node IDs on nodes
+        </label>
+
         {selectedNode?.data.node_type === "menu" && (
           <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
             Menu node mode: edit Right side connections and menu Handle terms below. These
@@ -5896,6 +5897,28 @@ export default function Page() {
               <br />
               <strong>y_position:</strong> {Math.round(selectedNode.position.y)}
             </div>
+
+            <label>
+              <div style={{ fontSize: 12, marginBottom: 4 }}>node_type</div>
+              <select
+                style={inputStyle}
+                value={selectedNode.data.node_type}
+                onChange={(event) => {
+                  const nextType = event.target.value;
+                  if (!isNodeType(nextType)) {
+                    return;
+                  }
+
+                  updateSelectedNodeType(nextType);
+                }}
+              >
+                {NODE_TYPE_OPTIONS.map((nodeTypeOption) => (
+                  <option key={`inspector-node-type:${nodeTypeOption}`} value={nodeTypeOption}>
+                    {nodeTypeOption}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             {selectedNode.data.node_type === "menu" ? (
               <>

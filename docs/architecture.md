@@ -38,6 +38,108 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session was a targeted UX cleanup pass for node-type editing.
+
+The product behavior now separates responsibilities more clearly:
+
+- **Canvas node cards** focus on compact content editing.
+- **Inspector panel** owns node-configuration controls, including node type changes.
+
+The key outcome is that Node Type switching was moved out of the node card and into the side-panel inspector without changing switching behavior.
+
+## 2) Core Data Model
+
+No persisted schema changes were introduced.
+
+The existing node type model remains unchanged:
+
+- `NodeType = "default" | "menu"`
+- `MicrocopyNodeData.node_type`
+- existing menu contracts (`MenuNodeConfig`, `MenuNodeTerm`) remain intact.
+
+This session changed control location and update plumbing, not the underlying data contract.
+
+## 3) Persistence and Migration Strategy
+
+Persistence/migration architecture was unchanged.
+
+- autosave path remains `persistCurrentProjectState(...)`
+- existing project serialization/import/export contracts are unchanged
+- legacy controlled-language fallback (`list_item` → `menu_term`) remains as-is
+
+All changes were behavior/UI wiring, with no storage format migration required.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering or sequence-ID logic changed in this session.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Node type control relocation does not affect graph ordering semantics.
+
+## 5) Node Rendering and Shape System
+
+`FlowCopyNode` rendering was simplified by removing the in-card Node Type selector.
+
+Related rendering/wiring refinements:
+
+- `FlowCopyNode` now reads only `setNodes` from `useReactFlow` (removed local `setEdges` need after moving type switching logic out).
+- node internals refresh effect keeps `data.node_type` in dependencies to ensure handle/layout updates stay correct when type changes.
+
+Shape rendering and edge visual systems were otherwise unchanged.
+
+## 6) Editor Interaction Model
+
+Node type switching is now inspector-driven:
+
+- Added `node_type` select control in selected-node inspector block.
+- Added page-level switching callbacks:
+  - `updateNodeTypeById(...)`
+  - `updateSelectedNodeType(...)`
+
+Behavior parity was preserved during switching:
+
+- switching to `menu` still normalizes menu config and syncs first term with `primary_cta`
+- switching updates `primary_cta` / `secondary_cta` from menu terms
+- sequential edges are still remapped appropriately:
+  - `assignSequentialEdgesToMenuHandles(...)` when entering menu mode
+  - `remapMenuSequentialEdgesToDefaultHandle(...)` when returning to default mode
+- undo snapshots are still captured before mutation
+
+## 7) Refactor Outcomes
+
+Concrete refactor results from this session:
+
+1. **Node Type control relocated to inspector** for clearer editing hierarchy.
+2. **Type-switch logic centralized in page-level selection context** instead of per-node card callback.
+3. **Dead/duplicate node-card type-switch code removed**, reducing local complexity in `FlowCopyNode`.
+4. **Lint-safe cleanup**: removed a `setState`-inside-effect path that was no longer needed after refactor.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully after refactor cleanup:
+
+- `npm run lint` ✅
+- `npm run build` ✅
+
+Operational note:
+
+- a transient lint failure (`react-hooks/set-state-in-effect`) was resolved by removing the now-unnecessary `setOpenMenuGlossaryTermId(...)` effect in `FlowCopyNode`.
+
+## 9) Recommended Next Steps
+
+1. Add interaction tests for inspector-based node type switching (default ↔ menu).
+2. Add regression checks for edge-handle remapping when switching node types.
+3. Add a small inspector hint describing node-type implications (e.g., menu handle behavior).
+4. Consider extracting node-type transition logic into a dedicated helper to keep `Page` leaner.
+
+##02-24-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session focused on editor reliability and keyboard safety in the canvas node authoring experience.
 
 The primary product-level outcome was a fix for an in-node text-editing bug where pressing `Backspace` could blur the input after one character, and a second `Backspace` could then delete the selected node. The editor now preserves text-input focus during continuous typing/deletion and keeps node deletion behavior scoped to true non-editing contexts.
@@ -1229,6 +1331,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 
