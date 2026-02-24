@@ -32,6 +32,123 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##02-24-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a focused hardening/refinement pass on the menu-node authoring experience rather than a greenfield feature build.
+
+The product-level outcome is a clearer split between:
+
+- **canvas editing** for compact menu term authoring
+- **inspector editing** for menu-node configuration controls
+
+Menu nodes are now intentionally simplified in-canvas, while advanced menu controls are concentrated in the side panel.
+
+## 2) Core Data Model
+
+The session continued using the existing typed model and reinforced the menu-specific path:
+
+- `NodeType = "default" | "menu"`
+- `MenuNodeConfig = { max_right_connections, terms[] }`
+- `MenuNodeTerm = { id, term }`
+
+Controlled-language typing now explicitly supports menu terms as glossary-classified entries:
+
+- `ControlledLanguageFieldType` includes `"list_item"`
+- `CONTROLLED_LANGUAGE_FIELDS` includes `list_item`
+- `collectControlledLanguageTermsFromNode(...)` maps menu node terms to `{ field_type: "list_item", term }`
+
+This preserves the existing schema while making menu-term vocabulary first-class in audit/glossary logic.
+
+## 3) Persistence and Migration Strategy
+
+No storage contract break was introduced in this session.
+
+- Project persistence still serializes `node_type` and normalized `menu_config`.
+- Flat import/export continues to round-trip menu state via `node_type` and `menu_config_json`.
+- Menu config updates remain funneled through shared normalization (`normalizeMenuNodeConfig`) and application helpers (`applyMenuConfigToNodeData`) so persisted shapes remain stable.
+
+The work was implemented as behavior and UI refinement over the existing persistence architecture.
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering/sequence architecture was not structurally changed this session.
+
+- `computeFlowOrdering(...)` and `computeProjectSequenceId(...)` remain the sequence authorities.
+- Menu-connection constraints and menu handle assignment continue to operate within the existing edge model without changing sequence identity rules.
+
+Result: menu-node UX changes do not alter project ordering semantics.
+
+## 5) Node Rendering and Shape System
+
+Menu-node rendering was simplified on-canvas:
+
+- `Primary CTA` field is hidden for `node_type === "menu"`.
+- Menu term cards now contain only:
+  - `Handle N` label
+  - `Term` input
+  - `X` delete button
+  - `Glossary` button/list
+- Term-specific right source handles are rendered per term (`buildMenuSourceHandleId(term.id)`) and anchored to the term input center (`top: 50%`, `transform: translateY(-50%)`) for visual alignment.
+- The default sequential right handle is disabled/hidden for menu nodes (`isConnectable={!isMenuNode}`), preventing duplicate connection affordances.
+
+Inspector rendering was specialized by node type:
+
+- For menu nodes, inspector now shows menu editing controls instead of the default copy/shape field stack.
+
+## 6) Editor Interaction Model
+
+Interaction behavior was refined to reduce accidental complexity:
+
+- **Inspector (menu node)** now shows:
+  - `Right side connections` number input (min/max constrained)
+  - full menu term list with editable `Term`, per-term `Glossary`, and `X` delete
+- **Inspector (menu node)** now suppresses the requested fields:
+  - `node_shape`
+  - `body_text`
+  - `body_text preview`
+  - `primary_cta`
+  - `secondary_cta`
+  - `helper_text`
+  - `error_text`
+- Controlled-language field dropdown toggles were updated to standard click behavior (no `Alt+Click` requirement), and helper copy was updated accordingly.
+- Menu-term glossary application works in both canvas cards and inspector rows via list-item glossary sources.
+
+## 7) Refactor Outcomes
+
+Key refactor outcomes from this session:
+
+1. **Menu UX de-cluttered**
+   - reduced in-node menu authoring UI to essential controls only.
+2. **Inspector responsibility clarified**
+   - menu connection-count control moved/kept in inspector-only path.
+3. **Glossary/audit model unified for menu terms**
+   - menu terms are now consistently treated as `List Item` entries in controlled-language audit + glossary include logic.
+4. **Controlled-language table workflow improved**
+   - add-term draft row moved to the top of the table and includes `List Item` option.
+
+## 8) Validation and Operational Notes
+
+Validation and operational checks from this session:
+
+- `npm run build` completed successfully.
+- `npm run lint` in this environment emits shell/spinner artifacts; command execution and exit-path checks indicated success (`EXIT_CODE:0` via cmd wrapper).
+
+Operational note:
+
+- Menu connection safeguards, menu term normalization, and glossary row computation are now aligned around the same menu-config source of truth, reducing drift between canvas, inspector, and audit views.
+
+## 9) Recommended Next Steps
+
+1. Add targeted regression tests for menu-node inspector visibility rules (menu vs default field sets).
+2. Add focused UI tests for menu-handle alignment and per-term edge attachment behavior.
+3. Add controlled-language tests ensuring menu terms always audit under `List Item` and respect include filters.
+4. Consider extracting menu-node editor UI (canvas + inspector blocks) into dedicated components to reduce `app/page.tsx` complexity.
+5. Add a compact “menu diagnostics” badge in inspector (term count, used handles, available handles) to support QA/debugging.
+
 ##02-23-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -1022,6 +1139,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 
