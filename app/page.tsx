@@ -47,7 +47,7 @@ type NodeControlledLanguageFieldType =
   | "secondary_cta"
   | "helper_text"
   | "error_text";
-type ControlledLanguageFieldType = NodeControlledLanguageFieldType | "list_item";
+type ControlledLanguageFieldType = NodeControlledLanguageFieldType | "menu_term";
 
 type MenuNodeTerm = {
   id: string;
@@ -331,7 +331,7 @@ const CONTROLLED_LANGUAGE_FIELDS: ControlledLanguageFieldType[] = [
   "secondary_cta",
   "helper_text",
   "error_text",
-  "list_item",
+  "menu_term",
 ];
 
 const CONTROLLED_LANGUAGE_NODE_FIELDS: NodeControlledLanguageFieldType[] = [
@@ -346,7 +346,7 @@ const CONTROLLED_LANGUAGE_FIELD_LABELS: Record<ControlledLanguageFieldType, stri
   secondary_cta: "Secondary CTA",
   helper_text: "Helper Text",
   error_text: "Error Text",
-  list_item: "List Item",
+  menu_term: "Menu Term",
 };
 
 const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<ControlledLanguageFieldType, number> = {
@@ -354,7 +354,7 @@ const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<ControlledLanguageFieldType, numbe
   secondary_cta: 1,
   helper_text: 2,
   error_text: 3,
-  list_item: 4,
+  menu_term: 4,
 };
 
 const inputStyle: React.CSSProperties = {
@@ -475,7 +475,17 @@ const isControlledLanguageFieldType = (
   value === "secondary_cta" ||
   value === "helper_text" ||
   value === "error_text" ||
-  value === "list_item";
+  value === "menu_term";
+
+const normalizeControlledLanguageFieldType = (
+  value: unknown
+): ControlledLanguageFieldType | null => {
+  if (value === "list_item") {
+    return "menu_term";
+  }
+
+  return isControlledLanguageFieldType(value) ? value : null;
+};
 
 const isNodeType = (value: unknown): value is NodeType =>
   value === "default" || value === "menu";
@@ -753,7 +763,7 @@ const collectControlledLanguageTermsFromNode = (
 ): ControlledLanguageAuditTermEntry[] => {
   if (node.data.node_type === "menu") {
     const menuTerms = node.data.menu_config.terms.map((menuTerm) => ({
-      field_type: "list_item" as const,
+      field_type: "menu_term" as const,
       term: menuTerm.term,
     }));
 
@@ -783,13 +793,14 @@ const parseControlledLanguageGlossaryKey = (
 
   const rawFieldType = key.slice(0, separatorIndex);
   const term = key.slice(separatorIndex + 1);
+  const fieldType = normalizeControlledLanguageFieldType(rawFieldType);
 
-  if (!isControlledLanguageFieldType(rawFieldType)) {
+  if (!fieldType) {
     return null;
   }
 
   return {
-    field_type: rawFieldType,
+    field_type: fieldType,
     term,
   };
 };
@@ -825,8 +836,13 @@ const sanitizeControlledLanguageGlossary = (
       return;
     }
 
-    const source = item as Partial<ControlledLanguageGlossaryEntry>;
-    if (!isControlledLanguageFieldType(source.field_type)) {
+    const source = item as {
+      field_type?: unknown;
+      term?: unknown;
+      include?: unknown;
+    };
+    const fieldType = normalizeControlledLanguageFieldType(source.field_type);
+    if (!fieldType) {
       return;
     }
 
@@ -838,11 +854,11 @@ const sanitizeControlledLanguageGlossary = (
       return;
     }
 
-    const key = buildControlledLanguageGlossaryKey(source.field_type, term);
+    const key = buildControlledLanguageGlossaryKey(fieldType, term);
     const existing = byKey.get(key);
 
     byKey.set(key, {
-      field_type: source.field_type,
+      field_type: fieldType,
       term,
       include:
         typeof source.include === "boolean"
@@ -864,7 +880,7 @@ const cloneControlledLanguageGlossary = (
   }));
 
 const createEmptyControlledLanguageDraftRow = (): ControlledLanguageDraftRow => ({
-  field_type: "list_item",
+  field_type: "menu_term",
   term: "",
   include: true,
 });
@@ -877,7 +893,7 @@ const createEmptyControlledLanguageTermsByField = (): Record<
   secondary_cta: [],
   helper_text: [],
   error_text: [],
-  list_item: [],
+  menu_term: [],
 });
 
 const buildControlledLanguageTermsByField = (
@@ -2440,7 +2456,7 @@ function BodyTextPreview({ value }: { value: string }) {
 
 type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onBeforeChange: () => void;
-  listItemGlossaryTerms: string[];
+  menuTermGlossaryTerms: string[];
   onMenuNodeConfigChange: (
     nodeId: string,
     updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig
@@ -2452,7 +2468,7 @@ function FlowCopyNode({
   data,
   selected,
   onBeforeChange,
-  listItemGlossaryTerms,
+  menuTermGlossaryTerms,
   onMenuNodeConfigChange,
 }: FlowCopyNodeProps) {
   const { setNodes, setEdges } = useReactFlow<FlowNode, FlowEdge>();
@@ -2897,13 +2913,13 @@ function FlowCopyNode({
                       padding: 6,
                     }}
                   >
-                    {listItemGlossaryTerms.length === 0 ? (
+                    {menuTermGlossaryTerms.length === 0 ? (
                       <div style={{ fontSize: 10, color: "#64748b" }}>
-                        No included List Item glossary terms yet.
+                        No included Menu Term glossary terms yet.
                       </div>
                     ) : (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {listItemGlossaryTerms.map((glossaryTerm) => (
+                        {menuTermGlossaryTerms.map((glossaryTerm) => (
                           <button
                             key={`menu-node-glossary:${menuTerm.id}:${glossaryTerm}`}
                             type="button"
@@ -2993,6 +3009,12 @@ export default function Page() {
   const hasLoadedStoreRef = useRef(false);
   const undoCaptureTimeoutRef = useRef<number | null>(null);
   const captureUndoSnapshotRef = useRef<() => void>(() => undefined);
+  const updateMenuNodeConfigByIdRef = useRef<
+    (
+      nodeId: string,
+      updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig
+    ) => void
+  >(() => undefined);
   const sidePanelResizeStartXRef = useRef(0);
   const sidePanelResizeStartWidthRef = useRef(SIDE_PANEL_MIN_WIDTH);
 
@@ -3244,8 +3266,8 @@ export default function Page() {
     });
   }, [setEdges, setNodes]);
 
-  const listItemGlossaryTerms = useMemo(
-    () => buildControlledLanguageTermsByField(controlledLanguageGlossary).list_item,
+  const menuTermGlossaryTerms = useMemo(
+    () => buildControlledLanguageTermsByField(controlledLanguageGlossary).menu_term,
     [controlledLanguageGlossary]
   );
 
@@ -3992,18 +4014,24 @@ export default function Page() {
     [updateSelectedMenuTermById]
   );
 
+  useEffect(() => {
+    updateMenuNodeConfigByIdRef.current = updateMenuNodeConfigById;
+  }, [updateMenuNodeConfigById]);
+
   const nodeTypes = useMemo(
     () => ({
       flowcopyNode: (props: NodeProps<FlowNode>) => (
         <FlowCopyNode
           {...props}
           onBeforeChange={() => captureUndoSnapshotRef.current()}
-          listItemGlossaryTerms={listItemGlossaryTerms}
-          onMenuNodeConfigChange={updateMenuNodeConfigById}
+          menuTermGlossaryTerms={menuTermGlossaryTerms}
+          onMenuNodeConfigChange={(nodeId, updater) =>
+            updateMenuNodeConfigByIdRef.current(nodeId, updater)
+          }
         />
       ),
     }),
-    [listItemGlossaryTerms, updateMenuNodeConfigById]
+    [menuTermGlossaryTerms]
   );
 
   const updatePendingOptionInput = useCallback(
@@ -5351,7 +5379,7 @@ export default function Page() {
         {selectedNode?.data.node_type === "menu" && (
           <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
             Menu node mode: edit Right side connections and menu Handle terms below. These
-            terms use the List Item glossary.
+            terms use the Menu Term glossary.
           </p>
         )}
 
@@ -5556,7 +5584,7 @@ export default function Page() {
                         }}
                       >
                         No terms found in Primary CTA / Secondary CTA / Helper Text /
-                        Error Text / List Item yet.
+                        Error Text / Menu Term yet.
                       </td>
                     </tr>
                   ) : (
@@ -5994,13 +6022,13 @@ export default function Page() {
                               padding: 6,
                             }}
                           >
-                            {listItemGlossaryTerms.length === 0 ? (
+                            {menuTermGlossaryTerms.length === 0 ? (
                               <div style={{ fontSize: 10, color: "#64748b" }}>
-                                No included List Item glossary terms yet.
+                                No included Menu Term glossary terms yet.
                               </div>
                             ) : (
                               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                {listItemGlossaryTerms.map((glossaryTerm) => (
+                                {menuTermGlossaryTerms.map((glossaryTerm) => (
                                   <button
                                     key={`inspector-menu-glossary:${menuTerm.id}:${glossaryTerm}`}
                                     type="button"

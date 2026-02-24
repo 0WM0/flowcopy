@@ -38,6 +38,96 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session focused on editor reliability and keyboard safety in the canvas node authoring experience.
+
+The primary product-level outcome was a fix for an in-node text-editing bug where pressing `Backspace` could blur the input after one character, and a second `Backspace` could then delete the selected node. The editor now preserves text-input focus during continuous typing/deletion and keeps node deletion behavior scoped to true non-editing contexts.
+
+## 2) Core Data Model
+
+No persistent schema changes were introduced.
+
+The relevant architectural adjustment was in callback wiring/state references for menu-node updates:
+
+- introduced `updateMenuNodeConfigByIdRef` (`useRef`) to hold the latest menu-config updater
+- synchronized that ref via effect so node renderer callbacks can invoke current logic without capturing unstable callback identities
+
+This was a behavior-layer change only; project/store/node payload contracts remain unchanged.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration flows were not structurally changed this session.
+
+- autosave path (`persistCurrentProjectState(...)`) remains unchanged
+- project serialization/import/export contracts remain unchanged
+- legacy controlled-language compatibility (`list_item` normalization to `menu_term`) remains intact
+
+The bug fix was implemented without altering storage format or migration behavior.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering-model changes were made.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+The fix is orthogonal to graph topology, sequence derivation, and project identity hashing.
+
+## 5) Node Rendering and Shape System
+
+Node/edge visual systems and shape rendering contracts were unchanged.
+
+The notable rendering-adjacent change was stabilizing custom node renderer callback identity to avoid unintended remount/focus churn during input edits.
+
+- `nodeTypes` memo no longer depends directly on a callback that changes with node state updates
+- node callback invocation is routed through a stable ref-backed function bridge
+
+This reduces accidental remount behavior while keeping the same node UI/shape output.
+
+## 6) Editor Interaction Model
+
+Keyboard behavior was hardened around editing-vs-deletion intent:
+
+- typing/deleting inside node inputs now retains focus as expected
+- global Backspace/Delete shortcut behavior remains available for selected nodes/edges when the user is not editing an input
+- editable-target guard logic (`isEditableEventTarget`) remains the safety gate for shortcut suppression while typing
+
+In effect, text editing and canvas deletion shortcuts no longer interfere under normal node-input workflows.
+
+## 7) Refactor Outcomes
+
+Key refactor outcomes from this session:
+
+1. **Stabilized node callback path**
+   - introduced ref-backed callback handoff for menu-node config updates.
+2. **Reduced renderer identity churn**
+   - updated `nodeTypes` memo dependencies to avoid unnecessary node renderer recreation while typing.
+3. **Resolved Backspace focus-loss/deletion chain**
+   - prevented the one-character-delete-then-node-delete failure mode during node field editing.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully after the fix:
+
+- `npm run build`
+- `npm run lint`
+
+Operational note:
+
+- During one run attempt, local dev startup reported an existing Next dev lock/instance conflict. This did not affect build/lint verification of the implemented fix.
+
+## 9) Recommended Next Steps
+
+1. Add regression coverage for node-input Backspace behavior (focus retention + no accidental node deletion).
+2. Add targeted interaction tests for keyboard shortcuts across canvas vs editable fields.
+3. Consider extracting node callback-bridge patterns into a reusable utility/hook for consistency.
+4. Continue modularizing `app/page.tsx` to reduce coupling between render wiring and interaction logic.
+
+##02-24-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session was a focused hardening/refinement pass on the menu-node authoring experience rather than a greenfield feature build.
 
 The product-level outcome is a clearer split between:
@@ -57,9 +147,9 @@ The session continued using the existing typed model and reinforced the menu-spe
 
 Controlled-language typing now explicitly supports menu terms as glossary-classified entries:
 
-- `ControlledLanguageFieldType` includes `"list_item"`
-- `CONTROLLED_LANGUAGE_FIELDS` includes `list_item`
-- `collectControlledLanguageTermsFromNode(...)` maps menu node terms to `{ field_type: "list_item", term }`
+- `ControlledLanguageFieldType` includes `"menu_term"`
+- `CONTROLLED_LANGUAGE_FIELDS` includes `menu_term`
+- `collectControlledLanguageTermsFromNode(...)` maps menu node terms to `{ field_type: "menu_term", term }`
 
 This preserves the existing schema while making menu-term vocabulary first-class in audit/glossary logic.
 
@@ -115,7 +205,7 @@ Interaction behavior was refined to reduce accidental complexity:
   - `helper_text`
   - `error_text`
 - Controlled-language field dropdown toggles were updated to standard click behavior (no `Alt+Click` requirement), and helper copy was updated accordingly.
-- Menu-term glossary application works in both canvas cards and inspector rows via list-item glossary sources.
+- Menu-term glossary application works in both canvas cards and inspector rows via menu-term glossary sources.
 
 ## 7) Refactor Outcomes
 
@@ -126,9 +216,9 @@ Key refactor outcomes from this session:
 2. **Inspector responsibility clarified**
    - menu connection-count control moved/kept in inspector-only path.
 3. **Glossary/audit model unified for menu terms**
-   - menu terms are now consistently treated as `List Item` entries in controlled-language audit + glossary include logic.
+   - menu terms are now consistently treated as `Menu Term` entries in controlled-language audit + glossary include logic.
 4. **Controlled-language table workflow improved**
-   - add-term draft row moved to the top of the table and includes `List Item` option.
+   - add-term draft row moved to the top of the table and includes `Menu Term` option.
 
 ## 8) Validation and Operational Notes
 
@@ -145,7 +235,7 @@ Operational note:
 
 1. Add targeted regression tests for menu-node inspector visibility rules (menu vs default field sets).
 2. Add focused UI tests for menu-handle alignment and per-term edge attachment behavior.
-3. Add controlled-language tests ensuring menu terms always audit under `List Item` and respect include filters.
+3. Add controlled-language tests ensuring menu terms always audit under `Menu Term` and respect include filters.
 4. Consider extracting menu-node editor UI (canvas + inspector blocks) into dedicated components to reduce `app/page.tsx` complexity.
 5. Add a compact “menu diagnostics” badge in inspector (term count, used handles, available handles) to support QA/debugging.
 
@@ -1139,6 +1229,8 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
+
 
 
 
