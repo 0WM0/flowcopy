@@ -944,6 +944,26 @@ const buildControlledLanguageTermsByField = (
   return byField;
 };
 
+const buildMenuTermSelectorTerms = (
+  nodes: FlowNode[],
+  glossary: ControlledLanguageGlossaryEntry[]
+): string[] => {
+  const terms = new Set<string>(buildControlledLanguageTermsByField(glossary).menu_term);
+
+  nodes.forEach((node) => {
+    collectControlledLanguageTermsFromNode(node)
+      .filter((entry) => entry.field_type === "menu_term")
+      .forEach(({ term: rawTerm }) => {
+        const term = normalizeControlledLanguageTerm(rawTerm);
+        if (term) {
+          terms.add(term);
+        }
+      });
+  });
+
+  return Array.from(terms).sort((a, b) => a.localeCompare(b));
+};
+
 const buildControlledLanguageAuditRows = (
   nodes: FlowNode[],
   glossary: ControlledLanguageGlossaryEntry[]
@@ -2846,7 +2866,7 @@ function FlowCopyNode({
                   >
                     {menuTermGlossaryTerms.length === 0 ? (
                       <div style={{ fontSize: 10, color: "#64748b" }}>
-                        No included Menu Term glossary terms yet.
+                        No Menu Term options yet. Add one in a Menu node or include one in Controlled Language.
                       </div>
                     ) : (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -2951,6 +2971,7 @@ export default function Page() {
       updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig
     ) => void
   >(() => undefined);
+  const menuTermGlossaryTermsRef = useRef<string[]>([]);
   const sidePanelResizeStartXRef = useRef(0);
   const sidePanelResizeStartWidthRef = useRef(SIDE_PANEL_MIN_WIDTH);
 
@@ -3226,9 +3247,13 @@ export default function Page() {
   }, [setEdges, setNodes]);
 
   const menuTermGlossaryTerms = useMemo(
-    () => buildControlledLanguageTermsByField(controlledLanguageGlossary).menu_term,
-    [controlledLanguageGlossary]
+    () => buildMenuTermSelectorTerms(nodes, controlledLanguageGlossary),
+    [controlledLanguageGlossary, nodes]
   );
+
+  useEffect(() => {
+    menuTermGlossaryTermsRef.current = menuTermGlossaryTerms;
+  }, [menuTermGlossaryTerms]);
 
   const handleAccountEntry = useCallback(() => {
     const enteredCode = accountCodeInput.trim();
@@ -4160,7 +4185,7 @@ export default function Page() {
         <FlowCopyNode
           {...props}
           onBeforeChange={() => captureUndoSnapshotRef.current()}
-          menuTermGlossaryTerms={menuTermGlossaryTerms}
+          menuTermGlossaryTerms={menuTermGlossaryTermsRef.current}
           showNodeId={showNodeIdsOnCanvas}
           onMenuTermDeleteBlocked={showMenuTermDeleteBlockedMessage}
           onMenuNodeConfigChange={(nodeId, updater) =>
@@ -4169,11 +4194,7 @@ export default function Page() {
         />
       ),
     }),
-    [
-      menuTermGlossaryTerms,
-      showNodeIdsOnCanvas,
-      showMenuTermDeleteBlockedMessage,
-    ]
+    [showNodeIdsOnCanvas, showMenuTermDeleteBlockedMessage]
   );
 
   const updatePendingOptionInput = useCallback(
@@ -6258,10 +6279,10 @@ export default function Page() {
                               padding: 6,
                             }}
                           >
-                            {menuTermGlossaryTerms.length === 0 ? (
-                              <div style={{ fontSize: 10, color: "#64748b" }}>
-                                No included Menu Term glossary terms yet.
-                              </div>
+                    {menuTermGlossaryTerms.length === 0 ? (
+                      <div style={{ fontSize: 10, color: "#64748b" }}>
+                        No Menu Term options yet. Add one in a Menu node or include one in Controlled Language.
+                      </div>
                             ) : (
                               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                                 {menuTermGlossaryTerms.map((glossaryTerm) => (
@@ -6641,6 +6662,9 @@ export default function Page() {
     </div>
   );
 }
+
+
+
 
 
 

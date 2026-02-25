@@ -38,6 +38,101 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session was a targeted bug-fix pass for Controlled Language and Menu-node authoring behavior.
+
+Two user-facing issues were addressed together:
+
+- Menu terms typed directly in Menu nodes now appear in the Menu Term glossary selector (Glossary button dropdown), not only in the Controlled Language audit panel.
+- The previously fixed “one backspace/keystroke then focus loss” bug was re-resolved after a regression.
+
+## 2) Core Data Model
+
+No persisted schema changes were introduced.
+
+Behavior used existing contracts and added render-wiring support:
+
+- `buildMenuTermSelectorTerms(nodes, controlledLanguageGlossary)` now provides selector options from both included glossary `menu_term` entries and live Menu-node terms.
+- Added `menuTermGlossaryTermsRef` (`useRef<string[]>`) to hold latest computed selector terms without forcing node renderer remount churn.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior remained unchanged:
+
+- no storage key changes
+- no migration-path changes
+- no import/export format changes
+
+All updates were runtime rendering/interaction fixes, fully compatible with existing saved projects.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering changes were made in this session.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Glossary-source and focus-stability fixes are orthogonal to graph topology and sequence identity.
+
+## 5) Node Rendering and Shape System
+
+Node/edge geometry and shape styles were unchanged.
+
+Rendering-wiring updates were focused on node type stability:
+
+- `nodeTypes` now reads menu glossary terms through `menuTermGlossaryTermsRef.current`.
+- `menuTermGlossaryTerms` was removed from `nodeTypes` memo dependencies so node renderer identity does not churn on each input edit.
+
+Menu glossary empty-state copy was also aligned with behavior:
+
+- “No Menu Term options yet. Add one in a Menu node or include one in Controlled Language.”
+
+## 6) Editor Interaction Model
+
+Interaction behavior after this session:
+
+- Typing a Menu term in a Menu node immediately contributes term options to Glossary selectors.
+- Text inputs no longer lose focus after a single backspace/keystroke due to node remount loops.
+
+Root-cause chain fixed:
+
+- `nodes` edits updated `menuTermGlossaryTerms`
+- `menuTermGlossaryTerms` previously recreated `nodeTypes`
+- recreated `nodeTypes` triggered React Flow node remounts and dropped focus
+
+The ref bridge keeps term data live while preserving stable `nodeTypes` identity.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added live Menu-term aggregation for glossary selector options.
+2. Repaired JSX/UI copy paths in Menu glossary empty states to reflect new sourcing behavior.
+3. Fixed regression by decoupling `nodeTypes` memo identity from per-keystroke glossary-term recomputation.
+4. Preserved existing menu editing semantics and undo/persistence flows.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npm run lint` (no ESLint errors)
+
+Operational notes from this run:
+
+- A dev-server attempt reported existing Next dev lock/instance contention (`.next/dev/lock`), indicating another dev instance was already running.
+
+## 9) Recommended Next Steps
+
+1. Add regression tests for Menu glossary sourcing (included glossary terms + live Menu-node terms union).
+2. Add interaction tests for focus retention while typing/backspacing in node inputs.
+3. Add a guard test ensuring `nodeTypes` identity remains stable across ordinary text edits.
+4. Continue extracting node-renderer wiring from `app/page.tsx` into smaller modules to reduce remount-related regressions.
+
+##02-25-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session was a focused UX bug-fix pass on node text authoring behavior.
 
 The key product outcomes were:
@@ -1661,6 +1756,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 
