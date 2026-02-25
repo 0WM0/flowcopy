@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, {
   useCallback,
@@ -75,6 +75,7 @@ type MicrocopyNodeData = {
   secondary_cta: string;
   helper_text: string;
   error_text: string;
+  display_term_field: NodeControlledLanguageFieldType;
   tone: string;
   polarity: string;
   reversibility: string;
@@ -93,7 +94,7 @@ type MicrocopyNodeData = {
 type PersistableMicrocopyNodeData = Omit<MicrocopyNodeData, "sequence_index">;
 type EditableMicrocopyField = Exclude<
   keyof PersistableMicrocopyNodeData,
-  "parallel_group_id" | "menu_config" | "node_type"
+  "parallel_group_id" | "menu_config" | "node_type" | "display_term_field"
 >;
 
 type GlobalOptionConfig = {
@@ -210,6 +211,7 @@ const FLAT_EXPORT_COLUMNS = [
   "secondary_cta",
   "helper_text",
   "error_text",
+  "display_term_field",
   "tone",
   "polarity",
   "reversibility",
@@ -262,6 +264,8 @@ const NODE_TYPE_OPTIONS: NodeType[] = ["default", "menu"];
 const MENU_NODE_RIGHT_CONNECTIONS_MIN = 1;
 const MENU_NODE_RIGHT_CONNECTIONS_MAX = 12;
 const MENU_SOURCE_HANDLE_PREFIX = "menu-src-";
+const MENU_NODE_MINIMUM_TERM_ERROR_MESSAGE =
+  "You must have at least 1 menu term for this note type. You can change the term if you like.";
 
 const EDGE_STROKE_COLOR = "#1d4ed8";
 const PARALLEL_EDGE_STROKE_COLOR = "#64748b";
@@ -375,8 +379,24 @@ const buttonStyle: React.CSSProperties = {
   fontSize: 12,
 };
 
+const getToggleButtonStyle = (isActive: boolean): React.CSSProperties => ({
+  ...buttonStyle,
+  borderColor: isActive ? "#1d4ed8" : "#bfdbfe",
+  background: isActive ? "#2563eb" : "#eff6ff",
+  color: isActive ? "#ffffff" : "#1e3a8a",
+  fontWeight: 700,
+  boxShadow: isActive ? "0 4px 12px rgba(37, 99, 235, 0.3)" : "none",
+});
+
+const inspectorFieldLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  marginBottom: 4,
+  fontWeight: 700,
+  color: "#1e293b",
+};
+
 const SIDE_PANEL_MIN_WIDTH = 420;
-const SIDE_PANEL_MAX_WIDTH = Math.round(SIDE_PANEL_MIN_WIDTH * 1.5);
+const SIDE_PANEL_MAX_WIDTH = Math.round(SIDE_PANEL_MIN_WIDTH * 2.1);
 const SIDE_PANEL_WIDTH_STORAGE_KEY = "flowcopy.editor.canvasSidePanelWidth";
 
 const clampSidePanelWidth = (value: number): number =>
@@ -486,6 +506,14 @@ const normalizeControlledLanguageFieldType = (
 
   return isControlledLanguageFieldType(value) ? value : null;
 };
+
+const isNodeControlledLanguageFieldType = (
+  value: unknown
+): value is NodeControlledLanguageFieldType =>
+  value === "primary_cta" ||
+  value === "secondary_cta" ||
+  value === "helper_text" ||
+  value === "error_text";
 
 const isNodeType = (value: unknown): value is NodeType =>
   value === "default" || value === "menu";
@@ -1384,6 +1412,7 @@ const createFlatExportRows = ({
       secondary_cta: node?.data.secondary_cta ?? "",
       helper_text: node?.data.helper_text ?? "",
       error_text: node?.data.error_text ?? "",
+      display_term_field: node?.data.display_term_field ?? "",
       tone: node?.data.tone ?? "",
       polarity: node?.data.polarity ?? "",
       reversibility: node?.data.reversibility ?? "",
@@ -1595,6 +1624,10 @@ const cleanedOptions = (options: string[]): string[] =>
 const firstOptionOrFallback = (options: string[], fallback: string): string =>
   cleanedOptions(options)[0] ?? fallback;
 
+const getDefaultActionTypeName = (options: string[]): string =>
+  cleanedOptions(options).find((option) => option.toLowerCase() === "navigate") ??
+  firstOptionOrFallback(options, "Navigate");
+
 const buildSelectOptions = (
   options: string[],
   currentValue: string,
@@ -1615,12 +1648,15 @@ const createDefaultNodeData = (
   globalOptions: GlobalOptionConfig,
   overrides: Partial<PersistableMicrocopyNodeData> = {}
 ): MicrocopyNodeData => ({
-  title: overrides.title ?? "Untitled Node",
+  title: overrides.title ?? "",
   body_text: overrides.body_text ?? "",
-  primary_cta: overrides.primary_cta ?? "Continue",
+  primary_cta: overrides.primary_cta ?? "",
   secondary_cta: overrides.secondary_cta ?? "",
   helper_text: overrides.helper_text ?? "",
   error_text: overrides.error_text ?? "",
+  display_term_field: isNodeControlledLanguageFieldType(overrides.display_term_field)
+    ? overrides.display_term_field
+    : "primary_cta",
   tone: overrides.tone ?? firstOptionOrFallback(globalOptions.tone, "neutral"),
   polarity: overrides.polarity ?? firstOptionOrFallback(globalOptions.polarity, "neutral"),
   reversibility:
@@ -1630,7 +1666,7 @@ const createDefaultNodeData = (
   notes: overrides.notes ?? "",
   action_type_name:
     overrides.action_type_name ??
-    firstOptionOrFallback(globalOptions.action_type_name, "Submit Data"),
+    getDefaultActionTypeName(globalOptions.action_type_name),
   action_type_color:
     overrides.action_type_color ??
     firstOptionOrFallback(globalOptions.action_type_color, "#4f46e5"),
@@ -2142,6 +2178,7 @@ const serializeNodesForStorage = (
       secondary_cta: node.data.secondary_cta,
       helper_text: node.data.helper_text,
       error_text: node.data.error_text,
+      display_term_field: node.data.display_term_field,
       tone: node.data.tone,
       polarity: node.data.polarity,
       reversibility: node.data.reversibility,
@@ -2458,6 +2495,7 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onBeforeChange: () => void;
   menuTermGlossaryTerms: string[];
   showNodeId: boolean;
+  onMenuTermDeleteBlocked: () => void;
   onMenuNodeConfigChange: (
     nodeId: string,
     updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig
@@ -2471,6 +2509,7 @@ function FlowCopyNode({
   onBeforeChange,
   menuTermGlossaryTerms,
   showNodeId,
+  onMenuTermDeleteBlocked,
   onMenuNodeConfigChange,
 }: FlowCopyNodeProps) {
   const { setNodes } = useReactFlow<FlowNode, FlowEdge>();
@@ -2499,6 +2538,10 @@ function FlowCopyNode({
     menuConfig.terms.some((term) => term.id === openMenuGlossaryTermId)
       ? openMenuGlossaryTermId
       : null;
+
+  const displayTermFieldType = data.display_term_field;
+  const displayTermFieldLabel = CONTROLLED_LANGUAGE_FIELD_LABELS[displayTermFieldType];
+  const displayTermValue = data[displayTermFieldType];
 
   useEffect(() => {
     updateNodeInternals(id);
@@ -2559,6 +2602,11 @@ function FlowCopyNode({
         return;
       }
 
+      if (menuConfig.terms.length <= MENU_NODE_RIGHT_CONNECTIONS_MIN) {
+        onMenuTermDeleteBlocked();
+        return;
+      }
+
       const termToDelete = menuConfig.terms.find((term) => term.id === termId);
       if (!termToDelete) {
         return;
@@ -2583,7 +2631,7 @@ function FlowCopyNode({
       });
       setOpenMenuGlossaryTermId((current) => (current === termId ? null : current));
     },
-    [isMenuNode, menuConfig, replaceMenuConfig]
+    [isMenuNode, menuConfig, onMenuTermDeleteBlocked, replaceMenuConfig]
   );
 
   const toggleMenuTermGlossary = useCallback((termId: string) => {
@@ -2643,28 +2691,45 @@ function FlowCopyNode({
           </span>
         </div>
 
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Title</div>
-          <input
-            className="nodrag"
-            style={inputStyle}
-            value={data.title}
-            onChange={(event) => updateField("title", event.target.value)}
-          />
-        </div>
-
-        {!isMenuNode && (
+        {isMenuNode ? (
           <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>
-              Primary CTA
-            </div>
+            <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Title</div>
             <input
               className="nodrag"
               style={inputStyle}
-              value={data.primary_cta}
-              onChange={(event) => updateField("primary_cta", event.target.value)}
+              value={data.title}
+              placeholder="Add title"
+              onChange={(event) => updateField("title", event.target.value)}
             />
           </div>
+        ) : (
+          <>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Title</div>
+              <input
+                className="nodrag"
+                style={inputStyle}
+                value={data.title}
+                placeholder="Add title"
+                onChange={(event) => updateField("title", event.target.value)}
+              />
+            </div>
+
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>
+                {displayTermFieldLabel}
+              </div>
+              <input
+                className="nodrag"
+                style={inputStyle}
+                value={displayTermValue}
+                placeholder="Add term"
+                onChange={(event) =>
+                  updateField(displayTermFieldType, event.target.value)
+                }
+              />
+            </div>
+          </>
         )}
 
         {isMenuNode && (
@@ -2673,10 +2738,10 @@ function FlowCopyNode({
               marginTop: 8,
               border: "1px solid #dbeafe",
               borderRadius: 8,
-              padding: 8,
+              padding: 6,
               background: "#f8fbff",
               display: "grid",
-              gap: 8,
+              gap: 6,
             }}
           >
             <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
@@ -2689,9 +2754,9 @@ function FlowCopyNode({
                 style={{
                   border: "1px solid #bfdbfe",
                   borderRadius: 6,
-                  padding: 6,
+                  padding: 5,
                   display: "grid",
-                  gap: 6,
+                  gap: 5,
                   background: "#fff",
                 }}
               >
@@ -2703,9 +2768,28 @@ function FlowCopyNode({
                     gap: 6,
                   }}
                 >
-                  <span style={{ fontSize: 10, color: "#64748b" }}>
-                    Handle {index + 1}
-                  </span>
+                  <div style={{ fontSize: 10, color: "#334155", fontWeight: 700 }}>
+                    Term {index + 1}
+                  </div>
+                  <button
+                    type="button"
+                    className="nodrag"
+                    style={{
+                      ...buttonStyle,
+                      fontSize: 10,
+                      padding: "2px 6px",
+                      background:
+                        visibleMenuGlossaryTermId === menuTerm.id ? "#dbeafe" : "#fff",
+                      borderColor:
+                        visibleMenuGlossaryTermId === menuTerm.id ? "#93c5fd" : "#d4d4d8",
+                    }}
+                    onClick={() => toggleMenuTermGlossary(menuTerm.id)}
+                  >
+                    Glossary ▾
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <button
                     type="button"
                     className="nodrag"
@@ -2715,48 +2799,21 @@ function FlowCopyNode({
                       padding: "2px 6px",
                       borderColor: "#fca5a5",
                       color: "#b91c1c",
+                      flexShrink: 0,
                     }}
                     title="Delete this term"
                     onClick={() => deleteMenuTermById(menuTerm.id)}
                   >
                     X
                   </button>
-                </div>
 
-                <div style={{ display: "grid", gap: 4 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 6,
-                    }}
-                  >
-                    <div style={{ fontSize: 10, color: "#334155" }}>Term</div>
-                    <button
-                      type="button"
-                      className="nodrag"
-                      style={{
-                        ...buttonStyle,
-                        fontSize: 10,
-                        padding: "2px 6px",
-                        background:
-                          visibleMenuGlossaryTermId === menuTerm.id ? "#dbeafe" : "#fff",
-                        borderColor:
-                          visibleMenuGlossaryTermId === menuTerm.id ? "#93c5fd" : "#d4d4d8",
-                      }}
-                      onClick={() => toggleMenuTermGlossary(menuTerm.id)}
-                    >
-                      Glossary ▾
-                    </button>
-                  </div>
-
-                  <div style={{ position: "relative", paddingRight: 14 }}>
+                  <div style={{ position: "relative", paddingRight: 14, flex: 1 }}>
                     <input
                       className="nodrag"
                       data-menu-term-input="true"
                       style={inputStyle}
                       value={menuTerm.term}
+                      placeholder="Add term"
                       onChange={(event) => updateMenuTermById(menuTerm.id, event.target.value)}
                     />
 
@@ -2871,6 +2928,7 @@ export default function Page() {
   const [openInspectorMenuGlossaryTermId, setOpenInspectorMenuGlossaryTermId] = useState<
     string | null
   >(null);
+  const [menuTermDeleteError, setMenuTermDeleteError] = useState<string | null>(null);
   const [pendingOptionInputs, setPendingOptionInputs] = useState<
     Record<GlobalOptionField, string>
   >(createEmptyPendingOptionInputs);
@@ -2885,6 +2943,7 @@ export default function Page() {
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const hasLoadedStoreRef = useRef(false);
   const undoCaptureTimeoutRef = useRef<number | null>(null);
+  const menuTermDeleteErrorTimeoutRef = useRef<number | null>(null);
   const captureUndoSnapshotRef = useRef<() => void>(() => undefined);
   const updateMenuNodeConfigByIdRef = useRef<
     (
@@ -2922,9 +2981,31 @@ export default function Page() {
       if (undoCaptureTimeoutRef.current !== null) {
         window.clearTimeout(undoCaptureTimeoutRef.current);
       }
+
+      if (menuTermDeleteErrorTimeoutRef.current !== null) {
+        window.clearTimeout(menuTermDeleteErrorTimeoutRef.current);
+      }
     },
     []
   );
+
+  const clearMenuTermDeleteError = useCallback(() => {
+    if (menuTermDeleteErrorTimeoutRef.current !== null) {
+      window.clearTimeout(menuTermDeleteErrorTimeoutRef.current);
+      menuTermDeleteErrorTimeoutRef.current = null;
+    }
+    setMenuTermDeleteError(null);
+  }, []);
+
+  const showMenuTermDeleteBlockedMessage = useCallback(() => {
+    clearMenuTermDeleteError();
+    setMenuTermDeleteError(MENU_NODE_MINIMUM_TERM_ERROR_MESSAGE);
+
+    menuTermDeleteErrorTimeoutRef.current = window.setTimeout(() => {
+      setMenuTermDeleteError(null);
+      menuTermDeleteErrorTimeoutRef.current = null;
+    }, 3200);
+  }, [clearMenuTermDeleteError]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -2999,9 +3080,10 @@ export default function Page() {
       setSelectedNodeId(hydratedNodes[0]?.id ?? null);
       setSelectedEdgeId(null);
       setUndoStack([]);
+      clearMenuTermDeleteError();
       setPendingOptionInputs(createEmptyPendingOptionInputs());
     },
-    [setEdges, setNodes]
+    [clearMenuTermDeleteError, setEdges, setNodes]
   );
 
   const persistCurrentProjectState = useCallback(() => {
@@ -3480,6 +3562,8 @@ export default function Page() {
 
   const onPaneClick = useCallback(
     (event: React.MouseEvent) => {
+      clearMenuTermDeleteError();
+
       if (event.detail === 2) {
         setOpenControlledLanguageFieldType(null);
         setOpenInspectorMenuGlossaryTermId(null);
@@ -3492,25 +3576,35 @@ export default function Page() {
       setSelectedNodeId(null);
       setSelectedEdgeId(null);
     },
-    [addNodeAtEvent]
+    [addNodeAtEvent, clearMenuTermDeleteError]
   );
 
-  const onNodeClick = useCallback((_: React.MouseEvent, node: FlowNode) => {
-    setOpenControlledLanguageFieldType(null);
-    setOpenInspectorMenuGlossaryTermId(null);
-    setSelectedNodeId(node.id);
-    setSelectedEdgeId(null);
-  }, []);
+  const onNodeClick = useCallback(
+    (_: React.MouseEvent, node: FlowNode) => {
+      clearMenuTermDeleteError();
+      setOpenControlledLanguageFieldType(null);
+      setOpenInspectorMenuGlossaryTermId(null);
+      setSelectedNodeId(node.id);
+      setSelectedEdgeId(null);
+    },
+    [clearMenuTermDeleteError]
+  );
 
-  const onEdgeClick = useCallback((_: React.MouseEvent, edge: FlowEdge) => {
-    setOpenControlledLanguageFieldType(null);
-    setOpenInspectorMenuGlossaryTermId(null);
-    setSelectedEdgeId(edge.id);
-    setSelectedNodeId(null);
-  }, []);
+  const onEdgeClick = useCallback(
+    (_: React.MouseEvent, edge: FlowEdge) => {
+      clearMenuTermDeleteError();
+      setOpenControlledLanguageFieldType(null);
+      setOpenInspectorMenuGlossaryTermId(null);
+      setSelectedEdgeId(edge.id);
+      setSelectedNodeId(null);
+    },
+    [clearMenuTermDeleteError]
+  );
 
   const onSelectionChange = useCallback(
     ({ nodes: selectedNodes, edges: selectedEdges }: OnSelectionChangeParams<FlowNode, FlowEdge>) => {
+      clearMenuTermDeleteError();
+
       const nextSelectedEdgeId = selectedEdges[0]?.id ?? null;
       const nextSelectedNodeId = selectedNodes[0]?.id ?? null;
 
@@ -3519,7 +3613,7 @@ export default function Page() {
       setSelectedEdgeId(nextSelectedEdgeId);
       setSelectedNodeId(nextSelectedEdgeId ? null : nextSelectedNodeId);
     },
-    []
+    [clearMenuTermDeleteError]
   );
 
   const handleDeleteSelection = useCallback(() => {
@@ -3710,6 +3804,31 @@ export default function Page() {
     [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
   );
 
+  const updateSelectedDisplayTermField = useCallback(
+    (nextField: NodeControlledLanguageFieldType) => {
+      if (!effectiveSelectedNodeId) {
+        return;
+      }
+
+      queueUndoSnapshot();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) =>
+          node.id === effectiveSelectedNodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  display_term_field: nextField,
+                },
+              }
+            : node
+        )
+      );
+    },
+    [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
+  );
+
   const updateNodeTypeById = useCallback(
     (nodeId: string, nextType: NodeType) => {
       const targetNode = nodes.find((node) => node.id === nodeId);
@@ -3799,10 +3918,14 @@ export default function Page() {
           : remapMenuSequentialEdgesToDefaultHandle(currentEdges, nodeId)
       );
 
+      if (nextType !== "menu") {
+        clearMenuTermDeleteError();
+      }
+
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
     },
-    [nodes, queueUndoSnapshot, setEdges, setNodes]
+    [clearMenuTermDeleteError, nodes, queueUndoSnapshot, setEdges, setNodes]
   );
 
   const updateSelectedNodeType = useCallback(
@@ -3920,6 +4043,26 @@ export default function Page() {
     [effectiveSelectedNodeId, selectedMenuNodeConfig, updateMenuNodeConfigById]
   );
 
+  const commitSelectedMenuRightConnectionsInput = useCallback((rawValue: string) => {
+    const sanitizedValue = rawValue.replace(/[^\d]/g, "");
+    const parsedValue = Number.parseInt(sanitizedValue, 10);
+    const nextValue = clampMenuRightConnections(
+      Number.isFinite(parsedValue)
+        ? parsedValue
+        : MENU_NODE_RIGHT_CONNECTIONS_MIN
+    );
+
+    if (!selectedMenuNodeConfig) {
+      return String(nextValue);
+    }
+
+    if (nextValue !== selectedMenuNodeConfig.max_right_connections) {
+      updateSelectedMenuMaxRightConnections(nextValue);
+    }
+
+    return String(nextValue);
+  }, [selectedMenuNodeConfig, updateSelectedMenuMaxRightConnections]);
+
   const updateSelectedMenuTermById = useCallback(
     (termId: string, term: string) => {
       if (!effectiveSelectedNodeId || !selectedMenuNodeConfig) {
@@ -3944,6 +4087,11 @@ export default function Page() {
   const deleteSelectedMenuTermById = useCallback(
     (termId: string) => {
       if (!effectiveSelectedNodeId || !selectedMenuNodeConfig) {
+        return;
+      }
+
+      if (selectedMenuNodeConfig.terms.length <= MENU_NODE_RIGHT_CONNECTIONS_MIN) {
+        showMenuTermDeleteBlockedMessage();
         return;
       }
 
@@ -3980,7 +4128,12 @@ export default function Page() {
         current === termId ? null : current
       );
     },
-    [effectiveSelectedNodeId, selectedMenuNodeConfig, updateMenuNodeConfigById]
+    [
+      effectiveSelectedNodeId,
+      selectedMenuNodeConfig,
+      showMenuTermDeleteBlockedMessage,
+      updateMenuNodeConfigById,
+    ]
   );
 
   const toggleInspectorMenuTermGlossary = useCallback((termId: string) => {
@@ -4009,13 +4162,18 @@ export default function Page() {
           onBeforeChange={() => captureUndoSnapshotRef.current()}
           menuTermGlossaryTerms={menuTermGlossaryTerms}
           showNodeId={showNodeIdsOnCanvas}
+          onMenuTermDeleteBlocked={showMenuTermDeleteBlockedMessage}
           onMenuNodeConfigChange={(nodeId, updater) =>
             updateMenuNodeConfigByIdRef.current(nodeId, updater)
           }
         />
       ),
     }),
-    [menuTermGlossaryTerms, showNodeIdsOnCanvas]
+    [
+      menuTermGlossaryTerms,
+      showNodeIdsOnCanvas,
+      showMenuTermDeleteBlockedMessage,
+    ]
   );
 
   const updatePendingOptionInput = useCallback(
@@ -4464,6 +4622,11 @@ export default function Page() {
               secondary_cta: row.secondary_cta ?? "",
               helper_text: row.helper_text ?? "",
               error_text: row.error_text ?? "",
+              display_term_field: isNodeControlledLanguageFieldType(
+                row.display_term_field
+              )
+                ? row.display_term_field
+                : "primary_cta",
               tone: row.tone ?? "",
               polarity: row.polarity ?? "",
               reversibility: row.reversibility ?? "",
@@ -4921,14 +5084,14 @@ export default function Page() {
             </button>
             <button
               type="button"
-              style={{ ...buttonStyle, background: "#dbeafe", borderColor: "#93c5fd" }}
+              style={getToggleButtonStyle(false)}
               onClick={() => handleEditorModeChange("canvas")}
             >
               Canvas View
             </button>
             <button
               type="button"
-              style={{ ...buttonStyle, background: "#eff6ff", borderColor: "#93c5fd" }}
+              style={getToggleButtonStyle(true)}
               onClick={() => handleEditorModeChange("table")}
             >
               Table View
@@ -5183,14 +5346,14 @@ export default function Page() {
             </button>
             <button
               type="button"
-              style={{ ...buttonStyle, background: "#eff6ff", borderColor: "#93c5fd" }}
+              style={getToggleButtonStyle(true)}
               onClick={() => handleEditorModeChange("canvas")}
             >
               Canvas View
             </button>
             <button
               type="button"
-              style={{ ...buttonStyle, background: "#dbeafe", borderColor: "#93c5fd" }}
+              style={getToggleButtonStyle(false)}
               onClick={() => handleEditorModeChange("table")}
             >
               Table View
@@ -5333,11 +5496,7 @@ export default function Page() {
           <div style={{ display: "flex", gap: 6 }}>
             <button
               type="button"
-              style={{
-                ...buttonStyle,
-                background: isControlledLanguagePanelOpen ? "#dbeafe" : "#fff",
-                borderColor: isControlledLanguagePanelOpen ? "#93c5fd" : "#d4d4d8",
-              }}
+              style={getToggleButtonStyle(isControlledLanguagePanelOpen)}
               onClick={() =>
                 setIsControlledLanguagePanelOpen((open) => !open)
               }
@@ -5346,7 +5505,7 @@ export default function Page() {
             </button>
             <button
               type="button"
-              style={buttonStyle}
+              style={getToggleButtonStyle(isAdminPanelOpen)}
               onClick={() => setIsAdminPanelOpen((open) => !open)}
             >
               {isAdminPanelOpen ? "Hide" : "Show"} Admin
@@ -5377,11 +5536,41 @@ export default function Page() {
           Show node IDs on nodes
         </label>
 
+        <section
+          style={{
+            border: "1px solid #cbd5e1",
+            borderRadius: 8,
+            padding: 10,
+            display: "grid",
+            gap: 10,
+            background: "#ffffff",
+          }}
+        >
+
         {selectedNode?.data.node_type === "menu" && (
-          <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
-            Menu node mode: edit Right side connections and menu Handle terms below. These
-            terms use the Menu Term glossary.
-          </p>
+          <>
+            <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
+              Menu node mode: edit Right side connections and menu Handle terms below. These
+              terms use the Menu Term glossary.
+            </p>
+
+            {menuTermDeleteError && (
+              <p
+                style={{
+                  marginTop: 0,
+                  marginBottom: 0,
+                  fontSize: 11,
+                  color: "#b91c1c",
+                  background: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  borderRadius: 6,
+                  padding: "6px 8px",
+                }}
+              >
+                {menuTermDeleteError}
+              </p>
+            )}
+          </>
         )}
 
         {isControlledLanguagePanelOpen && (
@@ -5803,22 +5992,26 @@ export default function Page() {
             </div>
 
             <div style={{ fontSize: 12, color: "#334155" }}>
-              <strong>edge_id:</strong> {selectedEdge.id}
+              <strong>Edge ID:</strong> {selectedEdge.id}
               <br />
-              <strong>source → target:</strong> {selectedEdge.source} → {selectedEdge.target}
+              <strong>Source → Target:</strong> {selectedEdge.source} → {selectedEdge.target}
             </div>
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>Kind</div>
+              <div style={inspectorFieldLabelStyle}>Kind</div>
               <input
                 style={inputStyle}
-                value={normalizedSelectedEdgeData.edge_kind}
+                value={
+                  normalizedSelectedEdgeData.edge_kind === "sequential"
+                    ? "Sequential"
+                    : "Parallel"
+                }
                 readOnly
               />
             </label>
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>Color</div>
+              <div style={inspectorFieldLabelStyle}>Color</div>
               <input
                 style={inputStyle}
                 type="color"
@@ -5834,7 +6027,7 @@ export default function Page() {
             </label>
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>Line Style</div>
+              <div style={inspectorFieldLabelStyle}>Line style</div>
               <select
                 style={inputStyle}
                 value={normalizedSelectedEdgeData.line_style ?? "solid"}
@@ -5849,7 +6042,7 @@ export default function Page() {
               >
                 {EDGE_LINE_STYLE_OPTIONS.map((option) => (
                   <option key={`edge-line-style:${option}`} value={option}>
-                    {option}
+                    {option.charAt(0).toUpperCase() + option.slice(1)}
                   </option>
                 ))}
               </select>
@@ -5857,7 +6050,7 @@ export default function Page() {
 
             {normalizedSelectedEdgeData.edge_kind === "sequential" && (
               <label>
-                <div style={{ fontSize: 12, marginBottom: 4 }}>Direction</div>
+                <div style={inspectorFieldLabelStyle}>Direction</div>
                 <select
                   style={inputStyle}
                   value={
@@ -5872,8 +6065,8 @@ export default function Page() {
                     }));
                   }}
                 >
-                  <option value="forward">forward</option>
-                  <option value="reversed">reversed</option>
+                  <option value="forward">Forward</option>
+                  <option value="reversed">Reversed</option>
                 </select>
               </label>
             )}
@@ -5889,17 +6082,17 @@ export default function Page() {
         ) : (
           <div style={{ display: "grid", gap: 10 }}>
             <div style={{ fontSize: 12, color: "#52525b" }}>
-              <strong>node_id:</strong> {selectedNode.id}
+              <strong>Node ID:</strong> {selectedNode.id}
               <br />
-              <strong>sequence:</strong> {ordering.sequenceByNodeId[selectedNode.id] ?? "-"}
+              <strong>Sequence:</strong> {ordering.sequenceByNodeId[selectedNode.id] ?? "-"}
               <br />
-              <strong>x_position:</strong> {Math.round(selectedNode.position.x)}
+              <strong>X position:</strong> {Math.round(selectedNode.position.x)}
               <br />
-              <strong>y_position:</strong> {Math.round(selectedNode.position.y)}
+              <strong>Y position:</strong> {Math.round(selectedNode.position.y)}
             </div>
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>node_type</div>
+              <div style={inspectorFieldLabelStyle}>Node type</div>
               <select
                 style={inputStyle}
                 value={selectedNode.data.node_type}
@@ -5914,7 +6107,7 @@ export default function Page() {
               >
                 {NODE_TYPE_OPTIONS.map((nodeTypeOption) => (
                   <option key={`inspector-node-type:${nodeTypeOption}`} value={nodeTypeOption}>
-                    {nodeTypeOption}
+                    {nodeTypeOption === "default" ? "Default" : "Menu"}
                   </option>
                 ))}
               </select>
@@ -5923,25 +6116,53 @@ export default function Page() {
             {selectedNode.data.node_type === "menu" ? (
               <>
                 <label>
-                  <div style={{ fontSize: 12, marginBottom: 4 }}>title</div>
+                  <div style={inspectorFieldLabelStyle}>Title</div>
                   <input
                     style={inputStyle}
                     value={selectedNode.data.title}
+                    placeholder="Add title"
                     onChange={(event) => updateSelectedField("title", event.target.value)}
                   />
                 </label>
 
                 <label>
-                  <div style={{ fontSize: 12, marginBottom: 4 }}>Right side connections</div>
+                  <div style={inspectorFieldLabelStyle}>Right side connections</div>
                   <input
+                    key={`menu-right-connections:${selectedNode.id}:${
+                      selectedMenuNodeConfig?.max_right_connections ??
+                      MENU_NODE_RIGHT_CONNECTIONS_MIN
+                    }`}
                     style={inputStyle}
-                    type="number"
-                    min={MENU_NODE_RIGHT_CONNECTIONS_MIN}
-                    max={MENU_NODE_RIGHT_CONNECTIONS_MAX}
-                    value={selectedMenuNodeConfig?.max_right_connections ?? MENU_NODE_RIGHT_CONNECTIONS_MIN}
-                    onChange={(event) =>
-                      updateSelectedMenuMaxRightConnections(Number(event.target.value))
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    defaultValue={
+                      selectedMenuNodeConfig?.max_right_connections ??
+                      MENU_NODE_RIGHT_CONNECTIONS_MIN
                     }
+                    onInput={(event) => {
+                      const nextValue = event.currentTarget.value.replace(/[^\d]/g, "");
+                      if (nextValue === event.currentTarget.value) {
+                        return;
+                      }
+
+                      event.currentTarget.value = nextValue;
+                    }}
+                    onBlur={(event) => {
+                      event.currentTarget.value = commitSelectedMenuRightConnectionsInput(
+                        event.currentTarget.value
+                      );
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      event.currentTarget.value = commitSelectedMenuRightConnectionsInput(
+                        event.currentTarget.value
+                      );
+                    }}
                   />
                 </label>
 
@@ -5949,10 +6170,10 @@ export default function Page() {
                   style={{
                     border: "1px solid #dbeafe",
                     borderRadius: 8,
-                    padding: 8,
+                    padding: 6,
                     background: "#f8fbff",
                     display: "grid",
-                    gap: 8,
+                    gap: 6,
                   }}
                 >
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
@@ -5969,9 +6190,9 @@ export default function Page() {
                         style={{
                           border: "1px solid #bfdbfe",
                           borderRadius: 6,
-                          padding: 6,
+                          padding: 5,
                           display: "grid",
-                          gap: 6,
+                          gap: 5,
                           background: "#fff",
                         }}
                       >
@@ -5983,9 +6204,25 @@ export default function Page() {
                             gap: 6,
                           }}
                         >
-                          <span style={{ fontSize: 10, color: "#64748b" }}>
-                            Handle {index + 1}
-                          </span>
+                          <div style={{ fontSize: 10, color: "#334155", fontWeight: 700 }}>
+                            Term {index + 1}
+                          </div>
+                          <button
+                            type="button"
+                            style={{
+                              ...buttonStyle,
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              background: isGlossaryOpen ? "#dbeafe" : "#fff",
+                              borderColor: isGlossaryOpen ? "#93c5fd" : "#d4d4d8",
+                            }}
+                            onClick={() => toggleInspectorMenuTermGlossary(menuTerm.id)}
+                          >
+                            Glossary ▾
+                          </button>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <button
                             type="button"
                             style={{
@@ -5994,42 +6231,18 @@ export default function Page() {
                               padding: "2px 6px",
                               borderColor: "#fca5a5",
                               color: "#b91c1c",
+                              flexShrink: 0,
                             }}
                             title="Delete this term"
                             onClick={() => deleteSelectedMenuTermById(menuTerm.id)}
                           >
                             X
                           </button>
-                        </div>
-
-                        <div style={{ display: "grid", gap: 4 }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: 6,
-                            }}
-                          >
-                            <div style={{ fontSize: 10, color: "#334155" }}>Term</div>
-                            <button
-                              type="button"
-                              style={{
-                                ...buttonStyle,
-                                fontSize: 10,
-                                padding: "2px 6px",
-                                background: isGlossaryOpen ? "#dbeafe" : "#fff",
-                                borderColor: isGlossaryOpen ? "#93c5fd" : "#d4d4d8",
-                              }}
-                              onClick={() => toggleInspectorMenuTermGlossary(menuTerm.id)}
-                            >
-                              Glossary ▾
-                            </button>
-                          </div>
 
                           <input
                             style={inputStyle}
                             value={menuTerm.term}
+                            placeholder="Add term"
                             onChange={(event) =>
                               updateSelectedMenuTermById(menuTerm.id, event.target.value)
                             }
@@ -6082,7 +6295,7 @@ export default function Page() {
             ) : (
               <>
                 <label>
-                  <div style={{ fontSize: 12, marginBottom: 4 }}>node_shape</div>
+                  <div style={inspectorFieldLabelStyle}>Node shape</div>
                   <select
                     style={inputStyle}
                     value={selectedNode.data.node_shape}
@@ -6092,14 +6305,14 @@ export default function Page() {
                   >
                     {NODE_SHAPE_OPTIONS.map((shape) => (
                       <option key={`shape:${shape}`} value={shape}>
-                        {shape}
+                        {shape.charAt(0).toUpperCase() + shape.slice(1)}
                       </option>
                     ))}
                   </select>
                 </label>
 
                 <label>
-                  <div style={{ fontSize: 12, marginBottom: 4 }}>title</div>
+                  <div style={inspectorFieldLabelStyle}>Title</div>
                   <input
                     style={inputStyle}
                     value={selectedNode.data.title}
@@ -6107,8 +6320,49 @@ export default function Page() {
                   />
                 </label>
 
+                <div
+                  style={{
+                    border: "1px solid #dbeafe",
+                    borderRadius: 8,
+                    padding: 8,
+                    background: "#f8fbff",
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                    Displayed term in node
+                  </div>
+
+                  {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => (
+                    <label
+                      key={`display-term-field:${fieldType}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: 12,
+                        color: "#334155",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedNode.data.display_term_field === fieldType}
+                        onChange={(event) => {
+                          if (!event.target.checked) {
+                            return;
+                          }
+
+                          updateSelectedDisplayTermField(fieldType);
+                        }}
+                      />
+                      {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
+                    </label>
+                  ))}
+                </div>
+
                 <label>
-                  <div style={{ fontSize: 12, marginBottom: 4 }}>body_text</div>
+                  <div style={inspectorFieldLabelStyle}>Body text</div>
                   <textarea
                     style={{ ...inputStyle, minHeight: 68, resize: "vertical" }}
                     value={selectedNode.data.body_text}
@@ -6118,7 +6372,7 @@ export default function Page() {
 
                 <div>
                   <div style={{ fontSize: 12, marginBottom: 4, color: "#334155" }}>
-                    body_text preview (markdown)
+                    Body text preview (markdown)
                   </div>
                   <div
                     style={{
@@ -6147,7 +6401,7 @@ export default function Page() {
                           marginBottom: 4,
                         }}
                       >
-                        <div style={{ fontSize: 12 }}>{fieldType}</div>
+                        <div style={inspectorFieldLabelStyle}>{CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}</div>
                         <button
                           type="button"
                           style={{
@@ -6216,7 +6470,7 @@ export default function Page() {
             )}
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>tone</div>
+              <div style={inspectorFieldLabelStyle}>Tone</div>
               <select
                 style={inputStyle}
                 value={selectedNode.data.tone}
@@ -6235,7 +6489,7 @@ export default function Page() {
             </label>
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>polarity</div>
+              <div style={inspectorFieldLabelStyle}>Polarity</div>
               <select
                 style={inputStyle}
                 value={selectedNode.data.polarity}
@@ -6254,7 +6508,7 @@ export default function Page() {
             </label>
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>reversibility</div>
+              <div style={inspectorFieldLabelStyle}>Reversibility</div>
               <select
                 style={inputStyle}
                 value={selectedNode.data.reversibility}
@@ -6275,7 +6529,7 @@ export default function Page() {
             </label>
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>concept</div>
+              <div style={inspectorFieldLabelStyle}>Concept</div>
               <select
                 style={inputStyle}
                 value={selectedNode.data.concept}
@@ -6294,7 +6548,7 @@ export default function Page() {
             </label>
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>notes</div>
+              <div style={inspectorFieldLabelStyle}>Notes</div>
               <textarea
                 style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
                 value={selectedNode.data.notes}
@@ -6305,7 +6559,7 @@ export default function Page() {
             <hr style={{ border: 0, borderTop: "1px solid #e4e4e7" }} />
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>action_type_name</div>
+              <div style={inspectorFieldLabelStyle}>Action type name</div>
               <select
                 style={inputStyle}
                 value={selectedNode.data.action_type_name}
@@ -6326,7 +6580,7 @@ export default function Page() {
             </label>
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>action_type_color</div>
+              <div style={inspectorFieldLabelStyle}>Action type color</div>
               <select
                 style={inputStyle}
                 value={selectedNode.data.action_type_color}
@@ -6363,7 +6617,7 @@ export default function Page() {
             </label>
 
             <label>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>card_style</div>
+              <div style={inspectorFieldLabelStyle}>Card style</div>
               <select
                 style={inputStyle}
                 value={selectedNode.data.card_style}
@@ -6382,7 +6636,25 @@ export default function Page() {
             </label>
           </div>
         )}
+        </section>
       </aside>
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

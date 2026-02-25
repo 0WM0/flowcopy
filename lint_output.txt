@@ -1,4 +1,4 @@
 
 > flowcopy@0.1.0 lint
-> eslint
+> eslint --no-cache
 

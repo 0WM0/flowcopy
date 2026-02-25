@@ -32,6 +32,336 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##02-25-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a focused UX bug-fix pass on node text authoring behavior.
+
+The key product outcomes were:
+
+- Restored **editable canvas fields** for the **Default** node type (Title + displayed term).
+- Preserved existing node behavior while fixing a regression that made those fields read-only.
+- Standardized placeholder copy for Menu node text fields to match requested wording.
+
+## 2) Core Data Model
+
+No schema changes were introduced.
+
+The session reused existing node data contracts:
+
+- `title`
+- `display_term_field` and its resolved value (`primary_cta` / `secondary_cta` / `helper_text` / `error_text`)
+- `menu_config.terms[].term`
+
+All updates were interaction/rendering-level and did not alter persisted type shapes.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior remained unchanged:
+
+- no storage key updates
+- no migration logic updates
+- no changes to project import/export schema
+
+Because this session only adjusted input rendering/editability, existing saved projects remain fully compatible.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed in this session.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Text-field UX fixes do not affect graph structure, node ordering, or sequence identity.
+
+## 5) Node Rendering and Shape System
+
+`FlowCopyNode` rendering was updated in two targeted areas:
+
+1. **Default node canvas content**
+   - Replaced read-only display blocks for Title/Term with editable `<input>` controls.
+   - Title input now uses placeholder: `Add title`.
+   - Displayed term input now uses placeholder: `Add term`.
+
+2. **Menu node placeholder consistency**
+   - Canvas menu Title input now uses placeholder: `Add title`.
+   - Canvas menu Term inputs now use placeholder: `Add term`.
+   - Inspector menu Title/Term inputs were aligned with the same placeholder text.
+
+No node-shape geometry or edge-visual logic was modified.
+
+## 6) Editor Interaction Model
+
+Interaction behavior after this fix:
+
+- Default-node Title and displayed term are once again editable directly on the canvas.
+- Displayed-term edits still route through the currently selected `display_term_field` (no selector behavior changes).
+- Menu node editing flows are unchanged functionally; only placeholder text was added for clearer empty-state guidance.
+
+No changes were made to menu term add/remove mechanics, glossary behavior, or node-type switching behavior.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Removed the temporary read-only fallback rendering path for default-node Title/Term on canvas.
+2. Restored direct input editing for those two fields using existing update callbacks.
+3. Added consistent placeholder copy (`Add title`, `Add term`) across menu canvas + inspector text inputs.
+4. Kept existing option-management and node behavior intact while applying the UX fix.
+
+## 8) Validation and Operational Notes
+
+Validation command run during this session:
+
+- `npm run lint`
+
+Operational notes:
+
+- Command output in this environment contained shell/spinner artifacts.
+- A subsequent `npm run dev` attempt reported an existing Next.js dev lock (`.next/dev/lock`) from another running instance.
+
+## 9) Recommended Next Steps
+
+1. Add regression tests for default-node canvas editability (Title + displayed term).
+2. Add UI checks to verify placeholder text for menu/default text inputs.
+3. Add a small interaction test to confirm displayed-term edits still follow `display_term_field` mapping.
+4. Continue extracting `FlowCopyNode` render branches into smaller components to reduce regression risk.
+
+##02-25-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a focused UX streamlining pass across the **default node** and **menu node** editing surfaces.
+
+The product-level outcomes were:
+
+- Default nodes now support explicit control over which controlled-language field is displayed in the node term slot.
+- Default-node canvas content now uses non-editable placeholder behavior for empty title/term display.
+- Menu-node term rows were compacted in both canvas and inspector to reduce visual noise and improve scanability.
+
+## 2) Core Data Model
+
+No new persisted schema was introduced in this pass; changes were primarily interaction/rendering-level and leveraged the existing field model.
+
+Key model-driven behavior used/extended this session:
+
+- `display_term_field` on node data is now directly editable from inspector UI for default nodes.
+- Selector options remain the existing controlled-language node fields:
+  - `primary_cta`
+  - `secondary_cta`
+  - `helper_text`
+  - `error_text`
+
+Implementation callbacks added/refined:
+
+- `updateSelectedDisplayTermField(...)` to update `display_term_field` on the selected node with undo snapshot support.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration contracts remained stable:
+
+- No storage key changes.
+- No migration updates required.
+- Existing node serialization/import/export paths continue to carry `display_term_field` as before.
+
+This session’s updates were compatible with the current project save/load format.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering or sequence-ID logic changed.
+
+- `computeFlowOrdering(...)` unchanged.
+- `computeProjectSequenceId(...)` unchanged.
+
+UI streamlining for term/title presentation does not affect graph topology, ordering semantics, or sequence identity.
+
+## 5) Node Rendering and Shape System
+
+### Default-node rendering changes
+
+- Canvas title display is now non-editable and shows placeholder **"Add title"** when empty.
+- The displayed term slot now resolves from `display_term_field` and shows placeholder **"Add term"** when empty.
+- The term label continues to reflect the currently selected controlled-language field label.
+
+### Menu-node rendering changes
+
+- Removed all **"Handle N"** labels from canvas and inspector term rows.
+- Replaced with **"Term N"** labeling.
+- Moved delete **X** into the same row as the term input and positioned it to the **left** of the input.
+- Kept the **Glossary** button in its prior top-row location.
+- Reduced row/container padding and spacing for a more compact node/inspector footprint.
+
+## 6) Editor Interaction Model
+
+### 6.1 Default-node displayed-term selector
+
+- Added inspector checkboxes for:
+  - Primary CTA
+  - Secondary CTA
+  - Helper Text
+  - Error Text
+- Behavior is mutually exclusive (single-select).
+- Default remains `Primary CTA` via `display_term_field` defaulting rules.
+- Unchecking the active option directly is ignored; selection changes occur by checking another option.
+
+### 6.2 Menu-term row interactions
+
+- Term editing behavior remains inline in both canvas and inspector.
+- Delete action remains available per term, now relocated to improve row density and ergonomics.
+- Glossary dropdown behavior remains unchanged functionally, with layout preserved in the top control row.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added a dedicated default-node inspector control to drive which field’s term is shown in-node.
+2. Shifted default-node canvas title/term displays to placeholder-only, non-editable presentation for empty states.
+3. Standardized menu term labeling to **Term N** across canvas and inspector.
+4. Compacted menu term cards/rows and relocated delete controls for faster editing flow.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully after implementation:
+
+- `npm run lint -- --no-cache` → exit code `0`
+- `npx tsc --noEmit` → exit code `0`
+
+Operational note:
+
+- A `next dev` run was attempted and reported an existing `.next/dev/lock` from another running instance; this did not affect lint/type validation results.
+
+## 9) Recommended Next Steps
+
+1. Add interaction tests for default-node displayed-term selector exclusivity and persistence.
+2. Add UI regression checks for placeholder rendering (`Add title`, `Add term`) in default nodes.
+3. Add regression tests for menu row compact layout behavior in both canvas and inspector.
+4. Consider converting the displayed-term checkboxes to radio-style controls for stronger one-of-many affordance while preserving current behavior.
+5. Continue extracting node-type-specific inspector sections from `app/page.tsx` into dedicated components.
+
+##02-24-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a targeted menu-node UX bug-fix pass in the editor inspector.
+
+The product-level outcomes were:
+
+- **Right side connections** is now edited as a plain numeric text input (no spinner/drag control).
+- Canvas updates for that field are now **deferred** and only applied on **Enter** or **blur**.
+- Menu terms now enforce a hard minimum of one term with a clear user-facing message when delete is blocked.
+- The inspector panel remains resizable, with a larger max width cap for better editing space.
+
+## 2) Core Data Model
+
+No persisted schema changes were introduced.
+
+The existing menu contracts remain unchanged:
+
+- `MenuNodeConfig`
+- `MenuNodeTerm`
+- `MENU_NODE_RIGHT_CONNECTIONS_MIN` / `MENU_NODE_RIGHT_CONNECTIONS_MAX`
+
+Behavior-level control was refined through callback logic and constants:
+
+- `commitSelectedMenuRightConnectionsInput(rawValue)` now sanitizes, clamps, and commits deferred input.
+- `MENU_NODE_MINIMUM_TERM_ERROR_MESSAGE` is used as the shared blocked-delete message.
+- `clearMenuTermDeleteError` + `showMenuTermDeleteBlockedMessage` manage short-lived error state.
+
+## 3) Persistence and Migration Strategy
+
+Persistence/migration contracts were unchanged.
+
+- Project node/edge/admin-option serialization remains the same.
+- No migration updates were required.
+- Side-panel width still persists through `flowcopy.editor.canvasSidePanelWidth`; only the max clamp limit changed.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed in this session.
+
+- `computeFlowOrdering(...)` unchanged.
+- `computeProjectSequenceId(...)` unchanged.
+
+The menu inspector fixes are interaction-layer updates and do not affect graph ordering semantics.
+
+## 5) Node Rendering and Shape System
+
+Shape rendering contracts were not modified.
+
+UI rendering changes in this session were focused on inspector/menu editing surfaces:
+
+- Inspector `Right side connections` switched from `<input type="number">` to numeric text input semantics (`type="text"`, `inputMode="numeric"`, `pattern="[0-9]*"`).
+- A small inline blocked-delete error message is rendered for menu nodes in the inspector.
+- Side-panel width cap increased to:
+  - `SIDE_PANEL_MAX_WIDTH = Math.round(SIDE_PANEL_MIN_WIDTH * 2.1)`
+
+## 6) Editor Interaction Model
+
+### 6.1 Right side connections commit model
+
+- Input now allows temporary empty state while typing/deleting.
+- Non-digit characters are stripped during input.
+- Value commits only on:
+  - `onBlur`
+  - `Enter` key (`onKeyDown`)
+- On commit:
+  - empty/invalid values default to `1`
+  - values are clamped to allowed bounds
+  - canvas state updates only when committed value differs from current config
+
+### 6.2 Menu-term minimum guard
+
+Delete actions now enforce minimum-term behavior from both paths:
+
+- canvas node term delete (`FlowCopyNode`)
+- inspector term delete (`deleteSelectedMenuTermById`)
+
+If term count is already at minimum, delete is blocked and user sees:
+
+`You must have at least 1 menu term for this note type. You can change the term if you like.`
+
+### 6.3 Error lifecycle hygiene
+
+Blocked-delete message state is actively cleared on selection/context changes (pane/node/edge selection changes, project load, and node-type transitions away from menu) to prevent stale error display.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. **Deferred commit for right-connection edits**
+   - removed per-keystroke graph updates for this control.
+2. **Shared minimum-term protection**
+   - consistent guard behavior across node and inspector delete flows.
+3. **Cleaner transient error management**
+   - timer-backed error display with centralized clear/show callbacks.
+4. **Lint-safe interaction path**
+   - removed effect-driven state-sync pattern that previously triggered `react-hooks/set-state-in-effect` warnings during this refactor path.
+
+## 8) Validation and Operational Notes
+
+Validation executed after implementation:
+
+- `npm run lint` ✅
+
+Operational note:
+
+- shell output includes spinner/control-character artifacts in this environment, but lint completed without ESLint errors.
+
+## 9) Recommended Next Steps
+
+1. Add regression tests for right-connection commit timing (type freely, commit on Enter/blur only).
+2. Add tests for empty/invalid commit fallback to `1` and bounds clamping.
+3. Add tests to ensure last menu term cannot be deleted from either node card or inspector.
+4. Consider adding tiny helper text under the field clarifying allowed range and commit behavior.
+5. Optionally centralize transient inspector alerts into a reusable notification primitive.
+
 ##02-24-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -1331,6 +1661,9 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
+
+
 
 
 
