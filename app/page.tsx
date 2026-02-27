@@ -41,7 +41,8 @@ import "@xyflow/react/dist/style.css";
 type NodeShape = "rectangle" | "rounded" | "pill" | "diamond";
 type EdgeKind = "sequential" | "parallel";
 type EdgeLineStyle = "solid" | "dashed" | "dotted";
-type NodeType = "default" | "menu";
+type FrameShade = "light" | "medium" | "dark";
+type NodeType = "default" | "menu" | "frame";
 type NodeControlledLanguageFieldType =
   | "primary_cta"
   | "secondary_cta"
@@ -57,6 +58,13 @@ type MenuNodeTerm = {
 type MenuNodeConfig = {
   max_right_connections: number;
   terms: MenuNodeTerm[];
+};
+
+type FrameNodeConfig = {
+  shade: FrameShade;
+  member_node_ids: string[];
+  width: number;
+  height: number;
 };
 
 type EdgeDirection = "forward" | "reversed";
@@ -87,6 +95,7 @@ type MicrocopyNodeData = {
   node_shape: NodeShape;
   node_type: NodeType;
   menu_config: MenuNodeConfig;
+  frame_config: FrameNodeConfig;
   parallel_group_id: string | null;
   sequence_index: number | null;
 };
@@ -94,7 +103,11 @@ type MicrocopyNodeData = {
 type PersistableMicrocopyNodeData = Omit<MicrocopyNodeData, "sequence_index">;
 type EditableMicrocopyField = Exclude<
   keyof PersistableMicrocopyNodeData,
-  "parallel_group_id" | "menu_config" | "node_type" | "display_term_field"
+  | "parallel_group_id"
+  | "menu_config"
+  | "frame_config"
+  | "node_type"
+  | "display_term_field"
 >;
 
 type GlobalOptionConfig = {
@@ -223,6 +236,7 @@ const FLAT_EXPORT_COLUMNS = [
   "node_shape",
   "node_type",
   "menu_config_json",
+  "frame_config_json",
   "project_admin_options_json",
   "project_controlled_language_json",
   "project_edges_json",
@@ -259,13 +273,57 @@ const NODE_SHAPE_OPTIONS: NodeShape[] = [
   "diamond",
 ];
 
-const NODE_TYPE_OPTIONS: NodeType[] = ["default", "menu"];
+const NODE_TYPE_OPTIONS: NodeType[] = ["default", "menu", "frame"];
+const NODE_TYPE_LABELS: Record<NodeType, string> = {
+  default: "Default",
+  menu: "Menu",
+  frame: "Frame",
+};
+const FRAME_SHADE_OPTIONS: FrameShade[] = ["light", "medium", "dark"];
+const FRAME_SHADE_LABELS: Record<FrameShade, string> = {
+  light: "Light",
+  medium: "Medium",
+  dark: "Dark",
+};
 
 const MENU_NODE_RIGHT_CONNECTIONS_MIN = 1;
 const MENU_NODE_RIGHT_CONNECTIONS_MAX = 12;
 const MENU_SOURCE_HANDLE_PREFIX = "menu-src-";
 const MENU_NODE_MINIMUM_TERM_ERROR_MESSAGE =
   "You must have at least 1 menu term for this note type. You can change the term if you like.";
+
+const FRAME_NODE_MIN_WIDTH = 260;
+const FRAME_NODE_MIN_HEIGHT = 180;
+const FRAME_NODE_PADDING = 28;
+
+const FRAME_SHADE_STYLES: Record<
+  FrameShade,
+  {
+    border: string;
+    background: string;
+    tabBackground: string;
+    tabText: string;
+  }
+> = {
+  light: {
+    border: "#cbd5e1",
+    background: "rgba(248, 250, 252, 0.88)",
+    tabBackground: "#f1f5f9",
+    tabText: "#475569",
+  },
+  medium: {
+    border: "#94a3b8",
+    background: "rgba(241, 245, 249, 0.72)",
+    tabBackground: "#e2e8f0",
+    tabText: "#334155",
+  },
+  dark: {
+    border: "#64748b",
+    background: "rgba(226, 232, 240, 0.58)",
+    tabBackground: "#cbd5e1",
+    tabText: "#1e293b",
+  },
+};
 
 const EDGE_STROKE_COLOR = "#1d4ed8";
 const PARALLEL_EDGE_STROKE_COLOR = "#64748b";
@@ -515,8 +573,277 @@ const isNodeControlledLanguageFieldType = (
   value === "helper_text" ||
   value === "error_text";
 
+const isFrameShade = (value: unknown): value is FrameShade =>
+  value === "light" || value === "medium" || value === "dark";
+
 const isNodeType = (value: unknown): value is NodeType =>
-  value === "default" || value === "menu";
+  value === "default" || value === "menu" || value === "frame";
+
+const clampFrameDimension = (value: number, minimum: number): number => {
+  if (!Number.isFinite(value)) {
+    return minimum;
+  }
+
+  return Math.max(minimum, Math.round(value));
+};
+
+const sanitizeFrameMemberNodeIds = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const memberNodeIds: string[] = [];
+
+  value.forEach((rawItem) => {
+    if (typeof rawItem !== "string") {
+      return;
+    }
+
+    const nextId = rawItem.trim();
+    if (!nextId || seen.has(nextId)) {
+      return;
+    }
+
+    seen.add(nextId);
+    memberNodeIds.push(nextId);
+  });
+
+  return memberNodeIds;
+};
+
+const normalizeFrameNodeConfig = (
+  value: unknown,
+  fallbackMemberNodeIds: string[] = []
+): FrameNodeConfig => {
+  const source =
+    value && typeof value === "object" ? (value as Partial<FrameNodeConfig>) : undefined;
+
+  const memberNodeIdsFromValue = sanitizeFrameMemberNodeIds(source?.member_node_ids);
+  const fallbackMembers = sanitizeFrameMemberNodeIds(fallbackMemberNodeIds);
+
+  return {
+    shade: isFrameShade(source?.shade) ? source.shade : "medium",
+    member_node_ids:
+      memberNodeIdsFromValue.length > 0 ? memberNodeIdsFromValue : fallbackMembers,
+    width: clampFrameDimension(source?.width ?? FRAME_NODE_MIN_WIDTH, FRAME_NODE_MIN_WIDTH),
+    height: clampFrameDimension(
+      source?.height ?? FRAME_NODE_MIN_HEIGHT,
+      FRAME_NODE_MIN_HEIGHT
+    ),
+  };
+};
+
+const getFallbackNodeSize = (node: FlowNode): { width: number; height: number } => {
+  if (node.data.node_type === "frame") {
+    const frameConfig = normalizeFrameNodeConfig(node.data.frame_config);
+    return {
+      width: frameConfig.width,
+      height: frameConfig.height,
+    };
+  }
+
+  if (node.data.node_type === "menu") {
+    const menuConfig = normalizeMenuNodeConfig(node.data.menu_config, node.data.primary_cta);
+    return {
+      width: 260,
+      height: Math.max(170, 120 + menuConfig.terms.length * 56),
+    };
+  }
+
+  switch (node.data.node_shape) {
+    case "pill":
+      return { width: 380, height: 190 };
+    case "diamond":
+      return { width: 460, height: 340 };
+    case "rounded":
+    case "rectangle":
+    default:
+      return { width: 260, height: 120 };
+  }
+};
+
+const getNodeVisualSize = (node: FlowNode): { width: number; height: number } => {
+  const measuredNode = node as FlowNode & {
+    measured?: {
+      width?: number;
+      height?: number;
+    };
+  };
+
+  const widthCandidate =
+    typeof measuredNode.width === "number"
+      ? measuredNode.width
+      : measuredNode.measured?.width;
+  const heightCandidate =
+    typeof measuredNode.height === "number"
+      ? measuredNode.height
+      : measuredNode.measured?.height;
+
+  if (
+    typeof widthCandidate === "number" &&
+    Number.isFinite(widthCandidate) &&
+    widthCandidate > 0 &&
+    typeof heightCandidate === "number" &&
+    Number.isFinite(heightCandidate) &&
+    heightCandidate > 0
+  ) {
+    return {
+      width: widthCandidate,
+      height: heightCandidate,
+    };
+  }
+
+  return getFallbackNodeSize(node);
+};
+
+const computeNodesBoundingRect = (
+  nodes: FlowNode[]
+):
+  | {
+      left: number;
+      top: number;
+      right: number;
+      bottom: number;
+      width: number;
+      height: number;
+    }
+  | null => {
+  if (nodes.length === 0) {
+    return null;
+  }
+
+  let left = Number.POSITIVE_INFINITY;
+  let top = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+
+  nodes.forEach((node) => {
+    const size = getNodeVisualSize(node);
+    left = Math.min(left, node.position.x);
+    top = Math.min(top, node.position.y);
+    right = Math.max(right, node.position.x + size.width);
+    bottom = Math.max(bottom, node.position.y + size.height);
+  });
+
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+  };
+};
+
+const pruneFrameNodeMembership = (nodes: FlowNode[]): FlowNode[] => {
+  const validMemberNodeIds = new Set(
+    nodes
+      .filter((node) => node.data.node_type !== "frame")
+      .map((node) => node.id)
+  );
+
+  return nodes.map((node) => {
+    if (node.data.node_type !== "frame") {
+      return node;
+    }
+
+    const currentFrameConfig = normalizeFrameNodeConfig(node.data.frame_config);
+    const nextMemberNodeIds = currentFrameConfig.member_node_ids.filter((memberNodeId) =>
+      validMemberNodeIds.has(memberNodeId)
+    );
+
+    if (nextMemberNodeIds.length === currentFrameConfig.member_node_ids.length) {
+      return node;
+    }
+
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        frame_config: {
+          ...currentFrameConfig,
+          member_node_ids: nextMemberNodeIds,
+        },
+      },
+    };
+  });
+};
+
+const applyFrameMovementToMemberNodes = (
+  previousNodes: FlowNode[],
+  nextNodes: FlowNode[]
+): FlowNode[] => {
+  const previousNodeById = new Map(previousNodes.map((node) => [node.id, node]));
+  const movementDeltas: Array<{
+    memberNodeIds: string[];
+    deltaX: number;
+    deltaY: number;
+  }> = [];
+
+  nextNodes.forEach((node) => {
+    if (node.data.node_type !== "frame") {
+      return;
+    }
+
+    const previousNode = previousNodeById.get(node.id);
+    if (!previousNode || previousNode.data.node_type !== "frame") {
+      return;
+    }
+
+    const deltaX = node.position.x - previousNode.position.x;
+    const deltaY = node.position.y - previousNode.position.y;
+
+    if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) {
+      return;
+    }
+
+    const frameConfig = normalizeFrameNodeConfig(node.data.frame_config);
+    if (frameConfig.member_node_ids.length === 0) {
+      return;
+    }
+
+    movementDeltas.push({
+      memberNodeIds: frameConfig.member_node_ids,
+      deltaX,
+      deltaY,
+    });
+  });
+
+  if (movementDeltas.length === 0) {
+    return nextNodes;
+  }
+
+  return nextNodes.map((node) => {
+    if (node.data.node_type === "frame" || node.selected) {
+      return node;
+    }
+
+    let aggregateDeltaX = 0;
+    let aggregateDeltaY = 0;
+
+    movementDeltas.forEach((movementDelta) => {
+      if (!movementDelta.memberNodeIds.includes(node.id)) {
+        return;
+      }
+
+      aggregateDeltaX += movementDelta.deltaX;
+      aggregateDeltaY += movementDelta.deltaY;
+    });
+
+    if (aggregateDeltaX === 0 && aggregateDeltaY === 0) {
+      return node;
+    }
+
+    return {
+      ...node,
+      position: {
+        x: node.position.x + aggregateDeltaX,
+        y: node.position.y + aggregateDeltaY,
+      },
+    };
+  });
+};
 
 const createMenuTermId = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -1444,6 +1771,7 @@ const createFlatExportRows = ({
       node_shape: node?.data.node_shape ?? "",
       node_type: node?.data.node_type ?? "default",
       menu_config_json: node ? JSON.stringify(node.data.menu_config) : "",
+      frame_config_json: node ? JSON.stringify(node.data.frame_config) : "",
       project_admin_options_json: adminOptionsJson,
       project_controlled_language_json: controlledLanguageJson,
       project_edges_json: edgesJson,
@@ -1698,6 +2026,7 @@ const createDefaultNodeData = (
     overrides.primary_cta ?? "Continue",
     1
   ),
+  frame_config: normalizeFrameNodeConfig(overrides.frame_config),
   parallel_group_id:
     typeof overrides.parallel_group_id === "string" &&
     overrides.parallel_group_id.trim().length > 0
@@ -1841,6 +2170,71 @@ const sanitizeEdges = (persistedEdges: FlowEdge[], nodes: FlowNode[]): FlowEdge[
         data: normalizeEdgeData(edge.data, fallbackKind),
       }),
     ];
+  });
+};
+
+const constrainNodesToFrameMembershipBounds = (nodes: FlowNode[]): FlowNode[] => {
+  const frameNodes = nodes.filter((node) => node.data.node_type === "frame");
+  if (frameNodes.length === 0) {
+    return nodes;
+  }
+
+  const memberFramesByNodeId = new Map<string, FlowNode[]>();
+
+  frameNodes.forEach((frameNode) => {
+    const frameConfig = normalizeFrameNodeConfig(frameNode.data.frame_config);
+
+    frameConfig.member_node_ids.forEach((memberNodeId) => {
+      const existingFrames = memberFramesByNodeId.get(memberNodeId);
+      if (existingFrames) {
+        existingFrames.push(frameNode);
+        return;
+      }
+
+      memberFramesByNodeId.set(memberNodeId, [frameNode]);
+    });
+  });
+
+  if (memberFramesByNodeId.size === 0) {
+    return nodes;
+  }
+
+  return nodes.map((node) => {
+    if (node.data.node_type === "frame") {
+      return node;
+    }
+
+    const containingFrames = memberFramesByNodeId.get(node.id);
+    if (!containingFrames || containingFrames.length === 0) {
+      return node;
+    }
+
+    const nodeSize = getNodeVisualSize(node);
+    let nextX = node.position.x;
+    let nextY = node.position.y;
+
+    containingFrames.forEach((frameNode) => {
+      const frameConfig = normalizeFrameNodeConfig(frameNode.data.frame_config);
+      const minX = frameNode.position.x;
+      const minY = frameNode.position.y;
+      const maxX = Math.max(minX, frameNode.position.x + frameConfig.width - nodeSize.width);
+      const maxY = Math.max(minY, frameNode.position.y + frameConfig.height - nodeSize.height);
+
+      nextX = Math.min(maxX, Math.max(minX, nextX));
+      nextY = Math.min(maxY, Math.max(minY, nextY));
+    });
+
+    if (nextX === node.position.x && nextY === node.position.y) {
+      return node;
+    }
+
+    return {
+      ...node,
+      position: {
+        x: nextX,
+        y: nextY,
+      },
+    };
   });
 };
 
@@ -2216,6 +2610,7 @@ const serializeNodesForStorage = (
           ? node.data.menu_config.max_right_connections
           : 1
       ),
+      frame_config: normalizeFrameNodeConfig(node.data.frame_config),
       parallel_group_id:
         parallelGroupByNodeId[node.id] ?? node.data.parallel_group_id ?? null,
     };
@@ -2534,11 +2929,14 @@ function FlowCopyNode({
 }: FlowCopyNodeProps) {
   const { setNodes } = useReactFlow<FlowNode, FlowEdge>();
   const updateNodeInternals = useUpdateNodeInternals();
+  const frameTitleInputRef = useRef<HTMLInputElement | null>(null);
   const [openMenuGlossaryTermId, setOpenMenuGlossaryTermId] = useState<string | null>(
     null
   );
+  const [isEditingFrameTitle, setIsEditingFrameTitle] = useState(false);
 
   const isMenuNode = data.node_type === "menu";
+  const isFrameNode = data.node_type === "frame";
   const menuConfig = useMemo(
     () =>
       normalizeMenuNodeConfig(
@@ -2551,6 +2949,11 @@ function FlowCopyNode({
       ),
     [data.menu_config, data.primary_cta]
   );
+  const frameConfig = useMemo(
+    () => normalizeFrameNodeConfig(data.frame_config),
+    [data.frame_config]
+  );
+  const frameShadeStyle = FRAME_SHADE_STYLES[frameConfig.shade];
 
   const visibleMenuGlossaryTermId =
     isMenuNode &&
@@ -2566,6 +2969,15 @@ function FlowCopyNode({
   useEffect(() => {
     updateNodeInternals(id);
   }, [data.node_type, id, menuConfig.terms.length, updateNodeInternals]);
+
+  useEffect(() => {
+    if (!isEditingFrameTitle) {
+      return;
+    }
+
+    frameTitleInputRef.current?.focus();
+    frameTitleInputRef.current?.select();
+  }, [isEditingFrameTitle]);
 
   const updateField = useCallback(
     <K extends EditableMicrocopyField>(
@@ -2592,6 +3004,17 @@ function FlowCopyNode({
     },
     [id, isMenuNode, onMenuNodeConfigChange]
   );
+
+  const addMenuTerm = useCallback(() => {
+    if (!isMenuNode) {
+      return;
+    }
+
+    replaceMenuConfig({
+      max_right_connections: clampMenuRightConnections(menuConfig.max_right_connections + 1),
+      terms: [...menuConfig.terms, createMenuNodeTerm("")],
+    });
+  }, [isMenuNode, menuConfig, replaceMenuConfig]);
 
   const updateMenuTermById = useCallback(
     (termId: string, term: string) => {
@@ -2665,6 +3088,140 @@ function FlowCopyNode({
     },
     [updateMenuTermById]
   );
+
+  if (isFrameNode) {
+    const frameTitle = data.title.trim();
+
+    return (
+      <div
+        style={{
+          width: frameConfig.width,
+          minHeight: frameConfig.height,
+          boxSizing: "border-box",
+          borderRadius: 10,
+          border: `2px solid ${frameShadeStyle.border}`,
+          background: frameShadeStyle.background,
+          boxShadow: selected
+            ? "0 0 0 3px rgba(30, 64, 175, 0.3), inset 0 0 0 1px rgba(255,255,255,0.7)"
+            : "inset 0 0 0 1px rgba(255,255,255,0.7)",
+          position: "relative",
+        }}
+      >
+        <Handle
+          type="target"
+          position={Position.Left}
+          id={SEQUENTIAL_TARGET_HANDLE_ID}
+        />
+        <Handle
+          type="target"
+          position={Position.Top}
+          id={PARALLEL_TARGET_HANDLE_ID}
+        />
+        <Handle
+          type="source"
+          position={Position.Top}
+          id={PARALLEL_ALT_SOURCE_HANDLE_ID}
+        />
+
+        <div
+          role="button"
+          tabIndex={0}
+          style={{
+            position: "absolute",
+            top: -14,
+            left: 14,
+            maxWidth: "70%",
+            borderRadius: "8px 8px 0 0",
+            borderTop: `1px solid ${frameShadeStyle.border}`,
+            borderLeft: `1px solid ${frameShadeStyle.border}`,
+            borderRight: `1px solid ${frameShadeStyle.border}`,
+            background: frameShadeStyle.tabBackground,
+            color: frameShadeStyle.tabText,
+            padding: "2px 10px",
+            fontSize: 11,
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            cursor: "text",
+          }}
+          title={frameTitle || "Add title"}
+          onClick={() => setIsEditingFrameTitle(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setIsEditingFrameTitle(true);
+            }
+          }}
+        >
+          {isEditingFrameTitle ? (
+            <input
+              ref={frameTitleInputRef}
+              className="nodrag"
+              style={{
+                width: "100%",
+                border: "none",
+                background: "transparent",
+                outline: "none",
+                padding: 0,
+                margin: 0,
+                fontSize: 11,
+                fontWeight: 700,
+                color: frameShadeStyle.tabText,
+              }}
+              value={data.title}
+              placeholder="Add title"
+              onChange={(event) => updateField("title", event.target.value)}
+              onBlur={() => setIsEditingFrameTitle(false)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
+
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setIsEditingFrameTitle(false);
+                }
+              }}
+            />
+          ) : (
+            frameTitle || "Add title"
+          )}
+        </div>
+
+        {showNodeId && (
+          <div
+            style={{
+              position: "absolute",
+              right: 8,
+              bottom: 6,
+              fontSize: 10,
+              color: "#64748b",
+            }}
+          >
+            id: {id}
+          </div>
+        )}
+
+        <Handle
+          type="source"
+          position={Position.Right}
+          id={SEQUENTIAL_SOURCE_HANDLE_ID}
+        />
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id={PARALLEL_SOURCE_HANDLE_ID}
+        />
+        <Handle
+          type="target"
+          position={Position.Bottom}
+          id={PARALLEL_ALT_TARGET_HANDLE_ID}
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={getNodeShapeStyle(data.node_shape, selected, data.action_type_color)}>
@@ -2764,8 +3321,39 @@ function FlowCopyNode({
               gap: 6,
             }}
           >
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
-              Menu Terms
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                Menu Terms
+              </div>
+              <button
+                type="button"
+                className="nodrag"
+                style={{
+                  ...buttonStyle,
+                  width: 20,
+                  height: 20,
+                  minWidth: 20,
+                  padding: 0,
+                  borderRadius: 999,
+                  fontSize: 14,
+                  lineHeight: 1,
+                  fontWeight: 700,
+                  color: "#1d4ed8",
+                  borderColor: "#93c5fd",
+                }}
+                title="Add menu term"
+                aria-label="Add menu term"
+                onClick={addMenuTerm}
+              >
+                +
+              </button>
             </div>
 
             {menuConfig.terms.map((menuTerm, index) => (
@@ -2932,6 +3520,7 @@ export default function Page() {
   const [nodes, setNodes] = useNodesState<FlowNode>([]);
   const [edges, setEdges] = useEdgesState<FlowEdge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [adminOptions, setAdminOptions] =
     useState<GlobalOptionConfig>(DEFAULT_GLOBAL_OPTIONS);
@@ -3088,6 +3677,7 @@ export default function Page() {
         project.canvas.nodes,
         normalizedAdminOptions
       );
+      const prunedHydratedNodes = pruneFrameNodeMembership(hydratedNodes);
       const hydratedEdges = sanitizeEdges(project.canvas.edges, hydratedNodes);
 
       setAdminOptions(normalizedAdminOptions);
@@ -3096,9 +3686,10 @@ export default function Page() {
       );
       setControlledLanguageDraftRow(createEmptyControlledLanguageDraftRow());
       setOpenControlledLanguageFieldType(null);
-      setNodes(hydratedNodes);
+      setNodes(prunedHydratedNodes);
       setEdges(hydratedEdges);
-      setSelectedNodeId(hydratedNodes[0]?.id ?? null);
+      setSelectedNodeId(prunedHydratedNodes[0]?.id ?? null);
+      setSelectedNodeIds(prunedHydratedNodes[0]?.id ? [prunedHydratedNodes[0].id] : []);
       setSelectedEdgeId(null);
       setUndoStack([]);
       clearMenuTermDeleteError();
@@ -3114,8 +3705,15 @@ export default function Page() {
       return;
     }
 
-    const parallelGroupByNodeId = computeParallelGroups(nodes, edges).parallelGroupByNodeId;
-    const serializedNodes = serializeNodesForStorage(nodes, parallelGroupByNodeId);
+    const nodesWithPrunedFrameMembership = pruneFrameNodeMembership(nodes);
+    const parallelGroupByNodeId = computeParallelGroups(
+      nodesWithPrunedFrameMembership,
+      edges
+    ).parallelGroupByNodeId;
+    const serializedNodes = serializeNodesForStorage(
+      nodesWithPrunedFrameMembership,
+      parallelGroupByNodeId
+    );
     const serializedEdges = cloneEdges(edges);
     const serializedAdminOptions = cloneGlobalOptions(adminOptions);
     const serializedControlledLanguageGlossary = sanitizeControlledLanguageGlossary(
@@ -3234,6 +3832,18 @@ export default function Page() {
         }
 
         return previousSnapshot.nodes[0]?.id ?? null;
+      });
+      setSelectedNodeIds((currentSelectedIds) => {
+        const validSelectedIds = currentSelectedIds.filter((selectedId) =>
+          previousSnapshot.nodes.some((node) => node.id === selectedId)
+        );
+
+        if (validSelectedIds.length > 0) {
+          return validSelectedIds;
+        }
+
+        const fallbackSelectedNodeId = previousSnapshot.nodes[0]?.id;
+        return fallbackSelectedNodeId ? [fallbackSelectedNodeId] : [];
       });
       setSelectedEdgeId((currentSelected) =>
         currentSelected &&
@@ -3399,7 +4009,13 @@ export default function Page() {
       if (hasNonSelectionNodeChanges(changes)) {
         queueUndoSnapshot();
       }
-      setNodes((currentNodes) => applyNodeChanges(changes, currentNodes));
+
+      setNodes((currentNodes) => {
+        const changedNodes = applyNodeChanges(changes, currentNodes);
+        const movedNodes = applyFrameMovementToMemberNodes(currentNodes, changedNodes);
+        const constrainedNodes = constrainNodesToFrameMembershipBounds(movedNodes);
+        return pruneFrameNodeMembership(constrainedNodes);
+      });
     },
     [queueUndoSnapshot, setNodes]
   );
@@ -3425,6 +4041,7 @@ export default function Page() {
       }
 
       const sourceNode = nodes.find((node) => node.id === params.source);
+
       const nextEdgeKind = inferEdgeKindFromHandles(
         params.sourceHandle,
         params.targetHandle
@@ -3492,6 +4109,7 @@ export default function Page() {
       }
 
       const sourceNode = nodes.find((node) => node.id === newConnection.source);
+
       const nextEdgeKind = inferEdgeKindFromHandles(
         newConnection.sourceHandle,
         newConnection.targetHandle
@@ -3581,6 +4199,8 @@ export default function Page() {
         normalizeNode({ id, position }, normalizeGlobalOptionConfig(adminOptions)),
       ]);
       setSelectedNodeId(id);
+      setSelectedNodeIds([id]);
+      setSelectedEdgeId(null);
     },
     [adminOptions, queueUndoSnapshot, setNodes]
   );
@@ -3599,6 +4219,7 @@ export default function Page() {
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
       setSelectedNodeId(null);
+      setSelectedNodeIds([]);
       setSelectedEdgeId(null);
     },
     [addNodeAtEvent, clearMenuTermDeleteError]
@@ -3610,6 +4231,7 @@ export default function Page() {
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
       setSelectedNodeId(node.id);
+      setSelectedNodeIds([node.id]);
       setSelectedEdgeId(null);
     },
     [clearMenuTermDeleteError]
@@ -3622,6 +4244,7 @@ export default function Page() {
       setOpenInspectorMenuGlossaryTermId(null);
       setSelectedEdgeId(edge.id);
       setSelectedNodeId(null);
+      setSelectedNodeIds([]);
     },
     [clearMenuTermDeleteError]
   );
@@ -3631,12 +4254,14 @@ export default function Page() {
       clearMenuTermDeleteError();
 
       const nextSelectedEdgeId = selectedEdges[0]?.id ?? null;
+      const nextSelectedNodeIds = selectedNodes.map((selectedNode) => selectedNode.id);
       const nextSelectedNodeId = selectedNodes[0]?.id ?? null;
 
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
       setSelectedEdgeId(nextSelectedEdgeId);
       setSelectedNodeId(nextSelectedEdgeId ? null : nextSelectedNodeId);
+      setSelectedNodeIds(nextSelectedEdgeId ? [] : nextSelectedNodeIds);
     },
     [clearMenuTermDeleteError]
   );
@@ -3649,20 +4274,43 @@ export default function Page() {
       return;
     }
 
-    if (!selectedNodeId) {
+    const selectedNodeIdsToDelete =
+      selectedNodeIds.length > 0
+        ? selectedNodeIds
+        : selectedNodeId
+          ? [selectedNodeId]
+          : [];
+
+    if (selectedNodeIdsToDelete.length === 0) {
       return;
     }
 
+    const selectedNodeIdsToDeleteSet = new Set(selectedNodeIdsToDelete);
+
     queueUndoSnapshot();
-    setNodes((currentNodes) => currentNodes.filter((node) => node.id !== selectedNodeId));
+    setNodes((currentNodes) =>
+      pruneFrameNodeMembership(
+        currentNodes.filter((node) => !selectedNodeIdsToDeleteSet.has(node.id))
+      )
+    );
     setEdges((currentEdges) =>
       currentEdges.filter(
-        (edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId
+        (edge) =>
+          !selectedNodeIdsToDeleteSet.has(edge.source) &&
+          !selectedNodeIdsToDeleteSet.has(edge.target)
       )
     );
     setSelectedNodeId(null);
+    setSelectedNodeIds([]);
     setSelectedEdgeId(null);
-  }, [queueUndoSnapshot, selectedEdgeId, selectedNodeId, setEdges, setNodes]);
+  }, [
+    queueUndoSnapshot,
+    selectedEdgeId,
+    selectedNodeId,
+    selectedNodeIds,
+    setEdges,
+    setNodes,
+  ]);
 
   useEffect(() => {
     if (store.session.view !== "editor" || store.session.editorMode !== "canvas") {
@@ -3678,7 +4326,7 @@ export default function Page() {
         return;
       }
 
-      if (!selectedEdgeId && !selectedNodeId) {
+      if (!selectedEdgeId && !selectedNodeId && selectedNodeIds.length === 0) {
         return;
       }
 
@@ -3695,6 +4343,7 @@ export default function Page() {
     handleDeleteSelection,
     selectedEdgeId,
     selectedNodeId,
+    selectedNodeIds,
     store.session.editorMode,
     store.session.view,
   ]);
@@ -3777,6 +4426,31 @@ export default function Page() {
     effectiveSelectedEdgeId === null
       ? null
       : edges.find((edge) => edge.id === effectiveSelectedEdgeId) ?? null;
+
+  const selectedNonFrameNodesForFrameCreation = useMemo(() => {
+    if (selectedEdgeId) {
+      return [];
+    }
+
+    const selectedIds =
+      selectedNodeIds.length > 0
+        ? selectedNodeIds
+        : selectedNodeId
+          ? [selectedNodeId]
+          : [];
+
+    if (selectedIds.length === 0) {
+      return [];
+    }
+
+    const selectedIdSet = new Set(selectedIds);
+    return nodes.filter(
+      (node) => selectedIdSet.has(node.id) && node.data.node_type !== "frame"
+    );
+  }, [nodes, selectedEdgeId, selectedNodeId, selectedNodeIds]);
+
+  const canCreateFrameFromSelection =
+    selectedNonFrameNodesForFrameCreation.length >= 2;
 
   const normalizedSelectedEdgeData =
     selectedEdge === null
@@ -3864,7 +4538,7 @@ export default function Page() {
       queueUndoSnapshot();
 
       setNodes((currentNodes) =>
-        currentNodes.map((node) => {
+        pruneFrameNodeMembership(currentNodes.map((node) => {
           if (node.id !== nodeId) {
             return node;
           }
@@ -3906,6 +4580,32 @@ export default function Page() {
             };
           }
 
+          if (nextType === "frame") {
+            const normalizedFrameConfig = normalizeFrameNodeConfig(node.data.frame_config);
+
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                node_type: "frame",
+                primary_cta: getPrimaryMenuTermValue(
+                  node.data.menu_config,
+                  node.data.primary_cta
+                ),
+                secondary_cta: getSecondaryMenuTermValue(
+                  node.data.menu_config,
+                  node.data.secondary_cta
+                ),
+                frame_config: {
+                  ...normalizedFrameConfig,
+                  member_node_ids: normalizedFrameConfig.member_node_ids.filter(
+                    (memberNodeId) => memberNodeId !== node.id
+                  ),
+                },
+              },
+            };
+          }
+
           return {
             ...node,
             data: {
@@ -3921,27 +4621,29 @@ export default function Page() {
               ),
             },
           };
-        })
+        }))
       );
 
-      setEdges((currentEdges) =>
-        nextType === "menu"
-          ? assignSequentialEdgesToMenuHandles(
-              currentEdges,
-              nodeId,
-              buildMenuSourceHandleIds(
-                normalizeMenuNodeConfig(
-                  targetNode.data.menu_config,
-                  targetNode.data.primary_cta,
-                  Math.max(
-                    MENU_NODE_RIGHT_CONNECTIONS_MIN,
-                    targetNode.data.menu_config.max_right_connections
-                  )
+      setEdges((currentEdges) => {
+        if (nextType === "menu") {
+          return assignSequentialEdgesToMenuHandles(
+            currentEdges,
+            nodeId,
+            buildMenuSourceHandleIds(
+              normalizeMenuNodeConfig(
+                targetNode.data.menu_config,
+                targetNode.data.primary_cta,
+                Math.max(
+                  MENU_NODE_RIGHT_CONNECTIONS_MIN,
+                  targetNode.data.menu_config.max_right_connections
                 )
               )
             )
-          : remapMenuSequentialEdgesToDefaultHandle(currentEdges, nodeId)
-      );
+          );
+        }
+
+        return remapMenuSequentialEdgesToDefaultHandle(currentEdges, nodeId);
+      });
 
       if (nextType !== "menu") {
         clearMenuTermDeleteError();
@@ -4036,6 +4738,14 @@ export default function Page() {
     );
   }, [selectedNode]);
 
+  const selectedFrameNodeConfig = useMemo(() => {
+    if (!selectedNode || selectedNode.data.node_type !== "frame") {
+      return null;
+    }
+
+    return normalizeFrameNodeConfig(selectedNode.data.frame_config);
+  }, [selectedNode]);
+
   const visibleInspectorMenuGlossaryTermId =
     selectedMenuNodeConfig &&
     openInspectorMenuGlossaryTermId &&
@@ -4068,6 +4778,42 @@ export default function Page() {
     [effectiveSelectedNodeId, selectedMenuNodeConfig, updateMenuNodeConfigById]
   );
 
+  const updateSelectedFrameShade = useCallback(
+    (nextShade: FrameShade) => {
+      if (!effectiveSelectedNodeId) {
+        return;
+      }
+
+      queueUndoSnapshot();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== effectiveSelectedNodeId || node.data.node_type !== "frame") {
+            return node;
+          }
+
+          const currentFrameConfig = normalizeFrameNodeConfig(node.data.frame_config);
+
+          if (currentFrameConfig.shade === nextShade) {
+            return node;
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              frame_config: {
+                ...currentFrameConfig,
+                shade: nextShade,
+              },
+            },
+          };
+        })
+      );
+    },
+    [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
+  );
+
   const commitSelectedMenuRightConnectionsInput = useCallback((rawValue: string) => {
     const sanitizedValue = rawValue.replace(/[^\d]/g, "");
     const parsedValue = Number.parseInt(sanitizedValue, 10);
@@ -4087,6 +4833,19 @@ export default function Page() {
 
     return String(nextValue);
   }, [selectedMenuNodeConfig, updateSelectedMenuMaxRightConnections]);
+
+  const addSelectedMenuTerm = useCallback(() => {
+    if (!effectiveSelectedNodeId || !selectedMenuNodeConfig) {
+      return;
+    }
+
+    updateMenuNodeConfigById(effectiveSelectedNodeId, (currentConfig) => ({
+      max_right_connections: clampMenuRightConnections(
+        currentConfig.max_right_connections + 1
+      ),
+      terms: [...currentConfig.terms, createMenuNodeTerm("")],
+    }));
+  }, [effectiveSelectedNodeId, selectedMenuNodeConfig, updateMenuNodeConfigById]);
 
   const updateSelectedMenuTermById = useCallback(
     (termId: string, term: string) => {
@@ -4174,6 +4933,67 @@ export default function Page() {
     },
     [updateSelectedMenuTermById]
   );
+
+  const createFrameFromSelection = useCallback(() => {
+    if (selectedNonFrameNodesForFrameCreation.length < 2) {
+      return;
+    }
+
+    const bounds = computeNodesBoundingRect(selectedNonFrameNodesForFrameCreation);
+    if (!bounds) {
+      return;
+    }
+
+    const frameId = createNodeId();
+    const framePosition = {
+      x: bounds.left - FRAME_NODE_PADDING,
+      y: bounds.top - FRAME_NODE_PADDING,
+    };
+    const frameWidth = clampFrameDimension(
+      bounds.width + FRAME_NODE_PADDING * 2,
+      FRAME_NODE_MIN_WIDTH
+    );
+    const frameHeight = clampFrameDimension(
+      bounds.height + FRAME_NODE_PADDING * 2,
+      FRAME_NODE_MIN_HEIGHT
+    );
+    const memberNodeIds = selectedNonFrameNodesForFrameCreation.map((node) => node.id);
+
+    queueUndoSnapshot();
+
+    setNodes((currentNodes) => {
+      const nextFrameNode = normalizeNode(
+        {
+          id: frameId,
+          position: framePosition,
+          data: {
+            node_type: "frame",
+            title: "",
+            frame_config: {
+              shade: "medium",
+              member_node_ids: memberNodeIds,
+              width: frameWidth,
+              height: frameHeight,
+            },
+          },
+        },
+        normalizeGlobalOptionConfig(adminOptions)
+      );
+
+      return pruneFrameNodeMembership([nextFrameNode, ...currentNodes]);
+    });
+
+    setOpenControlledLanguageFieldType(null);
+    setOpenInspectorMenuGlossaryTermId(null);
+    setSelectedEdgeId(null);
+    setSelectedNodeId(frameId);
+    setSelectedNodeIds([frameId]);
+  }, [
+    adminOptions,
+    queueUndoSnapshot,
+    selectedNonFrameNodesForFrameCreation,
+    setNodes,
+  ]);
 
   useEffect(() => {
     updateMenuNodeConfigByIdRef.current = updateMenuNodeConfigById;
@@ -4629,6 +5449,7 @@ export default function Page() {
           const y = toNumeric(row.position_y);
           const importedNodeType = isNodeType(row.node_type) ? row.node_type : "default";
           const importedMenuConfigRaw = safeJsonParse(row.menu_config_json ?? "");
+          const importedFrameConfigRaw = safeJsonParse(row.frame_config_json ?? "");
 
           return {
             id: nodeId,
@@ -4662,6 +5483,7 @@ export default function Page() {
                 importedMenuConfigRaw,
                 row.primary_cta ?? ""
               ),
+              frame_config: normalizeFrameNodeConfig(importedFrameConfigRaw),
             },
           };
         });
@@ -5568,10 +6390,25 @@ export default function Page() {
           }}
         >
 
+        {canCreateFrameFromSelection && (
+          <button
+            type="button"
+            style={{
+              ...buttonStyle,
+              borderColor: "#94a3b8",
+              background: "#f8fafc",
+              fontWeight: 700,
+            }}
+            onClick={createFrameFromSelection}
+          >
+            Frame selected nodes ({selectedNonFrameNodesForFrameCreation.length})
+          </button>
+        )}
+
         {selectedNode?.data.node_type === "menu" && (
           <>
             <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
-              Menu node mode: edit Right side connections and menu Handle terms below. These
+              Menu node mode: edit Menu Terms below. These
               terms use the Menu Term glossary.
             </p>
 
@@ -6128,7 +6965,7 @@ export default function Page() {
               >
                 {NODE_TYPE_OPTIONS.map((nodeTypeOption) => (
                   <option key={`inspector-node-type:${nodeTypeOption}`} value={nodeTypeOption}>
-                    {nodeTypeOption === "default" ? "Default" : "Menu"}
+                    {NODE_TYPE_LABELS[nodeTypeOption]}
                   </option>
                 ))}
               </select>
@@ -6147,7 +6984,7 @@ export default function Page() {
                 </label>
 
                 <label>
-                  <div style={inspectorFieldLabelStyle}>Right side connections</div>
+                  <div style={inspectorFieldLabelStyle}>Menu Terms</div>
                   <input
                     key={`menu-right-connections:${selectedNode.id}:${
                       selectedMenuNodeConfig?.max_right_connections ??
@@ -6197,8 +7034,55 @@ export default function Page() {
                     gap: 6,
                   }}
                 >
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
-                    Menu Terms
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                      Menu Terms
+                    </div>
+                    <button
+                      type="button"
+                      style={{
+                        ...buttonStyle,
+                        width: 20,
+                        height: 20,
+                        minWidth: 20,
+                        padding: 0,
+                        borderRadius: 999,
+                        fontSize: 14,
+                        lineHeight: 1,
+                        fontWeight: 700,
+                        color: "#1d4ed8",
+                        borderColor: "#93c5fd",
+                        opacity:
+                          (selectedMenuNodeConfig?.max_right_connections ??
+                            MENU_NODE_RIGHT_CONNECTIONS_MAX) >=
+                          MENU_NODE_RIGHT_CONNECTIONS_MAX
+                            ? 0.45
+                            : 1,
+                        cursor:
+                          (selectedMenuNodeConfig?.max_right_connections ??
+                            MENU_NODE_RIGHT_CONNECTIONS_MAX) >=
+                          MENU_NODE_RIGHT_CONNECTIONS_MAX
+                            ? "not-allowed"
+                            : "pointer",
+                      }}
+                      title="Add menu term"
+                      aria-label="Add menu term"
+                      onClick={addSelectedMenuTerm}
+                      disabled={
+                        (selectedMenuNodeConfig?.max_right_connections ??
+                          MENU_NODE_RIGHT_CONNECTIONS_MAX) >=
+                        MENU_NODE_RIGHT_CONNECTIONS_MAX
+                      }
+                    >
+                      +
+                    </button>
                   </div>
 
                   {(selectedMenuNodeConfig?.terms ?? []).map((menuTerm, index) => {
@@ -6312,6 +7196,87 @@ export default function Page() {
                     );
                   })}
                 </div>
+              </>
+            ) : selectedNode.data.node_type === "frame" ? (
+              <>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Title</div>
+                  <input
+                    style={inputStyle}
+                    value={selectedNode.data.title}
+                    placeholder="Add title"
+                    onChange={(event) => updateSelectedField("title", event.target.value)}
+                  />
+                </label>
+
+                <div
+                  style={{
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 8,
+                    padding: 8,
+                    background: "#f8fafc",
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>
+                    Frame style
+                  </div>
+
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {FRAME_SHADE_OPTIONS.map((frameShadeOption) => {
+                      const isActive =
+                        (selectedFrameNodeConfig?.shade ?? "medium") === frameShadeOption;
+
+                      return (
+                        <button
+                          key={`frame-shade:${frameShadeOption}`}
+                          type="button"
+                          style={{
+                            ...buttonStyle,
+                            fontSize: 11,
+                            padding: "4px 8px",
+                            borderColor: isActive ? "#64748b" : "#cbd5e1",
+                            background: isActive ? "#e2e8f0" : "#f8fafc",
+                            color: isActive ? "#0f172a" : "#334155",
+                            fontWeight: isActive ? 700 : 600,
+                          }}
+                          onClick={() => updateSelectedFrameShade(frameShadeOption)}
+                        >
+                          {FRAME_SHADE_LABELS[frameShadeOption]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Concept</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.concept}
+                    onChange={(event) => updateSelectedField("concept", event.target.value)}
+                  >
+                    {buildSelectOptions(
+                      adminOptions.concept,
+                      selectedNode.data.concept,
+                      DEFAULT_GLOBAL_OPTIONS.concept
+                    ).map((option) => (
+                      <option key={`frame-concept:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Notes</div>
+                  <textarea
+                    style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
+                    value={selectedNode.data.notes}
+                    onChange={(event) => updateSelectedField("notes", event.target.value)}
+                  />
+                </label>
               </>
             ) : (
               <>
@@ -6490,171 +7455,175 @@ export default function Page() {
               </>
             )}
 
-            <label>
-              <div style={inspectorFieldLabelStyle}>Tone</div>
-              <select
-                style={inputStyle}
-                value={selectedNode.data.tone}
-                onChange={(event) => updateSelectedField("tone", event.target.value)}
-              >
-                {buildSelectOptions(
-                  adminOptions.tone,
-                  selectedNode.data.tone,
-                  DEFAULT_GLOBAL_OPTIONS.tone
-                ).map((option) => (
-                  <option key={`tone:${option}`} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {selectedNode.data.node_type !== "frame" && (
+              <>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Tone</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.tone}
+                    onChange={(event) => updateSelectedField("tone", event.target.value)}
+                  >
+                    {buildSelectOptions(
+                      adminOptions.tone,
+                      selectedNode.data.tone,
+                      DEFAULT_GLOBAL_OPTIONS.tone
+                    ).map((option) => (
+                      <option key={`tone:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label>
-              <div style={inspectorFieldLabelStyle}>Polarity</div>
-              <select
-                style={inputStyle}
-                value={selectedNode.data.polarity}
-                onChange={(event) => updateSelectedField("polarity", event.target.value)}
-              >
-                {buildSelectOptions(
-                  adminOptions.polarity,
-                  selectedNode.data.polarity,
-                  DEFAULT_GLOBAL_OPTIONS.polarity
-                ).map((option) => (
-                  <option key={`polarity:${option}`} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Polarity</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.polarity}
+                    onChange={(event) => updateSelectedField("polarity", event.target.value)}
+                  >
+                    {buildSelectOptions(
+                      adminOptions.polarity,
+                      selectedNode.data.polarity,
+                      DEFAULT_GLOBAL_OPTIONS.polarity
+                    ).map((option) => (
+                      <option key={`polarity:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label>
-              <div style={inspectorFieldLabelStyle}>Reversibility</div>
-              <select
-                style={inputStyle}
-                value={selectedNode.data.reversibility}
-                onChange={(event) =>
-                  updateSelectedField("reversibility", event.target.value)
-                }
-              >
-                {buildSelectOptions(
-                  adminOptions.reversibility,
-                  selectedNode.data.reversibility,
-                  DEFAULT_GLOBAL_OPTIONS.reversibility
-                ).map((option) => (
-                  <option key={`reversibility:${option}`} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Reversibility</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.reversibility}
+                    onChange={(event) =>
+                      updateSelectedField("reversibility", event.target.value)
+                    }
+                  >
+                    {buildSelectOptions(
+                      adminOptions.reversibility,
+                      selectedNode.data.reversibility,
+                      DEFAULT_GLOBAL_OPTIONS.reversibility
+                    ).map((option) => (
+                      <option key={`reversibility:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label>
-              <div style={inspectorFieldLabelStyle}>Concept</div>
-              <select
-                style={inputStyle}
-                value={selectedNode.data.concept}
-                onChange={(event) => updateSelectedField("concept", event.target.value)}
-              >
-                {buildSelectOptions(
-                  adminOptions.concept,
-                  selectedNode.data.concept,
-                  DEFAULT_GLOBAL_OPTIONS.concept
-                ).map((option) => (
-                  <option key={`concept:${option}`} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Concept</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.concept}
+                    onChange={(event) => updateSelectedField("concept", event.target.value)}
+                  >
+                    {buildSelectOptions(
+                      adminOptions.concept,
+                      selectedNode.data.concept,
+                      DEFAULT_GLOBAL_OPTIONS.concept
+                    ).map((option) => (
+                      <option key={`concept:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label>
-              <div style={inspectorFieldLabelStyle}>Notes</div>
-              <textarea
-                style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
-                value={selectedNode.data.notes}
-                onChange={(event) => updateSelectedField("notes", event.target.value)}
-              />
-            </label>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Notes</div>
+                  <textarea
+                    style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
+                    value={selectedNode.data.notes}
+                    onChange={(event) => updateSelectedField("notes", event.target.value)}
+                  />
+                </label>
 
-            <hr style={{ border: 0, borderTop: "1px solid #e4e4e7" }} />
+                <hr style={{ border: 0, borderTop: "1px solid #e4e4e7" }} />
 
-            <label>
-              <div style={inspectorFieldLabelStyle}>Action type name</div>
-              <select
-                style={inputStyle}
-                value={selectedNode.data.action_type_name}
-                onChange={(event) =>
-                  updateSelectedField("action_type_name", event.target.value)
-                }
-              >
-                {buildSelectOptions(
-                  adminOptions.action_type_name,
-                  selectedNode.data.action_type_name,
-                  DEFAULT_GLOBAL_OPTIONS.action_type_name
-                ).map((option) => (
-                  <option key={`action_type_name:${option}`} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Action type name</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.action_type_name}
+                    onChange={(event) =>
+                      updateSelectedField("action_type_name", event.target.value)
+                    }
+                  >
+                    {buildSelectOptions(
+                      adminOptions.action_type_name,
+                      selectedNode.data.action_type_name,
+                      DEFAULT_GLOBAL_OPTIONS.action_type_name
+                    ).map((option) => (
+                      <option key={`action_type_name:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label>
-              <div style={inspectorFieldLabelStyle}>Action type color</div>
-              <select
-                style={inputStyle}
-                value={selectedNode.data.action_type_color}
-                onChange={(event) =>
-                  updateSelectedField("action_type_color", event.target.value)
-                }
-              >
-                {buildSelectOptions(
-                  adminOptions.action_type_color,
-                  selectedNode.data.action_type_color,
-                  DEFAULT_GLOBAL_OPTIONS.action_type_color
-                ).map((option) => (
-                  <option key={`action_type_color:${option}`} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-              <div style={{ marginTop: 6, fontSize: 11, color: "#52525b" }}>
-                Preview:
-                <span
-                  aria-hidden
-                  style={{
-                    display: "inline-block",
-                    marginLeft: 6,
-                    width: 12,
-                    height: 12,
-                    borderRadius: 999,
-                    background: selectedNode.data.action_type_color,
-                    border: "1px solid #a1a1aa",
-                    verticalAlign: "middle",
-                  }}
-                />
-              </div>
-            </label>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Action type color</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.action_type_color}
+                    onChange={(event) =>
+                      updateSelectedField("action_type_color", event.target.value)
+                    }
+                  >
+                    {buildSelectOptions(
+                      adminOptions.action_type_color,
+                      selectedNode.data.action_type_color,
+                      DEFAULT_GLOBAL_OPTIONS.action_type_color
+                    ).map((option) => (
+                      <option key={`action_type_color:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ marginTop: 6, fontSize: 11, color: "#52525b" }}>
+                    Preview:
+                    <span
+                      aria-hidden
+                      style={{
+                        display: "inline-block",
+                        marginLeft: 6,
+                        width: 12,
+                        height: 12,
+                        borderRadius: 999,
+                        background: selectedNode.data.action_type_color,
+                        border: "1px solid #a1a1aa",
+                        verticalAlign: "middle",
+                      }}
+                    />
+                  </div>
+                </label>
 
-            <label>
-              <div style={inspectorFieldLabelStyle}>Card style</div>
-              <select
-                style={inputStyle}
-                value={selectedNode.data.card_style}
-                onChange={(event) => updateSelectedField("card_style", event.target.value)}
-              >
-                {buildSelectOptions(
-                  adminOptions.card_style,
-                  selectedNode.data.card_style,
-                  DEFAULT_GLOBAL_OPTIONS.card_style
-                ).map((option) => (
-                  <option key={`card_style:${option}`} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Card style</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.card_style}
+                    onChange={(event) => updateSelectedField("card_style", event.target.value)}
+                  >
+                    {buildSelectOptions(
+                      adminOptions.card_style,
+                      selectedNode.data.card_style,
+                      DEFAULT_GLOBAL_OPTIONS.card_style
+                    ).map((option) => (
+                      <option key={`card_style:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
           </div>
         )}
         </section>
@@ -6662,6 +7631,28 @@ export default function Page() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

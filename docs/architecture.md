@@ -32,6 +32,124 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##02-26-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session delivered a major editor capability expansion centered on **multi-node framing** and **menu-term authoring ergonomics**.
+
+Product-level outcomes:
+
+- Menu nodes now use a term-first interaction with a visible **“+” add-term button** beside **Menu Terms**.
+- Multi-selection now supports creating a **Frame node** around selected nodes from the inspector.
+- Frames support configurable grayscale styling and editable title tab behavior.
+- Frames can participate in graph connectivity like other nodes.
+
+## 2) Core Data Model
+
+The node model now includes explicit frame semantics in active editor behavior:
+
+- `NodeType` includes `"frame"`.
+- `FrameNodeConfig` carries:
+  - `shade: "light" | "medium" | "dark"`
+  - `member_node_ids: string[]`
+  - `width`
+  - `height`
+
+Supporting constants/helpers were added and used in flow logic:
+
+- `FRAME_NODE_MIN_WIDTH`, `FRAME_NODE_MIN_HEIGHT`, `FRAME_NODE_PADDING`
+- `FRAME_SHADE_STYLES` for 3-step greyscale rendering
+- normalization/sanitization helpers for frame config and member IDs
+
+Menu-node data contracts remained compatible, with behavior updates to increment `max_right_connections` and append new term records through the existing `MenuNodeConfig` path.
+
+## 3) Persistence and Migration Strategy
+
+No storage-key migration was required.
+
+Frame behavior is persisted through existing node serialization contracts:
+
+- `frame_config` is normalized and serialized with nodes
+- `frame_config_json` continues to round-trip via flat import/export
+- membership is cleaned via `pruneFrameNodeMembership(...)` to prevent orphan member IDs
+
+This kept existing projects backward-compatible while adding frame metadata as normalized node data.
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering and sequence-ID algorithms were intentionally unchanged:
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Frame membership metadata does not alter topological ordering semantics; frames affect ordering only through explicit graph edges, like any other node.
+
+## 5) Node Rendering and Shape System
+
+Rendering added a dedicated frame-node branch in `FlowCopyNode`:
+
+- Frame body renders as a bounded rectangle with grayscale shade styling.
+- Title appears in a **top protruding tab** with placeholder text **“Add title”**.
+- Title supports inline click-to-edit with keyboard commit/cancel behavior.
+- Frame border styling was adjusted to avoid shorthand/longhand border conflicts.
+
+Menu rendering was updated for term-first editing:
+
+- Added compact **“+”** button beside **Menu Terms** in node UI.
+- Adding a term increments term count and creates corresponding source-handle capacity.
+
+## 6) Editor Interaction Model
+
+Multi-node framing workflow now behaves as follows:
+
+- If 2+ non-frame nodes are selected, inspector shows **“Frame selected nodes (N)”**.
+- Frame bounds are computed from selected-node bounding box + padding.
+- New frame captures selected node IDs as `member_node_ids`.
+
+Frame movement/containment behavior:
+
+- Moving a frame translates unselected member nodes with it.
+- Member nodes are constrained to remain inside assigned frame bounds.
+- Membership is automatically pruned when referenced member nodes are removed.
+
+Inspector updates for selected frame nodes:
+
+- 3-step grayscale frame style selector
+- Title editing support
+- **Concept** and **Notes** fields available for frame-level metadata
+
+## 7) Refactor Outcomes
+
+Concrete implementation outcomes from this session:
+
+1. Added frame-creation action from multi-selection.
+2. Added frame-member movement + hard containment logic.
+3. Added frame title tab with inline editing and placeholder preview.
+4. Added frame connectivity handles so frames can connect like default nodes.
+5. Removed effect-based state update path and unused variables to satisfy lint quality rules.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully after implementation:
+
+- `npm run lint` ✅
+- `npm run build` ✅
+
+Operational note:
+
+- A dev-server run reported existing Next.js lock/instance contention (`.next/dev/lock`), indicating another `next dev` process was active.
+
+## 9) Recommended Next Steps
+
+1. Add resize handles for frame dimensions directly on-canvas.
+2. Add explicit frame membership editing (add/remove members) from inspector.
+3. Add regression tests for frame containment and frame-drag member movement.
+4. Add focused interaction tests for menu term + button behavior and handle assignment.
+5. Consider extracting frame-specific logic from `app/page.tsx` into dedicated modules.
+
 ##02-25-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -1756,6 +1874,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 
