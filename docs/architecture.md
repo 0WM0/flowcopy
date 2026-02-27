@@ -32,6 +32,191 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##02-27-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session added a keyboard-first framing workflow to speed up canvas composition.
+
+Product behavior now includes:
+
+- `Shift+F` to frame selected nodes (using the existing framing logic)
+- parity between mouse-driven framing (button) and keyboard-driven framing
+- lower friction for rapid layout/edit cycles in Canvas mode
+
+## 2) Core Data Model
+
+No persisted schema changes were introduced.
+
+Data contracts remain unchanged across:
+
+- `MicrocopyNodeData`
+- `FrameNodeConfig`
+- `FlowEdgeData`
+- `AppStore`
+
+Implementation detail added in runtime state wiring:
+
+- `createFrameFromSelectionRef` (`useRef<() => void>`) was introduced so the global key listener can safely invoke the latest framing callback.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged.
+
+- no storage key updates
+- no migration-path updates
+- no import/export format updates
+
+The shortcut triggers existing in-memory editor actions and therefore reuses existing autosave/undo persistence flows.
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering algorithms were not changed in this session.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+`Shift+F` routes into the existing `createFrameFromSelection(...)` path, so sequence updates remain governed by the current topological + tie-break model after frame insertion.
+
+## 5) Node Rendering and Shape System
+
+Node/edge rendering contracts were unchanged.
+
+No new visual primitives were introduced; this session focused on keyboard interaction. The only UI rendering update was instructional copy in the side panel to document:
+
+- `Tab` adds Default
+- `Shift+Tab` adds Menu
+- `Shift+F` frames selected nodes
+
+## 6) Editor Interaction Model
+
+Keyboard handling in Canvas mode now includes a dedicated `Shift+F` branch in the global `keydown` effect.
+
+Concrete guardrails implemented:
+
+- requires `event.key.toLowerCase() === "f"`
+- requires `event.shiftKey`
+- blocks when `alt/ctrl/meta` modifiers are pressed
+- ignores editable targets (`input`, `textarea`, `select`, `contenteditable`)
+- requires canvas/body context target
+- blocks during active pointer-down drag state
+
+When valid, the handler calls `event.preventDefault()` and executes `createFrameFromSelectionRef.current()`.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added `Shift+F` shortcut support for framing selected nodes.
+2. Added ref-bridge wiring (`createFrameFromSelectionRef`) to safely call the latest frame callback from the window listener.
+3. Reused existing frame-creation logic instead of duplicating framing behavior.
+4. Updated in-app helper text to include the new shortcut.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npm run lint` → `LINT_OK`
+
+Operational note:
+
+- A subsequent `next dev` run reported an existing dev lock (`.next/dev/lock`) and port-3000 contention, indicating another dev instance was already running.
+
+## 9) Recommended Next Steps
+
+1. Add a small non-blocking toast when `Shift+F` is pressed with fewer than 2 eligible selected nodes.
+2. Add keyboard shortcut coverage tests for `Tab`, `Shift+Tab`, and `Shift+F` guard conditions.
+3. Consider a dedicated “Keyboard shortcuts” help block or tooltip to centralize discoverability.
+
+##02-27-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a targeted UX-consistency pass to reduce ordering confusion in the canvas.
+
+The product-level outcomes were:
+
+- frame nodes now display their sequence number directly in the frame body (top-left)
+- non-frame node headers now place sequence on the left and action-type label on the right
+- side-panel ordering copy now explicitly reflects runtime tie-break behavior
+
+## 2) Core Data Model
+
+No schema changes were introduced.
+
+- `MicrocopyNodeData.sequence_index` remains the source for displayed order badges
+- no updates to node/edge type contracts
+- no changes to persisted project payload shape
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged.
+
+- no storage key changes
+- no migration-path changes
+- no import/export format updates
+
+This session was purely rendering/copy refinement over existing data.
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering logic itself was not modified.
+
+- `computeFlowOrdering(...)` remains unchanged
+- tie-break behavior remains deterministic by `x → y → id`
+- parallel-linked nodes still normalize to shared sequence index
+- `computeProjectSequenceId(...)` unchanged
+
+What changed was clarity in the UI copy: side-panel text now states the exact tie-break and parallel behavior.
+
+## 5) Node Rendering and Shape System
+
+Two rendering updates were implemented in `FlowCopyNode`:
+
+1. **Frame nodes**
+   - added a dedicated order badge (`#sequence_index`) in the top-left of the frame body
+   - styled as a compact pill with subtle border/background for readability
+
+2. **Non-frame nodes**
+   - header layout was reordered so sequence appears on the left
+   - action-type pill moved to the right to match frame-first scan pattern
+
+No shape geometry contracts (rectangle/rounded/pill/diamond sizing rules) were altered.
+
+## 6) Editor Interaction Model
+
+No interaction mechanics changed (selection, drag, connect, delete, undo, or editing flows).
+
+This was a visual-information architecture improvement: order indicators are now positioned consistently for faster left-to-right scanning across mixed frame/non-frame layouts.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added on-canvas order badge rendering for frame nodes.
+2. Updated side-panel order-rule copy to match actual ordering algorithm behavior.
+3. Swapped non-frame node header alignment to sequence-left / action-right for consistency with frames.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npm run lint` → `EXIT_CODE:0`
+
+Operational note from verification attempts:
+
+- `next dev` reported existing process/lock contention (`.next/dev/lock`) and port 3000 already in use, indicating another dev instance was active.
+
+## 9) Recommended Next Steps
+
+1. Add visual regression checks for order-badge placement across all node shapes and frame/title states.
+2. Consider a user preference for badge position/visibility if teams use dense canvases.
+3. Add a compact ordering legend/help tooltip near the side-panel sequence section for first-time users.
+
 ##02-26-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -1874,6 +2059,8 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
+
 
 
 

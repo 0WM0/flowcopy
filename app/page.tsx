@@ -3124,6 +3124,23 @@ function FlowCopyNode({
         />
 
         <div
+          style={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            fontSize: 11,
+            color: "#1d4ed8",
+            fontWeight: 600,
+            border: "1px solid #bfdbfe",
+            borderRadius: 999,
+            background: "rgba(255, 255, 255, 0.9)",
+            padding: "1px 7px",
+          }}
+        >
+          #{data.sequence_index ?? "-"}
+        </div>
+
+        <div
           role="button"
           tabIndex={0}
           style={{
@@ -3250,6 +3267,9 @@ function FlowCopyNode({
 
       <div style={getNodeContentStyle(data.node_shape)}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600 }}>
+            #{data.sequence_index ?? "-"}
+          </span>
           <span
             style={{
               fontSize: 11,
@@ -3262,9 +3282,6 @@ function FlowCopyNode({
             }}
           >
             {data.action_type_name}
-          </span>
-          <span style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600 }}>
-            #{data.sequence_index ?? "-"}
           </span>
         </div>
 
@@ -3549,11 +3566,18 @@ export default function Page() {
   const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
 
   const rfRef = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
+  const canvasContainerRef = useRef<HTMLDivElement | null>(null);
+  const lastCanvasPointerClientPositionRef = useRef<{ x: number; y: number } | null>(
+    null
+  );
+  const isCanvasPointerInsideRef = useRef(false);
+  const isCanvasPointerDownRef = useRef(false);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const hasLoadedStoreRef = useRef(false);
   const undoCaptureTimeoutRef = useRef<number | null>(null);
   const menuTermDeleteErrorTimeoutRef = useRef<number | null>(null);
   const captureUndoSnapshotRef = useRef<() => void>(() => undefined);
+  const createFrameFromSelectionRef = useRef<() => void>(() => undefined);
   const updateMenuNodeConfigByIdRef = useRef<
     (
       nodeId: string,
@@ -3598,6 +3622,20 @@ export default function Page() {
     },
     []
   );
+
+  useEffect(() => {
+    const handlePointerUp = () => {
+      isCanvasPointerDownRef.current = false;
+    };
+
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, []);
 
   const clearMenuTermDeleteError = useCallback(() => {
     if (menuTermDeleteErrorTimeoutRef.current !== null) {
@@ -4175,34 +4213,142 @@ export default function Page() {
 
   const onInit = useCallback(
     (instance: ReactFlowInstance<FlowNode, FlowEdge>) => {
-    rfRef.current = instance;
+      rfRef.current = instance;
     },
     []
   );
 
-  const addNodeAtEvent = useCallback(
-    (event: React.MouseEvent) => {
+  const getCanvasFallbackClientPosition = useCallback(() => {
+    const canvasElement = canvasContainerRef.current;
+    if (canvasElement) {
+      const bounds = canvasElement.getBoundingClientRect();
+
+      return {
+        x: bounds.left + bounds.width / 2,
+        y: bounds.top + bounds.height / 2,
+      };
+    }
+
+    return {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    };
+  }, []);
+
+  const addNodeAtClientPosition = useCallback(
+    (
+      clientPosition: { x: number; y: number },
+      nodeType: "default" | "menu" = "default"
+    ) => {
       const rf = rfRef.current;
-      if (!rf) return;
+      if (!rf) {
+        return;
+      }
 
       queueUndoSnapshot();
 
-      const position = rf.screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-
+      const position = rf.screenToFlowPosition(clientPosition);
       const id = createNodeId();
+
+      const nodeToCreate: SerializableFlowNode =
+        nodeType === "menu"
+          ? {
+              id,
+              position,
+              data: {
+                node_type: "menu",
+                primary_cta: "Continue",
+              },
+            }
+          : {
+              id,
+              position,
+            };
 
       setNodes((nds) => [
         ...nds,
-        normalizeNode({ id, position }, normalizeGlobalOptionConfig(adminOptions)),
+        normalizeNode(nodeToCreate, normalizeGlobalOptionConfig(adminOptions)),
       ]);
       setSelectedNodeId(id);
       setSelectedNodeIds([id]);
       setSelectedEdgeId(null);
     },
     [adminOptions, queueUndoSnapshot, setNodes]
+  );
+
+  const addNodeAtEvent = useCallback(
+    (
+      event: React.MouseEvent,
+      nodeType: "default" | "menu" = "default"
+    ) => {
+      addNodeAtClientPosition(
+        {
+          x: event.clientX,
+          y: event.clientY,
+        },
+        nodeType
+      );
+    },
+    [addNodeAtClientPosition]
+  );
+
+  const handleCanvasPointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      isCanvasPointerInsideRef.current = true;
+      lastCanvasPointerClientPositionRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+    },
+    []
+  );
+
+  const handleCanvasPointerEnter = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      isCanvasPointerInsideRef.current = true;
+      lastCanvasPointerClientPositionRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+    },
+    []
+  );
+
+  const handleCanvasPointerLeave = useCallback(() => {
+    isCanvasPointerInsideRef.current = false;
+    isCanvasPointerDownRef.current = false;
+  }, []);
+
+  const handleCanvasPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      isCanvasPointerInsideRef.current = true;
+      isCanvasPointerDownRef.current = true;
+      lastCanvasPointerClientPositionRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+    },
+    []
+  );
+
+  const handleCanvasPointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      isCanvasPointerDownRef.current = false;
+      isCanvasPointerInsideRef.current = true;
+      lastCanvasPointerClientPositionRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+    },
+    []
   );
 
   const onPaneClick = useCallback(
@@ -4318,6 +4464,72 @@ export default function Page() {
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const targetElement =
+        event.target instanceof HTMLElement ? event.target : null;
+      const canvasElement = canvasContainerRef.current;
+
+      const isTargetInsideCanvas =
+        Boolean(targetElement) && Boolean(canvasElement?.contains(targetElement));
+
+      const isBodyTarget =
+        targetElement === null ||
+        targetElement === document.body ||
+        targetElement === document.documentElement;
+
+      if (event.key === "Tab") {
+        if (isEditableEventTarget(event.target)) {
+          return;
+        }
+
+        if (!isTargetInsideCanvas && !isBodyTarget) {
+          return;
+        }
+
+        if (isCanvasPointerDownRef.current) {
+          return;
+        }
+
+        if (!isTargetInsideCanvas && !isCanvasPointerInsideRef.current) {
+          return;
+        }
+
+        event.preventDefault();
+
+        const clientPosition =
+          lastCanvasPointerClientPositionRef.current ??
+          getCanvasFallbackClientPosition();
+
+        addNodeAtClientPosition(
+          clientPosition,
+          event.shiftKey ? "menu" : "default"
+        );
+        return;
+      }
+
+      if (
+        event.key.toLowerCase() === "f" &&
+        event.shiftKey &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey
+      ) {
+        if (isEditableEventTarget(event.target)) {
+          return;
+        }
+
+        if (!isTargetInsideCanvas && !isBodyTarget) {
+          return;
+        }
+
+        if (isCanvasPointerDownRef.current) {
+          return;
+        }
+
+        event.preventDefault();
+        createFrameFromSelectionRef.current();
+        return;
+      }
+
       if (event.key !== "Delete" && event.key !== "Backspace") {
         return;
       }
@@ -4340,6 +4552,8 @@ export default function Page() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [
+    addNodeAtClientPosition,
+    getCanvasFallbackClientPosition,
     handleDeleteSelection,
     selectedEdgeId,
     selectedNodeId,
@@ -4998,6 +5212,10 @@ export default function Page() {
   useEffect(() => {
     updateMenuNodeConfigByIdRef.current = updateMenuNodeConfigById;
   }, [updateMenuNodeConfigById]);
+
+  useEffect(() => {
+    createFrameFromSelectionRef.current = createFrameFromSelection;
+  }, [createFrameFromSelection]);
 
   const nodeTypes = useMemo(
     () => ({
@@ -6122,7 +6340,15 @@ export default function Page() {
         gridTemplateColumns: `1fr ${sidePanelWidth}px`,
       }}
     >
-      <div style={{ borderRight: "1px solid #e4e4e7" }}>
+      <div
+        ref={canvasContainerRef}
+        onPointerMove={handleCanvasPointerMove}
+        onPointerEnter={handleCanvasPointerEnter}
+        onPointerLeave={handleCanvasPointerLeave}
+        onPointerDown={handleCanvasPointerDown}
+        onPointerUp={handleCanvasPointerUp}
+        style={{ borderRight: "1px solid #e4e4e7" }}
+      >
         <ReactFlow<FlowNode, FlowEdge>
           nodes={nodesWithSequence}
           edges={displayEdges}
@@ -6298,7 +6524,8 @@ export default function Page() {
           </code>
 
           <div style={{ fontSize: 11, color: "#334155", marginTop: 8 }}>
-            Order rule: topological flow, tie-break left → right by x-position.
+            Order rule: topological flow; ties sort by x → y → id. Parallel-linked nodes
+            share the same sequence number.
           </div>
 
           {ordering.hasCycle && (
@@ -6358,8 +6585,10 @@ export default function Page() {
 
         <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#52525b" }}>
           Click a node to edit structured fields. Double-click empty canvas to add a
-          node. All changes autosave. Use each field’s “Glossary” button to open a
-          term picker.
+          default node. Keyboard shortcuts: <strong>Tab</strong> adds Default, and
+          <strong> Shift+Tab</strong> adds Menu at the pointer position.
+          <strong> Shift+F</strong> frames selected nodes. All changes autosave. Use
+          each field’s “Glossary” button to open a term picker.
         </p>
 
         <label
@@ -7631,6 +7860,10 @@ export default function Page() {
     </div>
   );
 }
+
+
+
+
 
 
 
