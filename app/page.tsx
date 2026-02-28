@@ -98,9 +98,14 @@ type MicrocopyNodeData = {
   frame_config: FrameNodeConfig;
   parallel_group_id: string | null;
   sequence_index: number | null;
+  ui_journey_highlighted?: boolean;
+  ui_journey_recalled?: boolean;
 };
 
-type PersistableMicrocopyNodeData = Omit<MicrocopyNodeData, "sequence_index">;
+type PersistableMicrocopyNodeData = Omit<
+  MicrocopyNodeData,
+  "sequence_index" | "ui_journey_highlighted" | "ui_journey_recalled"
+>;
 type EditableMicrocopyField = Exclude<
   keyof PersistableMicrocopyNodeData,
   | "parallel_group_id"
@@ -136,6 +141,7 @@ type PersistedCanvasState = {
   edges: FlowEdge[];
   adminOptions: GlobalOptionConfig;
   controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
+  uiJourneySnapshotPresets: UiJourneySnapshotPreset[];
 };
 
 type ControlledLanguageGlossaryEntry = {
@@ -260,6 +266,13 @@ type EditorSnapshot = {
   edges: FlowEdge[];
   adminOptions: GlobalOptionConfig;
   controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
+  uiJourneySnapshotPresets: UiJourneySnapshotPreset[];
+  uiJourneyConversationSnapshot: UiJourneyConversationEntry[];
+  isUiJourneyConversationOpen: boolean;
+  selectedUiJourneySnapshotPresetId: string | null;
+  recalledUiJourneyNodeIds: string[];
+  recalledUiJourneyEdgeIds: string[];
+  uiJourneySnapshotDraftName: string;
 };
 
 type UiJourneyConversationField = {
@@ -273,6 +286,22 @@ type UiJourneyConversationEntry = {
   sequence: number | null;
   title: string;
   fields: UiJourneyConversationField[];
+};
+
+type UiJourneySnapshotPreset = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  nodeIds: string[];
+  edgeIds: string[];
+  conversation: UiJourneyConversationEntry[];
+};
+
+type UiJourneySnapshotCapture = {
+  nodeIds: string[];
+  edgeIds: string[];
+  conversation: UiJourneyConversationEntry[];
 };
 
 const APP_STORAGE_KEY = "flowcopy.store.v1";
@@ -363,6 +392,8 @@ const PARALLEL_ALT_TARGET_HANDLE_ID = "p-tgt-bottom";
 
 const SEQUENTIAL_SELECTED_STROKE_COLOR = "#0f172a";
 const PARALLEL_SELECTED_STROKE_COLOR = "#334155";
+const UI_JOURNEY_HIGHLIGHT_STROKE_COLOR = "#6366f1";
+const UI_JOURNEY_RECALLED_STROKE_COLOR = "#7c3aed";
 
 const DIAMOND_CLIP_PATH = "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)";
 
@@ -491,6 +522,178 @@ const buildUiJourneyConversationFields = (
 
   return fields;
 };
+
+const cloneUiJourneyConversationEntries = (
+  entries: UiJourneyConversationEntry[]
+): UiJourneyConversationEntry[] =>
+  entries.map((entry) => ({
+    nodeId: entry.nodeId,
+    nodeType: entry.nodeType,
+    sequence: entry.sequence,
+    title: entry.title,
+    fields: entry.fields.map((field) => ({
+      label: field.label,
+      value: field.value,
+    })),
+  }));
+
+const sanitizeUniqueStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const sanitized: string[] = [];
+
+  value.forEach((item) => {
+    if (typeof item !== "string") {
+      return;
+    }
+
+    const nextValue = item.trim();
+    if (!nextValue || seen.has(nextValue)) {
+      return;
+    }
+
+    seen.add(nextValue);
+    sanitized.push(nextValue);
+  });
+
+  return sanitized;
+};
+
+const sanitizeUiJourneyConversationEntries = (
+  value: unknown
+): UiJourneyConversationEntry[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+
+    const source = item as Partial<UiJourneyConversationEntry>;
+    const nodeId = typeof source.nodeId === "string" ? source.nodeId.trim() : "";
+    if (!nodeId) {
+      return [];
+    }
+
+    const title = typeof source.title === "string" ? source.title : "";
+    const sequence =
+      typeof source.sequence === "number" && Number.isFinite(source.sequence)
+        ? source.sequence
+        : null;
+    const nodeType = isNodeType(source.nodeType) ? source.nodeType : "default";
+
+    const fields = Array.isArray(source.fields)
+      ? source.fields.flatMap((fieldItem) => {
+          if (!fieldItem || typeof fieldItem !== "object") {
+            return [];
+          }
+
+          const fieldSource = fieldItem as Partial<UiJourneyConversationField>;
+          const label =
+            typeof fieldSource.label === "string" ? fieldSource.label.trim() : "";
+          const value = typeof fieldSource.value === "string" ? fieldSource.value : "";
+
+          if (!label || value.trim().length === 0) {
+            return [];
+          }
+
+          return [
+            {
+              label,
+              value,
+            },
+          ];
+        })
+      : [];
+
+    return [
+      {
+        nodeId,
+        nodeType,
+        sequence,
+        title,
+        fields,
+      },
+    ];
+  });
+};
+
+const createUiJourneySnapshotPresetId = (): string =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? `snapshot-${crypto.randomUUID()}`
+    : `snapshot-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+
+const sanitizeUiJourneySnapshotPresets = (
+  value: unknown
+): UiJourneySnapshotPreset[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const usedIds = new Set<string>();
+
+  return value.flatMap((item, index) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+
+    const source = item as Partial<UiJourneySnapshotPreset>;
+    const rawId = typeof source.id === "string" ? source.id.trim() : "";
+    const baseId = rawId || createUiJourneySnapshotPresetId();
+
+    let nextId = baseId;
+    let duplicateCounter = 1;
+    while (usedIds.has(nextId)) {
+      nextId = `${baseId}-${duplicateCounter}`;
+      duplicateCounter += 1;
+    }
+    usedIds.add(nextId);
+
+    const name =
+      typeof source.name === "string" && source.name.trim().length > 0
+        ? source.name.trim()
+        : `Snapshot ${index + 1}`;
+
+    const createdAt =
+      typeof source.createdAt === "string" && source.createdAt.length > 0
+        ? source.createdAt
+        : new Date().toISOString();
+    const updatedAt =
+      typeof source.updatedAt === "string" && source.updatedAt.length > 0
+        ? source.updatedAt
+        : createdAt;
+
+    return [
+      {
+        id: nextId,
+        name,
+        createdAt,
+        updatedAt,
+        nodeIds: sanitizeUniqueStringArray(source.nodeIds),
+        edgeIds: sanitizeUniqueStringArray(source.edgeIds),
+        conversation: sanitizeUiJourneyConversationEntries(source.conversation),
+      },
+    ];
+  });
+};
+
+const cloneUiJourneySnapshotPresets = (
+  presets: UiJourneySnapshotPreset[]
+): UiJourneySnapshotPreset[] =>
+  presets.map((preset) => ({
+    id: preset.id,
+    name: preset.name,
+    createdAt: preset.createdAt,
+    updatedAt: preset.updatedAt,
+    nodeIds: [...preset.nodeIds],
+    edgeIds: [...preset.edgeIds],
+    conversation: cloneUiJourneyConversationEntries(preset.conversation),
+  }));
 
 const SIDE_PANEL_MIN_WIDTH = 420;
 const SIDE_PANEL_MAX_WIDTH = Math.round(SIDE_PANEL_MIN_WIDTH * 2.1);
@@ -2086,7 +2289,10 @@ const normalizeNode = (
 
 const applyEdgeVisuals = (
   edge: FlowEdge,
-  options: { selected?: boolean } = {}
+  options: {
+    selected?: boolean;
+    highlightStrokeColor?: string | null;
+  } = {}
 ): FlowEdge => {
   const edgeKind = getEdgeKind(edge);
   const normalizedData = normalizeEdgeData(edge.data, edgeKind);
@@ -2094,14 +2300,18 @@ const applyEdgeVisuals = (
   const dashPattern = EDGE_LINE_STYLE_DASH[normalizedData.line_style ?? "solid"];
   const baseStroke = normalizedData.stroke_color ?? getDefaultEdgeStrokeColor(edgeKind);
   const selected = options.selected ?? false;
+  const highlightStrokeColor = options.highlightStrokeColor ?? null;
   const selectedStroke =
     edgeKind === "parallel"
       ? PARALLEL_SELECTED_STROKE_COLOR
       : SEQUENTIAL_SELECTED_STROKE_COLOR;
+  const resolvedStroke = selected
+    ? selectedStroke
+    : highlightStrokeColor ?? baseStroke;
 
   const sequentialArrowMarker = {
     type: MarkerType.ArrowClosed,
-    color: selected ? selectedStroke : baseStroke,
+    color: resolvedStroke,
     width: 16,
     height: 16,
   };
@@ -2109,10 +2319,10 @@ const applyEdgeVisuals = (
   const style: React.CSSProperties = {
     ...EDGE_BASE_STYLE,
     ...(edge.style ?? {}),
-    stroke: selected ? selectedStroke : baseStroke,
-    strokeWidth: selected ? 3.4 : EDGE_BASE_STYLE.strokeWidth,
+    stroke: resolvedStroke,
+    strokeWidth: selected || highlightStrokeColor ? 3.4 : EDGE_BASE_STYLE.strokeWidth,
     strokeDasharray: dashPattern,
-    opacity: selected ? 1 : edgeKind === "parallel" ? 0.9 : 1,
+    opacity: selected || highlightStrokeColor ? 1 : edgeKind === "parallel" ? 0.9 : 1,
   };
 
   return {
@@ -2345,6 +2555,47 @@ const buildUiJourneyConversationEntries = ({
       };
     })
     .filter((entry): entry is UiJourneyConversationEntry => Boolean(entry));
+};
+
+const buildUiJourneySnapshotCapture = ({
+  nodes,
+  edges,
+  ordering,
+  selectedNodeIds,
+}: {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  ordering: FlowOrderingResult;
+  selectedNodeIds: string[];
+}): UiJourneySnapshotCapture => {
+  const conversation = buildUiJourneyConversationEntries({
+    nodes,
+    ordering,
+    selectedNodeIds,
+  });
+
+  if (conversation.length === 0) {
+    return {
+      nodeIds: [],
+      edgeIds: [],
+      conversation: [],
+    };
+  }
+
+  const nodeIds = conversation.map((entry) => entry.nodeId);
+  const nodeIdSet = new Set(nodeIds);
+
+  const edgeIds = edges
+    .filter(
+      (edge) => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)
+    )
+    .map((edge) => edge.id);
+
+  return {
+    nodeIds,
+    edgeIds,
+    conversation,
+  };
 };
 
 const buildParallelGroupId = (componentNodeIds: string[]): string =>
@@ -2585,12 +2836,45 @@ const computeProjectSequenceId = (
   return `FLOW-${hashToBase36(payload)}`;
 };
 
+const resolveNodeHighlightColor = ({
+  selected,
+  uiJourneyHighlighted,
+  uiJourneyRecalled,
+}: {
+  selected: boolean;
+  uiJourneyHighlighted: boolean;
+  uiJourneyRecalled: boolean;
+}): string | null => {
+  if (uiJourneyRecalled) {
+    return UI_JOURNEY_RECALLED_STROKE_COLOR;
+  }
+
+  if (uiJourneyHighlighted) {
+    return UI_JOURNEY_HIGHLIGHT_STROKE_COLOR;
+  }
+
+  if (selected) {
+    return "#2563eb";
+  }
+
+  return null;
+};
+
 const getNodeShapeStyle = (
   shape: NodeShape,
   selected: boolean,
-  accentColor: string
+  accentColor: string,
+  options: {
+    uiJourneyHighlighted?: boolean;
+    uiJourneyRecalled?: boolean;
+  } = {}
 ): React.CSSProperties => {
   const resolvedAccentColor = accentColor?.trim() || "#4f46e5";
+  const highlightColor = resolveNodeHighlightColor({
+    selected,
+    uiJourneyHighlighted: options.uiJourneyHighlighted ?? false,
+    uiJourneyRecalled: options.uiJourneyRecalled ?? false,
+  });
 
   const baseStyle: React.CSSProperties = {
     boxSizing: "border-box",
@@ -2598,10 +2882,10 @@ const getNodeShapeStyle = (
     minHeight: 120,
     position: "relative",
     background: "#ffffff",
-    border: `2px solid ${resolvedAccentColor}`,
+    border: `2px solid ${highlightColor ?? resolvedAccentColor}`,
     padding: 10,
-    boxShadow: selected
-      ? "0 0 0 3px rgba(37, 99, 235, 0.35), 0 3px 10px rgba(0, 0, 0, 0.12)"
+    boxShadow: highlightColor
+      ? `0 0 0 3px ${highlightColor}, 0 3px 10px rgba(0, 0, 0, 0.12)`
       : "0 1px 3px rgba(0,0,0,0.08)",
   };
 
@@ -2630,8 +2914,8 @@ const getNodeShapeStyle = (
         border: "none",
         background: "transparent",
         padding: 0,
-        boxShadow: selected
-          ? "0 0 0 3px rgba(37, 99, 235, 0.35)"
+        boxShadow: highlightColor
+          ? `0 0 0 3px ${highlightColor}`
           : "none",
       };
 
@@ -2724,6 +3008,7 @@ const createEmptyCanvasState = (): PersistedCanvasState => ({
   edges: [],
   adminOptions: cloneGlobalOptions(DEFAULT_GLOBAL_OPTIONS),
   controlledLanguageGlossary: [],
+  uiJourneySnapshotPresets: [],
 });
 
 const readLegacyCanvasState = (): PersistedCanvasState | null => {
@@ -2742,6 +3027,7 @@ const readLegacyCanvasState = (): PersistedCanvasState | null => {
       edges?: unknown;
       adminOptions?: unknown;
       controlledLanguageGlossary?: unknown;
+      uiJourneySnapshotPresets?: unknown;
     };
 
     return {
@@ -2750,6 +3036,9 @@ const readLegacyCanvasState = (): PersistedCanvasState | null => {
       adminOptions: normalizeGlobalOptionConfig(parsed.adminOptions),
       controlledLanguageGlossary: sanitizeControlledLanguageGlossary(
         parsed.controlledLanguageGlossary
+      ),
+      uiJourneySnapshotPresets: sanitizeUiJourneySnapshotPresets(
+        parsed.uiJourneySnapshotPresets
       ),
     };
   } catch (error) {
@@ -2775,6 +3064,9 @@ const createProjectRecord = (
       adminOptions: normalizeGlobalOptionConfig(canvas.adminOptions),
       controlledLanguageGlossary: sanitizeControlledLanguageGlossary(
         canvas.controlledLanguageGlossary
+      ),
+      uiJourneySnapshotPresets: sanitizeUiJourneySnapshotPresets(
+        canvas.uiJourneySnapshotPresets
       ),
     },
   };
@@ -2832,6 +3124,9 @@ const sanitizeProjectRecord = (value: unknown): ProjectRecord | null => {
       adminOptions: normalizeGlobalOptionConfig(source.canvas?.adminOptions),
       controlledLanguageGlossary: sanitizeControlledLanguageGlossary(
         source.canvas?.controlledLanguageGlossary
+      ),
+      uiJourneySnapshotPresets: sanitizeUiJourneySnapshotPresets(
+        source.canvas?.uiJourneySnapshotPresets
       ),
     },
   };
@@ -3007,6 +3302,7 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onBeforeChange: () => void;
   menuTermGlossaryTerms: string[];
   showNodeId: boolean;
+  showDefaultNodeTitleOnCanvas: boolean;
   onMenuTermDeleteBlocked: () => void;
   onMenuNodeConfigChange: (
     nodeId: string,
@@ -3021,6 +3317,7 @@ function FlowCopyNode({
   onBeforeChange,
   menuTermGlossaryTerms,
   showNodeId,
+  showDefaultNodeTitleOnCanvas,
   onMenuTermDeleteBlocked,
   onMenuNodeConfigChange,
 }: FlowCopyNodeProps) {
@@ -3188,6 +3485,11 @@ function FlowCopyNode({
 
   if (isFrameNode) {
     const frameTitle = data.title.trim();
+    const frameHighlightColor = resolveNodeHighlightColor({
+      selected,
+      uiJourneyHighlighted: Boolean(data.ui_journey_highlighted),
+      uiJourneyRecalled: Boolean(data.ui_journey_recalled),
+    });
 
     return (
       <div
@@ -3196,10 +3498,10 @@ function FlowCopyNode({
           minHeight: frameConfig.height,
           boxSizing: "border-box",
           borderRadius: 10,
-          border: `2px solid ${frameShadeStyle.border}`,
+          border: `2px solid ${frameHighlightColor ?? frameShadeStyle.border}`,
           background: frameShadeStyle.background,
-          boxShadow: selected
-            ? "0 0 0 3px rgba(30, 64, 175, 0.3), inset 0 0 0 1px rgba(255,255,255,0.7)"
+          boxShadow: frameHighlightColor
+            ? `0 0 0 3px ${frameHighlightColor}, inset 0 0 0 1px rgba(255,255,255,0.7)`
             : "inset 0 0 0 1px rgba(255,255,255,0.7)",
           position: "relative",
         }}
@@ -3338,7 +3640,12 @@ function FlowCopyNode({
   }
 
   return (
-    <div style={getNodeShapeStyle(data.node_shape, selected, data.action_type_color)}>
+    <div
+      style={getNodeShapeStyle(data.node_shape, selected, data.action_type_color, {
+        uiJourneyHighlighted: Boolean(data.ui_journey_highlighted),
+        uiJourneyRecalled: Boolean(data.ui_journey_recalled),
+      })}
+    >
       <Handle
         type="target"
         position={Position.Left}
@@ -3395,16 +3702,18 @@ function FlowCopyNode({
           </div>
         ) : (
           <>
-            <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Title</div>
-              <input
-                className="nodrag"
-                style={inputStyle}
-                value={data.title}
-                placeholder="Add title"
-                onChange={(event) => updateField("title", event.target.value)}
-              />
-            </div>
+            {showDefaultNodeTitleOnCanvas && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Title</div>
+                <input
+                  className="nodrag"
+                  style={inputStyle}
+                  value={data.title}
+                  placeholder="Add title"
+                  onChange={(event) => updateField("title", event.target.value)}
+                />
+              </div>
+            )}
 
             <div style={{ marginTop: 8 }}>
               <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>
@@ -3656,12 +3965,24 @@ export default function Page() {
     Record<GlobalOptionField, string>
   >(createEmptyPendingOptionInputs);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
-  const [isProjectSequencePanelOpen, setIsProjectSequencePanelOpen] = useState(true);
+  const [isProjectSequencePanelOpen, setIsProjectSequencePanelOpen] = useState(false);
   const [isUiJourneyConversationOpen, setIsUiJourneyConversationOpen] = useState(false);
   const [uiJourneyConversationSnapshot, setUiJourneyConversationSnapshot] = useState<
     UiJourneyConversationEntry[]
   >([]);
+  const [uiJourneySnapshotPresets, setUiJourneySnapshotPresets] = useState<
+    UiJourneySnapshotPreset[]
+  >([]);
+  const [selectedUiJourneySnapshotPresetId, setSelectedUiJourneySnapshotPresetId] = useState<
+    string | null
+  >(null);
+  const [recalledUiJourneyNodeIds, setRecalledUiJourneyNodeIds] = useState<string[]>([]);
+  const [recalledUiJourneyEdgeIds, setRecalledUiJourneyEdgeIds] = useState<string[]>([]);
+  const [uiJourneySnapshotDraftName, setUiJourneySnapshotDraftName] = useState("");
+  const [isUiJourneySnapshotsPanelOpen, setIsUiJourneySnapshotsPanelOpen] = useState(true);
   const [showNodeIdsOnCanvas, setShowNodeIdsOnCanvas] = useState(false);
+  const [showDefaultNodeTitleOnCanvas, setShowDefaultNodeTitleOnCanvas] =
+    useState(false);
   const [undoStack, setUndoStack] = useState<EditorSnapshot[]>([]);
   const [transferFeedback, setTransferFeedback] = useState<ImportFeedback | null>(null);
   const [sidePanelWidth, setSidePanelWidth] = useState<number>(readInitialSidePanelWidth);
@@ -3812,6 +4133,9 @@ export default function Page() {
       const normalizedAdminOptions = normalizeGlobalOptionConfig(
         project.canvas.adminOptions
       );
+      const normalizedUiJourneySnapshotPresets = sanitizeUiJourneySnapshotPresets(
+        project.canvas.uiJourneySnapshotPresets
+      );
 
       const hydratedNodes = sanitizePersistedNodes(
         project.canvas.nodes,
@@ -3828,10 +4152,18 @@ export default function Page() {
       setOpenControlledLanguageFieldType(null);
       setNodes(prunedHydratedNodes);
       setEdges(hydratedEdges);
+      setUiJourneySnapshotPresets(normalizedUiJourneySnapshotPresets);
+      setSelectedUiJourneySnapshotPresetId(null);
+      setRecalledUiJourneyNodeIds([]);
+      setRecalledUiJourneyEdgeIds([]);
+      setUiJourneySnapshotDraftName("");
+      setUiJourneyConversationSnapshot([]);
+      setIsUiJourneyConversationOpen(false);
       setSelectedNodeId(prunedHydratedNodes[0]?.id ?? null);
       setSelectedNodeIds(prunedHydratedNodes[0]?.id ? [prunedHydratedNodes[0].id] : []);
       setSelectedEdgeId(null);
       setUndoStack([]);
+      setIsProjectSequencePanelOpen(false);
       clearMenuTermDeleteError();
       setPendingOptionInputs(createEmptyPendingOptionInputs());
     },
@@ -3858,6 +4190,9 @@ export default function Page() {
     const serializedAdminOptions = cloneGlobalOptions(adminOptions);
     const serializedControlledLanguageGlossary = sanitizeControlledLanguageGlossary(
       controlledLanguageGlossary
+    );
+    const serializedUiJourneySnapshotPresets = cloneUiJourneySnapshotPresets(
+      sanitizeUiJourneySnapshotPresets(uiJourneySnapshotPresets)
     );
     const updatedAt = new Date().toISOString();
 
@@ -3888,6 +4223,7 @@ export default function Page() {
           edges: serializedEdges,
           adminOptions: serializedAdminOptions,
           controlledLanguageGlossary: serializedControlledLanguageGlossary,
+          uiJourneySnapshotPresets: serializedUiJourneySnapshotPresets,
         },
       };
 
@@ -3908,6 +4244,7 @@ export default function Page() {
     edges,
     nodes,
     store.session,
+    uiJourneySnapshotPresets,
     updateStore,
   ]);
 
@@ -3932,13 +4269,35 @@ export default function Page() {
       controlledLanguageGlossary: cloneControlledLanguageGlossary(
         controlledLanguageGlossary
       ),
+      uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(uiJourneySnapshotPresets),
+      uiJourneyConversationSnapshot: cloneUiJourneyConversationEntries(
+        uiJourneyConversationSnapshot
+      ),
+      isUiJourneyConversationOpen,
+      selectedUiJourneySnapshotPresetId,
+      recalledUiJourneyNodeIds: [...recalledUiJourneyNodeIds],
+      recalledUiJourneyEdgeIds: [...recalledUiJourneyEdgeIds],
+      uiJourneySnapshotDraftName,
     };
 
     undoCaptureTimeoutRef.current = window.setTimeout(() => {
       setUndoStack((prev) => [...prev, snapshot].slice(-3));
       undoCaptureTimeoutRef.current = null;
     }, 220);
-  }, [adminOptions, controlledLanguageGlossary, edges, nodes, store.session.view]);
+  }, [
+    adminOptions,
+    controlledLanguageGlossary,
+    edges,
+    isUiJourneyConversationOpen,
+    nodes,
+    recalledUiJourneyEdgeIds,
+    recalledUiJourneyNodeIds,
+    selectedUiJourneySnapshotPresetId,
+    store.session.view,
+    uiJourneyConversationSnapshot,
+    uiJourneySnapshotDraftName,
+    uiJourneySnapshotPresets,
+  ]);
 
   useEffect(() => {
     captureUndoSnapshotRef.current = queueUndoSnapshot;
@@ -3962,6 +4321,19 @@ export default function Page() {
       setControlledLanguageGlossary(
         cloneControlledLanguageGlossary(previousSnapshot.controlledLanguageGlossary)
       );
+      setUiJourneySnapshotPresets(
+        cloneUiJourneySnapshotPresets(previousSnapshot.uiJourneySnapshotPresets)
+      );
+      setUiJourneyConversationSnapshot(
+        cloneUiJourneyConversationEntries(previousSnapshot.uiJourneyConversationSnapshot)
+      );
+      setIsUiJourneyConversationOpen(previousSnapshot.isUiJourneyConversationOpen);
+      setSelectedUiJourneySnapshotPresetId(
+        previousSnapshot.selectedUiJourneySnapshotPresetId
+      );
+      setRecalledUiJourneyNodeIds([...previousSnapshot.recalledUiJourneyNodeIds]);
+      setRecalledUiJourneyEdgeIds([...previousSnapshot.recalledUiJourneyEdgeIds]);
+      setUiJourneySnapshotDraftName(previousSnapshot.uiJourneySnapshotDraftName);
 
       setSelectedNodeId((currentSelected) => {
         if (
@@ -4671,16 +5043,71 @@ export default function Page() {
     [edges, nodes, ordering.sequentialOrderedNodeIds]
   );
 
+  const selectedNodeIdsForUiJourneyConversation = useMemo(() => {
+    if (selectedEdgeId) {
+      return [];
+    }
+
+    if (selectedNodeIds.length > 0) {
+      return selectedNodeIds;
+    }
+
+    return selectedNodeId ? [selectedNodeId] : [];
+  }, [selectedEdgeId, selectedNodeId, selectedNodeIds]);
+
+  const canOpenUiJourneyConversation =
+    selectedNodeIdsForUiJourneyConversation.length > 0;
+
+  const uiJourneySnapshotCapture = useMemo(
+    () =>
+      buildUiJourneySnapshotCapture({
+        nodes,
+        edges,
+        ordering,
+        selectedNodeIds: selectedNodeIdsForUiJourneyConversation,
+      }),
+    [edges, nodes, ordering, selectedNodeIdsForUiJourneyConversation]
+  );
+
+  const canSaveUiJourneySnapshotPreset =
+    uiJourneySnapshotCapture.nodeIds.length > 0;
+
+  const uiJourneyHighlightedNodeIdSet = useMemo(
+    () => new Set(selectedNodeIdsForUiJourneyConversation),
+    [selectedNodeIdsForUiJourneyConversation]
+  );
+
+  const recalledUiJourneyNodeIdSet = useMemo(
+    () => new Set(recalledUiJourneyNodeIds),
+    [recalledUiJourneyNodeIds]
+  );
+
+  const recalledUiJourneyEdgeIdSet = useMemo(
+    () => new Set(recalledUiJourneyEdgeIds),
+    [recalledUiJourneyEdgeIds]
+  );
+
   const nodesWithSequence = useMemo(
     () =>
-      nodes.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          sequence_index: ordering.sequenceByNodeId[node.id] ?? null,
-        },
-      })),
-    [nodes, ordering.sequenceByNodeId]
+      nodes.map((node) => {
+        const nodeId = node.id;
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            sequence_index: ordering.sequenceByNodeId[nodeId] ?? null,
+            ui_journey_highlighted: uiJourneyHighlightedNodeIdSet.has(nodeId),
+            ui_journey_recalled: recalledUiJourneyNodeIdSet.has(nodeId),
+          },
+        };
+      }),
+    [
+      nodes,
+      ordering.sequenceByNodeId,
+      recalledUiJourneyNodeIdSet,
+      uiJourneyHighlightedNodeIdSet,
+    ]
   );
 
   const displayEdges = useMemo(
@@ -4691,28 +5118,54 @@ export default function Page() {
         const edgeIsSelected = selectedEdgeId === edge.id || Boolean(edge.selected);
         const sourceOrder = ordering.sequenceByNodeId[edge.source];
         const targetOrder = ordering.sequenceByNodeId[edge.target];
+        const edgeIsUiJourneyHighlighted =
+          !edgeIsSelected &&
+          uiJourneyHighlightedNodeIdSet.has(edge.source) &&
+          uiJourneyHighlightedNodeIdSet.has(edge.target);
+        const edgeIsUiJourneyRecalled =
+          !edgeIsSelected &&
+          (recalledUiJourneyEdgeIdSet.has(edge.id) ||
+            (recalledUiJourneyNodeIdSet.has(edge.source) &&
+              recalledUiJourneyNodeIdSet.has(edge.target)));
 
-        return applyEdgeVisuals({
-          ...edge,
-          label:
-            edgeIsSequential && sourceOrder && targetOrder
-              ? `${sourceOrder} → ${targetOrder}`
-              : undefined,
-          labelStyle: {
-            fill:
-              edgeKind === "parallel" ? PARALLEL_EDGE_STROKE_COLOR : EDGE_STROKE_COLOR,
-            fontWeight: 700,
-            fontSize: 11,
+        return applyEdgeVisuals(
+          {
+            ...edge,
+            label:
+              edgeIsSequential && sourceOrder && targetOrder
+                ? `${sourceOrder} → ${targetOrder}`
+                : undefined,
+            labelStyle: {
+              fill:
+                edgeKind === "parallel" ? PARALLEL_EDGE_STROKE_COLOR : EDGE_STROKE_COLOR,
+              fontWeight: 700,
+              fontSize: 11,
+            },
+            labelBgStyle: {
+              fill: edgeKind === "parallel" ? "#f1f5f9" : "#eff6ff",
+              fillOpacity: 0.95,
+            },
+            labelBgPadding: [4, 2],
+            labelBgBorderRadius: 4,
           },
-          labelBgStyle: {
-            fill: edgeKind === "parallel" ? "#f1f5f9" : "#eff6ff",
-            fillOpacity: 0.95,
-          },
-          labelBgPadding: [4, 2],
-          labelBgBorderRadius: 4,
-        }, { selected: edgeIsSelected });
+          {
+            selected: edgeIsSelected,
+            highlightStrokeColor: edgeIsUiJourneyRecalled
+              ? UI_JOURNEY_RECALLED_STROKE_COLOR
+              : edgeIsUiJourneyHighlighted
+                ? UI_JOURNEY_HIGHLIGHT_STROKE_COLOR
+                : null,
+          }
+        );
       }),
-    [edges, ordering.sequenceByNodeId, selectedEdgeId]
+    [
+      edges,
+      ordering.sequenceByNodeId,
+      recalledUiJourneyEdgeIdSet,
+      recalledUiJourneyNodeIdSet,
+      selectedEdgeId,
+      uiJourneyHighlightedNodeIdSet,
+    ]
   );
 
   const orderedNodes = useMemo(() => {
@@ -4768,21 +5221,6 @@ export default function Page() {
   const canCreateFrameFromSelection =
     selectedNonFrameNodesForFrameCreation.length >= 2;
 
-  const selectedNodeIdsForUiJourneyConversation = useMemo(() => {
-    if (selectedEdgeId) {
-      return [];
-    }
-
-    if (selectedNodeIds.length > 0) {
-      return selectedNodeIds;
-    }
-
-    return selectedNodeId ? [selectedNodeId] : [];
-  }, [selectedEdgeId, selectedNodeId, selectedNodeIds]);
-
-  const canOpenUiJourneyConversation =
-    selectedNodeIdsForUiJourneyConversation.length > 0;
-
   const openUiJourneyConversation = useCallback(() => {
     const entries = buildUiJourneyConversationEntries({
       nodes,
@@ -4797,6 +5235,127 @@ export default function Page() {
   const closeUiJourneyConversation = useCallback(() => {
     setIsUiJourneyConversationOpen(false);
   }, []);
+
+  const saveUiJourneySnapshotPreset = useCallback(() => {
+    if (!canSaveUiJourneySnapshotPreset) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const trimmedSnapshotName = uiJourneySnapshotDraftName.trim();
+    const nextSnapshotName =
+      trimmedSnapshotName.length > 0
+        ? trimmedSnapshotName
+        : `Snapshot ${uiJourneySnapshotPresets.length + 1}`;
+    const snapshotConversation = cloneUiJourneyConversationEntries(
+      uiJourneySnapshotCapture.conversation
+    );
+
+    const nextPreset: UiJourneySnapshotPreset = {
+      id: createUiJourneySnapshotPresetId(),
+      name: nextSnapshotName,
+      createdAt: now,
+      updatedAt: now,
+      nodeIds: [...uiJourneySnapshotCapture.nodeIds],
+      edgeIds: [...uiJourneySnapshotCapture.edgeIds],
+      conversation: snapshotConversation,
+    };
+
+    queueUndoSnapshot();
+
+    setUiJourneySnapshotPresets((currentPresets) => [...currentPresets, nextPreset]);
+    setSelectedUiJourneySnapshotPresetId(nextPreset.id);
+    setRecalledUiJourneyNodeIds([...nextPreset.nodeIds]);
+    setRecalledUiJourneyEdgeIds([...nextPreset.edgeIds]);
+    setUiJourneyConversationSnapshot(
+      cloneUiJourneyConversationEntries(nextPreset.conversation)
+    );
+    setIsUiJourneyConversationOpen(true);
+    setUiJourneySnapshotDraftName("");
+  }, [
+    canSaveUiJourneySnapshotPreset,
+    queueUndoSnapshot,
+    uiJourneySnapshotCapture,
+    uiJourneySnapshotDraftName,
+    uiJourneySnapshotPresets.length,
+  ]);
+
+  const recallUiJourneySnapshotPreset = useCallback(
+    (presetId: string) => {
+      const matchingPreset = uiJourneySnapshotPresets.find(
+        (preset) => preset.id === presetId
+      );
+
+      if (!matchingPreset) {
+        return;
+      }
+
+      queueUndoSnapshot();
+
+      setSelectedUiJourneySnapshotPresetId(matchingPreset.id);
+      setRecalledUiJourneyNodeIds([...matchingPreset.nodeIds]);
+      setRecalledUiJourneyEdgeIds([...matchingPreset.edgeIds]);
+      setUiJourneyConversationSnapshot(
+        cloneUiJourneyConversationEntries(matchingPreset.conversation)
+      );
+      setIsUiJourneyConversationOpen(true);
+    },
+    [queueUndoSnapshot, uiJourneySnapshotPresets]
+  );
+
+  const deleteUiJourneySnapshotPreset = useCallback(
+    (presetId: string) => {
+      const matchingPreset = uiJourneySnapshotPresets.find(
+        (preset) => preset.id === presetId
+      );
+
+      if (!matchingPreset) {
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Delete snapshot "${matchingPreset.name}"?`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      queueUndoSnapshot();
+
+      setUiJourneySnapshotPresets((currentPresets) =>
+        currentPresets.filter((preset) => preset.id !== presetId)
+      );
+
+      if (selectedUiJourneySnapshotPresetId === presetId) {
+        setSelectedUiJourneySnapshotPresetId(null);
+        setRecalledUiJourneyNodeIds([]);
+        setRecalledUiJourneyEdgeIds([]);
+      }
+    },
+    [queueUndoSnapshot, selectedUiJourneySnapshotPresetId, uiJourneySnapshotPresets]
+  );
+
+  const clearRecalledUiJourneySnapshot = useCallback(() => {
+    if (
+      !selectedUiJourneySnapshotPresetId &&
+      recalledUiJourneyNodeIds.length === 0 &&
+      recalledUiJourneyEdgeIds.length === 0
+    ) {
+      return;
+    }
+
+    queueUndoSnapshot();
+
+    setSelectedUiJourneySnapshotPresetId(null);
+    setRecalledUiJourneyNodeIds([]);
+    setRecalledUiJourneyEdgeIds([]);
+  }, [
+    queueUndoSnapshot,
+    recalledUiJourneyEdgeIds.length,
+    recalledUiJourneyNodeIds.length,
+    selectedUiJourneySnapshotPresetId,
+  ]);
 
   const normalizedSelectedEdgeData =
     selectedEdge === null
@@ -5357,6 +5916,7 @@ export default function Page() {
           onBeforeChange={() => captureUndoSnapshotRef.current()}
           menuTermGlossaryTerms={menuTermGlossaryTermsRef.current}
           showNodeId={showNodeIdsOnCanvas}
+          showDefaultNodeTitleOnCanvas={showDefaultNodeTitleOnCanvas}
           onMenuTermDeleteBlocked={showMenuTermDeleteBlockedMessage}
           onMenuNodeConfigChange={(nodeId, updater) =>
             updateMenuNodeConfigByIdRef.current(nodeId, updater)
@@ -5364,7 +5924,11 @@ export default function Page() {
         />
       ),
     }),
-    [showNodeIdsOnCanvas, showMenuTermDeleteBlockedMessage]
+    [
+      showDefaultNodeTitleOnCanvas,
+      showNodeIdsOnCanvas,
+      showMenuTermDeleteBlockedMessage,
+    ]
   );
 
   const updatePendingOptionInput = useCallback(
@@ -6033,6 +6597,7 @@ export default function Page() {
     const projects = (activeAccount?.projects ?? [])
       .slice()
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const dashboardProjectsSpacing = 8;
 
     const dashboardBlockStyle: React.CSSProperties = {
       background: "#fff",
@@ -6043,13 +6608,23 @@ export default function Page() {
 
     const dashboardButtonStyle: React.CSSProperties = {
       ...buttonStyle,
+      padding: "2px 8px",
+      minHeight: 24,
+      lineHeight: 1,
       border: "1px solid #64748b",
       borderRadius: 8,
-      padding: "8px 12px",
-      fontSize: 13,
+      fontSize: 11,
       fontWeight: 700,
       color: "#0f172a",
       background: "#f8fafc",
+    };
+
+    const dashboardCompactInputStyle: React.CSSProperties = {
+      ...inputStyle,
+      fontSize: 11,
+      lineHeight: 1,
+      padding: "2px 8px",
+      minHeight: 24,
     };
 
     const dashboardPrimaryButtonStyle: React.CSSProperties = {
@@ -6066,21 +6641,41 @@ export default function Page() {
           width: "100vw",
           minHeight: "100vh",
           background: "#f8fafc",
-          padding: "0 16px 22px",
+          padding: "0 16px 12px",
+          position: "relative",
           display: "grid",
           justifyItems: "center",
         }}
       >
         <div
           style={{
+            position: "absolute",
+            top: 12,
+            right: 26,
+            fontSize: 43,
+            lineHeight: 1,
+            fontWeight: 900,
+            letterSpacing: 0.3,
+            color: "#0f172a",
+            fontFamily:
+              '"Avenir Next", "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif',
+            pointerEvents: "none",
+            zIndex: 1,
+          }}
+        >
+          FlowCopy
+        </div>
+
+        <div
+          style={{
             width: "min(1080px, 100%)",
             display: "grid",
-            gap: 6,
+            gap: 5,
           }}
         >
           <div
             style={{
-              minHeight: 124,
+              minHeight: 42,
               display: "grid",
               placeItems: "center",
             }}
@@ -6089,8 +6684,8 @@ export default function Page() {
               style={{
                 margin: 0,
                 textAlign: "center",
-                fontSize: 54,
-                lineHeight: 1.05,
+                fontSize: 46,
+                lineHeight: 1.02,
                 fontWeight: 900,
                 color: "#0f172a",
               }}
@@ -6102,17 +6697,19 @@ export default function Page() {
           <section
             style={{
               ...dashboardBlockStyle,
-              padding: "14px 16px",
-              display: "flex",
-              justifyContent: "space-between",
+              border: "2px solid #dc2626",
+              padding: "0 3px",
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
               alignItems: "center",
-              gap: 12,
+              gap: 3,
             }}
           >
-            <div style={{ display: "grid", gap: 4 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <div
                 style={{
-                  fontSize: 11,
+                  fontSize: 10,
+                  lineHeight: 1,
                   fontWeight: 700,
                   letterSpacing: 0.4,
                   textTransform: "uppercase",
@@ -6121,7 +6718,14 @@ export default function Page() {
               >
                 User Account Code
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  lineHeight: 1,
+                  fontWeight: 700,
+                  color: "#1e293b",
+                }}
+              >
                 {activeAccount?.code ?? SINGLE_ACCOUNT_CODE}
               </div>
             </div>
@@ -6134,30 +6738,29 @@ export default function Page() {
           <section
             style={{
               ...dashboardBlockStyle,
-              padding: "14px 16px",
+              border: "2px solid #dc2626",
+              padding: "0 3px",
               display: "grid",
-              gridTemplateColumns: "1fr auto",
-              gap: 10,
+              gridTemplateColumns: "auto 1fr auto",
+              gap: 3,
               alignItems: "center",
             }}
           >
-            <label style={{ display: "grid", gap: 4 }}>
-              <div style={{ fontSize: 12, color: "#334155", fontWeight: 600 }}>
-                New project name
-              </div>
-              <input
-                style={inputStyle}
-                placeholder="e.g. Checkout Microcopy"
-                value={newProjectName}
-                onChange={(event) => setNewProjectName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    createProjectFromDashboard();
-                  }
-                }}
-              />
-            </label>
+            <div style={{ fontSize: 11, lineHeight: 1, color: "#334155", fontWeight: 600 }}>
+              New project name
+            </div>
+            <input
+              style={dashboardCompactInputStyle}
+              placeholder="e.g. Checkout Microcopy"
+              value={newProjectName}
+              onChange={(event) => setNewProjectName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  createProjectFromDashboard();
+                }
+              }}
+            />
             <button
               type="button"
               style={dashboardPrimaryButtonStyle}
@@ -6167,12 +6770,18 @@ export default function Page() {
             </button>
           </section>
 
-          <section style={{ display: "grid", gap: 3 }}>
-            <div style={{ display: "grid", justifyItems: "center", gap: 2 }}>
-              <h2 style={{ margin: 0, fontSize: 51, fontWeight: 900, color: "#1e293b" }}>
+          <section
+            style={{
+              display: "grid",
+              gap: dashboardProjectsSpacing,
+              marginTop: dashboardProjectsSpacing,
+            }}
+          >
+            <div style={{ display: "grid", justifyItems: "center", gap: 1 }}>
+              <h2 style={{ margin: 0, fontSize: 46, fontWeight: 900, color: "#1e293b" }}>
                 Projects
               </h2>
-              <p style={{ margin: 0, fontSize: 17, color: "#475569", textAlign: "center" }}>
+              <p style={{ margin: 0, fontSize: 16, color: "#475569", textAlign: "center" }}>
                 Click on a project to enter.
               </p>
             </div>
@@ -6705,8 +7314,27 @@ export default function Page() {
 
               <div style={{ fontSize: 11, color: "#334155", marginTop: 8 }}>
                 Order rule: topological flow; ties sort by x → y → id. Parallel-linked
-                nodes share the same sequence number.
+                nodes share the same sequence number and the first id in the order
+                list.
               </div>
+
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 12,
+                  color: "#334155",
+                  marginTop: 8,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={showNodeIdsOnCanvas}
+                  onChange={(event) => setShowNodeIdsOnCanvas(event.target.checked)}
+                />
+                Show node IDs on nodes
+              </label>
 
               {ordering.hasCycle && (
                 <div
@@ -6780,23 +7408,6 @@ export default function Page() {
           each field’s “Glossary” button to open a term picker.
         </p>
 
-        <label
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 12,
-            color: "#334155",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={showNodeIdsOnCanvas}
-            onChange={(event) => setShowNodeIdsOnCanvas(event.target.checked)}
-          />
-          Show node IDs on nodes
-        </label>
-
         <section
           style={{
             border: "1px solid #cbd5e1",
@@ -6829,6 +7440,248 @@ export default function Page() {
         >
           UI Journey Conversation
         </button>
+
+        <section
+          style={{
+            border: "1px solid #c7d2fe",
+            borderRadius: 8,
+            padding: 8,
+            display: "grid",
+            gap: 8,
+            background: "#f8faff",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#3730a3", fontWeight: 700 }}>
+              Journey Snapshots
+            </div>
+            <button
+              type="button"
+              style={{
+                ...buttonStyle,
+                fontSize: 11,
+                padding: "2px 8px",
+                borderColor: "#a5b4fc",
+                color: "#3730a3",
+                background: "#eef2ff",
+              }}
+              onClick={() =>
+                setIsUiJourneySnapshotsPanelOpen((isOpen) => !isOpen)
+              }
+            >
+              {isUiJourneySnapshotsPanelOpen ? "Hide" : "Show"}
+            </button>
+          </div>
+
+          {isUiJourneySnapshotsPanelOpen && (
+            <>
+              <p style={{ margin: 0, fontSize: 11, color: "#4c1d95" }}>
+                Save the currently selected node path and conversation so you can
+                quickly recall and review the same journey later.
+              </p>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  gap: 6,
+                }}
+              >
+                <input
+                  style={inputStyle}
+                  value={uiJourneySnapshotDraftName}
+                  placeholder={`Snapshot ${uiJourneySnapshotPresets.length + 1}`}
+                  onChange={(event) =>
+                    setUiJourneySnapshotDraftName(event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      saveUiJourneySnapshotPreset();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  style={{
+                    ...buttonStyle,
+                    borderColor: "#818cf8",
+                    background: "#eef2ff",
+                    color: "#3730a3",
+                    fontWeight: 700,
+                    opacity: canSaveUiJourneySnapshotPreset ? 1 : 0.5,
+                    cursor: canSaveUiJourneySnapshotPreset
+                      ? "pointer"
+                      : "not-allowed",
+                  }}
+                  onClick={saveUiJourneySnapshotPreset}
+                  disabled={!canSaveUiJourneySnapshotPreset}
+                  title={
+                    canSaveUiJourneySnapshotPreset
+                      ? "Save selected path as snapshot"
+                      : "Select at least one node or frame first"
+                  }
+                >
+                  Save
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  fontSize: 11,
+                  color: "#4338ca",
+                }}
+              >
+                <span>
+                  Selected path: {uiJourneySnapshotCapture.nodeIds.length} node(s),{" "}
+                  {uiJourneySnapshotCapture.edgeIds.length} edge(s),{" "}
+                  {uiJourneySnapshotCapture.conversation.length} conversation row(s)
+                </span>
+                <button
+                  type="button"
+                  style={{
+                    ...buttonStyle,
+                    fontSize: 11,
+                    padding: "2px 8px",
+                    borderColor: "#cbd5e1",
+                    color: "#475569",
+                    background: "#fff",
+                    opacity:
+                      selectedUiJourneySnapshotPresetId ||
+                      recalledUiJourneyNodeIds.length > 0 ||
+                      recalledUiJourneyEdgeIds.length > 0
+                        ? 1
+                        : 0.5,
+                    cursor:
+                      selectedUiJourneySnapshotPresetId ||
+                      recalledUiJourneyNodeIds.length > 0 ||
+                      recalledUiJourneyEdgeIds.length > 0
+                        ? "pointer"
+                        : "not-allowed",
+                  }}
+                  onClick={clearRecalledUiJourneySnapshot}
+                  disabled={
+                    !selectedUiJourneySnapshotPresetId &&
+                    recalledUiJourneyNodeIds.length === 0 &&
+                    recalledUiJourneyEdgeIds.length === 0
+                  }
+                >
+                  Clear recalled path
+                </button>
+              </div>
+
+              {uiJourneySnapshotPresets.length === 0 ? (
+                <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
+                  No snapshots yet. Select a path and save one.
+                </p>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 6,
+                    maxHeight: 230,
+                    overflowY: "auto",
+                  }}
+                >
+                  {uiJourneySnapshotPresets.map((preset) => {
+                    const isSelected =
+                      selectedUiJourneySnapshotPresetId === preset.id;
+
+                    return (
+                      <div
+                        key={`ui-journey-snapshot:${preset.id}`}
+                        style={{
+                          border: `1px solid ${isSelected ? "#818cf8" : "#cbd5e1"}`,
+                          borderRadius: 8,
+                          background: isSelected ? "#eef2ff" : "#fff",
+                          padding: 8,
+                          display: "grid",
+                          gap: 6,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: 8,
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: "#312e81",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                              title={preset.name}
+                            >
+                              {preset.name}
+                            </div>
+                            <div style={{ fontSize: 10, color: "#4338ca", marginTop: 2 }}>
+                              {preset.nodeIds.length} node(s) • {preset.edgeIds.length} edge(s)
+                            </div>
+                            <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
+                              Updated {formatDateTime(preset.updatedAt)}
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              type="button"
+                              style={{
+                                ...buttonStyle,
+                                fontSize: 10,
+                                padding: "2px 8px",
+                                borderColor: "#818cf8",
+                                color: "#3730a3",
+                                background: "#eef2ff",
+                                fontWeight: 700,
+                              }}
+                              onClick={() => recallUiJourneySnapshotPreset(preset.id)}
+                            >
+                              Recall
+                            </button>
+                            <button
+                              type="button"
+                              style={{
+                                ...buttonStyle,
+                                fontSize: 10,
+                                padding: "2px 8px",
+                                borderColor: "#fca5a5",
+                                color: "#b91c1c",
+                                background: "#fff",
+                                fontWeight: 700,
+                              }}
+                              onClick={() => deleteUiJourneySnapshotPreset(preset.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </section>
 
         {canCreateFrameFromSelection && (
           <button
@@ -7737,14 +8590,42 @@ export default function Page() {
                   </select>
                 </label>
 
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Title</div>
+                <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginBottom: 4,
+                    }}
+                  >
+                    <div style={{ ...inspectorFieldLabelStyle, marginBottom: 0 }}>Title</div>
+                    <label
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 11,
+                        color: "#334155",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={showDefaultNodeTitleOnCanvas}
+                        onChange={(event) =>
+                          setShowDefaultNodeTitleOnCanvas(event.target.checked)
+                        }
+                      />
+                      Show
+                    </label>
+                  </div>
                   <input
                     style={inputStyle}
                     value={selectedNode.data.title}
                     onChange={(event) => updateSelectedField("title", event.target.value)}
                   />
-                </label>
+                </div>
 
                 <div
                   style={{
@@ -8195,6 +9076,31 @@ export default function Page() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

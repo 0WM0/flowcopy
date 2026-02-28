@@ -32,6 +32,136 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##02-28-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session extended the canvas-side **UI Journey Conversation** flow with a reusable snapshot workflow so users can capture and replay journey paths.
+
+The product-level behavior now includes:
+
+- a new **Journey Snapshots** inspector section placed directly near the UI Journey Conversation controls
+- collapsible snapshot bank behavior (show/hide)
+- named preset save/recall/delete actions
+- recall restoring both:
+  - highlighted node/edge path on canvas
+  - conversation payload shown in the UI Journey Conversation dialog
+
+## 2) Core Data Model
+
+The session introduced snapshot-specific runtime and persisted contracts:
+
+- `UiJourneySnapshotPreset`
+  - `id`, `name`, `createdAt`, `updatedAt`
+  - `nodeIds`, `edgeIds`
+  - `conversation: UiJourneyConversationEntry[]`
+- `UiJourneySnapshotCapture`
+  - current in-memory capture payload used for save operations
+
+Persistence contracts were expanded:
+
+- `PersistedCanvasState` now includes `uiJourneySnapshotPresets`
+- `EditorSnapshot` (undo payload) now includes snapshot/UI-journey-related state:
+  - `uiJourneySnapshotPresets`
+  - recalled node/edge ids
+  - selected snapshot preset id
+  - snapshot draft name
+  - journey conversation modal snapshot/open state
+
+## 3) Persistence and Migration Strategy
+
+Snapshot data now round-trips through the existing project canvas save path.
+
+Concrete additions include:
+
+- `sanitizeUiJourneySnapshotPresets(...)`
+- `cloneUiJourneySnapshotPresets(...)`
+- snapshot preset defaults wired into:
+  - `createEmptyCanvasState()`
+  - `sanitizeProjectRecord(...)`
+  - `readLegacyCanvasState(...)` fallback handling
+  - `createProjectRecord(...)`
+
+Project autosave integration now writes presets via `persistCurrentProjectState(...)` by serializing `uiJourneySnapshotPresets` into active project canvas data.
+
+## 4) Ordering Model and Project Sequence ID
+
+No sequence algorithm changes were introduced.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Snapshot capture/replay reuses existing ordering outputs to keep journey conversation entries deterministic:
+
+- capture uses `ordering.orderedNodeIds` and `sequenceByNodeId`
+- conversation rows remain sequence-aligned after save/recall
+
+## 5) Node Rendering and Shape System
+
+Rendering was enhanced to visualize both “currently selected journey path” and “recalled snapshot path”.
+
+Key additions:
+
+- node data flags:
+  - `ui_journey_highlighted`
+  - `ui_journey_recalled`
+- new highlight palette constants for nodes/edges:
+  - `UI_JOURNEY_HIGHLIGHT_STROKE_COLOR`
+  - `UI_JOURNEY_RECALLED_STROKE_COLOR`
+- node accent resolution via `resolveNodeHighlightColor(...)`
+- edge highlighting integrated through `applyEdgeVisuals(..., { highlightStrokeColor })`
+
+Result: selected and recalled paths are visually stronger and distinguishable from default/selected-only styling.
+
+## 6) Editor Interaction Model
+
+Inspector-side snapshot workflow now behaves as follows:
+
+- **Save**
+  - captures current selected path (`nodeIds`, connecting `edgeIds`) and conversation rows
+  - uses typed name input (falls back to generated “Snapshot N”)
+  - stores preset and opens conversation modal with captured conversation
+- **Recall**
+  - sets active recalled node/edge IDs
+  - restores conversation rows from the preset
+  - opens journey conversation modal
+- **Delete**
+  - confirmation-protected preset deletion
+- **Clear recalled path**
+  - clears recalled highlighting state without deleting saved presets
+
+Undo integration was extended so save/recall/delete/clear actions participate in the existing 3-snapshot history.
+
+## 7) Refactor Outcomes
+
+Concrete architecture outcomes from this session:
+
+1. Added reusable snapshot typing/sanitization/clone helpers.
+2. Extended project persistence so journey presets are durable per project.
+3. Added a collapsible Journey Snapshots inspector module with full CRUD-like flow (save/recall/delete/clear recalled state).
+4. Unified path recall behavior across both visual highlighting and conversation modal restoration.
+5. Expanded undo snapshot payload to include journey snapshot UI state.
+
+## 8) Validation and Operational Notes
+
+Focused validation was executed on the modified implementation surface:
+
+- `npx eslint app/page.tsx --max-warnings=0`
+
+Operational note:
+
+- shell output in this environment includes control/spinner artifacts, but no ESLint errors were emitted for the targeted file check.
+
+## 9) Recommended Next Steps
+
+1. Add edit/rename and overwrite behaviors for existing snapshot presets.
+2. Add optional snapshot metadata (description/tags) for larger preset banks.
+3. Add automated tests for snapshot persistence, recall highlighting, and conversation replay fidelity.
+4. Add snapshot import/export support at project-transfer level if presets should travel across environments.
+5. Consider adding a “compare current selection vs recalled preset” indicator for quick journey diffing.
+
 ##02-27-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -2173,6 +2303,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 
