@@ -38,6 +38,120 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session added a new **UI Journey Conversation** surface in Canvas mode so selected nodes can be reviewed as a single ordered narrative.
+
+The product-level behavior is:
+
+- user selects one or more nodes (or a frame)
+- user clicks **UI Journey Conversation** in the side panel
+- app opens a modal that shows sequence-ordered conversation entries and key copy fields
+
+## 2) Core Data Model
+
+The session introduced a lightweight conversation view model (runtime-only):
+
+- `UiJourneyConversationField` (`label`, `value`)
+- `UiJourneyConversationEntry` (`nodeId`, `nodeType`, `sequence`, `title`, `fields`)
+
+Supporting builder helpers now exist:
+
+- `buildUiJourneyConversationFields(nodeData)`
+- `buildUiJourneyConversationEntries({ nodes, ordering, selectedNodeIds })`
+
+Component state/wiring added in `Page`:
+
+- `isUiJourneyConversationOpen`
+- `uiJourneyConversationSnapshot`
+- selection adapter `selectedNodeIdsForUiJourneyConversation`
+- open/close callbacks for modal lifecycle
+
+## 3) Persistence and Migration Strategy
+
+No persisted schema or storage migration changes were introduced.
+
+The conversation payload is generated on demand from current in-memory editor state and is not written to project storage.
+
+- no localStorage key changes
+- no import/export contract changes
+- no `AppStore` model changes
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering algorithms were not modified in this session.
+
+Conversation generation reuses existing ordering outputs:
+
+- iterates in `ordering.orderedNodeIds`
+- displays `ordering.sequenceByNodeId[nodeId]`
+- preserves current tie-break semantics (`x → y → id`) via existing ordering pipeline
+
+Frame-aware inclusion behavior was added in the conversation builder:
+
+- selecting a frame includes its `frame_config.member_node_ids` (when present)
+- resulting entries are still rendered in the existing global flow order
+
+## 5) Node Rendering and Shape System
+
+Canvas node-shape rendering contracts were unchanged.
+
+New rendering work was modal/UI specific:
+
+- full-screen overlay dialog (`role="dialog"`, `aria-modal="true"`)
+- per-entry heading format: `sequence - title`
+- frame entries (`nodeType === "frame"`) use centered/larger typography
+- default entries remain left-aligned with compact field text
+- empty field sets show an explicit fallback message
+
+## 6) Editor Interaction Model
+
+Interaction flow added to the side panel:
+
+- **UI Journey Conversation** button appears in the existing utility section
+- button is enabled only when node/frame selection exists (disabled for edge-only/no selection)
+- clicking button captures a snapshot and opens modal
+
+Modal close paths:
+
+- click backdrop
+- click **Close** button
+- press `Escape`
+
+`Escape` handling is attached only while modal is open and cleaned up on close/unmount.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added reusable conversation field/entry builder helpers.
+2. Added frame-member-aware selection expansion for conversation snapshots.
+3. Added side-panel trigger button with disabled-state guardrails.
+4. Added modal rendering with frame-vs-default typography/alignment rules.
+5. Added keyboard close support (`Escape`) for the new dialog.
+
+## 8) Validation and Operational Notes
+
+Validation completed with the repository lint command:
+
+- `npm run lint` (exit code `0`)
+
+Operational notes observed during verification:
+
+- `eslint --file ...` is not supported with this repo’s flat config setup, so full `npm run lint` was used.
+- a separate `next dev` run reported an existing `.next/dev/lock`, indicating another dev instance was already active.
+
+## 9) Recommended Next Steps
+
+1. Add a copy/export action for modal output (clipboard + markdown/plain text).
+2. Add optional “refresh from current selection” while modal remains open.
+3. Add automated tests for frame selection expansion and modal close behavior.
+4. Consider adding grouping visuals for shared sequence indices (parallel groups) in the conversation view.
+
+##02-27-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session added a keyboard-first framing workflow to speed up canvas composition.
 
 Product behavior now includes:
@@ -2059,6 +2173,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 

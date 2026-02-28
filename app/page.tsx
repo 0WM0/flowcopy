@@ -262,6 +262,19 @@ type EditorSnapshot = {
   controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
 };
 
+type UiJourneyConversationField = {
+  label: string;
+  value: string;
+};
+
+type UiJourneyConversationEntry = {
+  nodeId: string;
+  nodeType: NodeType;
+  sequence: number | null;
+  title: string;
+  fields: UiJourneyConversationField[];
+};
+
 const APP_STORAGE_KEY = "flowcopy.store.v1";
 const LEGACY_STORAGE_KEY = "flowcopy.canvas.v2";
 const SINGLE_ACCOUNT_CODE = "000";
@@ -451,6 +464,32 @@ const inspectorFieldLabelStyle: React.CSSProperties = {
   marginBottom: 4,
   fontWeight: 700,
   color: "#1e293b",
+};
+
+const buildUiJourneyConversationFields = (
+  nodeData: MicrocopyNodeData
+): UiJourneyConversationField[] => {
+  const fields: UiJourneyConversationField[] = [];
+
+  const addField = (label: string, value: string) => {
+    const normalizedValue = value.trim();
+    if (!normalizedValue) {
+      return;
+    }
+
+    fields.push({
+      label,
+      value: normalizedValue,
+    });
+  };
+
+  addField("Body Text", nodeData.body_text);
+  addField("Primary CTA", nodeData.primary_cta);
+  addField("Secondary CTA", nodeData.secondary_cta);
+  addField("Helper Text", nodeData.helper_text);
+  addField("Error Text", nodeData.error_text);
+
+  return fields;
 };
 
 const SIDE_PANEL_MIN_WIDTH = 420;
@@ -2250,6 +2289,64 @@ const compareNodeOrder = (a: FlowNode, b: FlowNode): number => {
   return a.id.localeCompare(b.id);
 };
 
+const buildUiJourneyConversationEntries = ({
+  nodes,
+  ordering,
+  selectedNodeIds,
+}: {
+  nodes: FlowNode[];
+  ordering: FlowOrderingResult;
+  selectedNodeIds: string[];
+}): UiJourneyConversationEntry[] => {
+  if (selectedNodeIds.length === 0) {
+    return [];
+  }
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const includedNodeIds = new Set<string>();
+
+  selectedNodeIds.forEach((selectedNodeId) => {
+    if (nodeById.has(selectedNodeId)) {
+      includedNodeIds.add(selectedNodeId);
+    }
+  });
+
+  const selectedFrameNodes = selectedNodeIds
+    .map((selectedNodeId) => nodeById.get(selectedNodeId))
+    .filter(
+      (node): node is FlowNode =>
+        Boolean(node) && node.data.node_type === "frame"
+    );
+
+  selectedFrameNodes.forEach((frameNode) => {
+    const frameConfig = normalizeFrameNodeConfig(frameNode.data.frame_config);
+
+    frameConfig.member_node_ids.forEach((memberNodeId) => {
+      if (nodeById.has(memberNodeId)) {
+        includedNodeIds.add(memberNodeId);
+      }
+    });
+  });
+
+  return ordering.orderedNodeIds
+    .filter((nodeId) => includedNodeIds.has(nodeId))
+    .map((nodeId) => {
+      const node = nodeById.get(nodeId);
+      if (!node) {
+        return null;
+      }
+
+      return {
+        nodeId,
+        nodeType: node.data.node_type,
+        sequence: ordering.sequenceByNodeId[nodeId] ?? null,
+        title: node.data.title.trim(),
+        fields: buildUiJourneyConversationFields(node.data),
+      };
+    })
+    .filter((entry): entry is UiJourneyConversationEntry => Boolean(entry));
+};
+
 const buildParallelGroupId = (componentNodeIds: string[]): string =>
   `PG-${componentNodeIds.slice().sort((a, b) => a.localeCompare(b)).join("|")}`;
 
@@ -3559,6 +3656,11 @@ export default function Page() {
     Record<GlobalOptionField, string>
   >(createEmptyPendingOptionInputs);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isProjectSequencePanelOpen, setIsProjectSequencePanelOpen] = useState(true);
+  const [isUiJourneyConversationOpen, setIsUiJourneyConversationOpen] = useState(false);
+  const [uiJourneyConversationSnapshot, setUiJourneyConversationSnapshot] = useState<
+    UiJourneyConversationEntry[]
+  >([]);
   const [showNodeIdsOnCanvas, setShowNodeIdsOnCanvas] = useState(false);
   const [undoStack, setUndoStack] = useState<EditorSnapshot[]>([]);
   const [transferFeedback, setTransferFeedback] = useState<ImportFeedback | null>(null);
@@ -4665,6 +4767,36 @@ export default function Page() {
 
   const canCreateFrameFromSelection =
     selectedNonFrameNodesForFrameCreation.length >= 2;
+
+  const selectedNodeIdsForUiJourneyConversation = useMemo(() => {
+    if (selectedEdgeId) {
+      return [];
+    }
+
+    if (selectedNodeIds.length > 0) {
+      return selectedNodeIds;
+    }
+
+    return selectedNodeId ? [selectedNodeId] : [];
+  }, [selectedEdgeId, selectedNodeId, selectedNodeIds]);
+
+  const canOpenUiJourneyConversation =
+    selectedNodeIdsForUiJourneyConversation.length > 0;
+
+  const openUiJourneyConversation = useCallback(() => {
+    const entries = buildUiJourneyConversationEntries({
+      nodes,
+      ordering,
+      selectedNodeIds: selectedNodeIdsForUiJourneyConversation,
+    });
+
+    setUiJourneyConversationSnapshot(entries);
+    setIsUiJourneyConversationOpen(true);
+  }, [nodes, ordering, selectedNodeIdsForUiJourneyConversation]);
+
+  const closeUiJourneyConversation = useCallback(() => {
+    setIsUiJourneyConversationOpen(false);
+  }, []);
 
   const normalizedSelectedEdgeData =
     selectedEdge === null
@@ -5801,6 +5933,24 @@ export default function Page() {
     };
   }, [handleSidePanelPointerMove, isResizingSidePanel, stopSidePanelResize]);
 
+  useEffect(() => {
+    if (!isUiJourneyConversationOpen) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsUiJourneyConversationOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isUiJourneyConversationOpen]);
+
   if (store.session.view === "account") {
     return (
       <main
@@ -6380,6 +6530,8 @@ export default function Page() {
           padding: 12,
           overflowY: "auto",
           display: "grid",
+          alignContent: "start",
+          gridAutoRows: "min-content",
           gap: 10,
         }}
       >
@@ -6504,55 +6656,92 @@ export default function Page() {
             padding: 10,
           }}
         >
-          <div style={{ fontSize: 12, color: "#1e3a8a", fontWeight: 700 }}>
-            Project Sequence ID
-          </div>
-          <code
+          <div
             style={{
-              display: "block",
-              marginTop: 6,
-              fontSize: 12,
-              background: "#eff6ff",
-              border: "1px solid #bfdbfe",
-              borderRadius: 6,
-              padding: "6px 8px",
-              color: "#1e3a8a",
-              wordBreak: "break-all",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
             }}
           >
-            {projectSequenceId}
-          </code>
-
-          <div style={{ fontSize: 11, color: "#334155", marginTop: 8 }}>
-            Order rule: topological flow; ties sort by x → y → id. Parallel-linked nodes
-            share the same sequence number.
+            <div style={{ fontSize: 12, color: "#1e3a8a", fontWeight: 700 }}>
+              Project Sequence ID
+            </div>
+            <button
+              type="button"
+              style={{
+                ...buttonStyle,
+                fontSize: 11,
+                padding: "2px 8px",
+                borderColor: "#93c5fd",
+                color: "#1e3a8a",
+                background: "#eff6ff",
+              }}
+              onClick={() =>
+                setIsProjectSequencePanelOpen((isOpen) => !isOpen)
+              }
+            >
+              {isProjectSequencePanelOpen ? "Hide" : "Show"}
+            </button>
           </div>
 
-          {ordering.hasCycle && (
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: 11,
-                color: "#92400e",
-                background: "#fff7ed",
-                border: "1px solid #fed7aa",
-                borderRadius: 6,
-                padding: "6px 8px",
-              }}
-            >
-              Cycle detected. Remaining nodes are appended by left-to-right fallback.
-            </div>
-          )}
+          {isProjectSequencePanelOpen && (
+            <>
+              <code
+                style={{
+                  display: "block",
+                  marginTop: 6,
+                  fontSize: 12,
+                  background: "#eff6ff",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: 6,
+                  padding: "6px 8px",
+                  color: "#1e3a8a",
+                  wordBreak: "break-all",
+                }}
+              >
+                {projectSequenceId}
+              </code>
 
-          <ol style={{ marginTop: 10, marginBottom: 0, paddingLeft: 18, fontSize: 12 }}>
-            {orderedNodes.map((node) => (
-              <li key={`order:${node.id}`} style={{ marginBottom: 4 }}>
-                <strong>#{ordering.sequenceByNodeId[node.id]}</strong>{" "}
-                {node.data.title || "Untitled"}
-                <div style={{ color: "#64748b", fontSize: 11 }}>id: {node.id}</div>
-              </li>
-            ))}
-          </ol>
+              <div style={{ fontSize: 11, color: "#334155", marginTop: 8 }}>
+                Order rule: topological flow; ties sort by x → y → id. Parallel-linked
+                nodes share the same sequence number.
+              </div>
+
+              {ordering.hasCycle && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 11,
+                    color: "#92400e",
+                    background: "#fff7ed",
+                    border: "1px solid #fed7aa",
+                    borderRadius: 6,
+                    padding: "6px 8px",
+                  }}
+                >
+                  Cycle detected. Remaining nodes are appended by left-to-right fallback.
+                </div>
+              )}
+
+              <ol
+                style={{
+                  marginTop: 10,
+                  marginBottom: 0,
+                  paddingLeft: 18,
+                  fontSize: 12,
+                }}
+              >
+                {orderedNodes.map((node) => (
+                  <li key={`order:${node.id}`} style={{ marginBottom: 4 }}>
+                    <strong>#{ordering.sequenceByNodeId[node.id]}</strong>{" "}
+                    {node.data.title || "Untitled"}
+                    <div style={{ color: "#64748b", fontSize: 11 }}>id: {node.id}</div>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
         </section>
 
         <div
@@ -6618,6 +6807,28 @@ export default function Page() {
             background: "#ffffff",
           }}
         >
+
+        <button
+          type="button"
+          style={{
+            ...buttonStyle,
+            borderColor: "#93c5fd",
+            background: "#eff6ff",
+            color: "#1e3a8a",
+            fontWeight: 700,
+            opacity: canOpenUiJourneyConversation ? 1 : 0.5,
+            cursor: canOpenUiJourneyConversation ? "pointer" : "not-allowed",
+          }}
+          onClick={openUiJourneyConversation}
+          disabled={!canOpenUiJourneyConversation}
+          title={
+            canOpenUiJourneyConversation
+              ? "Build conversation from selected nodes"
+              : "Select at least one node or frame"
+          }
+        >
+          UI Journey Conversation
+        </button>
 
         {canCreateFrameFromSelection && (
           <button
@@ -7857,9 +8068,138 @@ export default function Page() {
         )}
         </section>
       </aside>
+
+      {isUiJourneyConversationOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="UI Journey Conversation"
+          onClick={closeUiJourneyConversation}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 2000,
+            background: "rgba(15, 23, 42, 0.5)",
+            display: "grid",
+            placeItems: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(860px, 96vw)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              border: "1px solid #cbd5e1",
+              borderRadius: 12,
+              background: "#ffffff",
+              boxShadow: "0 22px 45px rgba(15, 23, 42, 0.22)",
+              padding: 14,
+              display: "grid",
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 18, color: "#0f172a" }}>
+                UI Journey Conversation
+              </h3>
+
+              <button
+                type="button"
+                style={{
+                  ...buttonStyle,
+                  borderColor: "#94a3b8",
+                  color: "#0f172a",
+                  fontWeight: 700,
+                }}
+                onClick={closeUiJourneyConversation}
+              >
+                Close
+              </button>
+            </div>
+
+            {uiJourneyConversationSnapshot.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
+                No nodes found in the current selection.
+              </p>
+            ) : (
+              <div style={{ display: "grid", gap: 10 }}>
+                {uiJourneyConversationSnapshot.map((entry) => {
+                  const heading = `${entry.sequence ?? "-"} - ${entry.title || "Untitled"}`;
+                  const isFrameEntry = entry.nodeType === "frame";
+
+                  return (
+                    <section
+                      key={`ui-journey-conversation:${entry.nodeId}`}
+                      style={{
+                        border: "1px solid #dbeafe",
+                        borderRadius: 10,
+                        background: isFrameEntry ? "#f8fafc" : "#ffffff",
+                        padding: "10px 12px",
+                        display: "grid",
+                        gap: 4,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: isFrameEntry ? 18 : 16,
+                          color: "#0f172a",
+                          textAlign: isFrameEntry ? "center" : "left",
+                        }}
+                      >
+                        {heading}
+                      </div>
+
+                      {entry.fields.length > 0 ? (
+                        entry.fields.map((field) => (
+                          <div
+                            key={`${entry.nodeId}:${field.label}`}
+                            style={{
+                              fontSize: isFrameEntry ? 14 : 12,
+                              color: "#334155",
+                              textAlign: isFrameEntry ? "center" : "left",
+                            }}
+                          >
+                            <strong>{field.label}:</strong> {field.value}
+                          </div>
+                        ))
+                      ) : (
+                        <div
+                          style={{
+                            fontSize: isFrameEntry ? 14 : 12,
+                            color: "#94a3b8",
+                            textAlign: isFrameEntry ? "center" : "left",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          No copy fields provided.
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+
+
+
+
 
 
 
