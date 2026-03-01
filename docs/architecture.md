@@ -38,6 +38,93 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session delivered a targeted UX refinement in the editor inspector for the **Controlled Language** section.
+
+The existing show/hide behavior remains unchanged, but the table viewport is now intentionally constrained so users see a maximum of six body rows at once (the add row + five additional rows) before scrolling.
+
+## 2) Core Data Model
+
+No persisted schema contracts changed in this session.
+
+The change introduced UI sizing constants in `app/page.tsx` to make the row-cap behavior explicit and maintainable:
+
+- `CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS = 6`
+- `CONTROLLED_LANGUAGE_ROW_HEIGHT_PX = 42`
+- `CONTROLLED_LANGUAGE_TABLE_HEADER_HEIGHT_PX = 34`
+- `CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX` (derived from header + visible rows)
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged.
+
+- no localStorage key changes
+- no project payload shape changes
+- no migration-path updates
+
+All work was UI-layout behavior within the existing inspector rendering path.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+This session was presentation-only and did not affect graph sequencing semantics.
+
+## 5) Node Rendering and Shape System
+
+Canvas node and edge rendering systems were unchanged.
+
+The rendering change was scoped to the Controlled Language inspector table wrapper:
+
+- retained horizontal scrolling (`overflowX: "auto"`)
+- added vertical scrolling (`overflowY: "auto"`)
+- added bounded viewport height (`maxHeight: CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX`)
+
+## 6) Editor Interaction Model
+
+Interaction behavior now works as follows:
+
+- user toggles **Show/Hide Controlled Language** exactly as before
+- when open, the table initially shows only up to six visible body rows
+- if rows exceed that threshold, the table body region scrolls vertically within the same panel
+- horizontal overflow still scrolls when needed
+
+This keeps the inspector compact while preserving access to all rows.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added explicit constants for controlled-language table viewport sizing.
+2. Replaced unbounded table wrapper behavior with bounded vertical scrolling.
+3. Preserved all existing controlled-language editing flows (add, rename, include toggle) and panel toggle behavior.
+
+## 8) Validation and Operational Notes
+
+Validation commands run during this session:
+
+- `npm run lint`
+- `npx eslint app/page.tsx`
+
+Operational note:
+
+- terminal output in this environment included shell/spinner artifacts, but no lint diagnostics were emitted for the updated file in this run.
+
+## 9) Recommended Next Steps
+
+1. Add a sticky header to the Controlled Language table for long scrolled lists.
+2. Consider converting fixed row-height assumptions to CSS variables if row density changes over time.
+3. Add a small “showing first N rows” helper hint when overflow is active.
+4. Add visual regression coverage for inspector panel scroll behavior.
+
+##02-28-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session extended the canvas-side **UI Journey Conversation** flow with a reusable snapshot workflow so users can capture and replay journey paths.
 
 The product-level behavior now includes:
@@ -2303,6 +2390,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 

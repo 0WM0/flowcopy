@@ -261,6 +261,12 @@ type ImportFeedback = {
   message: string;
 };
 
+type UiJourneyConversationExportFormat = "txt" | "md" | "html" | "rtf";
+type DownloadTextExtension = "csv" | "xml" | UiJourneyConversationExportFormat;
+type UiJourneyConversationHtmlBuildOptions = {
+  includeDocumentWrapper?: boolean;
+};
+
 type EditorSnapshot = {
   nodes: FlowNode[];
   edges: FlowEdge[];
@@ -463,6 +469,13 @@ const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<ControlledLanguageFieldType, numbe
   menu_term: 4,
 };
 
+const CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS = 6;
+const CONTROLLED_LANGUAGE_ROW_HEIGHT_PX = 42;
+const CONTROLLED_LANGUAGE_TABLE_HEADER_HEIGHT_PX = 34;
+const CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX =
+  CONTROLLED_LANGUAGE_TABLE_HEADER_HEIGHT_PX +
+  CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS * CONTROLLED_LANGUAGE_ROW_HEIGHT_PX;
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
   border: "1px solid #d4d4d8",
@@ -480,6 +493,23 @@ const buttonStyle: React.CSSProperties = {
   cursor: "pointer",
   fontSize: 12,
 };
+
+const UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS: Record<
+  UiJourneyConversationExportFormat,
+  string
+> = {
+  txt: "TXT",
+  md: "Markdown",
+  html: "HTML",
+  rtf: "RTF",
+};
+
+const UI_JOURNEY_CONVERSATION_EXPORT_FORMATS: UiJourneyConversationExportFormat[] = [
+  "txt",
+  "md",
+  "html",
+  "rtf",
+];
 
 const getToggleButtonStyle = (isActive: boolean): React.CSSProperties => ({
   ...buttonStyle,
@@ -536,6 +566,254 @@ const cloneUiJourneyConversationEntries = (
       value: field.value,
     })),
   }));
+
+const normalizeMultilineText = (value: string): string =>
+  value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+const buildUiJourneyConversationHeading = (
+  entry: UiJourneyConversationEntry
+): string => `${entry.sequence ?? "-"} - ${entry.title || "Untitled"}`;
+
+const buildUiJourneyConversationPlainText = (
+  entries: UiJourneyConversationEntry[],
+  generatedAtLabel: string
+): string => {
+  const lines: string[] = [
+    "UI Journey Conversation",
+    `Generated: ${generatedAtLabel}`,
+    "",
+  ];
+
+  if (entries.length === 0) {
+    lines.push("No nodes found in the current selection.");
+    return lines.join("\n");
+  }
+
+  entries.forEach((entry, entryIndex) => {
+    lines.push(buildUiJourneyConversationHeading(entry));
+
+    if (entry.fields.length === 0) {
+      lines.push("No copy fields provided.");
+    } else {
+      entry.fields.forEach((field) => {
+        const normalizedValue = normalizeMultilineText(field.value);
+        const [firstLine, ...remainingLines] = normalizedValue.split("\n");
+
+        lines.push(`${field.label}: ${firstLine ?? ""}`);
+        remainingLines.forEach((line) => {
+          lines.push(`  ${line}`);
+        });
+      });
+    }
+
+    if (entryIndex < entries.length - 1) {
+      lines.push("");
+    }
+  });
+
+  return lines.join("\n");
+};
+
+const buildUiJourneyConversationMarkdown = (
+  entries: UiJourneyConversationEntry[],
+  generatedAtLabel: string
+): string => {
+  const lines: string[] = [
+    "# UI Journey Conversation",
+    "",
+    `Generated: ${generatedAtLabel}`,
+    "",
+  ];
+
+  if (entries.length === 0) {
+    lines.push("No nodes found in the current selection.");
+    return lines.join("\n");
+  }
+
+  entries.forEach((entry, entryIndex) => {
+    lines.push(`## ${buildUiJourneyConversationHeading(entry)}`);
+
+    if (entry.fields.length === 0) {
+      lines.push("_No copy fields provided._");
+    } else {
+      entry.fields.forEach((field) => {
+        const normalizedValue = normalizeMultilineText(field.value).trim();
+
+        if (normalizedValue.includes("\n")) {
+          lines.push(`- **${field.label}:**`);
+          lines.push("```");
+          lines.push(normalizedValue);
+          lines.push("```");
+          return;
+        }
+
+        lines.push(`- **${field.label}:** ${normalizedValue}`);
+      });
+    }
+
+    if (entryIndex < entries.length - 1) {
+      lines.push("");
+    }
+  });
+
+  return lines.join("\n");
+};
+
+const buildUiJourneyConversationHtml = (
+  entries: UiJourneyConversationEntry[],
+  generatedAtLabel: string,
+  options: UiJourneyConversationHtmlBuildOptions = {}
+): string => {
+  const includeDocumentWrapper = options.includeDocumentWrapper ?? true;
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.45;">
+      <h1 style="margin: 0 0 8px; font-size: 24px;">UI Journey Conversation</h1>
+      <p style="margin: 0 0 16px; font-size: 12px; color: #475569;">Generated: ${escapeXmlText(generatedAtLabel)}</p>
+      ${
+        entries.length === 0
+          ? '<p style="margin: 0; font-size: 13px; color: #64748b;">No nodes found in the current selection.</p>'
+          : entries
+              .map((entry) => {
+                const heading = escapeXmlText(buildUiJourneyConversationHeading(entry));
+                const isFrameEntry = entry.nodeType === "frame";
+
+                const renderedFields =
+                  entry.fields.length === 0
+                    ? `<p style="margin: 0; font-size: ${isFrameEntry ? 14 : 12}px; color: #94a3b8; font-style: italic; text-align: ${isFrameEntry ? "center" : "left"};">No copy fields provided.</p>`
+                    : entry.fields
+                        .map((field) => {
+                          const escapedLabel = escapeXmlText(field.label);
+                          const escapedValue = escapeXmlText(
+                            normalizeMultilineText(field.value)
+                          ).replace(/\n/g, "<br />");
+
+                          return `<p style="margin: 0; font-size: ${isFrameEntry ? 14 : 12}px; color: #334155; text-align: ${isFrameEntry ? "center" : "left"};"><strong>${escapedLabel}:</strong> ${escapedValue}</p>`;
+                        })
+                        .join("");
+
+                return `<section style="border: 1px solid #dbeafe; border-radius: 10px; background: ${
+                  isFrameEntry ? "#f8fafc" : "#ffffff"
+                }; padding: 10px 12px; display: grid; gap: 4px; margin-bottom: 10px;"><h2 style="margin: 0; font-size: ${
+                  isFrameEntry ? 22 : 18
+                }px; color: #0f172a; text-align: ${
+                  isFrameEntry ? "center" : "left"
+                }">${heading}</h2>${renderedFields}</section>`;
+              })
+              .join("")
+      }
+    </div>
+  `.trim();
+
+  if (!includeDocumentWrapper) {
+    return htmlBody;
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UI Journey Conversation</title>
+  </head>
+  <body>
+    ${htmlBody}
+  </body>
+</html>`;
+};
+
+const escapeRtfText = (value: string): string => {
+  const normalizedValue = normalizeMultilineText(value);
+  let escapedValue = "";
+
+  for (const character of normalizedValue) {
+    if (character === "\\") {
+      escapedValue += "\\\\";
+      continue;
+    }
+
+    if (character === "{") {
+      escapedValue += "\\{";
+      continue;
+    }
+
+    if (character === "}") {
+      escapedValue += "\\}";
+      continue;
+    }
+
+    if (character === "\n") {
+      escapedValue += "\\line ";
+      continue;
+    }
+
+    const codePoint = character.codePointAt(0);
+    if (typeof codePoint === "number" && (codePoint < 32 || codePoint > 126)) {
+      escapedValue += `\\u${codePoint <= 32767 ? codePoint : 63}?`;
+      continue;
+    }
+
+    escapedValue += character;
+  }
+
+  return escapedValue;
+};
+
+const buildUiJourneyConversationRtf = (
+  entries: UiJourneyConversationEntry[],
+  generatedAtLabel: string
+): string => {
+  const lines: string[] = [
+    "{\\rtf1\\ansi\\deff0",
+    "{\\fonttbl{\\f0 Arial;}}",
+    "\\viewkind4\\uc1",
+    "\\pard\\sa180\\sl276\\slmult1\\f0\\fs36\\b UI Journey Conversation\\b0\\fs24\\par",
+    `\\pard\\sa180\\sl276\\slmult1\\f0\\fs20 Generated: ${escapeRtfText(generatedAtLabel)}\\par`,
+    "\\par",
+  ];
+
+  if (entries.length === 0) {
+    lines.push(
+      "\\pard\\ql\\sa120\\f0\\fs22\\i No nodes found in the current selection.\\i0\\par"
+    );
+    lines.push("}");
+    return lines.join("\n");
+  }
+
+  entries.forEach((entry, entryIndex) => {
+    const heading = escapeRtfText(buildUiJourneyConversationHeading(entry));
+    const isFrameEntry = entry.nodeType === "frame";
+
+    lines.push(
+      `\\pard${isFrameEntry ? "\\qc" : "\\ql"}\\sa120\\f0\\${
+        isFrameEntry ? "fs34" : "fs30"
+      }\\b ${heading}\\b0\\par`
+    );
+
+    if (entry.fields.length === 0) {
+      lines.push(
+        `\\pard${isFrameEntry ? "\\qc" : "\\ql"}\\sa90\\f0\\fs22\\i No copy fields provided.\\i0\\par`
+      );
+    } else {
+      entry.fields.forEach((field) => {
+        const label = escapeRtfText(`${field.label}:`);
+        const value = escapeRtfText(field.value);
+
+        lines.push(
+          `\\pard${isFrameEntry ? "\\qc" : "\\ql"}\\sa90\\f0\\fs22\\b ${label}\\b0 ${value}\\par`
+        );
+      });
+    }
+
+    if (entryIndex < entries.length - 1) {
+      lines.push("\\par");
+    }
+  });
+
+  lines.push("}");
+
+  return lines.join("\n");
+};
 
 const sanitizeUniqueStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) {
@@ -1882,9 +2160,18 @@ const toNumeric = (value: string | undefined): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const DOWNLOAD_TEXT_MIME_BY_EXTENSION: Record<DownloadTextExtension, string> = {
+  csv: "text/csv;charset=utf-8",
+  xml: "application/xml;charset=utf-8",
+  txt: "text/plain;charset=utf-8",
+  md: "text/markdown;charset=utf-8",
+  html: "text/html;charset=utf-8",
+  rtf: "application/rtf;charset=utf-8",
+};
+
 const buildDownloadFileName = (
   projectId: string,
-  extension: "csv" | "xml"
+  extension: DownloadTextExtension
 ): string => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   return `${projectId}-${timestamp}.${extension}`;
@@ -6241,8 +6528,8 @@ export default function Page() {
   );
 
   const downloadTextFile = useCallback(
-    (projectId: string, extension: "csv" | "xml", payload: string) => {
-      const mimeType = extension === "csv" ? "text/csv;charset=utf-8" : "application/xml";
+    (projectId: string, extension: DownloadTextExtension, payload: string) => {
+      const mimeType = DOWNLOAD_TEXT_MIME_BY_EXTENSION[extension];
       const blob = new Blob([payload], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -6254,6 +6541,45 @@ export default function Page() {
       URL.revokeObjectURL(url);
     },
     []
+  );
+
+  const exportUiJourneyConversation = useCallback(
+    (format: UiJourneyConversationExportFormat) => {
+      if (!activeProject) {
+        return;
+      }
+
+      const generatedAtLabel = new Date().toLocaleString();
+
+      const payload =
+        format === "txt"
+          ? buildUiJourneyConversationPlainText(
+              uiJourneyConversationSnapshot,
+              generatedAtLabel
+            )
+          : format === "md"
+            ? buildUiJourneyConversationMarkdown(
+                uiJourneyConversationSnapshot,
+                generatedAtLabel
+              )
+            : format === "html"
+              ? buildUiJourneyConversationHtml(
+                  uiJourneyConversationSnapshot,
+                  generatedAtLabel
+                )
+              : buildUiJourneyConversationRtf(
+                  uiJourneyConversationSnapshot,
+                  generatedAtLabel
+                );
+
+      downloadTextFile(activeProject.id, format, payload);
+
+      setTransferFeedback({
+        type: "success",
+        message: `Exported UI Journey Conversation as ${UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS[format]}.`,
+      });
+    },
+    [activeProject, downloadTextFile, uiJourneyConversationSnapshot]
   );
 
   const exportProjectData = useCallback(
@@ -7756,7 +8082,13 @@ export default function Page() {
               term in glossary dropdowns beside editable text fields.
             </p>
 
-            <div style={{ overflowX: "auto" }}>
+            <div
+              style={{
+                overflowX: "auto",
+                overflowY: "auto",
+                maxHeight: CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX,
+              }}
+            >
               <table
                 style={{
                   borderCollapse: "collapse",
@@ -8993,18 +9325,45 @@ export default function Page() {
                 UI Journey Conversation
               </h3>
 
-              <button
-                type="button"
+              <div
                 style={{
-                  ...buttonStyle,
-                  borderColor: "#94a3b8",
-                  color: "#0f172a",
-                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  flexWrap: "wrap",
+                  gap: 6,
                 }}
-                onClick={closeUiJourneyConversation}
               >
-                Close
-              </button>
+                {UI_JOURNEY_CONVERSATION_EXPORT_FORMATS.map((format) => (
+                  <button
+                    key={`ui-journey-conversation-export:${format}`}
+                    type="button"
+                    style={{
+                      ...buttonStyle,
+                      borderColor: "#bfdbfe",
+                      background: "#eff6ff",
+                      color: "#1e3a8a",
+                      fontWeight: 700,
+                    }}
+                    onClick={() => exportUiJourneyConversation(format)}
+                  >
+                    Export {UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS[format]}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  style={{
+                    ...buttonStyle,
+                    borderColor: "#94a3b8",
+                    color: "#0f172a",
+                    fontWeight: 700,
+                  }}
+                  onClick={closeUiJourneyConversation}
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
             {uiJourneyConversationSnapshot.length === 0 ? (
@@ -9076,6 +9435,11 @@ export default function Page() {
     </div>
   );
 }
+
+
+
+
+
 
 
 
