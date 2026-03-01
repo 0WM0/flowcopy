@@ -282,16 +282,40 @@ type EditorSnapshot = {
 };
 
 type UiJourneyConversationField = {
+  id: string;
+  sourceKey: string;
   label: string;
   value: string;
 };
 
 type UiJourneyConversationEntry = {
+  entryId: string;
+  nodeInstanceId: string;
+  titleFieldId: string;
   nodeId: string;
   nodeType: NodeType;
   sequence: number | null;
   title: string;
   fields: UiJourneyConversationField[];
+  connectionMeta: UiJourneyConversationConnectionMeta;
+};
+
+type UiJourneyConversationConnectionMeta = {
+  groupId: string | null;
+  groupIndex: number | null;
+  connectorIds: string[];
+  connectedNodeIds: string[];
+  isOrphan: boolean;
+};
+
+type UiJourneyConversationGroupScheme = {
+  background: string;
+  border: string;
+  heading: string;
+  field: string;
+  meta: string;
+  idChipBackground: string;
+  idChipText: string;
 };
 
 type UiJourneySnapshotPreset = {
@@ -527,28 +551,251 @@ const inspectorFieldLabelStyle: React.CSSProperties = {
   color: "#1e293b",
 };
 
+const UI_JOURNEY_CONVERSATION_GROUP_SCHEMES: UiJourneyConversationGroupScheme[] = [
+  {
+    background: "#eff6ff",
+    border: "#bfdbfe",
+    heading: "#1e3a8a",
+    field: "#0f172a",
+    meta: "#1d4ed8",
+    idChipBackground: "#dbeafe",
+    idChipText: "#1e3a8a",
+  },
+  {
+    background: "#ecfdf5",
+    border: "#6ee7b7",
+    heading: "#065f46",
+    field: "#064e3b",
+    meta: "#047857",
+    idChipBackground: "#d1fae5",
+    idChipText: "#065f46",
+  },
+  {
+    background: "#fffbeb",
+    border: "#fcd34d",
+    heading: "#92400e",
+    field: "#78350f",
+    meta: "#b45309",
+    idChipBackground: "#fef3c7",
+    idChipText: "#92400e",
+  },
+  {
+    background: "#f5f3ff",
+    border: "#c4b5fd",
+    heading: "#5b21b6",
+    field: "#4c1d95",
+    meta: "#7c3aed",
+    idChipBackground: "#ede9fe",
+    idChipText: "#5b21b6",
+  },
+  {
+    background: "#f8fafc",
+    border: "#cbd5e1",
+    heading: "#334155",
+    field: "#1e293b",
+    meta: "#475569",
+    idChipBackground: "#e2e8f0",
+    idChipText: "#334155",
+  },
+];
+
+const UI_JOURNEY_CONVERSATION_ORPHAN_SCHEME: UiJourneyConversationGroupScheme = {
+  background: "#fef2f2",
+  border: "#fca5a5",
+  heading: "#991b1b",
+  field: "#7f1d1d",
+  meta: "#b91c1c",
+  idChipBackground: "#fee2e2",
+  idChipText: "#991b1b",
+};
+
+const buildUiJourneyConversationEntryId = (
+  nodeId: string,
+  sequence: number | null
+): string => `entry:${nodeId}:seq-${sequence ?? "x"}`;
+
+const buildUiJourneyConversationTitleFieldId = (nodeId: string): string =>
+  `field:${nodeId}:title`;
+
+const buildUiJourneyConversationFieldId = (
+  nodeId: string,
+  sourceKey: string
+): string => `field:${nodeId}:${sourceKey}`;
+
+const getUiJourneyConversationGroupScheme = (
+  groupIndex: number | null,
+  isOrphan: boolean
+): UiJourneyConversationGroupScheme => {
+  if (isOrphan) {
+    return UI_JOURNEY_CONVERSATION_ORPHAN_SCHEME;
+  }
+
+  if (groupIndex === null) {
+    return UI_JOURNEY_CONVERSATION_GROUP_SCHEMES[0];
+  }
+
+  return UI_JOURNEY_CONVERSATION_GROUP_SCHEMES[
+    groupIndex % UI_JOURNEY_CONVERSATION_GROUP_SCHEMES.length
+  ];
+};
+
+const buildUiJourneyConversationConnectionMetaByNodeId = ({
+  includedNodeIds,
+  edges,
+}: {
+  includedNodeIds: string[];
+  edges: FlowEdge[];
+}): Partial<Record<string, UiJourneyConversationConnectionMeta>> => {
+  const includedNodeIdSet = new Set(includedNodeIds);
+  const adjacency = new Map<string, Set<string>>();
+  const internalConnectorIdsByNodeId = new Map<string, Set<string>>();
+  const allConnectorIdsByNodeId = new Map<string, Set<string>>();
+
+  includedNodeIds.forEach((nodeId) => {
+    adjacency.set(nodeId, new Set<string>());
+    internalConnectorIdsByNodeId.set(nodeId, new Set<string>());
+    allConnectorIdsByNodeId.set(nodeId, new Set<string>());
+  });
+
+  edges.forEach((edge) => {
+    const sourceIncluded = includedNodeIdSet.has(edge.source);
+    const targetIncluded = includedNodeIdSet.has(edge.target);
+
+    if (!sourceIncluded && !targetIncluded) {
+      return;
+    }
+
+    if (sourceIncluded) {
+      allConnectorIdsByNodeId.get(edge.source)?.add(edge.id);
+    }
+
+    if (targetIncluded) {
+      allConnectorIdsByNodeId.get(edge.target)?.add(edge.id);
+    }
+
+    if (!sourceIncluded || !targetIncluded) {
+      return;
+    }
+
+    adjacency.get(edge.source)?.add(edge.target);
+    adjacency.get(edge.target)?.add(edge.source);
+
+    internalConnectorIdsByNodeId.get(edge.source)?.add(edge.id);
+    internalConnectorIdsByNodeId.get(edge.target)?.add(edge.id);
+  });
+
+  const metaByNodeId: Partial<Record<string, UiJourneyConversationConnectionMeta>> = {};
+  const visitedNodeIds = new Set<string>();
+  let nextGroupIndex = 0;
+
+  includedNodeIds
+    .slice()
+    .sort((a, b) => a.localeCompare(b))
+    .forEach((nodeId) => {
+      if (visitedNodeIds.has(nodeId)) {
+        return;
+      }
+
+      const neighbors = adjacency.get(nodeId);
+      const hasInternalNeighbor = Boolean(neighbors && neighbors.size > 0);
+
+      if (!hasInternalNeighbor) {
+        visitedNodeIds.add(nodeId);
+
+        const connectorIds = Array.from(allConnectorIdsByNodeId.get(nodeId) ?? []).sort(
+          (a, b) => a.localeCompare(b)
+        );
+        const isOrphan = connectorIds.length === 0;
+
+        metaByNodeId[nodeId] = {
+          groupId: isOrphan ? null : `group:external:${nodeId}`,
+          groupIndex: isOrphan ? null : nextGroupIndex++,
+          connectorIds,
+          connectedNodeIds: [],
+          isOrphan,
+        };
+
+        return;
+      }
+
+      const queue = [nodeId];
+      const componentNodeIds: string[] = [];
+      const componentConnectorIds = new Set<string>();
+
+      visitedNodeIds.add(nodeId);
+
+      while (queue.length > 0) {
+        const currentNodeId = queue.shift();
+        if (!currentNodeId) {
+          continue;
+        }
+
+        componentNodeIds.push(currentNodeId);
+
+        internalConnectorIdsByNodeId.get(currentNodeId)?.forEach((connectorId) => {
+          componentConnectorIds.add(connectorId);
+        });
+
+        adjacency.get(currentNodeId)?.forEach((neighborNodeId) => {
+          if (visitedNodeIds.has(neighborNodeId)) {
+            return;
+          }
+
+          visitedNodeIds.add(neighborNodeId);
+          queue.push(neighborNodeId);
+        });
+      }
+
+      const normalizedComponentNodeIds = componentNodeIds
+        .slice()
+        .sort((a, b) => a.localeCompare(b));
+      const groupId = `group:${normalizedComponentNodeIds.join("|")}`;
+      const groupIndex = nextGroupIndex++;
+      const connectorIds = Array.from(componentConnectorIds).sort((a, b) =>
+        a.localeCompare(b)
+      );
+
+      normalizedComponentNodeIds.forEach((componentNodeId) => {
+        metaByNodeId[componentNodeId] = {
+          groupId,
+          groupIndex,
+          connectorIds,
+          connectedNodeIds: normalizedComponentNodeIds.filter(
+            (candidateNodeId) => candidateNodeId !== componentNodeId
+          ),
+          isOrphan: false,
+        };
+      });
+    });
+
+  return metaByNodeId;
+};
+
 const buildUiJourneyConversationFields = (
+  nodeId: string,
   nodeData: MicrocopyNodeData
 ): UiJourneyConversationField[] => {
   const fields: UiJourneyConversationField[] = [];
 
-  const addField = (label: string, value: string) => {
+  const addField = (label: string, sourceKey: string, value: string) => {
     const normalizedValue = value.trim();
     if (!normalizedValue) {
       return;
     }
 
     fields.push({
+      id: buildUiJourneyConversationFieldId(nodeId, sourceKey),
+      sourceKey,
       label,
       value: normalizedValue,
     });
   };
 
-  addField("Body Text", nodeData.body_text);
-  addField("Primary CTA", nodeData.primary_cta);
-  addField("Secondary CTA", nodeData.secondary_cta);
-  addField("Helper Text", nodeData.helper_text);
-  addField("Error Text", nodeData.error_text);
+  addField("Body Text", "body_text", nodeData.body_text);
+  addField("Primary CTA", "primary_cta", nodeData.primary_cta);
+  addField("Secondary CTA", "secondary_cta", nodeData.secondary_cta);
+  addField("Helper Text", "helper_text", nodeData.helper_text);
+  addField("Error Text", "error_text", nodeData.error_text);
 
   return fields;
 };
@@ -557,14 +804,26 @@ const cloneUiJourneyConversationEntries = (
   entries: UiJourneyConversationEntry[]
 ): UiJourneyConversationEntry[] =>
   entries.map((entry) => ({
+    entryId: entry.entryId,
+    nodeInstanceId: entry.nodeInstanceId,
+    titleFieldId: entry.titleFieldId,
     nodeId: entry.nodeId,
     nodeType: entry.nodeType,
     sequence: entry.sequence,
     title: entry.title,
     fields: entry.fields.map((field) => ({
+      id: field.id,
+      sourceKey: field.sourceKey,
       label: field.label,
       value: field.value,
     })),
+    connectionMeta: {
+      groupId: entry.connectionMeta.groupId,
+      groupIndex: entry.connectionMeta.groupIndex,
+      connectorIds: [...entry.connectionMeta.connectorIds],
+      connectedNodeIds: [...entry.connectionMeta.connectedNodeIds],
+      isOrphan: entry.connectionMeta.isOrphan,
+    },
   }));
 
 const normalizeMultilineText = (value: string): string =>
@@ -864,6 +1123,18 @@ const sanitizeUiJourneyConversationEntries = (
         ? source.sequence
         : null;
     const nodeType = isNodeType(source.nodeType) ? source.nodeType : "default";
+    const entryId =
+      typeof source.entryId === "string" && source.entryId.trim().length > 0
+        ? source.entryId.trim()
+        : buildUiJourneyConversationEntryId(nodeId, sequence);
+    const nodeInstanceId =
+      typeof source.nodeInstanceId === "string" && source.nodeInstanceId.trim().length > 0
+        ? source.nodeInstanceId.trim()
+        : nodeId;
+    const titleFieldId =
+      typeof source.titleFieldId === "string" && source.titleFieldId.trim().length > 0
+        ? source.titleFieldId.trim()
+        : buildUiJourneyConversationTitleFieldId(nodeId);
 
     const fields = Array.isArray(source.fields)
       ? source.fields.flatMap((fieldItem) => {
@@ -875,6 +1146,17 @@ const sanitizeUiJourneyConversationEntries = (
           const label =
             typeof fieldSource.label === "string" ? fieldSource.label.trim() : "";
           const value = typeof fieldSource.value === "string" ? fieldSource.value : "";
+          const fallbackSourceKey =
+            typeof fieldSource.sourceKey === "string" && fieldSource.sourceKey.trim().length > 0
+              ? fieldSource.sourceKey.trim()
+              : label
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "_")
+                  .replace(/^_+|_+$/g, "") || "field";
+          const fieldId =
+            typeof fieldSource.id === "string" && fieldSource.id.trim().length > 0
+              ? fieldSource.id.trim()
+              : buildUiJourneyConversationFieldId(nodeId, fallbackSourceKey);
 
           if (!label || value.trim().length === 0) {
             return [];
@@ -882,6 +1164,8 @@ const sanitizeUiJourneyConversationEntries = (
 
           return [
             {
+              id: fieldId,
+              sourceKey: fallbackSourceKey,
               label,
               value,
             },
@@ -889,13 +1173,43 @@ const sanitizeUiJourneyConversationEntries = (
         })
       : [];
 
+    const rawConnectionMeta =
+      source.connectionMeta && typeof source.connectionMeta === "object"
+        ? source.connectionMeta
+        : null;
+    const connectorIds = sanitizeUniqueStringArray(rawConnectionMeta?.connectorIds);
+    const connectedNodeIds = sanitizeUniqueStringArray(rawConnectionMeta?.connectedNodeIds);
+    const groupId =
+      typeof rawConnectionMeta?.groupId === "string" && rawConnectionMeta.groupId.trim().length > 0
+        ? rawConnectionMeta.groupId.trim()
+        : null;
+    const groupIndex =
+      typeof rawConnectionMeta?.groupIndex === "number" &&
+      Number.isFinite(rawConnectionMeta.groupIndex)
+        ? rawConnectionMeta.groupIndex
+        : null;
+    const isOrphan =
+      typeof rawConnectionMeta?.isOrphan === "boolean"
+        ? rawConnectionMeta.isOrphan
+        : groupId === null && connectorIds.length === 0 && connectedNodeIds.length === 0;
+
     return [
       {
+        entryId,
+        nodeInstanceId,
+        titleFieldId,
         nodeId,
         nodeType,
         sequence,
         title,
         fields,
+        connectionMeta: {
+          groupId,
+          groupIndex,
+          connectorIds,
+          connectedNodeIds,
+          isOrphan,
+        },
       },
     ];
   });
@@ -2788,10 +3102,12 @@ const compareNodeOrder = (a: FlowNode, b: FlowNode): number => {
 
 const buildUiJourneyConversationEntries = ({
   nodes,
+  edges,
   ordering,
   selectedNodeIds,
 }: {
   nodes: FlowNode[];
+  edges: FlowEdge[];
   ordering: FlowOrderingResult;
   selectedNodeIds: string[];
 }): UiJourneyConversationEntry[] => {
@@ -2812,7 +3128,7 @@ const buildUiJourneyConversationEntries = ({
     .map((selectedNodeId) => nodeById.get(selectedNodeId))
     .filter(
       (node): node is FlowNode =>
-        Boolean(node) && node.data.node_type === "frame"
+        node !== undefined && node.data.node_type === "frame"
     );
 
   selectedFrameNodes.forEach((frameNode) => {
@@ -2825,20 +3141,41 @@ const buildUiJourneyConversationEntries = ({
     });
   });
 
-  return ordering.orderedNodeIds
+  const orderedIncludedNodeIds = ordering.orderedNodeIds
     .filter((nodeId) => includedNodeIds.has(nodeId))
+    .slice();
+
+  const connectionMetaByNodeId = buildUiJourneyConversationConnectionMetaByNodeId({
+    includedNodeIds: orderedIncludedNodeIds,
+    edges,
+  });
+
+  return orderedIncludedNodeIds
     .map((nodeId) => {
       const node = nodeById.get(nodeId);
       if (!node) {
         return null;
       }
 
+      const sequence = ordering.sequenceByNodeId[nodeId] ?? null;
+      const fallbackConnectionMeta: UiJourneyConversationConnectionMeta = {
+        groupId: null,
+        groupIndex: null,
+        connectorIds: [],
+        connectedNodeIds: [],
+        isOrphan: true,
+      };
+
       return {
+        entryId: buildUiJourneyConversationEntryId(nodeId, sequence),
+        nodeInstanceId: nodeId,
+        titleFieldId: buildUiJourneyConversationTitleFieldId(nodeId),
         nodeId,
         nodeType: node.data.node_type,
-        sequence: ordering.sequenceByNodeId[nodeId] ?? null,
+        sequence,
         title: node.data.title.trim(),
-        fields: buildUiJourneyConversationFields(node.data),
+        fields: buildUiJourneyConversationFields(nodeId, node.data),
+        connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
       };
     })
     .filter((entry): entry is UiJourneyConversationEntry => Boolean(entry));
@@ -2857,6 +3194,7 @@ const buildUiJourneySnapshotCapture = ({
 }): UiJourneySnapshotCapture => {
   const conversation = buildUiJourneyConversationEntries({
     nodes,
+    edges,
     ordering,
     selectedNodeIds,
   });
@@ -5511,13 +5849,14 @@ export default function Page() {
   const openUiJourneyConversation = useCallback(() => {
     const entries = buildUiJourneyConversationEntries({
       nodes,
+      edges,
       ordering,
       selectedNodeIds: selectedNodeIdsForUiJourneyConversation,
     });
 
     setUiJourneyConversationSnapshot(entries);
     setIsUiJourneyConversationOpen(true);
-  }, [nodes, ordering, selectedNodeIdsForUiJourneyConversation]);
+  }, [edges, nodes, ordering, selectedNodeIdsForUiJourneyConversation]);
 
   const closeUiJourneyConversation = useCallback(() => {
     setIsUiJourneyConversationOpen(false);
@@ -9435,6 +9774,12 @@ export default function Page() {
     </div>
   );
 }
+
+
+
+
+
+
 
 
 

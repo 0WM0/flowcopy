@@ -32,6 +32,86 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-01-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a recovery/stabilization pass after a partial UI Journey refactor left the editor in a compile-broken state. The goal was to restore a consistent conversation/snapshot pipeline without changing the product surface area.
+
+## 2) Core Data Model
+
+`UiJourneyConversationEntry` production is now consistent across builders and sanitizers, including all required fields:
+
+- `entryId`
+- `nodeInstanceId`
+- `titleFieldId`
+- `connectionMeta` (`groupId`, `groupIndex`, `connectorIds`, `connectedNodeIds`, `isOrphan`)
+
+`UiJourneyConversationField` normalization now guarantees `id` and `sourceKey`. Legacy/missing values are backfilled deterministically from node/label context.
+
+## 3) Persistence and Migration Strategy
+
+No storage keys or top-level store schema changed. The migration hardening happened at value-normalization time:
+
+- `sanitizeUiJourneyConversationEntries(...)` now backfills missing IDs and connection metadata
+- existing stored snapshot conversations with partial/older shapes can still load safely
+
+This preserves backward compatibility while enforcing current runtime typing.
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering and project-sequence algorithms were not changed:
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Conversation entry generation now explicitly receives `edges` so connection metadata can be computed from selected/included graph topology while sequence values still come from `ordering.sequenceByNodeId`.
+
+## 5) Node Rendering and Shape System
+
+No node/edge shape-system changes were introduced in this session. The fixes were data-pipeline and typing-level for journey conversation/snapshot capture.
+
+## 6) Editor Interaction Model
+
+UI Journey conversation opening now uses the full builder signature:
+
+- `buildUiJourneyConversationEntries({ nodes, edges, ordering, selectedNodeIds })`
+
+Frame-selection expansion behavior is retained, and the selected-frame filter was tightened with explicit undefined narrowing (`node !== undefined`) for strict TypeScript safety.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Repaired the `UiJourneyConversationEntry` type-shape mismatch that broke `next build`.
+2. Restored builder/sanitizer parity for conversation and snapshot generation paths.
+3. Added deterministic fallback generation for missing conversation/field identifiers.
+4. Reintroduced connection metadata construction from selected-path edges.
+5. Fixed callback wiring/dependencies for conversation-open flow after adding the `edges` parameter.
+
+## 8) Validation and Operational Notes
+
+Validation commands run:
+
+- `npm run lint -- --no-cache`
+- `npm run build`
+
+Results:
+
+- Build now passes fully (Next build + TypeScript).
+- Lint reports one non-blocking warning: unused `getUiJourneyConversationGroupScheme`.
+
+Operationally, the previous blocking build failure caused by missing required conversation-entry fields is resolved.
+
+## 9) Recommended Next Steps
+
+1. Remove or wire `getUiJourneyConversationGroupScheme` to clear the remaining lint warning.
+2. Add focused tests for legacy conversation-entry sanitization/backfill behavior.
+3. Add snapshot round-trip tests to verify IDs/connection metadata survive save/recall.
+4. Extract UI Journey helper functions from `app/page.tsx` into dedicated modules to reduce partial-refactor risk.
+
 ##02-28-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -2390,6 +2470,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 
