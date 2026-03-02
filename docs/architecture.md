@@ -32,6 +32,83 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-02-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a focused UI Journey Conversation behavior correction. The product-level goal was to stop mixed selections from collapsing to orphan-only output when an orphaned node is selected alongside connected nodes.
+
+## 2) Core Data Model
+
+No new schema or types were introduced. The fix used existing journey contracts:
+
+- `UiJourneyConversationEntry`
+- `UiJourneyConversationConnectionMeta`
+- `connectionMeta.isOrphan`
+
+The implementation corrected how connection metadata is computed by ensuring the connection-meta builder receives node context needed for accurate orphan classification.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration were unchanged:
+
+- no `localStorage` key changes
+- no project payload changes
+- no migration-path updates
+
+The fix is runtime-only in conversation generation/rendering.
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering and sequence identity algorithms were unchanged:
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Conversation ordering continues to rely on existing `ordering` outputs; this session only corrected mixed-selection conversation inclusion behavior.
+
+## 5) Node Rendering and Shape System
+
+Canvas node/edge rendering and shape geometry were unchanged. UI Journey Conversation modal rendering behavior remains:
+
+- orphaned entries shown with red styling
+- small `(Orphaned)` label retained
+
+What changed is inclusion behavior: orphaned entries are now a visual state, not a filter that hides connected entries in mixed selections.
+
+## 6) Editor Interaction Model
+
+The conversation builder path was corrected so mixed selections are preserved end-to-end:
+
+- `buildUiJourneyConversationEntries(...)` now calls `buildUiJourneyConversationConnectionMetaByNodeId(...)` with `nodes` included
+- orphan detection now evaluates each selected entry in full node context
+
+Result: selecting orphaned + connected nodes together now produces a single combined conversation list.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Patched the conversation metadata call site to pass `nodes` into the connection-meta builder.
+2. Restored correct mixed-selection behavior so connected entries are no longer dropped when an orphan is included.
+3. Preserved orphan visual signaling (red styling + `(Orphaned)` badge) without collapsing list output.
+
+## 8) Validation and Operational Notes
+
+Validation run this session:
+
+- `npm run lint`
+
+Lint completed without reported diagnostics in command output (shell spinner/control artifacts were present in this environment).
+
+## 9) Recommended Next Steps
+
+1. Add a regression test for mixed selections containing connected + orphaned nodes.
+2. Add focused unit coverage around conversation connection-metadata construction inputs.
+3. Add export-format parity checks to ensure orphan labeling stays consistent across modal and exported conversation outputs.
+
 ##03-01-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -2551,6 +2628,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 

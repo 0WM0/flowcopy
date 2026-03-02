@@ -573,12 +573,15 @@ const buildUiJourneyConversationFieldId = (
 ): string => `field:${nodeId}:${sourceKey}`;
 
 const buildUiJourneyConversationConnectionMetaByNodeId = ({
+  nodes,
   includedNodeIds,
   edges,
 }: {
+  nodes: FlowNode[];
   includedNodeIds: string[];
   edges: FlowEdge[];
 }): Partial<Record<string, UiJourneyConversationConnectionMeta>> => {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const includedNodeIdSet = new Set(includedNodeIds);
   const adjacency = new Map<string, Set<string>>();
   const internalConnectorIdsByNodeId = new Map<string, Set<string>>();
@@ -638,7 +641,17 @@ const buildUiJourneyConversationConnectionMetaByNodeId = ({
         const connectorIds = Array.from(allConnectorIdsByNodeId.get(nodeId) ?? []).sort(
           (a, b) => a.localeCompare(b)
         );
-        const isOrphan = connectorIds.length === 0;
+        const currentNode = nodeById.get(nodeId);
+        const hasValidFrameMembers =
+          currentNode?.data.node_type === "frame"
+            ? normalizeFrameNodeConfig(currentNode.data.frame_config).member_node_ids.some(
+                (memberNodeId) => {
+                  const memberNode = nodeById.get(memberNodeId);
+                  return Boolean(memberNode && memberNode.data.node_type !== "frame");
+                }
+              )
+            : false;
+        const isOrphan = connectorIds.length === 0 && !hasValidFrameMembers;
 
         metaByNodeId[nodeId] = {
           groupId: isOrphan ? null : `group:external:${nodeId}`,
@@ -1510,9 +1523,9 @@ const pruneFrameNodeMembership = (nodes: FlowNode[]): FlowNode[] => {
       .map((node) => node.id)
   );
 
-  return nodes.map((node) => {
+  return nodes.flatMap((node) => {
     if (node.data.node_type !== "frame") {
-      return node;
+      return [node];
     }
 
     const currentFrameConfig = normalizeFrameNodeConfig(node.data.frame_config);
@@ -1520,20 +1533,26 @@ const pruneFrameNodeMembership = (nodes: FlowNode[]): FlowNode[] => {
       validMemberNodeIds.has(memberNodeId)
     );
 
-    if (nextMemberNodeIds.length === currentFrameConfig.member_node_ids.length) {
-      return node;
+    if (nextMemberNodeIds.length === 0) {
+      return [];
     }
 
-    return {
-      ...node,
-      data: {
-        ...node.data,
-        frame_config: {
-          ...currentFrameConfig,
-          member_node_ids: nextMemberNodeIds,
+    if (nextMemberNodeIds.length === currentFrameConfig.member_node_ids.length) {
+      return [node];
+    }
+
+    return [
+      {
+        ...node,
+        data: {
+          ...node.data,
+          frame_config: {
+            ...currentFrameConfig,
+            member_node_ids: nextMemberNodeIds,
+          },
         },
       },
-    };
+    ];
   });
 };
 
@@ -3150,6 +3169,74 @@ const compareNodeOrder = (a: FlowNode, b: FlowNode): number => {
   return a.id.localeCompare(b.id);
 };
 
+const resolveUiJourneyConversationIncludedNodeIds = ({
+  nodes,
+  selectedNodeIds,
+}: {
+  nodes: FlowNode[];
+  selectedNodeIds: string[];
+}): string[] => {
+  if (selectedNodeIds.length === 0) {
+    return [];
+  }
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const frameIdsByMemberNodeId = new Map<string, Set<string>>();
+
+  nodes.forEach((node) => {
+    if (node.data.node_type !== "frame") {
+      return;
+    }
+
+    const frameConfig = normalizeFrameNodeConfig(node.data.frame_config);
+
+    frameConfig.member_node_ids.forEach((memberNodeId) => {
+      if (!nodeById.has(memberNodeId)) {
+        return;
+      }
+
+      const existingFrameIds = frameIdsByMemberNodeId.get(memberNodeId);
+      if (existingFrameIds) {
+        existingFrameIds.add(node.id);
+        return;
+      }
+
+      frameIdsByMemberNodeId.set(memberNodeId, new Set([node.id]));
+    });
+  });
+
+  const includedNodeIds = new Set<string>();
+  const queue: string[] = [];
+
+  const enqueueNodeId = (nodeId: string) => {
+    if (!nodeById.has(nodeId) || includedNodeIds.has(nodeId)) {
+      return;
+    }
+
+    includedNodeIds.add(nodeId);
+    queue.push(nodeId);
+  };
+
+  selectedNodeIds.forEach(enqueueNodeId);
+
+  while (queue.length > 0) {
+    const currentNodeId = queue.shift();
+    if (!currentNodeId) {
+      continue;
+    }
+
+    const currentNode = nodeById.get(currentNodeId);
+    if (!currentNode || currentNode.data.node_type === "frame") {
+      continue;
+    }
+
+    const containingFrameIds = frameIdsByMemberNodeId.get(currentNodeId);
+    containingFrameIds?.forEach(enqueueNodeId);
+  }
+
+  return Array.from(includedNodeIds);
+};
+
 const buildUiJourneyConversationEntries = ({
   nodes,
   edges,
@@ -3166,36 +3253,19 @@ const buildUiJourneyConversationEntries = ({
   }
 
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const includedNodeIds = new Set<string>();
-
-  selectedNodeIds.forEach((selectedNodeId) => {
-    if (nodeById.has(selectedNodeId)) {
-      includedNodeIds.add(selectedNodeId);
-    }
-  });
-
-  const selectedFrameNodes = selectedNodeIds
-    .map((selectedNodeId) => nodeById.get(selectedNodeId))
-    .filter(
-      (node): node is FlowNode =>
-        node !== undefined && node.data.node_type === "frame"
-    );
-
-  selectedFrameNodes.forEach((frameNode) => {
-    const frameConfig = normalizeFrameNodeConfig(frameNode.data.frame_config);
-
-    frameConfig.member_node_ids.forEach((memberNodeId) => {
-      if (nodeById.has(memberNodeId)) {
-        includedNodeIds.add(memberNodeId);
-      }
-    });
-  });
+  const includedNodeIds = new Set(
+    resolveUiJourneyConversationIncludedNodeIds({
+      nodes,
+      selectedNodeIds,
+    })
+  );
 
   const orderedIncludedNodeIds = ordering.orderedNodeIds
     .filter((nodeId) => includedNodeIds.has(nodeId))
     .slice();
 
   const connectionMetaByNodeId = buildUiJourneyConversationConnectionMetaByNodeId({
+    nodes,
     includedNodeIds: orderedIncludedNodeIds,
     edges,
   });
@@ -5739,9 +5809,6 @@ export default function Page() {
     return Array.from(new Set(resolvedSelectedIds));
   }, [nodes, selectedEdgeId, selectedNodeId, selectedNodeIds]);
 
-  const canOpenUiJourneyConversation =
-    selectedNodeIdsForUiJourneyConversation.length > 0;
-
   const uiJourneySnapshotCapture = useMemo(
     () =>
       buildUiJourneySnapshotCapture({
@@ -5753,12 +5820,15 @@ export default function Page() {
     [edges, nodes, ordering, selectedNodeIdsForUiJourneyConversation]
   );
 
+  const canOpenUiJourneyConversation =
+    uiJourneySnapshotCapture.nodeIds.length > 0;
+
   const canSaveUiJourneySnapshotPreset =
     uiJourneySnapshotCapture.nodeIds.length > 0;
 
   const uiJourneyHighlightedNodeIdSet = useMemo(
-    () => new Set(selectedNodeIdsForUiJourneyConversation),
-    [selectedNodeIdsForUiJourneyConversation]
+    () => new Set(uiJourneySnapshotCapture.nodeIds),
+    [uiJourneySnapshotCapture.nodeIds]
   );
 
   const recalledUiJourneyNodeIdSet = useMemo(
@@ -10029,6 +10099,11 @@ export default function Page() {
     </div>
   );
 }
+
+
+
+
+
 
 
 
