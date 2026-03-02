@@ -38,6 +38,87 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session was a targeted UI Journey Conversation behavior fix focused on mixed selections containing orphaned and connected nodes. The product goal was to stop orphaned selection from overriding the rest of the selected journey and to make orphan status explicit in the conversation UI.
+
+## 2) Core Data Model
+
+No schema contracts changed. Existing conversation data was reused, with rendering and selection behavior now explicitly driven by existing connection metadata:
+
+- `UiJourneyConversationEntry`
+- `connectionMeta.isOrphan`
+
+The session relied on runtime selection resolution and display logic rather than introducing new persisted fields.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no localStorage key changes
+- no project/canvas payload shape updates
+- no migration-step additions
+
+All fixes were implemented in UI interaction and modal rendering paths.
+
+## 4) Ordering Model and Project Sequence ID
+
+No changes were made to ordering or sequence identity algorithms:
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Conversation ordering still follows existing ordering outputs; this session only corrected selection-source behavior and orphan row presentation.
+
+## 5) Node Rendering and Shape System
+
+Canvas node/edge shape rendering was unchanged. Rendering updates were scoped to UI Journey Conversation modal rows:
+
+- orphaned entries are now visibly red-accented
+- orphaned headings include a small `(Orphaned)` label
+- connected entries remain visible in the same conversation output
+
+This replaced the prior behavior where mixed selections could collapse to orphan-only display.
+
+## 6) Editor Interaction Model
+
+Selection behavior feeding conversation generation was tightened:
+
+- `onNodeClick` no longer force-overwrites selection to a single node
+- conversation input IDs are derived first from live React Flow selected-node state (`node.selected`)
+- local selected-node fallback remains in place when needed
+
+Result: selecting an orphaned node along with connected nodes now preserves mixed selection in the conversation modal.
+
+## 7) Refactor Outcomes
+
+Concrete implementation outcomes from this session:
+
+1. Removed single-node selection overwrite in the node click path.
+2. Updated conversation selected-ID derivation to prefer live graph selection state.
+3. Added red orphan row styling and explicit `(Orphaned)` badge rendering.
+4. Preserved combined rendering of connected + orphaned entries in one modal list.
+
+## 8) Validation and Operational Notes
+
+Validation executed during this session:
+
+- `npm run lint`
+- `cmd /c "npm run lint && echo LINT_OK"`
+
+Lint completed successfully with `LINT_OK`, confirming no lint regressions from this fix.
+
+## 9) Recommended Next Steps
+
+1. Add a regression test for mixed selection (connected + orphaned) conversation output.
+2. Add a tiny legend/help note in the modal explaining orphaned row semantics.
+3. Ensure export paths (TXT/MD/HTML/RTF) optionally preserve orphaned labeling for parity with modal display.
+4. Consider extracting selection-resolution logic into a shared helper for both conversation and snapshot flows.
+
+##03-01-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session was a recovery/stabilization pass after a partial UI Journey refactor left the editor in a compile-broken state. The goal was to restore a consistent conversation/snapshot pipeline without changing the product surface area.
 
 ## 2) Core Data Model
@@ -2470,6 +2551,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 

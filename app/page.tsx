@@ -262,9 +262,25 @@ type ImportFeedback = {
 };
 
 type UiJourneyConversationExportFormat = "txt" | "md" | "html" | "rtf";
-type DownloadTextExtension = "csv" | "xml" | UiJourneyConversationExportFormat;
+type ProjectTransferFormat = "csv" | "xml" | "json";
+type DownloadTextExtension = ProjectTransferFormat | UiJourneyConversationExportFormat;
 type UiJourneyConversationHtmlBuildOptions = {
   includeDocumentWrapper?: boolean;
+};
+
+type FullProjectExportEnvelope = {
+  format: typeof FULL_PROJECT_EXPORT_FORMAT;
+  schemaVersion: typeof FULL_PROJECT_EXPORT_SCHEMA_VERSION;
+  exportedAt: string;
+  source: {
+    appStoreVersion: AppStore["version"];
+    accountId: string;
+    accountCode: string;
+    projectId: string;
+  };
+  payload: {
+    project: ProjectRecord;
+  };
 };
 
 type EditorSnapshot = {
@@ -308,16 +324,6 @@ type UiJourneyConversationConnectionMeta = {
   isOrphan: boolean;
 };
 
-type UiJourneyConversationGroupScheme = {
-  background: string;
-  border: string;
-  heading: string;
-  field: string;
-  meta: string;
-  idChipBackground: string;
-  idChipText: string;
-};
-
 type UiJourneySnapshotPreset = {
   id: string;
   name: string;
@@ -337,6 +343,8 @@ type UiJourneySnapshotCapture = {
 const APP_STORAGE_KEY = "flowcopy.store.v1";
 const LEGACY_STORAGE_KEY = "flowcopy.canvas.v2";
 const SINGLE_ACCOUNT_CODE = "000";
+const FULL_PROJECT_EXPORT_FORMAT = "flowcopy.project.full";
+const FULL_PROJECT_EXPORT_SCHEMA_VERSION = 1;
 
 const NODE_SHAPE_OPTIONS: NodeShape[] = [
   "rectangle",
@@ -551,64 +559,6 @@ const inspectorFieldLabelStyle: React.CSSProperties = {
   color: "#1e293b",
 };
 
-const UI_JOURNEY_CONVERSATION_GROUP_SCHEMES: UiJourneyConversationGroupScheme[] = [
-  {
-    background: "#eff6ff",
-    border: "#bfdbfe",
-    heading: "#1e3a8a",
-    field: "#0f172a",
-    meta: "#1d4ed8",
-    idChipBackground: "#dbeafe",
-    idChipText: "#1e3a8a",
-  },
-  {
-    background: "#ecfdf5",
-    border: "#6ee7b7",
-    heading: "#065f46",
-    field: "#064e3b",
-    meta: "#047857",
-    idChipBackground: "#d1fae5",
-    idChipText: "#065f46",
-  },
-  {
-    background: "#fffbeb",
-    border: "#fcd34d",
-    heading: "#92400e",
-    field: "#78350f",
-    meta: "#b45309",
-    idChipBackground: "#fef3c7",
-    idChipText: "#92400e",
-  },
-  {
-    background: "#f5f3ff",
-    border: "#c4b5fd",
-    heading: "#5b21b6",
-    field: "#4c1d95",
-    meta: "#7c3aed",
-    idChipBackground: "#ede9fe",
-    idChipText: "#5b21b6",
-  },
-  {
-    background: "#f8fafc",
-    border: "#cbd5e1",
-    heading: "#334155",
-    field: "#1e293b",
-    meta: "#475569",
-    idChipBackground: "#e2e8f0",
-    idChipText: "#334155",
-  },
-];
-
-const UI_JOURNEY_CONVERSATION_ORPHAN_SCHEME: UiJourneyConversationGroupScheme = {
-  background: "#fef2f2",
-  border: "#fca5a5",
-  heading: "#991b1b",
-  field: "#7f1d1d",
-  meta: "#b91c1c",
-  idChipBackground: "#fee2e2",
-  idChipText: "#991b1b",
-};
-
 const buildUiJourneyConversationEntryId = (
   nodeId: string,
   sequence: number | null
@@ -621,23 +571,6 @@ const buildUiJourneyConversationFieldId = (
   nodeId: string,
   sourceKey: string
 ): string => `field:${nodeId}:${sourceKey}`;
-
-const getUiJourneyConversationGroupScheme = (
-  groupIndex: number | null,
-  isOrphan: boolean
-): UiJourneyConversationGroupScheme => {
-  if (isOrphan) {
-    return UI_JOURNEY_CONVERSATION_ORPHAN_SCHEME;
-  }
-
-  if (groupIndex === null) {
-    return UI_JOURNEY_CONVERSATION_GROUP_SCHEMES[0];
-  }
-
-  return UI_JOURNEY_CONVERSATION_GROUP_SCHEMES[
-    groupIndex % UI_JOURNEY_CONVERSATION_GROUP_SCHEMES.length
-  ];
-};
 
 const buildUiJourneyConversationConnectionMetaByNodeId = ({
   includedNodeIds,
@@ -2419,7 +2352,10 @@ const parseXmlText = (text: string): ParsedTabularPayload => {
   };
 };
 
-const detectTabularFormat = (fileName: string, text: string): "csv" | "xml" | null => {
+const detectProjectTransferFormat = (
+  fileName: string,
+  text: string
+): ProjectTransferFormat | null => {
   const loweredFileName = fileName.toLowerCase();
 
   if (loweredFileName.endsWith(".csv")) {
@@ -2430,9 +2366,17 @@ const detectTabularFormat = (fileName: string, text: string): "csv" | "xml" | nu
     return "xml";
   }
 
+  if (loweredFileName.endsWith(".json")) {
+    return "json";
+  }
+
   const trimmed = text.trimStart();
   if (trimmed.startsWith("<")) {
     return "xml";
+  }
+
+  if (trimmed.startsWith("{")) {
+    return "json";
   }
 
   if (trimmed.includes(",")) {
@@ -2457,12 +2401,117 @@ const normalizeFlatRowKeys = (rawRow: Record<string, string>): Record<string, st
   return normalizedRow;
 };
 
+const selectFlatImportRowsForProject = ({
+  rows,
+  preferredProjectId,
+}: {
+  rows: Record<string, string>[];
+  preferredProjectId: string;
+}): {
+  projectId: string;
+  projectRows: Record<string, string>[];
+} => {
+  const rowsByProjectId = new Map<string, Record<string, string>[]>();
+  const rowsWithoutProjectId: Record<string, string>[] = [];
+
+  rows.forEach((row) => {
+    const projectId = (row.project_id ?? "").trim();
+    if (!projectId) {
+      rowsWithoutProjectId.push(row);
+      return;
+    }
+
+    const existing = rowsByProjectId.get(projectId);
+    if (existing) {
+      existing.push(row);
+      return;
+    }
+
+    rowsByProjectId.set(projectId, [row]);
+  });
+
+  if (rowsByProjectId.has(preferredProjectId)) {
+    return {
+      projectId: preferredProjectId,
+      projectRows: [
+        ...(rowsByProjectId.get(preferredProjectId) ?? []),
+        ...rowsWithoutProjectId,
+      ],
+    };
+  }
+
+  if (rowsByProjectId.size === 1) {
+    const [projectId, projectRows] = Array.from(rowsByProjectId.entries())[0];
+    return {
+      projectId,
+      projectRows: [...projectRows, ...rowsWithoutProjectId],
+    };
+  }
+
+  if (rowsByProjectId.size > 1) {
+    const listedProjectIds = Array.from(rowsByProjectId.keys()).sort((a, b) =>
+      a.localeCompare(b)
+    );
+    throw new Error(
+      `Import file contains multiple project IDs (${listedProjectIds.join(", ")}). Import one project per file.`
+    );
+  }
+
+  if (rowsWithoutProjectId.length > 0) {
+    return {
+      projectId: preferredProjectId,
+      projectRows: rowsWithoutProjectId,
+    };
+  }
+
+  throw new Error("Import file has no project rows.");
+};
+
 const safeJsonParse = (value: string): unknown => {
   try {
     return JSON.parse(value);
   } catch {
     return null;
   }
+};
+
+const parseProjectRecordFromJsonText = (text: string): ProjectRecord => {
+  const parsed = safeJsonParse(text);
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Invalid JSON file.");
+  }
+
+  const source = parsed as Record<string, unknown>;
+
+  if (source.format === FULL_PROJECT_EXPORT_FORMAT) {
+    if (source.schemaVersion !== FULL_PROJECT_EXPORT_SCHEMA_VERSION) {
+      throw new Error(
+        `Unsupported JSON schema version. Expected ${FULL_PROJECT_EXPORT_SCHEMA_VERSION}.`
+      );
+    }
+
+    const payload =
+      source.payload && typeof source.payload === "object"
+        ? (source.payload as { project?: unknown })
+        : null;
+
+    const envelopeProject = sanitizeProjectRecord(payload?.project);
+    if (!envelopeProject) {
+      throw new Error("JSON payload is missing a valid project.");
+    }
+
+    return envelopeProject;
+  }
+
+  const directProject = sanitizeProjectRecord(parsed);
+  if (directProject) {
+    return directProject;
+  }
+
+  throw new Error(
+    `Unsupported JSON format. Expected ${FULL_PROJECT_EXPORT_FORMAT} v${FULL_PROJECT_EXPORT_SCHEMA_VERSION}.`
+  );
 };
 
 const toNumeric = (value: string | undefined): number | null => {
@@ -2477,6 +2526,7 @@ const toNumeric = (value: string | undefined): number | null => {
 const DOWNLOAD_TEXT_MIME_BY_EXTENSION: Record<DownloadTextExtension, string> = {
   csv: "text/csv;charset=utf-8",
   xml: "application/xml;charset=utf-8",
+  json: "application/json;charset=utf-8",
   txt: "text/plain;charset=utf-8",
   md: "text/markdown;charset=utf-8",
   html: "text/html;charset=utf-8",
@@ -4654,7 +4704,6 @@ export default function Page() {
     }
 
     hasLoadedStoreRef.current = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStore(readAppStore());
   }, []);
 
@@ -4874,7 +4923,6 @@ export default function Page() {
   ]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     persistCurrentProjectState();
   }, [persistCurrentProjectState]);
 
@@ -5476,7 +5524,6 @@ export default function Page() {
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
       setSelectedNodeId(node.id);
-      setSelectedNodeIds([node.id]);
       setSelectedEdgeId(null);
     },
     [clearMenuTermDeleteError]
@@ -5673,12 +5720,24 @@ export default function Page() {
       return [];
     }
 
-    if (selectedNodeIds.length > 0) {
-      return selectedNodeIds;
-    }
+    const selectedIdsFromFlowState = nodes
+      .filter((node) => Boolean(node.selected))
+      .map((node) => node.id);
 
-    return selectedNodeId ? [selectedNodeId] : [];
-  }, [selectedEdgeId, selectedNodeId, selectedNodeIds]);
+    const fallbackSelectedIds =
+      selectedNodeIds.length > 0
+        ? selectedNodeIds
+        : selectedNodeId
+          ? [selectedNodeId]
+          : [];
+
+    const resolvedSelectedIds =
+      selectedIdsFromFlowState.length > 0
+        ? selectedIdsFromFlowState
+        : fallbackSelectedIds;
+
+    return Array.from(new Set(resolvedSelectedIds));
+  }, [nodes, selectedEdgeId, selectedNodeId, selectedNodeIds]);
 
   const canOpenUiJourneyConversation =
     selectedNodeIdsForUiJourneyConversation.length > 0;
@@ -6922,8 +6981,66 @@ export default function Page() {
   );
 
   const exportProjectData = useCallback(
-    (extension: "csv" | "xml") => {
+    (extension: ProjectTransferFormat) => {
       if (!activeAccount || !activeProject) {
+        return;
+      }
+
+      if (extension === "json") {
+        const nodesWithPrunedFrameMembership = pruneFrameNodeMembership(nodes);
+        const parallelGroupByNodeId = computeParallelGroups(
+          nodesWithPrunedFrameMembership,
+          edges
+        ).parallelGroupByNodeId;
+
+        const projectForExport = sanitizeProjectRecord({
+          ...activeProject,
+          updatedAt: new Date().toISOString(),
+          canvas: {
+            nodes: serializeNodesForStorage(
+              nodesWithPrunedFrameMembership,
+              parallelGroupByNodeId
+            ),
+            edges: cloneEdges(edges),
+            adminOptions: cloneGlobalOptions(adminOptions),
+            controlledLanguageGlossary: sanitizeControlledLanguageGlossary(
+              controlledLanguageGlossary
+            ),
+            uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(
+              sanitizeUiJourneySnapshotPresets(uiJourneySnapshotPresets)
+            ),
+          },
+        });
+
+        if (!projectForExport) {
+          setTransferFeedback({
+            type: "error",
+            message: "Unable to build project JSON export.",
+          });
+          return;
+        }
+
+        const envelope: FullProjectExportEnvelope = {
+          format: FULL_PROJECT_EXPORT_FORMAT,
+          schemaVersion: FULL_PROJECT_EXPORT_SCHEMA_VERSION,
+          exportedAt: new Date().toISOString(),
+          source: {
+            appStoreVersion: store.version,
+            accountId: activeAccount.id,
+            accountCode: activeAccount.code,
+            projectId: activeProject.id,
+          },
+          payload: {
+            project: projectForExport,
+          },
+        };
+
+        downloadTextFile(activeProject.id, "json", JSON.stringify(envelope, null, 2));
+
+        setTransferFeedback({
+          type: "success",
+          message: `Exported project ${activeProject.id} as JSON full schema.`,
+        });
         return;
       }
 
@@ -6958,6 +7075,8 @@ export default function Page() {
       ordering,
       projectSequenceId,
       store.session,
+      store.version,
+      uiJourneySnapshotPresets,
     ]
   );
 
@@ -6976,128 +7095,229 @@ export default function Page() {
 
       try {
         const fileText = await file.text();
-        const format = detectTabularFormat(file.name, fileText);
+        const format = detectProjectTransferFormat(file.name, fileText);
 
         if (!format) {
           setTransferFeedback({
             type: "error",
-            message: "Unsupported file. Please import CSV or XML.",
+            message: "Unsupported file. Please import CSV, XML, or JSON.",
           });
           return;
         }
 
-        const parsed = format === "csv" ? parseCsvText(fileText) : parseXmlText(fileText);
+        let importedProject: ProjectRecord | null = null;
+        let importedNodeCount = 0;
 
-        if (parsed.rows.length === 0) {
-          setTransferFeedback({
-            type: "info",
-            message: "Import file has no data rows.",
+        if (format === "json") {
+          importedProject = parseProjectRecordFromJsonText(fileText);
+          importedNodeCount = importedProject.canvas.nodes.length;
+        } else {
+          const parsed = format === "csv" ? parseCsvText(fileText) : parseXmlText(fileText);
+
+          if (parsed.rows.length === 0) {
+            setTransferFeedback({
+              type: "info",
+              message: "Import file has no data rows.",
+            });
+            return;
+          }
+
+          const normalizedRows = parsed.rows.map(normalizeFlatRowKeys);
+          const { projectId: importedProjectId, projectRows } = selectFlatImportRowsForProject({
+            rows: normalizedRows,
+            preferredProjectId: activeProject.id,
           });
-          return;
+
+          if (projectRows.length === 0) {
+            setTransferFeedback({
+              type: "info",
+              message: "Import file has no project rows.",
+            });
+            return;
+          }
+
+          const nodeRecords = projectRows.filter((row) => row.node_id?.trim().length > 0);
+
+          const sortWeight = (row: Record<string, string>, fallbackIndex: number): number => {
+            const orderValue = toNumeric(row.node_order_id ?? row.sequence_index);
+            return orderValue ?? fallbackIndex + 1;
+          };
+
+          const sortedNodeRecords = nodeRecords
+            .map((row, index) => ({ row, index }))
+            .sort((a, b) => sortWeight(a.row, a.index) - sortWeight(b.row, b.index));
+
+          const importedNodes: SerializableFlowNode[] = sortedNodeRecords.map(
+            ({ row }, index) => {
+              const rowNodeId = (row.node_id ?? "").trim();
+              const nodeId = rowNodeId.length > 0 ? rowNodeId : createNodeId();
+
+              const x = toNumeric(row.position_x);
+              const y = toNumeric(row.position_y);
+              const importedNodeType = isNodeType(row.node_type) ? row.node_type : "default";
+              const importedMenuConfigRaw = safeJsonParse(row.menu_config_json ?? "");
+              const importedFrameConfigRaw = safeJsonParse(row.frame_config_json ?? "");
+
+              return {
+                id: nodeId,
+                position: {
+                  x: x ?? 120 + index * 220,
+                  y: y ?? 120,
+                },
+                data: {
+                  title: row.title ?? "",
+                  body_text: row.body_text ?? "",
+                  primary_cta: row.primary_cta ?? "",
+                  secondary_cta: row.secondary_cta ?? "",
+                  helper_text: row.helper_text ?? "",
+                  error_text: row.error_text ?? "",
+                  display_term_field: isNodeControlledLanguageFieldType(
+                    row.display_term_field
+                  )
+                    ? row.display_term_field
+                    : "primary_cta",
+                  tone: row.tone ?? "",
+                  polarity: row.polarity ?? "",
+                  reversibility: row.reversibility ?? "",
+                  concept: row.concept ?? "",
+                  notes: row.notes ?? "",
+                  action_type_name: row.action_type_name ?? "",
+                  action_type_color: row.action_type_color ?? "",
+                  card_style: row.card_style ?? "",
+                  node_shape: isNodeShape(row.node_shape) ? row.node_shape : "rectangle",
+                  node_type: importedNodeType,
+                  menu_config: normalizeMenuNodeConfig(
+                    importedMenuConfigRaw,
+                    row.primary_cta ?? ""
+                  ),
+                  frame_config: normalizeFrameNodeConfig(importedFrameConfigRaw),
+                },
+              };
+            }
+          );
+
+          const firstRow = projectRows[0];
+          const parsedEdgesRaw = safeJsonParse(firstRow.project_edges_json ?? "");
+          const parsedAdminOptionsRaw = safeJsonParse(
+            firstRow.project_admin_options_json ?? ""
+          );
+          const parsedControlledLanguageRaw = safeJsonParse(
+            firstRow.project_controlled_language_json ?? ""
+          );
+
+          const nextAdminOptions = syncAdminOptionsWithNodes(
+            mergeAdminOptionConfigs(
+              normalizeGlobalOptionConfig(parsedAdminOptionsRaw),
+              cloneGlobalOptions(DEFAULT_GLOBAL_OPTIONS)
+            ),
+            sanitizePersistedNodes(
+              importedNodes,
+              normalizeGlobalOptionConfig(parsedAdminOptionsRaw)
+            )
+          );
+
+          const hydratedNodes = pruneFrameNodeMembership(
+            sanitizePersistedNodes(importedNodes, nextAdminOptions)
+          );
+          const hydratedEdges = sanitizeEdges(
+            sanitizeEdgesForStorage(parsedEdgesRaw),
+            hydratedNodes
+          );
+          const parallelGroupByNodeId = computeParallelGroups(
+            hydratedNodes,
+            hydratedEdges
+          ).parallelGroupByNodeId;
+
+          const importedGlossary = sanitizeControlledLanguageGlossary(
+            parsedControlledLanguageRaw
+          );
+          const fallbackProjectName =
+            importedProjectId === activeProject.id
+              ? activeProject.name
+              : `Imported ${importedProjectId}`;
+          const createdAtFallback = new Date().toISOString();
+
+          importedNodeCount = hydratedNodes.length;
+          importedProject = sanitizeProjectRecord({
+            id: importedProjectId,
+            name: (firstRow.project_name ?? "").trim() || fallbackProjectName,
+            createdAt: (firstRow.project_createdAt ?? "").trim() || createdAtFallback,
+            updatedAt: (firstRow.project_updatedAt ?? "").trim() || createdAtFallback,
+            canvas: {
+              nodes: serializeNodesForStorage(hydratedNodes, parallelGroupByNodeId),
+              edges: cloneEdges(hydratedEdges),
+              adminOptions: cloneGlobalOptions(nextAdminOptions),
+              controlledLanguageGlossary: importedGlossary,
+              uiJourneySnapshotPresets: [],
+            },
+          });
         }
 
-        const normalizedRows = parsed.rows.map(normalizeFlatRowKeys);
-        const projectRows = normalizedRows.filter(
-          (row) => row.project_id?.trim() === activeProject.id
+        if (!importedProject) {
+          throw new Error("Import file did not produce a valid project.");
+        }
+
+        const existingProject = activeAccount.projects.find(
+          (project) => project.id === importedProject.id
         );
+        const now = new Date().toISOString();
+        const normalizedImportedProject =
+          sanitizeProjectRecord({
+            ...importedProject,
+            createdAt: existingProject?.createdAt ?? importedProject.createdAt,
+            updatedAt: now,
+          }) ?? importedProject;
 
-        if (projectRows.length === 0) {
-          setTransferFeedback({
-            type: "error",
-            message: `No rows matched active project ${activeProject.id}.`,
-          });
-          return;
+        if (activeProject.id === normalizedImportedProject.id) {
+          queueUndoSnapshot();
         }
 
-        const nodeRecords = projectRows.filter((row) => row.node_id?.trim().length > 0);
+        loadProjectIntoEditor(normalizedImportedProject);
 
-        const sortWeight = (row: Record<string, string>, fallbackIndex: number): number => {
-          const orderValue = toNumeric(row.node_order_id ?? row.sequence_index);
-          return orderValue ?? fallbackIndex + 1;
-        };
+        updateStore((prev) => {
+          const accountIndex = prev.accounts.findIndex(
+            (account) => account.id === activeAccount.id
+          );
 
-        const sortedNodeRecords = nodeRecords
-          .map((row, index) => ({ row, index }))
-          .sort((a, b) => sortWeight(a.row, a.index) - sortWeight(b.row, b.index));
+          if (accountIndex < 0) {
+            return prev;
+          }
 
-        const importedNodes: SerializableFlowNode[] = sortedNodeRecords.map(({ row }, index) => {
-          const rowNodeId = (row.node_id ?? "").trim();
-          const nodeId = rowNodeId.length > 0 ? rowNodeId : createNodeId();
+          const accounts = [...prev.accounts];
+          const account = accounts[accountIndex];
+          const projects = [...account.projects];
+          const projectIndex = projects.findIndex(
+            (project) => project.id === normalizedImportedProject.id
+          );
 
-          const x = toNumeric(row.position_x);
-          const y = toNumeric(row.position_y);
-          const importedNodeType = isNodeType(row.node_type) ? row.node_type : "default";
-          const importedMenuConfigRaw = safeJsonParse(row.menu_config_json ?? "");
-          const importedFrameConfigRaw = safeJsonParse(row.frame_config_json ?? "");
+          if (projectIndex >= 0) {
+            projects[projectIndex] = normalizedImportedProject;
+          } else {
+            projects.push(normalizedImportedProject);
+          }
+
+          accounts[accountIndex] = {
+            ...account,
+            projects,
+          };
 
           return {
-            id: nodeId,
-            position: {
-              x: x ?? 120 + index * 220,
-              y: y ?? 120,
-            },
-            data: {
-              title: row.title ?? "",
-              body_text: row.body_text ?? "",
-              primary_cta: row.primary_cta ?? "",
-              secondary_cta: row.secondary_cta ?? "",
-              helper_text: row.helper_text ?? "",
-              error_text: row.error_text ?? "",
-              display_term_field: isNodeControlledLanguageFieldType(
-                row.display_term_field
-              )
-                ? row.display_term_field
-                : "primary_cta",
-              tone: row.tone ?? "",
-              polarity: row.polarity ?? "",
-              reversibility: row.reversibility ?? "",
-              concept: row.concept ?? "",
-              notes: row.notes ?? "",
-              action_type_name: row.action_type_name ?? "",
-              action_type_color: row.action_type_color ?? "",
-              card_style: row.card_style ?? "",
-              node_shape: isNodeShape(row.node_shape) ? row.node_shape : "rectangle",
-              node_type: importedNodeType,
-              menu_config: normalizeMenuNodeConfig(
-                importedMenuConfigRaw,
-                row.primary_cta ?? ""
-              ),
-              frame_config: normalizeFrameNodeConfig(importedFrameConfigRaw),
+            ...prev,
+            accounts,
+            session: {
+              ...prev.session,
+              activeAccountId: activeAccount.id,
+              activeProjectId: normalizedImportedProject.id,
+              view: "editor",
             },
           };
         });
 
-        const firstRow = projectRows[0];
-        const parsedEdgesRaw = safeJsonParse(firstRow.project_edges_json ?? "");
-        const parsedAdminOptionsRaw = safeJsonParse(firstRow.project_admin_options_json ?? "");
-        const parsedControlledLanguageRaw = safeJsonParse(
-          firstRow.project_controlled_language_json ?? ""
-        );
-
-        const nextAdminOptions = syncAdminOptionsWithNodes(
-          mergeAdminOptionConfigs(
-            normalizeGlobalOptionConfig(parsedAdminOptionsRaw),
-            cloneGlobalOptions(DEFAULT_GLOBAL_OPTIONS)
-          ),
-          sanitizePersistedNodes(importedNodes, normalizeGlobalOptionConfig(parsedAdminOptionsRaw))
-        );
-
-        const hydratedNodes = sanitizePersistedNodes(importedNodes, nextAdminOptions);
-        const hydratedEdges = sanitizeEdges(sanitizeEdgesForStorage(parsedEdgesRaw), hydratedNodes);
-
-        queueUndoSnapshot();
-        setAdminOptions(nextAdminOptions);
-        setControlledLanguageGlossary(
-          sanitizeControlledLanguageGlossary(parsedControlledLanguageRaw)
-        );
-        setNodes(hydratedNodes);
-        setEdges(hydratedEdges);
-        setSelectedNodeId(hydratedNodes[0]?.id ?? null);
-        setSelectedEdgeId(null);
-
         setTransferFeedback({
           type: "success",
-          message: `Imported ${hydratedNodes.length} node(s) from ${format.toUpperCase()}.`,
+          message: `${existingProject ? "Updated" : "Imported"} project ${
+            normalizedImportedProject.id
+          } with ${importedNodeCount} node(s) from ${format.toUpperCase()}.`,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to import file.";
@@ -7110,11 +7330,9 @@ export default function Page() {
     [
       activeAccount,
       activeProject,
+      loadProjectIntoEditor,
       queueUndoSnapshot,
-      setEdges,
-      setNodes,
-      setSelectedEdgeId,
-      setSelectedNodeId,
+      updateStore,
     ]
   );
 
@@ -7587,13 +7805,16 @@ export default function Page() {
             <button type="button" style={buttonStyle} onClick={() => exportProjectData("xml")}>
               Export XML
             </button>
+            <button type="button" style={buttonStyle} onClick={() => exportProjectData("json")}>
+              Export JSON
+            </button>
             <button type="button" style={buttonStyle} onClick={triggerImportPicker}>
-              Import CSV/XML
+              Import CSV/XML/JSON
             </button>
             <input
               ref={importFileInputRef}
               type="file"
-              accept=".csv,.xml,text/csv,application/xml,text/xml"
+              accept=".csv,.xml,.json,text/csv,application/xml,text/xml,application/json,text/json"
               style={{ display: "none" }}
               onChange={importProjectDataFromFile}
             />
@@ -7859,8 +8080,11 @@ export default function Page() {
             <button type="button" style={buttonStyle} onClick={() => exportProjectData("xml")}>
               Export XML
             </button>
+            <button type="button" style={buttonStyle} onClick={() => exportProjectData("json")}>
+              Export JSON
+            </button>
             <button type="button" style={buttonStyle} onClick={triggerImportPicker}>
-              Import CSV/XML
+              Import CSV/XML/JSON
             </button>
             <button
               type="button"
@@ -7877,7 +8101,7 @@ export default function Page() {
             <input
               ref={importFileInputRef}
               type="file"
-              accept=".csv,.xml,text/csv,application/xml,text/xml"
+              accept=".csv,.xml,.json,text/csv,application/xml,text/xml,application/json,text/json"
               style={{ display: "none" }}
               onChange={importProjectDataFromFile}
             />
@@ -9714,14 +9938,19 @@ export default function Page() {
                 {uiJourneyConversationSnapshot.map((entry) => {
                   const heading = `${entry.sequence ?? "-"} - ${entry.title || "Untitled"}`;
                   const isFrameEntry = entry.nodeType === "frame";
+                  const isOrphanEntry = entry.connectionMeta.isOrphan;
 
                   return (
                     <section
                       key={`ui-journey-conversation:${entry.nodeId}`}
                       style={{
-                        border: "1px solid #dbeafe",
+                        border: isOrphanEntry ? "1px solid #fecaca" : "1px solid #dbeafe",
                         borderRadius: 10,
-                        background: isFrameEntry ? "#f8fafc" : "#ffffff",
+                        background: isOrphanEntry
+                          ? "#fef2f2"
+                          : isFrameEntry
+                            ? "#f8fafc"
+                            : "#ffffff",
                         padding: "10px 12px",
                         display: "grid",
                         gap: 4,
@@ -9729,13 +9958,39 @@ export default function Page() {
                     >
                       <div
                         style={{
-                          fontWeight: 700,
-                          fontSize: isFrameEntry ? 18 : 16,
-                          color: "#0f172a",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: isFrameEntry ? "center" : "flex-start",
+                          flexWrap: "wrap",
+                          gap: 6,
                           textAlign: isFrameEntry ? "center" : "left",
                         }}
                       >
-                        {heading}
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            fontSize: isFrameEntry ? 18 : 16,
+                            color: isOrphanEntry ? "#b91c1c" : "#0f172a",
+                          }}
+                        >
+                          {heading}
+                        </span>
+                        {isOrphanEntry && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: "#b91c1c",
+                              border: "1px solid #fecaca",
+                              borderRadius: 999,
+                              background: "#fee2e2",
+                              padding: "1px 6px",
+                              lineHeight: 1.35,
+                            }}
+                          >
+                            (Orphaned)
+                          </span>
+                        )}
                       </div>
 
                       {entry.fields.length > 0 ? (
@@ -9744,7 +9999,7 @@ export default function Page() {
                             key={`${entry.nodeId}:${field.label}`}
                             style={{
                               fontSize: isFrameEntry ? 14 : 12,
-                              color: "#334155",
+                              color: isOrphanEntry ? "#7f1d1d" : "#334155",
                               textAlign: isFrameEntry ? "center" : "left",
                             }}
                           >
@@ -9755,7 +10010,7 @@ export default function Page() {
                         <div
                           style={{
                             fontSize: isFrameEntry ? 14 : 12,
-                            color: "#94a3b8",
+                            color: isOrphanEntry ? "#b91c1c" : "#94a3b8",
                             textAlign: isFrameEntry ? "center" : "left",
                             fontStyle: "italic",
                           }}
@@ -9774,6 +10029,12 @@ export default function Page() {
     </div>
   );
 }
+
+
+
+
+
+
 
 
 
