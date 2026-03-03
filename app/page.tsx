@@ -37,174 +37,51 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import "@xyflow/react/dist/style.css";
-
-type NodeShape = "rectangle" | "rounded" | "pill" | "diamond";
-type EdgeKind = "sequential" | "parallel";
-type EdgeLineStyle = "solid" | "dashed" | "dotted";
-type FrameShade = "light" | "medium" | "dark";
-type NodeType = "default" | "menu" | "frame";
-type NodeControlledLanguageFieldType =
-  | "primary_cta"
-  | "secondary_cta"
-  | "helper_text"
-  | "error_text";
-type ControlledLanguageFieldType = NodeControlledLanguageFieldType | "menu_term";
-
-type MenuNodeTerm = {
-  id: string;
-  term: string;
-};
-
-type MenuNodeConfig = {
-  max_right_connections: number;
-  terms: MenuNodeTerm[];
-};
-
-type FrameNodeConfig = {
-  shade: FrameShade;
-  member_node_ids: string[];
-  width: number;
-  height: number;
-};
-
-type EdgeDirection = "forward" | "reversed";
-
-type FlowEdgeData = {
-  edge_kind: EdgeKind;
-  stroke_color?: string;
-  line_style?: EdgeLineStyle;
-  is_reversed?: boolean;
-};
-
-type MicrocopyNodeData = {
-  title: string;
-  body_text: string;
-  primary_cta: string;
-  secondary_cta: string;
-  helper_text: string;
-  error_text: string;
-  display_term_field: NodeControlledLanguageFieldType;
-  tone: string;
-  polarity: string;
-  reversibility: string;
-  concept: string;
-  notes: string;
-  action_type_name: string;
-  action_type_color: string;
-  card_style: string;
-  node_shape: NodeShape;
-  node_type: NodeType;
-  menu_config: MenuNodeConfig;
-  frame_config: FrameNodeConfig;
-  parallel_group_id: string | null;
-  sequence_index: number | null;
-  ui_journey_highlighted?: boolean;
-  ui_journey_recalled?: boolean;
-};
-
-type PersistableMicrocopyNodeData = Omit<
+import type {
+  NodeShape,
+  EdgeKind,
+  EdgeLineStyle,
+  FrameShade,
+  NodeType,
+  NodeControlledLanguageFieldType,
+  ControlledLanguageFieldType,
+  MenuNodeTerm,
+  MenuNodeConfig,
+  FrameNodeConfig,
+  EdgeDirection,
+  FlowEdgeData,
   MicrocopyNodeData,
-  "sequence_index" | "ui_journey_highlighted" | "ui_journey_recalled"
->;
-type EditableMicrocopyField = Exclude<
-  keyof PersistableMicrocopyNodeData,
-  | "parallel_group_id"
-  | "menu_config"
-  | "frame_config"
-  | "node_type"
-  | "display_term_field"
->;
-
-type GlobalOptionConfig = {
-  tone: string[];
-  polarity: string[];
-  reversibility: string[];
-  concept: string[];
-  action_type_name: string[];
-  action_type_color: string[];
-  card_style: string[];
-};
-
-type GlobalOptionField = keyof GlobalOptionConfig;
-
-type FlowNode = Node<MicrocopyNodeData, "flowcopyNode">;
-type FlowEdge = Edge<FlowEdgeData>;
-
-type SerializableFlowNode = {
-  id: string;
-  position?: FlowNode["position"];
-  data?: Partial<PersistableMicrocopyNodeData>;
-};
-
-type PersistedCanvasState = {
-  nodes: SerializableFlowNode[];
-  edges: FlowEdge[];
-  adminOptions: GlobalOptionConfig;
-  controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
-  uiJourneySnapshotPresets: UiJourneySnapshotPreset[];
-};
-
-type ControlledLanguageGlossaryEntry = {
-  field_type: ControlledLanguageFieldType;
-  term: string;
-  include: boolean;
-};
-
-type ControlledLanguageAuditTermEntry = {
-  field_type: ControlledLanguageFieldType;
-  term: string;
-};
-
-type ControlledLanguageAuditRow = ControlledLanguageGlossaryEntry & {
-  occurrences: number;
-};
-
-type ControlledLanguageDraftRow = {
-  field_type: ControlledLanguageFieldType;
-  term: string;
-  include: boolean;
-};
-
-type FlowOrderingResult = {
-  orderedNodeIds: string[];
-  sequentialOrderedNodeIds: string[];
-  sequenceByNodeId: Partial<Record<string, number>>;
-  parallelGroupByNodeId: Partial<Record<string, string>>;
-  hasCycle: boolean;
-};
-
-type ParallelGroupInfo = {
-  parallelGroupByNodeId: Partial<Record<string, string>>;
-  componentNodeIds: string[][];
-};
-
-type AppView = "account" | "dashboard" | "editor";
-type EditorSurfaceMode = "canvas" | "table";
-
-type ProjectRecord = {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  canvas: PersistedCanvasState;
-};
-
-type AccountRecord = {
-  id: string;
-  code: string;
-  projects: ProjectRecord[];
-};
-
-type AppStore = {
-  version: 1;
-  accounts: AccountRecord[];
-  session: {
-    activeAccountId: string | null;
-    activeProjectId: string | null;
-    view: AppView;
-    editorMode: EditorSurfaceMode;
-  };
-};
+  PersistableMicrocopyNodeData,
+  EditableMicrocopyField,
+  GlobalOptionConfig,
+  GlobalOptionField,
+  FlowNode,
+  FlowEdge,
+  SerializableFlowNode,
+  PersistedCanvasState,
+  ControlledLanguageGlossaryEntry,
+  ControlledLanguageAuditTermEntry,
+  ControlledLanguageAuditRow,
+  ControlledLanguageDraftRow,
+  FlowOrderingResult,
+  ParallelGroupInfo,
+  AppView,
+  EditorSurfaceMode,
+  ProjectRecord,
+  AccountRecord,
+  AppStore,
+  FlatExportColumn,
+  FlatExportRow,
+  ParsedTabularPayload,
+  UiJourneyConversationEntry,
+  UiJourneyConversationField,
+  UiJourneyConversationConnectionMeta,
+  UiJourneySnapshotPreset,
+  UiJourneyConversationExportFormat,
+  ProjectTransferFormat,
+  DownloadTextExtension,
+  FullProjectExportEnvelope,
+} from "./types";
 
 const FLAT_EXPORT_COLUMNS = [
   "session_activeAccountId",
@@ -248,39 +125,13 @@ const FLAT_EXPORT_COLUMNS = [
   "project_edges_json",
 ] as const;
 
-type FlatExportColumn = (typeof FLAT_EXPORT_COLUMNS)[number];
-type FlatExportRow = Record<FlatExportColumn, string>;
-
-type ParsedTabularPayload = {
-  rows: Record<string, string>[];
-  headers: string[];
-};
-
 type ImportFeedback = {
   type: "success" | "error" | "info";
   message: string;
 };
 
-type UiJourneyConversationExportFormat = "txt" | "md" | "html" | "rtf";
-type ProjectTransferFormat = "csv" | "xml" | "json";
-type DownloadTextExtension = ProjectTransferFormat | UiJourneyConversationExportFormat;
 type UiJourneyConversationHtmlBuildOptions = {
   includeDocumentWrapper?: boolean;
-};
-
-type FullProjectExportEnvelope = {
-  format: typeof FULL_PROJECT_EXPORT_FORMAT;
-  schemaVersion: typeof FULL_PROJECT_EXPORT_SCHEMA_VERSION;
-  exportedAt: string;
-  source: {
-    appStoreVersion: AppStore["version"];
-    accountId: string;
-    accountCode: string;
-    projectId: string;
-  };
-  payload: {
-    project: ProjectRecord;
-  };
 };
 
 type EditorSnapshot = {
@@ -295,43 +146,6 @@ type EditorSnapshot = {
   recalledUiJourneyNodeIds: string[];
   recalledUiJourneyEdgeIds: string[];
   uiJourneySnapshotDraftName: string;
-};
-
-type UiJourneyConversationField = {
-  id: string;
-  sourceKey: string;
-  label: string;
-  value: string;
-};
-
-type UiJourneyConversationEntry = {
-  entryId: string;
-  nodeInstanceId: string;
-  titleFieldId: string;
-  nodeId: string;
-  nodeType: NodeType;
-  sequence: number | null;
-  title: string;
-  fields: UiJourneyConversationField[];
-  connectionMeta: UiJourneyConversationConnectionMeta;
-};
-
-type UiJourneyConversationConnectionMeta = {
-  groupId: string | null;
-  groupIndex: number | null;
-  connectorIds: string[];
-  connectedNodeIds: string[];
-  isOrphan: boolean;
-};
-
-type UiJourneySnapshotPreset = {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  nodeIds: string[];
-  edgeIds: string[];
-  conversation: UiJourneyConversationEntry[];
 };
 
 type UiJourneySnapshotCapture = {
@@ -10099,6 +9913,7 @@ export default function Page() {
     </div>
   );
 }
+
 
 
 
