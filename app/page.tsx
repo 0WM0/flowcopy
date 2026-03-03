@@ -145,14 +145,145 @@ import {
   inspectorFieldLabelStyle,
 } from "./constants";
 
+import {
+  computeFlowOrdering,
+  computeParallelGroups,
+  compareNodeOrder,
+  computeProjectSequenceId,
+} from "./lib/flow-ordering";
+
+import {
+  buildUiJourneyConversationEntries,
+  buildUiJourneySnapshotCapture,
+  cloneUiJourneyConversationEntries,
+  sanitizeUiJourneySnapshotPresets,
+  cloneUiJourneySnapshotPresets,
+  createUiJourneySnapshotPresetId,
+} from "./lib/ui-journey";
+
+import {
+  buildCsvFromRows,
+  buildXmlFromRows,
+  createFlatExportRows,
+  buildUiJourneyConversationPlainText,
+  buildUiJourneyConversationMarkdown,
+  buildUiJourneyConversationHtml,
+  buildUiJourneyConversationRtf,
+  buildDownloadFileName,
+} from "./lib/export";
+
+import {
+  parseCsvText,
+  parseXmlText,
+  detectProjectTransferFormat,
+  normalizeFlatRowKeys,
+  selectFlatImportRowsForProject,
+  parseProjectRecordFromJsonText,
+  toNumeric,
+  safeJsonParse,
+} from "./lib/import";
+
+import {
+  sanitizeControlledLanguageGlossary,
+  cloneControlledLanguageGlossary,
+  createEmptyControlledLanguageDraftRow,
+  buildControlledLanguageTermsByField,
+  buildMenuTermSelectorTerms,
+  buildControlledLanguageAuditRows,
+  normalizeControlledLanguageTerm,
+  buildControlledLanguageGlossaryKey,
+  parseControlledLanguageGlossaryKey,
+  isControlledLanguageFieldType,
+  normalizeControlledLanguageFieldType,
+  isNodeControlledLanguageFieldType,
+  collectControlledLanguageTermsFromNode,
+} from "./lib/controlled-language";
+
+import {
+  createNodeId,
+  normalizeNode,
+  sanitizePersistedNodes,
+  serializeNodesForStorage,
+  cloneFlowNodes,
+  getNodeVisualSize,
+  computeNodesBoundingRect,
+  normalizeFrameNodeConfig,
+  normalizeMenuNodeConfig,
+  pruneFrameNodeMembership,
+  applyFrameMovementToMemberNodes,
+  constrainNodesToFrameMembershipBounds,
+  clampFrameDimension,
+  clampMenuRightConnections,
+  createMenuNodeTerm,
+  buildMenuSourceHandleId,
+  buildMenuSourceHandleIds,
+  isNodeShape,
+  isNodeType,
+  getPrimaryMenuTermValue,
+  getSecondaryMenuTermValue,
+  applyMenuConfigToNodeData,
+  resolveNodeHighlightColor,
+  getNodeShapeStyle,
+  getDiamondBorderLayerStyle,
+  getDiamondSurfaceLayerStyle,
+  getNodeContentStyle,
+  createDefaultNodeData,
+  getFallbackNodeSize,
+} from "./lib/node-utils";
+
+import {
+  normalizeEdgeData,
+  applyEdgeVisuals,
+  sanitizeEdges,
+  sanitizeEdgesForStorage,
+  cloneEdges,
+  inferEdgeKindFromHandles,
+  getEdgeKind,
+  isSequentialEdge,
+  syncSequentialEdgesForMenuNode,
+  assignSequentialEdgesToMenuHandles,
+  remapMenuSequentialEdgesToDefaultHandle,
+  hasNonSelectionNodeChanges,
+  hasNonSelectionEdgeChanges,
+  isEditableEventTarget,
+  isEdgeKind,
+  getEdgeDirection,
+  getFirstAvailableMenuSourceHandleId,
+  isMenuSequentialConnectionAllowed,
+} from "./lib/edge-utils";
+
+import {
+  readAppStore,
+  createEmptyStore,
+  createEmptyCanvasState,
+  createProjectRecord,
+  createProjectId,
+  createAccountId,
+  sanitizeProjectRecord,
+  sanitizeAccountRecord,
+  sanitizeAppStore,
+  migrateLegacyCanvasToStore,
+  cloneGlobalOptions,
+  normalizeGlobalOptionConfig,
+  buildSelectOptions,
+  createEmptyPendingOptionInputs,
+  uniqueTrimmedStrings,
+  mergeAdminOptionConfigs,
+  syncAdminOptionsWithNodes,
+  formatDateTime,
+  clampSidePanelWidth,
+  readInitialSidePanelWidth,
+  isEditorSurfaceMode,
+  ensureArrayOfStrings,
+} from "./lib/store";
+
+
 type ImportFeedback = {
   type: "success" | "error" | "info";
   message: string;
 };
 
-type UiJourneyConversationHtmlBuildOptions = {
-  includeDocumentWrapper?: boolean;
-};
+
 
 type EditorSnapshot = {
   nodes: FlowNode[];
@@ -168,3397 +299,283 @@ type EditorSnapshot = {
   uiJourneySnapshotDraftName: string;
 };
 
-type UiJourneySnapshotCapture = {
-  nodeIds: string[];
-  edgeIds: string[];
-  conversation: UiJourneyConversationEntry[];
-};
-
-const buildUiJourneyConversationEntryId = (
-  nodeId: string,
-  sequence: number | null
-): string => `entry:${nodeId}:seq-${sequence ?? "x"}`;
-
-const buildUiJourneyConversationTitleFieldId = (nodeId: string): string =>
-  `field:${nodeId}:title`;
-
-const buildUiJourneyConversationFieldId = (
-  nodeId: string,
-  sourceKey: string
-): string => `field:${nodeId}:${sourceKey}`;
-
-const buildUiJourneyConversationConnectionMetaByNodeId = ({
-  nodes,
-  includedNodeIds,
-  edges,
-}: {
-  nodes: FlowNode[];
-  includedNodeIds: string[];
-  edges: FlowEdge[];
-}): Partial<Record<string, UiJourneyConversationConnectionMeta>> => {
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const includedNodeIdSet = new Set(includedNodeIds);
-  const adjacency = new Map<string, Set<string>>();
-  const internalConnectorIdsByNodeId = new Map<string, Set<string>>();
-  const allConnectorIdsByNodeId = new Map<string, Set<string>>();
-
-  includedNodeIds.forEach((nodeId) => {
-    adjacency.set(nodeId, new Set<string>());
-    internalConnectorIdsByNodeId.set(nodeId, new Set<string>());
-    allConnectorIdsByNodeId.set(nodeId, new Set<string>());
-  });
-
-  edges.forEach((edge) => {
-    const sourceIncluded = includedNodeIdSet.has(edge.source);
-    const targetIncluded = includedNodeIdSet.has(edge.target);
-
-    if (!sourceIncluded && !targetIncluded) {
-      return;
-    }
-
-    if (sourceIncluded) {
-      allConnectorIdsByNodeId.get(edge.source)?.add(edge.id);
-    }
-
-    if (targetIncluded) {
-      allConnectorIdsByNodeId.get(edge.target)?.add(edge.id);
-    }
-
-    if (!sourceIncluded || !targetIncluded) {
-      return;
-    }
-
-    adjacency.get(edge.source)?.add(edge.target);
-    adjacency.get(edge.target)?.add(edge.source);
-
-    internalConnectorIdsByNodeId.get(edge.source)?.add(edge.id);
-    internalConnectorIdsByNodeId.get(edge.target)?.add(edge.id);
-  });
-
-  const metaByNodeId: Partial<Record<string, UiJourneyConversationConnectionMeta>> = {};
-  const visitedNodeIds = new Set<string>();
-  let nextGroupIndex = 0;
-
-  includedNodeIds
-    .slice()
-    .sort((a, b) => a.localeCompare(b))
-    .forEach((nodeId) => {
-      if (visitedNodeIds.has(nodeId)) {
-        return;
-      }
-
-      const neighbors = adjacency.get(nodeId);
-      const hasInternalNeighbor = Boolean(neighbors && neighbors.size > 0);
-
-      if (!hasInternalNeighbor) {
-        visitedNodeIds.add(nodeId);
-
-        const connectorIds = Array.from(allConnectorIdsByNodeId.get(nodeId) ?? []).sort(
-          (a, b) => a.localeCompare(b)
-        );
-        const currentNode = nodeById.get(nodeId);
-        const hasValidFrameMembers =
-          currentNode?.data.node_type === "frame"
-            ? normalizeFrameNodeConfig(currentNode.data.frame_config).member_node_ids.some(
-                (memberNodeId) => {
-                  const memberNode = nodeById.get(memberNodeId);
-                  return Boolean(memberNode && memberNode.data.node_type !== "frame");
-                }
-              )
-            : false;
-        const isOrphan = connectorIds.length === 0 && !hasValidFrameMembers;
-
-        metaByNodeId[nodeId] = {
-          groupId: isOrphan ? null : `group:external:${nodeId}`,
-          groupIndex: isOrphan ? null : nextGroupIndex++,
-          connectorIds,
-          connectedNodeIds: [],
-          isOrphan,
-        };
-
-        return;
-      }
-
-      const queue = [nodeId];
-      const componentNodeIds: string[] = [];
-      const componentConnectorIds = new Set<string>();
-
-      visitedNodeIds.add(nodeId);
-
-      while (queue.length > 0) {
-        const currentNodeId = queue.shift();
-        if (!currentNodeId) {
-          continue;
-        }
-
-        componentNodeIds.push(currentNodeId);
-
-        internalConnectorIdsByNodeId.get(currentNodeId)?.forEach((connectorId) => {
-          componentConnectorIds.add(connectorId);
-        });
-
-        adjacency.get(currentNodeId)?.forEach((neighborNodeId) => {
-          if (visitedNodeIds.has(neighborNodeId)) {
-            return;
-          }
-
-          visitedNodeIds.add(neighborNodeId);
-          queue.push(neighborNodeId);
-        });
-      }
-
-      const normalizedComponentNodeIds = componentNodeIds
-        .slice()
-        .sort((a, b) => a.localeCompare(b));
-      const groupId = `group:${normalizedComponentNodeIds.join("|")}`;
-      const groupIndex = nextGroupIndex++;
-      const connectorIds = Array.from(componentConnectorIds).sort((a, b) =>
-        a.localeCompare(b)
-      );
-
-      normalizedComponentNodeIds.forEach((componentNodeId) => {
-        metaByNodeId[componentNodeId] = {
-          groupId,
-          groupIndex,
-          connectorIds,
-          connectedNodeIds: normalizedComponentNodeIds.filter(
-            (candidateNodeId) => candidateNodeId !== componentNodeId
-          ),
-          isOrphan: false,
-        };
-      });
-    });
-
-  return metaByNodeId;
-};
-
-const buildUiJourneyConversationFields = (
-  nodeId: string,
-  nodeData: MicrocopyNodeData
-): UiJourneyConversationField[] => {
-  const fields: UiJourneyConversationField[] = [];
-
-  const addField = (label: string, sourceKey: string, value: string) => {
-    const normalizedValue = value.trim();
-    if (!normalizedValue) {
-      return;
-    }
-
-    fields.push({
-      id: buildUiJourneyConversationFieldId(nodeId, sourceKey),
-      sourceKey,
-      label,
-      value: normalizedValue,
-    });
-  };
-
-  addField("Body Text", "body_text", nodeData.body_text);
-  addField("Primary CTA", "primary_cta", nodeData.primary_cta);
-  addField("Secondary CTA", "secondary_cta", nodeData.secondary_cta);
-  addField("Helper Text", "helper_text", nodeData.helper_text);
-  addField("Error Text", "error_text", nodeData.error_text);
-
-  return fields;
-};
-
-const cloneUiJourneyConversationEntries = (
-  entries: UiJourneyConversationEntry[]
-): UiJourneyConversationEntry[] =>
-  entries.map((entry) => ({
-    entryId: entry.entryId,
-    nodeInstanceId: entry.nodeInstanceId,
-    titleFieldId: entry.titleFieldId,
-    nodeId: entry.nodeId,
-    nodeType: entry.nodeType,
-    sequence: entry.sequence,
-    title: entry.title,
-    fields: entry.fields.map((field) => ({
-      id: field.id,
-      sourceKey: field.sourceKey,
-      label: field.label,
-      value: field.value,
-    })),
-    connectionMeta: {
-      groupId: entry.connectionMeta.groupId,
-      groupIndex: entry.connectionMeta.groupIndex,
-      connectorIds: [...entry.connectionMeta.connectorIds],
-      connectedNodeIds: [...entry.connectionMeta.connectedNodeIds],
-      isOrphan: entry.connectionMeta.isOrphan,
-    },
-  }));
-
-const normalizeMultilineText = (value: string): string =>
-  value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-const buildUiJourneyConversationHeading = (
-  entry: UiJourneyConversationEntry
-): string => `${entry.sequence ?? "-"} - ${entry.title || "Untitled"}`;
-
-const buildUiJourneyConversationPlainText = (
-  entries: UiJourneyConversationEntry[],
-  generatedAtLabel: string
-): string => {
-  const lines: string[] = [
-    "UI Journey Conversation",
-    `Generated: ${generatedAtLabel}`,
-    "",
-  ];
-
-  if (entries.length === 0) {
-    lines.push("No nodes found in the current selection.");
-    return lines.join("\n");
-  }
-
-  entries.forEach((entry, entryIndex) => {
-    lines.push(buildUiJourneyConversationHeading(entry));
-
-    if (entry.fields.length === 0) {
-      lines.push("No copy fields provided.");
-    } else {
-      entry.fields.forEach((field) => {
-        const normalizedValue = normalizeMultilineText(field.value);
-        const [firstLine, ...remainingLines] = normalizedValue.split("\n");
-
-        lines.push(`${field.label}: ${firstLine ?? ""}`);
-        remainingLines.forEach((line) => {
-          lines.push(`  ${line}`);
-        });
-      });
-    }
-
-    if (entryIndex < entries.length - 1) {
-      lines.push("");
-    }
-  });
-
-  return lines.join("\n");
-};
-
-const buildUiJourneyConversationMarkdown = (
-  entries: UiJourneyConversationEntry[],
-  generatedAtLabel: string
-): string => {
-  const lines: string[] = [
-    "# UI Journey Conversation",
-    "",
-    `Generated: ${generatedAtLabel}`,
-    "",
-  ];
-
-  if (entries.length === 0) {
-    lines.push("No nodes found in the current selection.");
-    return lines.join("\n");
-  }
-
-  entries.forEach((entry, entryIndex) => {
-    lines.push(`## ${buildUiJourneyConversationHeading(entry)}`);
-
-    if (entry.fields.length === 0) {
-      lines.push("_No copy fields provided._");
-    } else {
-      entry.fields.forEach((field) => {
-        const normalizedValue = normalizeMultilineText(field.value).trim();
-
-        if (normalizedValue.includes("\n")) {
-          lines.push(`- **${field.label}:**`);
-          lines.push("```");
-          lines.push(normalizedValue);
-          lines.push("```");
-          return;
-        }
-
-        lines.push(`- **${field.label}:** ${normalizedValue}`);
-      });
-    }
-
-    if (entryIndex < entries.length - 1) {
-      lines.push("");
-    }
-  });
-
-  return lines.join("\n");
-};
-
-const buildUiJourneyConversationHtml = (
-  entries: UiJourneyConversationEntry[],
-  generatedAtLabel: string,
-  options: UiJourneyConversationHtmlBuildOptions = {}
-): string => {
-  const includeDocumentWrapper = options.includeDocumentWrapper ?? true;
-
-  const htmlBody = `
-    <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.45;">
-      <h1 style="margin: 0 0 8px; font-size: 24px;">UI Journey Conversation</h1>
-      <p style="margin: 0 0 16px; font-size: 12px; color: #475569;">Generated: ${escapeXmlText(generatedAtLabel)}</p>
-      ${
-        entries.length === 0
-          ? '<p style="margin: 0; font-size: 13px; color: #64748b;">No nodes found in the current selection.</p>'
-          : entries
-              .map((entry) => {
-                const heading = escapeXmlText(buildUiJourneyConversationHeading(entry));
-                const isFrameEntry = entry.nodeType === "frame";
-
-                const renderedFields =
-                  entry.fields.length === 0
-                    ? `<p style="margin: 0; font-size: ${isFrameEntry ? 14 : 12}px; color: #94a3b8; font-style: italic; text-align: ${isFrameEntry ? "center" : "left"};">No copy fields provided.</p>`
-                    : entry.fields
-                        .map((field) => {
-                          const escapedLabel = escapeXmlText(field.label);
-                          const escapedValue = escapeXmlText(
-                            normalizeMultilineText(field.value)
-                          ).replace(/\n/g, "<br />");
-
-                          return `<p style="margin: 0; font-size: ${isFrameEntry ? 14 : 12}px; color: #334155; text-align: ${isFrameEntry ? "center" : "left"};"><strong>${escapedLabel}:</strong> ${escapedValue}</p>`;
-                        })
-                        .join("");
-
-                return `<section style="border: 1px solid #dbeafe; border-radius: 10px; background: ${
-                  isFrameEntry ? "#f8fafc" : "#ffffff"
-                }; padding: 10px 12px; display: grid; gap: 4px; margin-bottom: 10px;"><h2 style="margin: 0; font-size: ${
-                  isFrameEntry ? 22 : 18
-                }px; color: #0f172a; text-align: ${
-                  isFrameEntry ? "center" : "left"
-                }">${heading}</h2>${renderedFields}</section>`;
-              })
-              .join("")
-      }
-    </div>
-  `.trim();
-
-  if (!includeDocumentWrapper) {
-    return htmlBody;
-  }
-
-  return `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>UI Journey Conversation</title>
-  </head>
-  <body>
-    ${htmlBody}
-  </body>
-</html>`;
-};
-
-const escapeRtfText = (value: string): string => {
-  const normalizedValue = normalizeMultilineText(value);
-  let escapedValue = "";
-
-  for (const character of normalizedValue) {
-    if (character === "\\") {
-      escapedValue += "\\\\";
-      continue;
-    }
-
-    if (character === "{") {
-      escapedValue += "\\{";
-      continue;
-    }
-
-    if (character === "}") {
-      escapedValue += "\\}";
-      continue;
-    }
-
-    if (character === "\n") {
-      escapedValue += "\\line ";
-      continue;
-    }
-
-    const codePoint = character.codePointAt(0);
-    if (typeof codePoint === "number" && (codePoint < 32 || codePoint > 126)) {
-      escapedValue += `\\u${codePoint <= 32767 ? codePoint : 63}?`;
-      continue;
-    }
-
-    escapedValue += character;
-  }
-
-  return escapedValue;
-};
-
-const buildUiJourneyConversationRtf = (
-  entries: UiJourneyConversationEntry[],
-  generatedAtLabel: string
-): string => {
-  const lines: string[] = [
-    "{\\rtf1\\ansi\\deff0",
-    "{\\fonttbl{\\f0 Arial;}}",
-    "\\viewkind4\\uc1",
-    "\\pard\\sa180\\sl276\\slmult1\\f0\\fs36\\b UI Journey Conversation\\b0\\fs24\\par",
-    `\\pard\\sa180\\sl276\\slmult1\\f0\\fs20 Generated: ${escapeRtfText(generatedAtLabel)}\\par`,
-    "\\par",
-  ];
-
-  if (entries.length === 0) {
-    lines.push(
-      "\\pard\\ql\\sa120\\f0\\fs22\\i No nodes found in the current selection.\\i0\\par"
-    );
-    lines.push("}");
-    return lines.join("\n");
-  }
-
-  entries.forEach((entry, entryIndex) => {
-    const heading = escapeRtfText(buildUiJourneyConversationHeading(entry));
-    const isFrameEntry = entry.nodeType === "frame";
-
-    lines.push(
-      `\\pard${isFrameEntry ? "\\qc" : "\\ql"}\\sa120\\f0\\${
-        isFrameEntry ? "fs34" : "fs30"
-      }\\b ${heading}\\b0\\par`
-    );
-
-    if (entry.fields.length === 0) {
-      lines.push(
-        `\\pard${isFrameEntry ? "\\qc" : "\\ql"}\\sa90\\f0\\fs22\\i No copy fields provided.\\i0\\par`
-      );
-    } else {
-      entry.fields.forEach((field) => {
-        const label = escapeRtfText(`${field.label}:`);
-        const value = escapeRtfText(field.value);
-
-        lines.push(
-          `\\pard${isFrameEntry ? "\\qc" : "\\ql"}\\sa90\\f0\\fs22\\b ${label}\\b0 ${value}\\par`
-        );
-      });
-    }
-
-    if (entryIndex < entries.length - 1) {
-      lines.push("\\par");
-    }
-  });
-
-  lines.push("}");
-
-  return lines.join("\n");
-};
-
-const sanitizeUniqueStringArray = (value: unknown): string[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-  const sanitized: string[] = [];
-
-  value.forEach((item) => {
-    if (typeof item !== "string") {
-      return;
-    }
-
-    const nextValue = item.trim();
-    if (!nextValue || seen.has(nextValue)) {
-      return;
-    }
-
-    seen.add(nextValue);
-    sanitized.push(nextValue);
-  });
-
-  return sanitized;
-};
-
-const sanitizeUiJourneyConversationEntries = (
-  value: unknown
-): UiJourneyConversationEntry[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object") {
-      return [];
-    }
-
-    const source = item as Partial<UiJourneyConversationEntry>;
-    const nodeId = typeof source.nodeId === "string" ? source.nodeId.trim() : "";
-    if (!nodeId) {
-      return [];
-    }
-
-    const title = typeof source.title === "string" ? source.title : "";
-    const sequence =
-      typeof source.sequence === "number" && Number.isFinite(source.sequence)
-        ? source.sequence
-        : null;
-    const nodeType = isNodeType(source.nodeType) ? source.nodeType : "default";
-    const entryId =
-      typeof source.entryId === "string" && source.entryId.trim().length > 0
-        ? source.entryId.trim()
-        : buildUiJourneyConversationEntryId(nodeId, sequence);
-    const nodeInstanceId =
-      typeof source.nodeInstanceId === "string" && source.nodeInstanceId.trim().length > 0
-        ? source.nodeInstanceId.trim()
-        : nodeId;
-    const titleFieldId =
-      typeof source.titleFieldId === "string" && source.titleFieldId.trim().length > 0
-        ? source.titleFieldId.trim()
-        : buildUiJourneyConversationTitleFieldId(nodeId);
-
-    const fields = Array.isArray(source.fields)
-      ? source.fields.flatMap((fieldItem) => {
-          if (!fieldItem || typeof fieldItem !== "object") {
-            return [];
-          }
-
-          const fieldSource = fieldItem as Partial<UiJourneyConversationField>;
-          const label =
-            typeof fieldSource.label === "string" ? fieldSource.label.trim() : "";
-          const value = typeof fieldSource.value === "string" ? fieldSource.value : "";
-          const fallbackSourceKey =
-            typeof fieldSource.sourceKey === "string" && fieldSource.sourceKey.trim().length > 0
-              ? fieldSource.sourceKey.trim()
-              : label
-                  .toLowerCase()
-                  .replace(/[^a-z0-9]+/g, "_")
-                  .replace(/^_+|_+$/g, "") || "field";
-          const fieldId =
-            typeof fieldSource.id === "string" && fieldSource.id.trim().length > 0
-              ? fieldSource.id.trim()
-              : buildUiJourneyConversationFieldId(nodeId, fallbackSourceKey);
-
-          if (!label || value.trim().length === 0) {
-            return [];
-          }
-
-          return [
-            {
-              id: fieldId,
-              sourceKey: fallbackSourceKey,
-              label,
-              value,
-            },
-          ];
-        })
-      : [];
-
-    const rawConnectionMeta =
-      source.connectionMeta && typeof source.connectionMeta === "object"
-        ? source.connectionMeta
-        : null;
-    const connectorIds = sanitizeUniqueStringArray(rawConnectionMeta?.connectorIds);
-    const connectedNodeIds = sanitizeUniqueStringArray(rawConnectionMeta?.connectedNodeIds);
-    const groupId =
-      typeof rawConnectionMeta?.groupId === "string" && rawConnectionMeta.groupId.trim().length > 0
-        ? rawConnectionMeta.groupId.trim()
-        : null;
-    const groupIndex =
-      typeof rawConnectionMeta?.groupIndex === "number" &&
-      Number.isFinite(rawConnectionMeta.groupIndex)
-        ? rawConnectionMeta.groupIndex
-        : null;
-    const isOrphan =
-      typeof rawConnectionMeta?.isOrphan === "boolean"
-        ? rawConnectionMeta.isOrphan
-        : groupId === null && connectorIds.length === 0 && connectedNodeIds.length === 0;
-
-    return [
-      {
-        entryId,
-        nodeInstanceId,
-        titleFieldId,
-        nodeId,
-        nodeType,
-        sequence,
-        title,
-        fields,
-        connectionMeta: {
-          groupId,
-          groupIndex,
-          connectorIds,
-          connectedNodeIds,
-          isOrphan,
-        },
-      },
-    ];
-  });
-};
-
-const createUiJourneySnapshotPresetId = (): string =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? `snapshot-${crypto.randomUUID()}`
-    : `snapshot-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-
-const sanitizeUiJourneySnapshotPresets = (
-  value: unknown
-): UiJourneySnapshotPreset[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const usedIds = new Set<string>();
-
-  return value.flatMap((item, index) => {
-    if (!item || typeof item !== "object") {
-      return [];
-    }
-
-    const source = item as Partial<UiJourneySnapshotPreset>;
-    const rawId = typeof source.id === "string" ? source.id.trim() : "";
-    const baseId = rawId || createUiJourneySnapshotPresetId();
-
-    let nextId = baseId;
-    let duplicateCounter = 1;
-    while (usedIds.has(nextId)) {
-      nextId = `${baseId}-${duplicateCounter}`;
-      duplicateCounter += 1;
-    }
-    usedIds.add(nextId);
-
-    const name =
-      typeof source.name === "string" && source.name.trim().length > 0
-        ? source.name.trim()
-        : `Snapshot ${index + 1}`;
-
-    const createdAt =
-      typeof source.createdAt === "string" && source.createdAt.length > 0
-        ? source.createdAt
-        : new Date().toISOString();
-    const updatedAt =
-      typeof source.updatedAt === "string" && source.updatedAt.length > 0
-        ? source.updatedAt
-        : createdAt;
-
-    return [
-      {
-        id: nextId,
-        name,
-        createdAt,
-        updatedAt,
-        nodeIds: sanitizeUniqueStringArray(source.nodeIds),
-        edgeIds: sanitizeUniqueStringArray(source.edgeIds),
-        conversation: sanitizeUiJourneyConversationEntries(source.conversation),
-      },
-    ];
-  });
-};
-
-const cloneUiJourneySnapshotPresets = (
-  presets: UiJourneySnapshotPreset[]
-): UiJourneySnapshotPreset[] =>
-  presets.map((preset) => ({
-    id: preset.id,
-    name: preset.name,
-    createdAt: preset.createdAt,
-    updatedAt: preset.updatedAt,
-    nodeIds: [...preset.nodeIds],
-    edgeIds: [...preset.edgeIds],
-    conversation: cloneUiJourneyConversationEntries(preset.conversation),
-  }));
-
-const clampSidePanelWidth = (value: number): number =>
-  Math.min(SIDE_PANEL_MAX_WIDTH, Math.max(SIDE_PANEL_MIN_WIDTH, Math.round(value)));
-
-const readInitialSidePanelWidth = (): number => {
-  if (typeof window === "undefined") {
-    return SIDE_PANEL_MIN_WIDTH;
-  }
-
-  const rawWidth = window.localStorage.getItem(SIDE_PANEL_WIDTH_STORAGE_KEY);
-  if (!rawWidth) {
-    return SIDE_PANEL_MIN_WIDTH;
-  }
-
-  const parsedWidth = Number(rawWidth);
-  if (!Number.isFinite(parsedWidth)) {
-    return SIDE_PANEL_MIN_WIDTH;
-  }
-
-  return clampSidePanelWidth(parsedWidth);
-};
-
-const isEditorSurfaceMode = (value: unknown): value is EditorSurfaceMode =>
-  value === "canvas" || value === "table";
-
-const isEdgeKind = (value: unknown): value is EdgeKind =>
-  value === "sequential" || value === "parallel";
-
-const isEdgeLineStyle = (value: unknown): value is EdgeLineStyle =>
-  value === "solid" || value === "dashed" || value === "dotted";
-
-const isControlledLanguageFieldType = (
-  value: unknown
-): value is ControlledLanguageFieldType =>
-  value === "primary_cta" ||
-  value === "secondary_cta" ||
-  value === "helper_text" ||
-  value === "error_text" ||
-  value === "menu_term";
-
-const normalizeControlledLanguageFieldType = (
-  value: unknown
-): ControlledLanguageFieldType | null => {
-  if (value === "list_item") {
-    return "menu_term";
-  }
-
-  return isControlledLanguageFieldType(value) ? value : null;
-};
-
-const isNodeControlledLanguageFieldType = (
-  value: unknown
-): value is NodeControlledLanguageFieldType =>
-  value === "primary_cta" ||
-  value === "secondary_cta" ||
-  value === "helper_text" ||
-  value === "error_text";
-
-const isFrameShade = (value: unknown): value is FrameShade =>
-  value === "light" || value === "medium" || value === "dark";
-
-const isNodeType = (value: unknown): value is NodeType =>
-  value === "default" || value === "menu" || value === "frame";
-
-const clampFrameDimension = (value: number, minimum: number): number => {
-  if (!Number.isFinite(value)) {
-    return minimum;
-  }
-
-  return Math.max(minimum, Math.round(value));
-};
-
-const sanitizeFrameMemberNodeIds = (value: unknown): string[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-  const memberNodeIds: string[] = [];
-
-  value.forEach((rawItem) => {
-    if (typeof rawItem !== "string") {
-      return;
-    }
-
-    const nextId = rawItem.trim();
-    if (!nextId || seen.has(nextId)) {
-      return;
-    }
-
-    seen.add(nextId);
-    memberNodeIds.push(nextId);
-  });
-
-  return memberNodeIds;
-};
-
-const normalizeFrameNodeConfig = (
-  value: unknown,
-  fallbackMemberNodeIds: string[] = []
-): FrameNodeConfig => {
-  const source =
-    value && typeof value === "object" ? (value as Partial<FrameNodeConfig>) : undefined;
-
-  const memberNodeIdsFromValue = sanitizeFrameMemberNodeIds(source?.member_node_ids);
-  const fallbackMembers = sanitizeFrameMemberNodeIds(fallbackMemberNodeIds);
-
-  return {
-    shade: isFrameShade(source?.shade) ? source.shade : "medium",
-    member_node_ids:
-      memberNodeIdsFromValue.length > 0 ? memberNodeIdsFromValue : fallbackMembers,
-    width: clampFrameDimension(source?.width ?? FRAME_NODE_MIN_WIDTH, FRAME_NODE_MIN_WIDTH),
-    height: clampFrameDimension(
-      source?.height ?? FRAME_NODE_MIN_HEIGHT,
-      FRAME_NODE_MIN_HEIGHT
-    ),
-  };
-};
-
-const getFallbackNodeSize = (node: FlowNode): { width: number; height: number } => {
-  if (node.data.node_type === "frame") {
-    const frameConfig = normalizeFrameNodeConfig(node.data.frame_config);
-    return {
-      width: frameConfig.width,
-      height: frameConfig.height,
-    };
-  }
-
-  if (node.data.node_type === "menu") {
-    const menuConfig = normalizeMenuNodeConfig(node.data.menu_config, node.data.primary_cta);
-    return {
-      width: 260,
-      height: Math.max(170, 120 + menuConfig.terms.length * 56),
-    };
-  }
-
-  switch (node.data.node_shape) {
-    case "pill":
-      return { width: 380, height: 190 };
-    case "diamond":
-      return { width: 460, height: 340 };
-    case "rounded":
-    case "rectangle":
-    default:
-      return { width: 260, height: 120 };
-  }
-};
-
-const getNodeVisualSize = (node: FlowNode): { width: number; height: number } => {
-  const measuredNode = node as FlowNode & {
-    measured?: {
-      width?: number;
-      height?: number;
-    };
-  };
-
-  const widthCandidate =
-    typeof measuredNode.width === "number"
-      ? measuredNode.width
-      : measuredNode.measured?.width;
-  const heightCandidate =
-    typeof measuredNode.height === "number"
-      ? measuredNode.height
-      : measuredNode.measured?.height;
-
-  if (
-    typeof widthCandidate === "number" &&
-    Number.isFinite(widthCandidate) &&
-    widthCandidate > 0 &&
-    typeof heightCandidate === "number" &&
-    Number.isFinite(heightCandidate) &&
-    heightCandidate > 0
-  ) {
-    return {
-      width: widthCandidate,
-      height: heightCandidate,
-    };
-  }
-
-  return getFallbackNodeSize(node);
-};
-
-const computeNodesBoundingRect = (
-  nodes: FlowNode[]
-):
-  | {
-      left: number;
-      top: number;
-      right: number;
-      bottom: number;
-      width: number;
-      height: number;
-    }
-  | null => {
-  if (nodes.length === 0) {
-    return null;
-  }
-
-  let left = Number.POSITIVE_INFINITY;
-  let top = Number.POSITIVE_INFINITY;
-  let right = Number.NEGATIVE_INFINITY;
-  let bottom = Number.NEGATIVE_INFINITY;
-
-  nodes.forEach((node) => {
-    const size = getNodeVisualSize(node);
-    left = Math.min(left, node.position.x);
-    top = Math.min(top, node.position.y);
-    right = Math.max(right, node.position.x + size.width);
-    bottom = Math.max(bottom, node.position.y + size.height);
-  });
-
-  return {
-    left,
-    top,
-    right,
-    bottom,
-    width: right - left,
-    height: bottom - top,
-  };
-};
-
-const pruneFrameNodeMembership = (nodes: FlowNode[]): FlowNode[] => {
-  const validMemberNodeIds = new Set(
-    nodes
-      .filter((node) => node.data.node_type !== "frame")
-      .map((node) => node.id)
-  );
-
-  return nodes.flatMap((node) => {
-    if (node.data.node_type !== "frame") {
-      return [node];
-    }
-
-    const currentFrameConfig = normalizeFrameNodeConfig(node.data.frame_config);
-    const nextMemberNodeIds = currentFrameConfig.member_node_ids.filter((memberNodeId) =>
-      validMemberNodeIds.has(memberNodeId)
-    );
-
-    if (nextMemberNodeIds.length === 0) {
-      return [];
-    }
-
-    if (nextMemberNodeIds.length === currentFrameConfig.member_node_ids.length) {
-      return [node];
-    }
-
-    return [
-      {
-        ...node,
-        data: {
-          ...node.data,
-          frame_config: {
-            ...currentFrameConfig,
-            member_node_ids: nextMemberNodeIds,
-          },
-        },
-      },
-    ];
-  });
-};
-
-const applyFrameMovementToMemberNodes = (
-  previousNodes: FlowNode[],
-  nextNodes: FlowNode[]
-): FlowNode[] => {
-  const previousNodeById = new Map(previousNodes.map((node) => [node.id, node]));
-  const movementDeltas: Array<{
-    memberNodeIds: string[];
-    deltaX: number;
-    deltaY: number;
-  }> = [];
-
-  nextNodes.forEach((node) => {
-    if (node.data.node_type !== "frame") {
-      return;
-    }
-
-    const previousNode = previousNodeById.get(node.id);
-    if (!previousNode || previousNode.data.node_type !== "frame") {
-      return;
-    }
-
-    const deltaX = node.position.x - previousNode.position.x;
-    const deltaY = node.position.y - previousNode.position.y;
-
-    if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) {
-      return;
-    }
-
-    const frameConfig = normalizeFrameNodeConfig(node.data.frame_config);
-    if (frameConfig.member_node_ids.length === 0) {
-      return;
-    }
-
-    movementDeltas.push({
-      memberNodeIds: frameConfig.member_node_ids,
-      deltaX,
-      deltaY,
-    });
-  });
-
-  if (movementDeltas.length === 0) {
-    return nextNodes;
-  }
-
-  return nextNodes.map((node) => {
-    if (node.data.node_type === "frame" || node.selected) {
-      return node;
-    }
-
-    let aggregateDeltaX = 0;
-    let aggregateDeltaY = 0;
-
-    movementDeltas.forEach((movementDelta) => {
-      if (!movementDelta.memberNodeIds.includes(node.id)) {
-        return;
-      }
-
-      aggregateDeltaX += movementDelta.deltaX;
-      aggregateDeltaY += movementDelta.deltaY;
-    });
-
-    if (aggregateDeltaX === 0 && aggregateDeltaY === 0) {
-      return node;
-    }
-
-    return {
-      ...node,
-      position: {
-        x: node.position.x + aggregateDeltaX,
-        y: node.position.y + aggregateDeltaY,
-      },
-    };
-  });
-};
-
-const createMenuTermId = (): string =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? `menu-${crypto.randomUUID()}`
-    : `menu-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-
-const createMenuNodeTerm = (term: string): MenuNodeTerm => ({
-  id: createMenuTermId(),
-  term,
-});
-
-const clampMenuRightConnections = (
-  value: number,
-  minimum: number = MENU_NODE_RIGHT_CONNECTIONS_MIN
-): number => {
-  const sanitizedMinimum = Math.min(
-    MENU_NODE_RIGHT_CONNECTIONS_MAX,
-    Math.max(MENU_NODE_RIGHT_CONNECTIONS_MIN, Math.round(minimum))
-  );
-
-  if (!Number.isFinite(value)) {
-    return sanitizedMinimum;
-  }
-
-  return Math.min(
-    MENU_NODE_RIGHT_CONNECTIONS_MAX,
-    Math.max(sanitizedMinimum, Math.round(value))
-  );
-};
-
-const buildMenuSourceHandleId = (termId: string): string =>
-  `${MENU_SOURCE_HANDLE_PREFIX}${termId}`;
-
-const buildMenuSourceHandleIds = (menuConfig: MenuNodeConfig): string[] =>
-  menuConfig.terms.map((term) => buildMenuSourceHandleId(term.id));
-
-const isMenuSourceHandleId = (value: string | null | undefined): value is string =>
-  typeof value === "string" && value.startsWith(MENU_SOURCE_HANDLE_PREFIX);
-
-const syncSequentialEdgesForMenuNode = (
-  edges: FlowEdge[],
-  nodeId: string,
-  menuConfig: MenuNodeConfig
-): FlowEdge[] => {
-  const allowedHandleIds = buildMenuSourceHandleIds(menuConfig);
-  const allowedHandleIdSet = new Set(allowedHandleIds);
-  const fallbackHandleId = allowedHandleIds[0] ?? null;
-
-  return edges.flatMap((edge) => {
-    if (edge.source !== nodeId || !isSequentialEdge(edge)) {
-      return [edge];
-    }
-
-    if (!fallbackHandleId) {
-      return [];
-    }
-
-    if (isMenuSourceHandleId(edge.sourceHandle)) {
-      if (allowedHandleIdSet.has(edge.sourceHandle)) {
-        return [edge];
-      }
-
-      return [];
-    }
-
-    return [
-      {
-        ...edge,
-        sourceHandle: fallbackHandleId,
-      },
-    ];
-  });
-};
-
-const assignSequentialEdgesToMenuHandles = (
-  edges: FlowEdge[],
-  nodeId: string,
-  menuHandleIds: string[]
-): FlowEdge[] => {
-  if (menuHandleIds.length === 0) {
-    return edges.filter((edge) => !(edge.source === nodeId && isSequentialEdge(edge)));
-  }
-
-  let sequentialIndex = 0;
-
-  return edges.flatMap((edge) => {
-    if (edge.source !== nodeId || !isSequentialEdge(edge)) {
-      return [edge];
-    }
-
-    const nextHandleId = menuHandleIds[sequentialIndex];
-    sequentialIndex += 1;
-
-    if (!nextHandleId) {
-      return [];
-    }
-
-    return [
-      {
-        ...edge,
-        sourceHandle: nextHandleId,
-      },
-    ];
-  });
-};
-
-const remapMenuSequentialEdgesToDefaultHandle = (
-  edges: FlowEdge[],
-  nodeId: string
-): FlowEdge[] =>
-  edges.map((edge) => {
-    if (
-      edge.source !== nodeId ||
-      !isSequentialEdge(edge) ||
-      !isMenuSourceHandleId(edge.sourceHandle)
-    ) {
-      return edge;
-    }
-
-    return {
-      ...edge,
-      sourceHandle: SEQUENTIAL_SOURCE_HANDLE_ID,
-    };
-  });
-
-const getSequentialOutgoingEdgesForNode = (
-  edges: FlowEdge[],
-  nodeId: string,
-  options: { ignoreEdgeId?: string } = {}
-): FlowEdge[] =>
-  edges.filter(
-    (edge) =>
-      edge.source === nodeId &&
-      edge.id !== options.ignoreEdgeId &&
-      isSequentialEdge(edge)
-  );
-
-const getFirstAvailableMenuSourceHandleId = (
-  edges: FlowEdge[],
-  nodeId: string,
-  menuConfig: MenuNodeConfig,
-  options: { ignoreEdgeId?: string } = {}
-): string | null => {
-  const usedHandleIds = new Set(
-    getSequentialOutgoingEdgesForNode(edges, nodeId, options)
-      .map((edge) => edge.sourceHandle)
-      .filter((handleId): handleId is string => isMenuSourceHandleId(handleId))
-  );
-
-  return (
-    buildMenuSourceHandleIds(menuConfig).find(
-      (handleId) => !usedHandleIds.has(handleId)
-    ) ?? null
-  );
-};
-
-const isMenuSequentialConnectionAllowed = (
-  edges: FlowEdge[],
-  nodeId: string,
-  menuConfig: MenuNodeConfig,
-  sourceHandle: string | null | undefined,
-  options: { ignoreEdgeId?: string } = {}
-): boolean => {
-  if (!isMenuSourceHandleId(sourceHandle)) {
-    return false;
-  }
-
-  const allowedHandleIds = new Set(buildMenuSourceHandleIds(menuConfig));
-  if (!allowedHandleIds.has(sourceHandle)) {
-    return false;
-  }
-
-  const outgoingSequentialEdges = getSequentialOutgoingEdgesForNode(
-    edges,
-    nodeId,
-    options
-  );
-
-  if (outgoingSequentialEdges.length >= menuConfig.max_right_connections) {
-    return false;
-  }
-
-  if (outgoingSequentialEdges.some((edge) => edge.sourceHandle === sourceHandle)) {
-    return false;
-  }
-
-  return true;
-};
-
-const normalizeMenuNodeConfig = (
-  value: unknown,
-  fallbackPrimaryTerm: string,
-  minimumConnections: number = MENU_NODE_RIGHT_CONNECTIONS_MIN
-): MenuNodeConfig => {
-  const source =
-    value && typeof value === "object" ? (value as Partial<MenuNodeConfig>) : undefined;
-
-  const requestedMax =
-    typeof source?.max_right_connections === "number"
-      ? source.max_right_connections
-      : Array.isArray(source?.terms)
-        ? source.terms.length
-        : minimumConnections;
-
-  const maxRightConnections = clampMenuRightConnections(requestedMax, minimumConnections);
-
-  const normalizedTerms: MenuNodeTerm[] = [];
-  const usedTermIds = new Set<string>();
-  const sourceTerms = Array.isArray(source?.terms) ? source.terms : [];
-
-  sourceTerms.forEach((termValue) => {
-    if (!termValue || typeof termValue !== "object") {
-      return;
-    }
-
-    const sourceTerm = termValue as Partial<MenuNodeTerm>;
-    const term = typeof sourceTerm.term === "string" ? sourceTerm.term : "";
-
-    const rawTermId = typeof sourceTerm.id === "string" ? sourceTerm.id.trim() : "";
-    let nextTermId = rawTermId.length > 0 ? rawTermId : createMenuTermId();
-
-    while (usedTermIds.has(nextTermId)) {
-      nextTermId = createMenuTermId();
-    }
-
-    usedTermIds.add(nextTermId);
-
-    normalizedTerms.push({
-      id: nextTermId,
-      term,
-    });
-  });
-
-  if (normalizedTerms.length === 0) {
-    normalizedTerms.push(createMenuNodeTerm(fallbackPrimaryTerm || "Continue"));
-  }
-
-  const terms = normalizedTerms.slice(0, maxRightConnections);
-
-  while (terms.length < maxRightConnections) {
-    terms.push(createMenuNodeTerm(""));
-  }
-
-  return {
-    max_right_connections: maxRightConnections,
-    terms,
-  };
-};
-
-const getPrimaryMenuTermValue = (
-  menuConfig: MenuNodeConfig,
-  fallbackValue: string
-): string => menuConfig.terms[0]?.term ?? fallbackValue;
-
-const getSecondaryMenuTermValue = (
-  menuConfig: MenuNodeConfig,
-  fallbackValue: string
-): string => menuConfig.terms[1]?.term ?? fallbackValue;
-
-const applyMenuConfigToNodeData = (
-  nodeData: MicrocopyNodeData,
-  nextMenuConfig: MenuNodeConfig
-): MicrocopyNodeData => ({
-  ...nodeData,
-  menu_config: nextMenuConfig,
-  primary_cta: getPrimaryMenuTermValue(nextMenuConfig, nodeData.primary_cta),
-  secondary_cta: getSecondaryMenuTermValue(nextMenuConfig, nodeData.secondary_cta),
-});
-
-const collectControlledLanguageTermsFromNode = (
-  node: FlowNode
-): ControlledLanguageAuditTermEntry[] => {
-  if (node.data.node_type === "menu") {
-    const menuTerms = node.data.menu_config.terms.map((menuTerm) => ({
-      field_type: "menu_term" as const,
-      term: menuTerm.term,
-    }));
-
-    return menuTerms;
-  }
-
-  return CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => ({
-    field_type: fieldType,
-    term: node.data[fieldType],
-  }));
-};
-
-const normalizeControlledLanguageTerm = (value: string): string => value.trim();
-
-const buildControlledLanguageGlossaryKey = (
-  fieldType: ControlledLanguageFieldType,
-  term: string
-): string => `${fieldType}\u241F${term}`;
-
-const parseControlledLanguageGlossaryKey = (
-  key: string
-): { field_type: ControlledLanguageFieldType; term: string } | null => {
-  const separatorIndex = key.indexOf("\u241F");
-  if (separatorIndex <= 0) {
-    return null;
-  }
-
-  const rawFieldType = key.slice(0, separatorIndex);
-  const term = key.slice(separatorIndex + 1);
-  const fieldType = normalizeControlledLanguageFieldType(rawFieldType);
-
-  if (!fieldType) {
-    return null;
-  }
-
-  return {
-    field_type: fieldType,
-    term,
-  };
-};
-
-const sortControlledLanguageEntries = <
-  T extends Pick<ControlledLanguageGlossaryEntry, "field_type" | "term">
->(entries: T[]): T[] =>
-  entries
-    .slice()
-    .sort((a, b) => {
-      const fieldOrderDifference =
-        CONTROLLED_LANGUAGE_FIELD_ORDER[a.field_type] -
-        CONTROLLED_LANGUAGE_FIELD_ORDER[b.field_type];
-
-      if (fieldOrderDifference !== 0) {
-        return fieldOrderDifference;
-      }
-
-      return a.term.localeCompare(b.term);
-    });
-
-const sanitizeControlledLanguageGlossary = (
-  value: unknown
-): ControlledLanguageGlossaryEntry[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const byKey = new Map<string, ControlledLanguageGlossaryEntry>();
-
-  value.forEach((item) => {
-    if (!item || typeof item !== "object") {
-      return;
-    }
-
-    const source = item as {
-      field_type?: unknown;
-      term?: unknown;
-      include?: unknown;
-    };
-    const fieldType = normalizeControlledLanguageFieldType(source.field_type);
-    if (!fieldType) {
-      return;
-    }
-
-    const term =
-      typeof source.term === "string"
-        ? normalizeControlledLanguageTerm(source.term)
-        : "";
-    if (!term) {
-      return;
-    }
-
-    const key = buildControlledLanguageGlossaryKey(fieldType, term);
-    const existing = byKey.get(key);
-
-    byKey.set(key, {
-      field_type: fieldType,
-      term,
-      include:
-        typeof source.include === "boolean"
-          ? source.include
-          : existing?.include ?? false,
-    });
-  });
-
-  return sortControlledLanguageEntries(Array.from(byKey.values()));
-};
-
-const cloneControlledLanguageGlossary = (
-  entries: ControlledLanguageGlossaryEntry[]
-): ControlledLanguageGlossaryEntry[] =>
-  entries.map((entry) => ({
-    field_type: entry.field_type,
-    term: entry.term,
-    include: entry.include,
-  }));
-
-const createEmptyControlledLanguageDraftRow = (): ControlledLanguageDraftRow => ({
-  field_type: "menu_term",
-  term: "",
-  include: true,
-});
-
-const createEmptyControlledLanguageTermsByField = (): Record<
-  ControlledLanguageFieldType,
-  string[]
-> => ({
-  primary_cta: [],
-  secondary_cta: [],
-  helper_text: [],
-  error_text: [],
-  menu_term: [],
-});
-
-const buildControlledLanguageTermsByField = (
-  glossary: ControlledLanguageGlossaryEntry[]
-): Record<ControlledLanguageFieldType, string[]> => {
-  const byField = createEmptyControlledLanguageTermsByField();
-
-  sanitizeControlledLanguageGlossary(glossary)
-    .filter((entry) => entry.include)
-    .forEach((entry) => {
-      if (!byField[entry.field_type].includes(entry.term)) {
-        byField[entry.field_type].push(entry.term);
-      }
-    });
-
-  CONTROLLED_LANGUAGE_FIELDS.forEach((fieldType) => {
-    byField[fieldType].sort((a, b) => a.localeCompare(b));
-  });
-
-  return byField;
-};
-
-const buildMenuTermSelectorTerms = (
-  nodes: FlowNode[],
-  glossary: ControlledLanguageGlossaryEntry[]
-): string[] => {
-  const terms = new Set<string>(buildControlledLanguageTermsByField(glossary).menu_term);
-
-  nodes.forEach((node) => {
-    collectControlledLanguageTermsFromNode(node)
-      .filter((entry) => entry.field_type === "menu_term")
-      .forEach(({ term: rawTerm }) => {
-        const term = normalizeControlledLanguageTerm(rawTerm);
-        if (term) {
-          terms.add(term);
-        }
-      });
-  });
-
-  return Array.from(terms).sort((a, b) => a.localeCompare(b));
-};
-
-const buildControlledLanguageAuditRows = (
-  nodes: FlowNode[],
-  glossary: ControlledLanguageGlossaryEntry[]
-): ControlledLanguageAuditRow[] => {
-  const rowByKey = new Map<string, ControlledLanguageAuditRow>();
-
-  nodes.forEach((node) => {
-    collectControlledLanguageTermsFromNode(node).forEach(({ field_type, term: rawTerm }) => {
-      const term = normalizeControlledLanguageTerm(rawTerm);
-      if (!term) {
-        return;
-      }
-
-      const key = buildControlledLanguageGlossaryKey(field_type, term);
-      const existing = rowByKey.get(key);
-
-      if (existing) {
-        rowByKey.set(key, {
-          ...existing,
-          occurrences: existing.occurrences + 1,
-        });
-        return;
-      }
-
-      rowByKey.set(key, {
-        field_type,
-        term,
-        include: false,
-        occurrences: 1,
-      });
-    });
-  });
-
-  sanitizeControlledLanguageGlossary(glossary).forEach((entry) => {
-    const key = buildControlledLanguageGlossaryKey(entry.field_type, entry.term);
-    const existing = rowByKey.get(key);
-
-    rowByKey.set(key, {
-      field_type: entry.field_type,
-      term: entry.term,
-      include: entry.include,
-      occurrences: existing?.occurrences ?? 0,
-    });
-  });
-
-  return sortControlledLanguageEntries(Array.from(rowByKey.values()));
-};
-
-const getDefaultEdgeStrokeColor = (edgeKind: EdgeKind): string =>
-  edgeKind === "parallel" ? PARALLEL_EDGE_STROKE_COLOR : EDGE_STROKE_COLOR;
-
-const inferEdgeKindFromHandles = (
-  sourceHandle?: string | null,
-  targetHandle?: string | null
-): EdgeKind =>
-  (typeof sourceHandle === "string" && sourceHandle.startsWith("p-")) ||
-  (typeof targetHandle === "string" && targetHandle.startsWith("p-"))
-    ? "parallel"
-    : "sequential";
-
-const normalizeEdgeData = (
-  value: unknown,
-  fallbackKind: EdgeKind
-): FlowEdgeData => {
-  const source =
-    value && typeof value === "object" ? (value as Partial<FlowEdgeData>) : undefined;
-
-  const edge_kind = isEdgeKind(source?.edge_kind) ? source.edge_kind : fallbackKind;
-  const line_style = isEdgeLineStyle(source?.line_style)
-    ? source.line_style
-    : "solid";
-  const stroke_color =
-    typeof source?.stroke_color === "string" && source.stroke_color.trim().length > 0
-      ? source.stroke_color
-      : getDefaultEdgeStrokeColor(edge_kind);
-
-  return {
-    edge_kind,
-    stroke_color,
-    line_style,
-    is_reversed:
-      edge_kind === "sequential" && typeof source?.is_reversed === "boolean"
-        ? source.is_reversed
-        : undefined,
-  };
-};
-
-const getEdgeDirection = (edgeData: FlowEdgeData): EdgeDirection =>
-  edgeData.edge_kind === "sequential" && edgeData.is_reversed ? "reversed" : "forward";
-
-const getEdgeKind = (
-  edge: Pick<FlowEdge, "data" | "sourceHandle" | "targetHandle">
-): EdgeKind =>
-  isEdgeKind(edge.data?.edge_kind)
-    ? edge.data.edge_kind
-    : inferEdgeKindFromHandles(edge.sourceHandle, edge.targetHandle);
-
-const isSequentialEdge = (
-  edge: Pick<FlowEdge, "data" | "sourceHandle" | "targetHandle">
-): boolean => getEdgeKind(edge) === "sequential";
-
-const isParallelEdge = (
-  edge: Pick<FlowEdge, "data" | "sourceHandle" | "targetHandle">
-): boolean => getEdgeKind(edge) === "parallel";
-
-const isEditableEventTarget = (target: EventTarget | null): boolean => {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-
-  if (target.isContentEditable) {
-    return true;
-  }
-
-  const tagName = target.tagName;
-  return (
-    tagName === "INPUT" ||
-    tagName === "TEXTAREA" ||
-    tagName === "SELECT" ||
-    target.closest("[contenteditable='true']") !== null
-  );
-};
-
-const hasNonSelectionNodeChanges = (changes: NodeChange<FlowNode>[]): boolean =>
-  changes.some((change) => change.type !== "select");
-
-const hasNonSelectionEdgeChanges = (changes: EdgeChange<FlowEdge>[]): boolean =>
-  changes.some((change) => change.type !== "select");
-
-const escapeCsvCell = (value: string): string => {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-
-  return value;
-};
-
-const buildCsvFromRows = (rows: FlatExportRow[]): string => {
-  const header = FLAT_EXPORT_COLUMNS.join(",");
-  const lines = rows.map((row) =>
-    FLAT_EXPORT_COLUMNS.map((column) => escapeCsvCell(row[column] ?? "")).join(",")
-  );
-
-  return [header, ...lines].join("\n");
-};
-
-const parseCsvText = (text: string): ParsedTabularPayload => {
-  const rows: string[][] = [];
-  let currentRow: string[] = [];
-  let currentCell = "";
-  let index = 0;
-  let inQuotes = false;
-
-  while (index < text.length) {
-    const char = text[index];
-
-    if (inQuotes) {
-      if (char === '"') {
-        if (text[index + 1] === '"') {
-          currentCell += '"';
-          index += 2;
-          continue;
-        }
-
-        inQuotes = false;
-        index += 1;
-        continue;
-      }
-
-      currentCell += char;
-      index += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      inQuotes = true;
-      index += 1;
-      continue;
-    }
-
-    if (char === ",") {
-      currentRow.push(currentCell);
-      currentCell = "";
-      index += 1;
-      continue;
-    }
-
-    if (char === "\n" || char === "\r") {
-      if (char === "\r" && text[index + 1] === "\n") {
-        index += 1;
-      }
-
-      currentRow.push(currentCell);
-      rows.push(currentRow);
-      currentRow = [];
-      currentCell = "";
-      index += 1;
-      continue;
-    }
-
-    currentCell += char;
-    index += 1;
-  }
-
-  currentRow.push(currentCell);
-  rows.push(currentRow);
-
-  if (rows.length === 0) {
-    return { rows: [], headers: [] };
-  }
-
-  const [rawHeaders, ...bodyRows] = rows;
-  const headers = rawHeaders.map((header, headerIndex) =>
-    headerIndex === 0 ? header.replace(/^\uFEFF/, "").trim() : header.trim()
-  );
-
-  const parsedRows = bodyRows
-    .filter((row) => row.some((cell) => cell.trim().length > 0))
-    .map((row) => {
-      const record: Record<string, string> = {};
-      headers.forEach((header, headerIndex) => {
-        if (!header) {
-          return;
-        }
-
-        record[header] = row[headerIndex] ?? "";
-      });
-
-      return record;
-    });
-
-  return {
-    rows: parsedRows,
-    headers,
-  };
-};
-
-const escapeXmlText = (value: string): string =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-
-const buildXmlFromRows = (rows: FlatExportRow[]): string => {
-  const rowXml = rows
-    .map((row) => {
-      const cells = FLAT_EXPORT_COLUMNS.map(
-        (column) =>
-          `    <${column}>${escapeXmlText(row[column] ?? "")}</${column}>`
-      ).join("\n");
-
-      return `  <row>\n${cells}\n  </row>`;
-    })
-    .join("\n");
-
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<flowcopyExport formatVersion="1">\n${rowXml}\n</flowcopyExport>`;
-};
-
-const parseXmlText = (text: string): ParsedTabularPayload => {
-  const parser = new DOMParser();
-  const document = parser.parseFromString(text, "application/xml");
-  const parserError = document.querySelector("parsererror");
-
-  if (parserError) {
-    throw new Error("Invalid XML file.");
-  }
-
-  const rowElements = Array.from(document.getElementsByTagName("row"));
-  const headers = new Set<string>();
-
-  const rows = rowElements.map((rowElement) => {
-    const rowRecord: Record<string, string> = {};
-
-    Array.from(rowElement.children).forEach((cellElement) => {
-      const key = cellElement.tagName.trim();
-      if (!key) {
-        return;
-      }
-
-      headers.add(key);
-      rowRecord[key] = cellElement.textContent ?? "";
-    });
-
-    return rowRecord;
-  });
-
-  return {
-    rows,
-    headers: Array.from(headers),
-  };
-};
-
-const detectProjectTransferFormat = (
-  fileName: string,
-  text: string
-): ProjectTransferFormat | null => {
-  const loweredFileName = fileName.toLowerCase();
-
-  if (loweredFileName.endsWith(".csv")) {
-    return "csv";
-  }
-
-  if (loweredFileName.endsWith(".xml")) {
-    return "xml";
-  }
-
-  if (loweredFileName.endsWith(".json")) {
-    return "json";
-  }
-
-  const trimmed = text.trimStart();
-  if (trimmed.startsWith("<")) {
-    return "xml";
-  }
-
-  if (trimmed.startsWith("{")) {
-    return "json";
-  }
-
-  if (trimmed.includes(",")) {
-    return "csv";
-  }
-
-  return null;
-};
-
-const normalizeFlatRowKeys = (rawRow: Record<string, string>): Record<string, string> => {
-  const normalizedRow: Record<string, string> = {};
-
-  Object.entries(rawRow).forEach(([key, value], index) => {
-    const normalizedKey = index === 0 ? key.replace(/^\uFEFF/, "").trim() : key.trim();
-    if (!normalizedKey) {
-      return;
-    }
-
-    normalizedRow[normalizedKey] = value;
-  });
-
-  return normalizedRow;
-};
-
-const selectFlatImportRowsForProject = ({
-  rows,
-  preferredProjectId,
-}: {
-  rows: Record<string, string>[];
-  preferredProjectId: string;
-}): {
-  projectId: string;
-  projectRows: Record<string, string>[];
-} => {
-  const rowsByProjectId = new Map<string, Record<string, string>[]>();
-  const rowsWithoutProjectId: Record<string, string>[] = [];
-
-  rows.forEach((row) => {
-    const projectId = (row.project_id ?? "").trim();
-    if (!projectId) {
-      rowsWithoutProjectId.push(row);
-      return;
-    }
-
-    const existing = rowsByProjectId.get(projectId);
-    if (existing) {
-      existing.push(row);
-      return;
-    }
-
-    rowsByProjectId.set(projectId, [row]);
-  });
-
-  if (rowsByProjectId.has(preferredProjectId)) {
-    return {
-      projectId: preferredProjectId,
-      projectRows: [
-        ...(rowsByProjectId.get(preferredProjectId) ?? []),
-        ...rowsWithoutProjectId,
-      ],
-    };
-  }
-
-  if (rowsByProjectId.size === 1) {
-    const [projectId, projectRows] = Array.from(rowsByProjectId.entries())[0];
-    return {
-      projectId,
-      projectRows: [...projectRows, ...rowsWithoutProjectId],
-    };
-  }
-
-  if (rowsByProjectId.size > 1) {
-    const listedProjectIds = Array.from(rowsByProjectId.keys()).sort((a, b) =>
-      a.localeCompare(b)
-    );
-    throw new Error(
-      `Import file contains multiple project IDs (${listedProjectIds.join(", ")}). Import one project per file.`
-    );
-  }
-
-  if (rowsWithoutProjectId.length > 0) {
-    return {
-      projectId: preferredProjectId,
-      projectRows: rowsWithoutProjectId,
-    };
-  }
-
-  throw new Error("Import file has no project rows.");
-};
-
-const safeJsonParse = (value: string): unknown => {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-};
-
-const parseProjectRecordFromJsonText = (text: string): ProjectRecord => {
-  const parsed = safeJsonParse(text);
-
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("Invalid JSON file.");
-  }
-
-  const source = parsed as Record<string, unknown>;
-
-  if (source.format === FULL_PROJECT_EXPORT_FORMAT) {
-    if (source.schemaVersion !== FULL_PROJECT_EXPORT_SCHEMA_VERSION) {
-      throw new Error(
-        `Unsupported JSON schema version. Expected ${FULL_PROJECT_EXPORT_SCHEMA_VERSION}.`
-      );
-    }
-
-    const payload =
-      source.payload && typeof source.payload === "object"
-        ? (source.payload as { project?: unknown })
-        : null;
-
-    const envelopeProject = sanitizeProjectRecord(payload?.project);
-    if (!envelopeProject) {
-      throw new Error("JSON payload is missing a valid project.");
-    }
-
-    return envelopeProject;
-  }
-
-  const directProject = sanitizeProjectRecord(parsed);
-  if (directProject) {
-    return directProject;
-  }
-
-  throw new Error(
-    `Unsupported JSON format. Expected ${FULL_PROJECT_EXPORT_FORMAT} v${FULL_PROJECT_EXPORT_SCHEMA_VERSION}.`
-  );
-};
-
-const toNumeric = (value: string | undefined): number | null => {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const buildDownloadFileName = (
-  projectId: string,
-  extension: DownloadTextExtension
-): string => {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return `${projectId}-${timestamp}.${extension}`;
-};
-
-const uniqueTrimmedStrings = (values: string[]): string[] =>
-  Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
-
-const mergeAdminOptionConfigs = (
-  base: GlobalOptionConfig,
-  incoming: GlobalOptionConfig
-): GlobalOptionConfig => ({
-  tone: uniqueTrimmedStrings([...base.tone, ...incoming.tone]),
-  polarity: uniqueTrimmedStrings([...base.polarity, ...incoming.polarity]),
-  reversibility: uniqueTrimmedStrings([...base.reversibility, ...incoming.reversibility]),
-  concept: uniqueTrimmedStrings([...base.concept, ...incoming.concept]),
-  action_type_name: uniqueTrimmedStrings([
-    ...base.action_type_name,
-    ...incoming.action_type_name,
-  ]),
-  action_type_color: uniqueTrimmedStrings([
-    ...base.action_type_color,
-    ...incoming.action_type_color,
-  ]),
-  card_style: uniqueTrimmedStrings([...base.card_style, ...incoming.card_style]),
-});
-
-const syncAdminOptionsWithNodes = (
-  base: GlobalOptionConfig,
-  nodes: FlowNode[]
-): GlobalOptionConfig => {
-  const merged = cloneGlobalOptions(base);
-
-  GLOBAL_OPTION_FIELDS.forEach((field) => {
-    const nodeField = GLOBAL_OPTION_TO_NODE_FIELD[field];
-
-    nodes.forEach((node) => {
-      const value = node.data[nodeField];
-      if (typeof value !== "string") {
-        return;
-      }
-
-      const next = value.trim();
-      if (!next || merged[field].includes(next)) {
-        return;
-      }
-
-      merged[field].push(next);
-    });
-  });
-
-  return normalizeGlobalOptionConfig(merged);
-};
-
-const createFlatExportRows = ({
-  session,
-  account,
-  project,
-  projectSequenceId,
-  nodes,
-  ordering,
-  adminOptions,
-  controlledLanguageGlossary,
-  edges,
-}: {
-  session: AppStore["session"];
-  account: AccountRecord;
-  project: ProjectRecord;
-  projectSequenceId: string;
-  nodes: FlowNode[];
-  ordering: FlowOrderingResult;
-  adminOptions: GlobalOptionConfig;
-  controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
-  edges: FlowEdge[];
-}): FlatExportRow[] => {
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-
-  const orderedNodes = ordering.orderedNodeIds
-    .map((nodeId) => nodeById.get(nodeId))
-    .filter((node): node is FlowNode => Boolean(node));
-
-  const edgesJson = JSON.stringify(sanitizeEdgesForStorage(edges));
-  const adminOptionsJson = JSON.stringify(adminOptions);
-  const controlledLanguageJson = JSON.stringify(
-    sanitizeControlledLanguageGlossary(controlledLanguageGlossary)
-  );
-
-  const buildRow = (node: FlowNode | null): FlatExportRow => {
-    const sequence = node ? ordering.sequenceByNodeId[node.id] ?? null : null;
-
-    return {
-      session_activeAccountId: session.activeAccountId ?? "",
-      session_activeProjectId: session.activeProjectId ?? "",
-      session_view: session.view,
-      session_editorMode: session.editorMode,
-      account_id: account.id,
-      account_code: account.code,
-      project_id: project.id,
-      project_name: project.name,
-      project_createdAt: project.createdAt,
-      project_updatedAt: project.updatedAt,
-      project_sequence_id: projectSequenceId,
-      node_id: node?.id ?? "",
-      node_order_id: sequence !== null ? String(sequence) : "",
-      sequence_index: sequence !== null ? String(sequence) : "",
-      parallel_group_id:
-        node?.data.parallel_group_id ??
-        (node ? ordering.parallelGroupByNodeId[node.id] ?? "" : ""),
-      position_x: node ? String(node.position.x) : "",
-      position_y: node ? String(node.position.y) : "",
-      title: node?.data.title ?? "",
-      body_text: node?.data.body_text ?? "",
-      primary_cta: node?.data.primary_cta ?? "",
-      secondary_cta: node?.data.secondary_cta ?? "",
-      helper_text: node?.data.helper_text ?? "",
-      error_text: node?.data.error_text ?? "",
-      display_term_field: node?.data.display_term_field ?? "",
-      tone: node?.data.tone ?? "",
-      polarity: node?.data.polarity ?? "",
-      reversibility: node?.data.reversibility ?? "",
-      concept: node?.data.concept ?? "",
-      notes: node?.data.notes ?? "",
-      action_type_name: node?.data.action_type_name ?? "",
-      action_type_color: node?.data.action_type_color ?? "",
-      card_style: node?.data.card_style ?? "",
-      node_shape: node?.data.node_shape ?? "",
-      node_type: node?.data.node_type ?? "default",
-      menu_config_json: node ? JSON.stringify(node.data.menu_config) : "",
-      frame_config_json: node ? JSON.stringify(node.data.frame_config) : "",
-      project_admin_options_json: adminOptionsJson,
-      project_controlled_language_json: controlledLanguageJson,
-      project_edges_json: edgesJson,
-    };
-  };
-
-  if (orderedNodes.length === 0) {
-    return [buildRow(null)];
-  }
-
-  return orderedNodes.map((node) => buildRow(node));
-};
-
-const createEmptyPendingOptionInputs = (): Record<GlobalOptionField, string> => ({
-  tone: "",
-  polarity: "",
-  reversibility: "",
-  concept: "",
-  action_type_name: "",
-  action_type_color: "",
-  card_style: "",
-});
-
-const createNodeId = (): string =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `node-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-
-const createProjectId = (): string =>
-  `PRJ-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-
-const createAccountId = (code: string): string => `acct-${code}`;
-
-const isNodeShape = (value: unknown): value is NodeShape =>
-  typeof value === "string" && NODE_SHAPE_OPTIONS.includes(value as NodeShape);
-
-const cloneGlobalOptions = (options: GlobalOptionConfig): GlobalOptionConfig => ({
-  tone: [...options.tone],
-  polarity: [...options.polarity],
-  reversibility: [...options.reversibility],
-  concept: [...options.concept],
-  action_type_name: [...options.action_type_name],
-  action_type_color: [...options.action_type_color],
-  card_style: [...options.card_style],
-});
-
-const cloneFlowNodes = (nodes: FlowNode[]): FlowNode[] =>
-  nodes.map((node) => ({
-    ...node,
-    position: { ...node.position },
-    data: { ...node.data },
-  }));
-
-const cloneEdges = (edges: FlowEdge[]): FlowEdge[] =>
-  edges.map((edge) => ({
-    ...edge,
-    data: edge.data ? { ...edge.data } : edge.data,
-    markerEnd:
-      edge.markerEnd && typeof edge.markerEnd === "object"
-        ? { ...edge.markerEnd }
-        : edge.markerEnd,
-    markerStart:
-      edge.markerStart && typeof edge.markerStart === "object"
-        ? { ...edge.markerStart }
-        : edge.markerStart,
-    style:
-      edge.style && typeof edge.style === "object" ? { ...edge.style } : edge.style,
-    labelStyle:
-      edge.labelStyle && typeof edge.labelStyle === "object"
-        ? { ...edge.labelStyle }
-        : edge.labelStyle,
-    labelBgStyle:
-      edge.labelBgStyle && typeof edge.labelBgStyle === "object"
-        ? { ...edge.labelBgStyle }
-        : edge.labelBgStyle,
-  }));
-
-const ensureArrayOfStrings = (value: unknown, fallback: string[]): string[] => {
-  if (!Array.isArray(value)) {
-    return [...fallback];
-  }
-
-  const validItems = value.filter((item): item is string => typeof item === "string");
-  return validItems.length > 0 ? validItems : [...fallback];
-};
-
-const normalizeGlobalOptionConfig = (value: unknown): GlobalOptionConfig => {
-  const source =
-    value && typeof value === "object"
-      ? (value as Partial<GlobalOptionConfig>)
-      : undefined;
-
-  return {
-    tone: ensureArrayOfStrings(source?.tone, DEFAULT_GLOBAL_OPTIONS.tone),
-    polarity: ensureArrayOfStrings(source?.polarity, DEFAULT_GLOBAL_OPTIONS.polarity),
-    reversibility: ensureArrayOfStrings(
-      source?.reversibility,
-      DEFAULT_GLOBAL_OPTIONS.reversibility
-    ),
-    concept: ensureArrayOfStrings(source?.concept, DEFAULT_GLOBAL_OPTIONS.concept),
-    action_type_name: ensureArrayOfStrings(
-      source?.action_type_name,
-      DEFAULT_GLOBAL_OPTIONS.action_type_name
-    ),
-    action_type_color: ensureArrayOfStrings(
-      source?.action_type_color,
-      DEFAULT_GLOBAL_OPTIONS.action_type_color
-    ),
-    card_style: ensureArrayOfStrings(source?.card_style, DEFAULT_GLOBAL_OPTIONS.card_style),
-  };
-};
-
-const sanitizeSerializableFlowNodes = (value: unknown): SerializableFlowNode[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object") {
-      return [];
-    }
-
-    const source = item as Partial<SerializableFlowNode>;
-    const rawId = typeof source.id === "string" ? source.id.trim() : "";
-    const id = rawId.length > 0 ? rawId : createNodeId();
-
-    const position =
-      source.position &&
-      typeof source.position === "object" &&
-      typeof source.position.x === "number" &&
-      typeof source.position.y === "number"
-        ? { x: source.position.x, y: source.position.y }
-        : { x: 0, y: 0 };
-
-    const data =
-      source.data && typeof source.data === "object"
-        ? (source.data as Partial<PersistableMicrocopyNodeData>)
-        : undefined;
-
-    return [{ id, position, data }];
-  });
-};
-
-const sanitizeEdgesForStorage = (value: unknown): FlowEdge[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object") {
-      return [];
-    }
-
-    const sourceEdge = item as Partial<FlowEdge>;
-    const source =
-      typeof sourceEdge.source === "string" ? sourceEdge.source.trim() : "";
-    const target =
-      typeof sourceEdge.target === "string" ? sourceEdge.target.trim() : "";
-
-    if (!source || !target) {
-      return [];
-    }
-
-    const fallbackKind = inferEdgeKindFromHandles(
-      sourceEdge.sourceHandle,
-      sourceEdge.targetHandle
-    );
-
-    const markerStart =
-      sourceEdge.markerStart && typeof sourceEdge.markerStart === "object"
-        ? { ...sourceEdge.markerStart }
-        : sourceEdge.markerStart;
-    const markerEnd =
-      sourceEdge.markerEnd && typeof sourceEdge.markerEnd === "object"
-        ? { ...sourceEdge.markerEnd }
-        : sourceEdge.markerEnd;
-
-    return [
-      {
-        ...sourceEdge,
-        source,
-        target,
-        id:
-          typeof sourceEdge.id === "string" && sourceEdge.id.trim().length > 0
-            ? sourceEdge.id
-            : `e-${source}-${target}`,
-        data: normalizeEdgeData(sourceEdge.data, fallbackKind),
-        markerStart,
-        markerEnd,
-      } as FlowEdge,
-    ];
-  });
-};
-
-const cleanedOptions = (options: string[]): string[] =>
-  options.map((option) => option.trim()).filter((option) => option.length > 0);
-
-const firstOptionOrFallback = (options: string[], fallback: string): string =>
-  cleanedOptions(options)[0] ?? fallback;
-
-const getDefaultActionTypeName = (options: string[]): string =>
-  cleanedOptions(options).find((option) => option.toLowerCase() === "navigate") ??
-  firstOptionOrFallback(options, "Navigate");
-
-const buildSelectOptions = (
-  options: string[],
-  currentValue: string,
-  fallbackOptions: string[]
-): string[] => {
-  const cleaned = cleanedOptions(options);
-  const withFallback = cleaned.length > 0 ? cleaned : fallbackOptions;
-  const unique = Array.from(new Set(withFallback));
-
-  if (currentValue && !unique.includes(currentValue)) {
-    return [currentValue, ...unique];
-  }
-
-  return unique;
-};
-
-const createDefaultNodeData = (
-  globalOptions: GlobalOptionConfig,
-  overrides: Partial<PersistableMicrocopyNodeData> = {}
-): MicrocopyNodeData => ({
-  title: overrides.title ?? "",
-  body_text: overrides.body_text ?? "",
-  primary_cta: overrides.primary_cta ?? "",
-  secondary_cta: overrides.secondary_cta ?? "",
-  helper_text: overrides.helper_text ?? "",
-  error_text: overrides.error_text ?? "",
-  display_term_field: isNodeControlledLanguageFieldType(overrides.display_term_field)
-    ? overrides.display_term_field
-    : "primary_cta",
-  tone: overrides.tone ?? firstOptionOrFallback(globalOptions.tone, "neutral"),
-  polarity: overrides.polarity ?? firstOptionOrFallback(globalOptions.polarity, "neutral"),
-  reversibility:
-    overrides.reversibility ??
-    firstOptionOrFallback(globalOptions.reversibility, "reversible"),
-  concept: overrides.concept ?? firstOptionOrFallback(globalOptions.concept, ""),
-  notes: overrides.notes ?? "",
-  action_type_name:
-    overrides.action_type_name ??
-    getDefaultActionTypeName(globalOptions.action_type_name),
-  action_type_color:
-    overrides.action_type_color ??
-    firstOptionOrFallback(globalOptions.action_type_color, "#4f46e5"),
-  card_style: overrides.card_style ?? firstOptionOrFallback(globalOptions.card_style, "default"),
-  node_shape: isNodeShape(overrides.node_shape) ? overrides.node_shape : "rectangle",
-  node_type: isNodeType(overrides.node_type) ? overrides.node_type : "default",
-  menu_config: normalizeMenuNodeConfig(
-    overrides.menu_config,
-    overrides.primary_cta ?? "Continue",
-    1
-  ),
-  frame_config: normalizeFrameNodeConfig(overrides.frame_config),
-  parallel_group_id:
-    typeof overrides.parallel_group_id === "string" &&
-    overrides.parallel_group_id.trim().length > 0
-      ? overrides.parallel_group_id.trim()
-      : null,
-  sequence_index: null,
-});
-
-const normalizeNode = (
-  node: SerializableFlowNode,
-  globalOptions: GlobalOptionConfig
-): FlowNode => ({
-  id: node.id,
-  type: "flowcopyNode",
-  position: node.position ?? { x: 0, y: 0 },
-  data: createDefaultNodeData(globalOptions, node.data ?? {}),
-});
-
-const applyEdgeVisuals = (
-  edge: FlowEdge,
-  options: {
-    selected?: boolean;
-    highlightStrokeColor?: string | null;
-  } = {}
-): FlowEdge => {
-  const edgeKind = getEdgeKind(edge);
-  const normalizedData = normalizeEdgeData(edge.data, edgeKind);
-  const edgeDirection = getEdgeDirection(normalizedData);
-  const dashPattern = EDGE_LINE_STYLE_DASH[normalizedData.line_style ?? "solid"];
-  const baseStroke = normalizedData.stroke_color ?? getDefaultEdgeStrokeColor(edgeKind);
-  const selected = options.selected ?? false;
-  const highlightStrokeColor = options.highlightStrokeColor ?? null;
-  const selectedStroke =
-    edgeKind === "parallel"
-      ? PARALLEL_SELECTED_STROKE_COLOR
-      : SEQUENTIAL_SELECTED_STROKE_COLOR;
-  const resolvedStroke = selected
-    ? selectedStroke
-    : highlightStrokeColor ?? baseStroke;
-
-  const sequentialArrowMarker = {
-    type: MarkerType.ArrowClosed,
-    color: resolvedStroke,
-    width: 16,
-    height: 16,
-  };
-
-  const style: React.CSSProperties = {
-    ...EDGE_BASE_STYLE,
-    ...(edge.style ?? {}),
-    stroke: resolvedStroke,
-    strokeWidth: selected || highlightStrokeColor ? 3.4 : EDGE_BASE_STYLE.strokeWidth,
-    strokeDasharray: dashPattern,
-    opacity: selected || highlightStrokeColor ? 1 : edgeKind === "parallel" ? 0.9 : 1,
-  };
-
-  return {
-    ...edge,
-    data: normalizedData,
-    type: edge.type ?? DEFAULT_EDGE_OPTIONS.type,
-    animated:
-      edgeKind === "parallel"
-        ? false
-        : typeof edge.animated === "boolean"
-          ? edge.animated
-          : true,
-    markerStart:
-      edgeKind === "parallel"
-        ? undefined
-        : edgeDirection === "reversed"
-          ? edge.markerStart ?? sequentialArrowMarker
-          : undefined,
-    markerEnd:
-      edgeKind === "parallel"
-        ? undefined
-        : edgeDirection === "reversed"
-          ? undefined
-          : edge.markerEnd ?? sequentialArrowMarker,
-    style,
-  };
-};
-
-const sanitizePersistedNodes = (
-  persistedNodes: SerializableFlowNode[],
-  globalOptions: GlobalOptionConfig
-): FlowNode[] => {
-  const usedNodeIds = new Set<string>();
-
-  return persistedNodes.map((node) => {
-    const rawId = typeof node.id === "string" ? node.id.trim() : "";
-    const baseId = rawId.length > 0 ? rawId : createNodeId();
-
-    let uniqueId = baseId;
-    let duplicateCounter = 1;
-    while (usedNodeIds.has(uniqueId)) {
-      uniqueId = `${baseId}-${duplicateCounter}`;
-      duplicateCounter += 1;
-    }
-
-    usedNodeIds.add(uniqueId);
-
-    return normalizeNode(
-      {
-        ...node,
-        id: uniqueId,
-      },
-      globalOptions
-    );
-  });
-};
-
-const sanitizeEdges = (persistedEdges: FlowEdge[], nodes: FlowNode[]): FlowEdge[] => {
-  const validNodeIds = new Set(nodes.map((node) => node.id));
-  const usedEdgeIds = new Set<string>();
-
-  return persistedEdges.flatMap((edge) => {
-    const source = typeof edge.source === "string" ? edge.source : "";
-    const target = typeof edge.target === "string" ? edge.target : "";
-
-    if (!source || !target) {
-      return [];
-    }
-
-    if (!validNodeIds.has(source) || !validNodeIds.has(target)) {
-      return [];
-    }
-
-    const rawId = typeof edge.id === "string" ? edge.id.trim() : "";
-    const baseId = rawId.length > 0 ? rawId : `e-${source}-${target}`;
-
-    let uniqueId = baseId;
-    let duplicateCounter = 1;
-    while (usedEdgeIds.has(uniqueId)) {
-      uniqueId = `${baseId}-${duplicateCounter}`;
-      duplicateCounter += 1;
-    }
-
-    usedEdgeIds.add(uniqueId);
-
-    const fallbackKind = inferEdgeKindFromHandles(edge.sourceHandle, edge.targetHandle);
-
-    return [
-      applyEdgeVisuals({
-        ...edge,
-        id: uniqueId,
-        source,
-        target,
-        data: normalizeEdgeData(edge.data, fallbackKind),
-      }),
-    ];
-  });
-};
-
-const constrainNodesToFrameMembershipBounds = (nodes: FlowNode[]): FlowNode[] => {
-  const frameNodes = nodes.filter((node) => node.data.node_type === "frame");
-  if (frameNodes.length === 0) {
-    return nodes;
-  }
-
-  const memberFramesByNodeId = new Map<string, FlowNode[]>();
-
-  frameNodes.forEach((frameNode) => {
-    const frameConfig = normalizeFrameNodeConfig(frameNode.data.frame_config);
-
-    frameConfig.member_node_ids.forEach((memberNodeId) => {
-      const existingFrames = memberFramesByNodeId.get(memberNodeId);
-      if (existingFrames) {
-        existingFrames.push(frameNode);
-        return;
-      }
-
-      memberFramesByNodeId.set(memberNodeId, [frameNode]);
-    });
-  });
-
-  if (memberFramesByNodeId.size === 0) {
-    return nodes;
-  }
-
-  return nodes.map((node) => {
-    if (node.data.node_type === "frame") {
-      return node;
-    }
-
-    const containingFrames = memberFramesByNodeId.get(node.id);
-    if (!containingFrames || containingFrames.length === 0) {
-      return node;
-    }
-
-    const nodeSize = getNodeVisualSize(node);
-    let nextX = node.position.x;
-    let nextY = node.position.y;
-
-    containingFrames.forEach((frameNode) => {
-      const frameConfig = normalizeFrameNodeConfig(frameNode.data.frame_config);
-      const minX = frameNode.position.x;
-      const minY = frameNode.position.y;
-      const maxX = Math.max(minX, frameNode.position.x + frameConfig.width - nodeSize.width);
-      const maxY = Math.max(minY, frameNode.position.y + frameConfig.height - nodeSize.height);
-
-      nextX = Math.min(maxX, Math.max(minX, nextX));
-      nextY = Math.min(maxY, Math.max(minY, nextY));
-    });
-
-    if (nextX === node.position.x && nextY === node.position.y) {
-      return node;
-    }
-
-    return {
-      ...node,
-      position: {
-        x: nextX,
-        y: nextY,
-      },
-    };
-  });
-};
-
-const compareNodeOrder = (a: FlowNode, b: FlowNode): number => {
-  if (a.position.x !== b.position.x) {
-    return a.position.x - b.position.x;
-  }
-
-  if (a.position.y !== b.position.y) {
-    return a.position.y - b.position.y;
-  }
-
-  return a.id.localeCompare(b.id);
-};
-
-const resolveUiJourneyConversationIncludedNodeIds = ({
-  nodes,
-  selectedNodeIds,
-}: {
-  nodes: FlowNode[];
-  selectedNodeIds: string[];
-}): string[] => {
-  if (selectedNodeIds.length === 0) {
-    return [];
-  }
-
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const frameIdsByMemberNodeId = new Map<string, Set<string>>();
-
-  nodes.forEach((node) => {
-    if (node.data.node_type !== "frame") {
-      return;
-    }
-
-    const frameConfig = normalizeFrameNodeConfig(node.data.frame_config);
-
-    frameConfig.member_node_ids.forEach((memberNodeId) => {
-      if (!nodeById.has(memberNodeId)) {
-        return;
-      }
-
-      const existingFrameIds = frameIdsByMemberNodeId.get(memberNodeId);
-      if (existingFrameIds) {
-        existingFrameIds.add(node.id);
-        return;
-      }
-
-      frameIdsByMemberNodeId.set(memberNodeId, new Set([node.id]));
-    });
-  });
-
-  const includedNodeIds = new Set<string>();
-  const queue: string[] = [];
-
-  const enqueueNodeId = (nodeId: string) => {
-    if (!nodeById.has(nodeId) || includedNodeIds.has(nodeId)) {
-      return;
-    }
-
-    includedNodeIds.add(nodeId);
-    queue.push(nodeId);
-  };
-
-  selectedNodeIds.forEach(enqueueNodeId);
-
-  while (queue.length > 0) {
-    const currentNodeId = queue.shift();
-    if (!currentNodeId) {
-      continue;
-    }
-
-    const currentNode = nodeById.get(currentNodeId);
-    if (!currentNode || currentNode.data.node_type === "frame") {
-      continue;
-    }
-
-    const containingFrameIds = frameIdsByMemberNodeId.get(currentNodeId);
-    containingFrameIds?.forEach(enqueueNodeId);
-  }
-
-  return Array.from(includedNodeIds);
-};
-
-const buildUiJourneyConversationEntries = ({
-  nodes,
-  edges,
-  ordering,
-  selectedNodeIds,
-}: {
-  nodes: FlowNode[];
-  edges: FlowEdge[];
-  ordering: FlowOrderingResult;
-  selectedNodeIds: string[];
-}): UiJourneyConversationEntry[] => {
-  if (selectedNodeIds.length === 0) {
-    return [];
-  }
-
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const includedNodeIds = new Set(
-    resolveUiJourneyConversationIncludedNodeIds({
-      nodes,
-      selectedNodeIds,
-    })
-  );
-
-  const orderedIncludedNodeIds = ordering.orderedNodeIds
-    .filter((nodeId) => includedNodeIds.has(nodeId))
-    .slice();
-
-  const connectionMetaByNodeId = buildUiJourneyConversationConnectionMetaByNodeId({
-    nodes,
-    includedNodeIds: orderedIncludedNodeIds,
-    edges,
-  });
-
-  return orderedIncludedNodeIds
-    .map((nodeId) => {
-      const node = nodeById.get(nodeId);
-      if (!node) {
-        return null;
-      }
-
-      const sequence = ordering.sequenceByNodeId[nodeId] ?? null;
-      const fallbackConnectionMeta: UiJourneyConversationConnectionMeta = {
-        groupId: null,
-        groupIndex: null,
-        connectorIds: [],
-        connectedNodeIds: [],
-        isOrphan: true,
-      };
-
-      return {
-        entryId: buildUiJourneyConversationEntryId(nodeId, sequence),
-        nodeInstanceId: nodeId,
-        titleFieldId: buildUiJourneyConversationTitleFieldId(nodeId),
-        nodeId,
-        nodeType: node.data.node_type,
-        sequence,
-        title: node.data.title.trim(),
-        fields: buildUiJourneyConversationFields(nodeId, node.data),
-        connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
-      };
-    })
-    .filter((entry): entry is UiJourneyConversationEntry => Boolean(entry));
-};
-
-const buildUiJourneySnapshotCapture = ({
-  nodes,
-  edges,
-  ordering,
-  selectedNodeIds,
-}: {
-  nodes: FlowNode[];
-  edges: FlowEdge[];
-  ordering: FlowOrderingResult;
-  selectedNodeIds: string[];
-}): UiJourneySnapshotCapture => {
-  const conversation = buildUiJourneyConversationEntries({
-    nodes,
-    edges,
-    ordering,
-    selectedNodeIds,
-  });
-
-  if (conversation.length === 0) {
-    return {
-      nodeIds: [],
-      edgeIds: [],
-      conversation: [],
-    };
-  }
-
-  const nodeIds = conversation.map((entry) => entry.nodeId);
-  const nodeIdSet = new Set(nodeIds);
-
-  const edgeIds = edges
-    .filter(
-      (edge) => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)
-    )
-    .map((edge) => edge.id);
-
-  return {
-    nodeIds,
-    edgeIds,
-    conversation,
-  };
-};
-
-const buildParallelGroupId = (componentNodeIds: string[]): string =>
-  `PG-${componentNodeIds.slice().sort((a, b) => a.localeCompare(b)).join("|")}`;
-
-const computeParallelGroups = (
-  nodes: FlowNode[],
-  edges: FlowEdge[]
-): ParallelGroupInfo => {
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const adjacency = new Map<string, Set<string>>();
-  const visited = new Set<string>();
-
-  nodes.forEach((node) => {
-    adjacency.set(node.id, new Set<string>());
-  });
-
-  edges.forEach((edge) => {
-    if (!isParallelEdge(edge)) {
-      return;
-    }
-
-    if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) {
-      return;
-    }
-
-    adjacency.get(edge.source)?.add(edge.target);
-    adjacency.get(edge.target)?.add(edge.source);
-  });
-
-  const sortedNodes = nodes.slice().sort(compareNodeOrder);
-  const componentNodeIds: string[][] = [];
-  const parallelGroupByNodeId: Partial<Record<string, string>> = {};
-
-  sortedNodes.forEach((node) => {
-    if (visited.has(node.id)) {
-      return;
-    }
-
-    visited.add(node.id);
-
-    const neighbors = adjacency.get(node.id);
-    if (!neighbors || neighbors.size === 0) {
-      return;
-    }
-
-    const component: string[] = [];
-    const stack = [node.id];
-
-    while (stack.length > 0) {
-      const currentNodeId = stack.pop();
-      if (!currentNodeId) {
-        continue;
-      }
-
-      component.push(currentNodeId);
-
-      const currentNeighbors = Array.from(adjacency.get(currentNodeId) ?? []).sort((a, b) =>
-        a.localeCompare(b)
-      );
-
-      currentNeighbors.forEach((neighborNodeId) => {
-        if (visited.has(neighborNodeId)) {
-          return;
-        }
-
-        visited.add(neighborNodeId);
-        stack.push(neighborNodeId);
-      });
-    }
-
-    const normalizedComponent = component.sort((a, b) => a.localeCompare(b));
-    const groupId = buildParallelGroupId(normalizedComponent);
-
-    componentNodeIds.push(normalizedComponent);
-    normalizedComponent.forEach((nodeId) => {
-      parallelGroupByNodeId[nodeId] = groupId;
-    });
-  });
-
-  componentNodeIds.sort((a, b) => {
-    const first = a[0] ?? "";
-    const second = b[0] ?? "";
-    return first.localeCompare(second);
-  });
-
-  return {
-    parallelGroupByNodeId,
-    componentNodeIds,
-  };
-};
-
-const computeFlowOrdering = (nodes: FlowNode[], edges: FlowEdge[]): FlowOrderingResult => {
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const sequentialEdges = edges.filter((edge) => isSequentialEdge(edge));
-  const adjacency = new Map<string, Set<string>>();
-  const indegree = new Map<string, number>();
-
-  nodes.forEach((node) => {
-    adjacency.set(node.id, new Set<string>());
-    indegree.set(node.id, 0);
-  });
-
-  sequentialEdges.forEach((edge) => {
-    if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) {
-      return;
-    }
-
-    const neighbors = adjacency.get(edge.source);
-    if (!neighbors || neighbors.has(edge.target)) {
-      return;
-    }
-
-    neighbors.add(edge.target);
-    indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
-  });
-
-  const available = nodes
-    .filter((node) => (indegree.get(node.id) ?? 0) === 0)
-    .sort(compareNodeOrder);
-
-  const orderedNodeIds: string[] = [];
-
-  while (available.length > 0) {
-    const current = available.shift();
-    if (!current) {
-      break;
-    }
-
-    orderedNodeIds.push(current.id);
-
-    const sortedNeighbors = Array.from(adjacency.get(current.id) ?? [])
-      .map((neighborId) => nodeById.get(neighborId))
-      .filter((neighbor): neighbor is FlowNode => Boolean(neighbor))
-      .sort(compareNodeOrder);
-
-    sortedNeighbors.forEach((neighbor) => {
-      const nextIndegree = (indegree.get(neighbor.id) ?? 0) - 1;
-      indegree.set(neighbor.id, nextIndegree);
-
-      if (nextIndegree === 0) {
-        available.push(neighbor);
-        available.sort(compareNodeOrder);
-      }
-    });
-  }
-
-  const hasCycle = orderedNodeIds.length !== nodes.length;
-
-  if (hasCycle) {
-    const unresolved = nodes
-      .filter((node) => !orderedNodeIds.includes(node.id))
-      .sort(compareNodeOrder);
-
-    orderedNodeIds.push(...unresolved.map((node) => node.id));
-  }
-
-  const sequenceByNodeId = orderedNodeIds.reduce<Partial<Record<string, number>>>(
-    (acc, nodeId, index) => {
-      acc[nodeId] = index + 1;
-      return acc;
-    },
-    {}
-  );
-
-  const parallelGroupInfo = computeParallelGroups(nodes, edges);
-  parallelGroupInfo.componentNodeIds.forEach((component) => {
-    const componentIndices = component
-      .map((nodeId) => sequenceByNodeId[nodeId])
-      .filter((value): value is number => typeof value === "number");
-
-    if (componentIndices.length === 0) {
-      return;
-    }
-
-    const normalizedIndex = Math.min(...componentIndices);
-    component.forEach((nodeId) => {
-      sequenceByNodeId[nodeId] = normalizedIndex;
-    });
-  });
-
-  const orderedNodeIdsBySequence = nodes
-    .slice()
-    .sort((a, b) => {
-      const sequenceA = sequenceByNodeId[a.id] ?? Number.MAX_SAFE_INTEGER;
-      const sequenceB = sequenceByNodeId[b.id] ?? Number.MAX_SAFE_INTEGER;
-
-      if (sequenceA !== sequenceB) {
-        return sequenceA - sequenceB;
-      }
-
-      return compareNodeOrder(a, b);
-    })
-    .map((node) => node.id);
-
-  return {
-    orderedNodeIds: orderedNodeIdsBySequence,
-    sequentialOrderedNodeIds: orderedNodeIds,
-    sequenceByNodeId,
-    parallelGroupByNodeId: parallelGroupInfo.parallelGroupByNodeId,
-    hasCycle,
-  };
-};
-
-const hashToBase36 = (value: string): string => {
-  let hash = 2166136261;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash +=
-      (hash << 1) +
-      (hash << 4) +
-      (hash << 7) +
-      (hash << 8) +
-      (hash << 24);
-  }
-
-  return (hash >>> 0).toString(36).toUpperCase().padStart(7, "0");
-};
-
-const computeProjectSequenceId = (
-  orderedNodeIds: string[],
-  nodes: FlowNode[],
-  edges: FlowEdge[]
-): string => {
-  const validNodeIds = new Set(nodes.map((node) => node.id));
-
-  const edgeSignature = edges
-    .filter(
-      (edge) =>
-        isSequentialEdge(edge) && validNodeIds.has(edge.source) && validNodeIds.has(edge.target)
-    )
-    .map((edge) => `${edge.source}->${edge.target}`)
-    .sort()
-    .join("|");
-
-  const payload = `v1|order:${orderedNodeIds.join(">")}|edges:${edgeSignature}`;
-  return `FLOW-${hashToBase36(payload)}`;
-};
-
-const resolveNodeHighlightColor = ({
-  selected,
-  uiJourneyHighlighted,
-  uiJourneyRecalled,
-}: {
-  selected: boolean;
-  uiJourneyHighlighted: boolean;
-  uiJourneyRecalled: boolean;
-}): string | null => {
-  if (uiJourneyRecalled) {
-    return UI_JOURNEY_RECALLED_STROKE_COLOR;
-  }
-
-  if (uiJourneyHighlighted) {
-    return UI_JOURNEY_HIGHLIGHT_STROKE_COLOR;
-  }
-
-  if (selected) {
-    return "#2563eb";
-  }
-
-  return null;
-};
-
-const getNodeShapeStyle = (
-  shape: NodeShape,
-  selected: boolean,
-  accentColor: string,
-  options: {
-    uiJourneyHighlighted?: boolean;
-    uiJourneyRecalled?: boolean;
-  } = {}
-): React.CSSProperties => {
-  const resolvedAccentColor = accentColor?.trim() || "#4f46e5";
-  const highlightColor = resolveNodeHighlightColor({
-    selected,
-    uiJourneyHighlighted: options.uiJourneyHighlighted ?? false,
-    uiJourneyRecalled: options.uiJourneyRecalled ?? false,
-  });
-
-  const baseStyle: React.CSSProperties = {
-    boxSizing: "border-box",
-    width: 260,
-    minHeight: 120,
-    position: "relative",
-    background: "#ffffff",
-    border: `2px solid ${highlightColor ?? resolvedAccentColor}`,
-    padding: 10,
-    boxShadow: highlightColor
-      ? `0 0 0 3px ${highlightColor}, 0 3px 10px rgba(0, 0, 0, 0.12)`
-      : "0 1px 3px rgba(0,0,0,0.08)",
-  };
-
-  switch (shape) {
-    case "rounded":
-      return {
-        ...baseStyle,
-        borderRadius: 18,
-      };
-
-    case "pill":
-      return {
-        ...baseStyle,
-        width: 380,
-        minHeight: 190,
-        padding: "18px 28px",
-        borderRadius: 999,
-      };
-
-    case "diamond":
-      return {
-        ...baseStyle,
-        width: 460,
-        minHeight: 340,
-        borderRadius: 8,
-        border: "none",
-        background: "transparent",
-        padding: 0,
-        boxShadow: highlightColor
-          ? `0 0 0 3px ${highlightColor}`
-          : "none",
-      };
-
-    case "rectangle":
-    default:
-      return {
-        ...baseStyle,
-        borderRadius: 8,
-      };
-  }
-};
-
-const getDiamondBorderLayerStyle = (accentColor: string): React.CSSProperties => ({
-  position: "absolute",
-  inset: 0,
-  background: accentColor,
-  clipPath: DIAMOND_CLIP_PATH,
-  zIndex: 0,
-  pointerEvents: "none",
-});
-
-const getDiamondSurfaceLayerStyle = (): React.CSSProperties => ({
-  position: "absolute",
-  inset: 6,
-  background: "#ffffff",
-  clipPath: DIAMOND_CLIP_PATH,
-  zIndex: 1,
-  pointerEvents: "none",
-});
-
-const getNodeContentStyle = (shape: NodeShape): React.CSSProperties => {
-  if (shape !== "diamond") {
-    return { display: "block", position: "relative", zIndex: 1 };
-  }
-
-  return {
-    position: "relative",
-    zIndex: 2,
-    width: "100%",
-    minHeight: "100%",
-    boxSizing: "border-box",
-    padding: "92px 92px",
-  };
-};
-
-const serializeNodesForStorage = (
-  nodes: FlowNode[],
-  parallelGroupByNodeId: Partial<Record<string, string>> = {}
-): SerializableFlowNode[] =>
-  nodes.map((node) => {
-    const persistableData: PersistableMicrocopyNodeData = {
-      title: node.data.title,
-      body_text: node.data.body_text,
-      primary_cta: node.data.primary_cta,
-      secondary_cta: node.data.secondary_cta,
-      helper_text: node.data.helper_text,
-      error_text: node.data.error_text,
-      display_term_field: node.data.display_term_field,
-      tone: node.data.tone,
-      polarity: node.data.polarity,
-      reversibility: node.data.reversibility,
-      concept: node.data.concept,
-      notes: node.data.notes,
-      action_type_name: node.data.action_type_name,
-      action_type_color: node.data.action_type_color,
-      card_style: node.data.card_style,
-      node_shape: node.data.node_shape,
-      node_type: node.data.node_type,
-      menu_config: normalizeMenuNodeConfig(
-        node.data.menu_config,
-        node.data.primary_cta,
-        node.data.node_type === "menu"
-          ? node.data.menu_config.max_right_connections
-          : 1
-      ),
-      frame_config: normalizeFrameNodeConfig(node.data.frame_config),
-      parallel_group_id:
-        parallelGroupByNodeId[node.id] ?? node.data.parallel_group_id ?? null,
-    };
-
-    return {
-      id: node.id,
-      position: node.position,
-      data: persistableData,
-    };
-  });
-
-const createEmptyCanvasState = (): PersistedCanvasState => ({
-  nodes: [],
-  edges: [],
-  adminOptions: cloneGlobalOptions(DEFAULT_GLOBAL_OPTIONS),
-  controlledLanguageGlossary: [],
-  uiJourneySnapshotPresets: [],
-});
-
-const readLegacyCanvasState = (): PersistedCanvasState | null => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as {
-      nodes?: unknown;
-      edges?: unknown;
-      adminOptions?: unknown;
-      controlledLanguageGlossary?: unknown;
-      uiJourneySnapshotPresets?: unknown;
-    };
-
-    return {
-      nodes: sanitizeSerializableFlowNodes(parsed.nodes),
-      edges: sanitizeEdgesForStorage(parsed.edges),
-      adminOptions: normalizeGlobalOptionConfig(parsed.adminOptions),
-      controlledLanguageGlossary: sanitizeControlledLanguageGlossary(
-        parsed.controlledLanguageGlossary
-      ),
-      uiJourneySnapshotPresets: sanitizeUiJourneySnapshotPresets(
-        parsed.uiJourneySnapshotPresets
-      ),
-    };
-  } catch (error) {
-    console.error("Failed to parse legacy canvas state", error);
-    return null;
-  }
-};
-
-const createProjectRecord = (
-  name: string,
-  canvas: PersistedCanvasState = createEmptyCanvasState()
-): ProjectRecord => {
-  const now = new Date().toISOString();
-
-  return {
-    id: createProjectId(),
-    name: name.trim() || "Untitled Project",
-    createdAt: now,
-    updatedAt: now,
-    canvas: {
-      nodes: sanitizeSerializableFlowNodes(canvas.nodes),
-      edges: sanitizeEdgesForStorage(canvas.edges),
-      adminOptions: normalizeGlobalOptionConfig(canvas.adminOptions),
-      controlledLanguageGlossary: sanitizeControlledLanguageGlossary(
-        canvas.controlledLanguageGlossary
-      ),
-      uiJourneySnapshotPresets: sanitizeUiJourneySnapshotPresets(
-        canvas.uiJourneySnapshotPresets
-      ),
-    },
-  };
-};
-
-const createEmptyStore = (): AppStore => ({
-  version: 1,
-  accounts: [],
-  session: {
-    activeAccountId: null,
-    activeProjectId: null,
-    view: "account",
-    editorMode: "canvas",
-  },
-});
-
-const sanitizeProjectRecord = (value: unknown): ProjectRecord | null => {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const source = value as Partial<ProjectRecord> & {
-    canvas?: Partial<PersistedCanvasState>;
-  };
-
-  const now = new Date().toISOString();
-  const id =
-    typeof source.id === "string" && source.id.trim().length > 0
-      ? source.id.trim()
-      : createProjectId();
-
-  const name =
-    typeof source.name === "string" && source.name.trim().length > 0
-      ? source.name.trim()
-      : "Untitled Project";
-
-  const createdAt =
-    typeof source.createdAt === "string" && source.createdAt.length > 0
-      ? source.createdAt
-      : now;
-
-  const updatedAt =
-    typeof source.updatedAt === "string" && source.updatedAt.length > 0
-      ? source.updatedAt
-      : createdAt;
-
-  return {
-    id,
-    name,
-    createdAt,
-    updatedAt,
-    canvas: {
-      nodes: sanitizeSerializableFlowNodes(source.canvas?.nodes),
-      edges: sanitizeEdgesForStorage(source.canvas?.edges),
-      adminOptions: normalizeGlobalOptionConfig(source.canvas?.adminOptions),
-      controlledLanguageGlossary: sanitizeControlledLanguageGlossary(
-        source.canvas?.controlledLanguageGlossary
-      ),
-      uiJourneySnapshotPresets: sanitizeUiJourneySnapshotPresets(
-        source.canvas?.uiJourneySnapshotPresets
-      ),
-    },
-  };
-};
-
-const sanitizeAccountRecord = (value: unknown): AccountRecord | null => {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const source = value as Partial<AccountRecord>;
-
-  const code =
-    typeof source.code === "string" && /^\d{3}$/.test(source.code)
-      ? source.code
-      : SINGLE_ACCOUNT_CODE;
-
-  const id =
-    typeof source.id === "string" && source.id.trim().length > 0
-      ? source.id.trim()
-      : createAccountId(code);
-
-  const projects = Array.isArray(source.projects)
-    ? source.projects
-        .map((project) => sanitizeProjectRecord(project))
-        .filter((project): project is ProjectRecord => Boolean(project))
-    : [];
-
-  return {
-    id,
-    code,
-    projects,
-  };
-};
-
-const sanitizeAppStore = (value: unknown): AppStore => {
-  const emptyStore = createEmptyStore();
-
-  if (!value || typeof value !== "object") {
-    return emptyStore;
-  }
-
-  const source = value as Partial<AppStore>;
-
-  const accounts = Array.isArray(source.accounts)
-    ? source.accounts
-        .map((account) => sanitizeAccountRecord(account))
-        .filter((account): account is AccountRecord => Boolean(account))
-    : [];
-
-  const sessionSource =
-    source.session && typeof source.session === "object" ? source.session : null;
-
-  const requestedAccountId =
-    sessionSource && typeof sessionSource.activeAccountId === "string"
-      ? sessionSource.activeAccountId
-      : null;
-
-  const requestedEditorMode =
-    sessionSource &&
-    isEditorSurfaceMode(
-      (sessionSource as {
-        editorMode?: unknown;
-      }).editorMode
-    )
-      ? (sessionSource as { editorMode: EditorSurfaceMode }).editorMode
-      : "canvas";
-
-  const fallbackAccountId = accounts.find((account) => account.code === SINGLE_ACCOUNT_CODE)?.id;
-
-  const activeAccountId = accounts.some((account) => account.id === requestedAccountId)
-    ? requestedAccountId
-    : fallbackAccountId ?? null;
-
-  return {
-    version: 1,
-    accounts,
-    session: {
-      activeAccountId,
-      activeProjectId: null,
-      view: activeAccountId ? "dashboard" : "account",
-      editorMode: requestedEditorMode,
-    },
-  };
-};
-
-const migrateLegacyCanvasToStore = (): AppStore | null => {
-  const legacyCanvasState = readLegacyCanvasState();
-  if (!legacyCanvasState) {
-    return null;
-  }
-
-  const accountId = createAccountId(SINGLE_ACCOUNT_CODE);
-  const migratedProject = createProjectRecord("Migrated Project", legacyCanvasState);
-
-  return {
-    version: 1,
-    accounts: [
-      {
-        id: accountId,
-        code: SINGLE_ACCOUNT_CODE,
-        projects: [migratedProject],
-      },
-    ],
-    session: {
-      activeAccountId: accountId,
-      activeProjectId: null,
-      view: "dashboard",
-      editorMode: "canvas",
-    },
-  };
-};
-
-const readAppStore = (): AppStore => {
-  if (typeof window === "undefined") {
-    return createEmptyStore();
-  }
-
-  const rawStore = window.localStorage.getItem(APP_STORAGE_KEY);
-  if (rawStore) {
-    try {
-      const parsed = JSON.parse(rawStore);
-      return sanitizeAppStore(parsed);
-    } catch (error) {
-      console.error("Failed to parse app store", error);
-    }
-  }
-
-  const migratedStore = migrateLegacyCanvasToStore();
-  if (migratedStore) {
-    window.localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(migratedStore));
-    return migratedStore;
-  }
-
-  return createEmptyStore();
-};
-
-const formatDateTime = (isoDate: string): string => {
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.valueOf())) {
-    return isoDate;
-  }
-
-  return date.toLocaleString();
-};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function BodyTextPreview({ value }: { value: string }) {
   if (value.trim().length === 0) {
@@ -9641,6 +6658,7 @@ export default function Page() {
     </div>
   );
 }
+
 
 
 
