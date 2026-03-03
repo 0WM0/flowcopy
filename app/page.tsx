@@ -24,7 +24,6 @@ import {
   useReactFlow,
   useUpdateNodeInternals,
   type Connection,
-  type DefaultEdgeOptions,
   type Edge,
   type EdgeChange,
   type Node,
@@ -70,7 +69,6 @@ import type {
   ProjectRecord,
   AccountRecord,
   AppStore,
-  FlatExportColumn,
   FlatExportRow,
   ParsedTabularPayload,
   UiJourneyConversationEntry,
@@ -82,48 +80,70 @@ import type {
   DownloadTextExtension,
   FullProjectExportEnvelope,
 } from "./types";
-
-const FLAT_EXPORT_COLUMNS = [
-  "session_activeAccountId",
-  "session_activeProjectId",
-  "session_view",
-  "session_editorMode",
-  "account_id",
-  "account_code",
-  "project_id",
-  "project_name",
-  "project_createdAt",
-  "project_updatedAt",
-  "project_sequence_id",
-  "node_id",
-  "node_order_id",
-  "sequence_index",
-  "parallel_group_id",
-  "position_x",
-  "position_y",
-  "title",
-  "body_text",
-  "primary_cta",
-  "secondary_cta",
-  "helper_text",
-  "error_text",
-  "display_term_field",
-  "tone",
-  "polarity",
-  "reversibility",
-  "concept",
-  "notes",
-  "action_type_name",
-  "action_type_color",
-  "card_style",
-  "node_shape",
-  "node_type",
-  "menu_config_json",
-  "frame_config_json",
-  "project_admin_options_json",
-  "project_controlled_language_json",
-  "project_edges_json",
-] as const;
+import {
+  FLAT_EXPORT_COLUMNS,
+  APP_STORAGE_KEY,
+  LEGACY_STORAGE_KEY,
+  SINGLE_ACCOUNT_CODE,
+  FULL_PROJECT_EXPORT_FORMAT,
+  FULL_PROJECT_EXPORT_SCHEMA_VERSION,
+  NODE_SHAPE_OPTIONS,
+  NODE_TYPE_OPTIONS,
+  NODE_TYPE_LABELS,
+  FRAME_SHADE_OPTIONS,
+  FRAME_SHADE_LABELS,
+  FRAME_SHADE_STYLES,
+  MENU_NODE_RIGHT_CONNECTIONS_MIN,
+  MENU_NODE_RIGHT_CONNECTIONS_MAX,
+  MENU_SOURCE_HANDLE_PREFIX,
+  MENU_NODE_MINIMUM_TERM_ERROR_MESSAGE,
+  FRAME_NODE_MIN_WIDTH,
+  FRAME_NODE_MIN_HEIGHT,
+  FRAME_NODE_PADDING,
+  EDGE_STROKE_COLOR,
+  PARALLEL_EDGE_STROKE_COLOR,
+  EDGE_LINE_STYLE_OPTIONS,
+  EDGE_LINE_STYLE_DASH,
+  EDGE_BASE_STYLE,
+  DEFAULT_EDGE_OPTIONS,
+  SEQUENTIAL_SOURCE_HANDLE_ID,
+  SEQUENTIAL_TARGET_HANDLE_ID,
+  PARALLEL_SOURCE_HANDLE_ID,
+  PARALLEL_TARGET_HANDLE_ID,
+  PARALLEL_ALT_SOURCE_HANDLE_ID,
+  PARALLEL_ALT_TARGET_HANDLE_ID,
+  SEQUENTIAL_SELECTED_STROKE_COLOR,
+  PARALLEL_SELECTED_STROKE_COLOR,
+  UI_JOURNEY_HIGHLIGHT_STROKE_COLOR,
+  UI_JOURNEY_RECALLED_STROKE_COLOR,
+  DIAMOND_CLIP_PATH,
+  GLOBAL_OPTION_FIELDS,
+  GLOBAL_OPTION_LABELS,
+  DEFAULT_GLOBAL_OPTIONS,
+  CONTROLLED_LANGUAGE_FIELDS,
+  CONTROLLED_LANGUAGE_NODE_FIELDS,
+  CONTROLLED_LANGUAGE_FIELD_LABELS,
+  CONTROLLED_LANGUAGE_FIELD_ORDER,
+  CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS,
+  CONTROLLED_LANGUAGE_ROW_HEIGHT_PX,
+  CONTROLLED_LANGUAGE_TABLE_HEADER_HEIGHT_PX,
+  CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX,
+  UI_JOURNEY_CONVERSATION_EXPORT_FORMATS,
+  UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS,
+  DOWNLOAD_TEXT_MIME_BY_EXTENSION,
+  TABLE_TEXTAREA_FIELDS,
+  TABLE_SELECT_FIELDS,
+  TABLE_FIELD_LABELS,
+  TABLE_EDITABLE_FIELDS,
+  GLOBAL_OPTION_TO_NODE_FIELD,
+  SIDE_PANEL_MIN_WIDTH,
+  SIDE_PANEL_MAX_WIDTH,
+  SIDE_PANEL_WIDTH_STORAGE_KEY,
+  inputStyle,
+  buttonStyle,
+  getToggleButtonStyle,
+  inspectorFieldLabelStyle,
+} from "./constants";
 
 type ImportFeedback = {
   type: "success" | "error" | "info";
@@ -152,225 +172,6 @@ type UiJourneySnapshotCapture = {
   nodeIds: string[];
   edgeIds: string[];
   conversation: UiJourneyConversationEntry[];
-};
-
-const APP_STORAGE_KEY = "flowcopy.store.v1";
-const LEGACY_STORAGE_KEY = "flowcopy.canvas.v2";
-const SINGLE_ACCOUNT_CODE = "000";
-const FULL_PROJECT_EXPORT_FORMAT = "flowcopy.project.full";
-const FULL_PROJECT_EXPORT_SCHEMA_VERSION = 1;
-
-const NODE_SHAPE_OPTIONS: NodeShape[] = [
-  "rectangle",
-  "rounded",
-  "pill",
-  "diamond",
-];
-
-const NODE_TYPE_OPTIONS: NodeType[] = ["default", "menu", "frame"];
-const NODE_TYPE_LABELS: Record<NodeType, string> = {
-  default: "Default",
-  menu: "Menu",
-  frame: "Frame",
-};
-const FRAME_SHADE_OPTIONS: FrameShade[] = ["light", "medium", "dark"];
-const FRAME_SHADE_LABELS: Record<FrameShade, string> = {
-  light: "Light",
-  medium: "Medium",
-  dark: "Dark",
-};
-
-const MENU_NODE_RIGHT_CONNECTIONS_MIN = 1;
-const MENU_NODE_RIGHT_CONNECTIONS_MAX = 12;
-const MENU_SOURCE_HANDLE_PREFIX = "menu-src-";
-const MENU_NODE_MINIMUM_TERM_ERROR_MESSAGE =
-  "You must have at least 1 menu term for this note type. You can change the term if you like.";
-
-const FRAME_NODE_MIN_WIDTH = 260;
-const FRAME_NODE_MIN_HEIGHT = 180;
-const FRAME_NODE_PADDING = 28;
-
-const FRAME_SHADE_STYLES: Record<
-  FrameShade,
-  {
-    border: string;
-    background: string;
-    tabBackground: string;
-    tabText: string;
-  }
-> = {
-  light: {
-    border: "#cbd5e1",
-    background: "rgba(248, 250, 252, 0.88)",
-    tabBackground: "#f1f5f9",
-    tabText: "#475569",
-  },
-  medium: {
-    border: "#94a3b8",
-    background: "rgba(241, 245, 249, 0.72)",
-    tabBackground: "#e2e8f0",
-    tabText: "#334155",
-  },
-  dark: {
-    border: "#64748b",
-    background: "rgba(226, 232, 240, 0.58)",
-    tabBackground: "#cbd5e1",
-    tabText: "#1e293b",
-  },
-};
-
-const EDGE_STROKE_COLOR = "#1d4ed8";
-const PARALLEL_EDGE_STROKE_COLOR = "#64748b";
-
-const EDGE_LINE_STYLE_OPTIONS: EdgeLineStyle[] = ["solid", "dashed", "dotted"];
-
-const EDGE_LINE_STYLE_DASH: Record<EdgeLineStyle, string | undefined> = {
-  solid: undefined,
-  dashed: "6 4",
-  dotted: "2 4",
-};
-
-const EDGE_BASE_STYLE: React.CSSProperties = {
-  stroke: EDGE_STROKE_COLOR,
-  strokeWidth: 2.6,
-};
-
-const SEQUENTIAL_SOURCE_HANDLE_ID = "s-src";
-const SEQUENTIAL_TARGET_HANDLE_ID = "s-tgt";
-const PARALLEL_SOURCE_HANDLE_ID = "p-src";
-const PARALLEL_TARGET_HANDLE_ID = "p-tgt";
-const PARALLEL_ALT_SOURCE_HANDLE_ID = "p-src-top";
-const PARALLEL_ALT_TARGET_HANDLE_ID = "p-tgt-bottom";
-
-const SEQUENTIAL_SELECTED_STROKE_COLOR = "#0f172a";
-const PARALLEL_SELECTED_STROKE_COLOR = "#334155";
-const UI_JOURNEY_HIGHLIGHT_STROKE_COLOR = "#6366f1";
-const UI_JOURNEY_RECALLED_STROKE_COLOR = "#7c3aed";
-
-const DIAMOND_CLIP_PATH = "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)";
-
-const DEFAULT_EDGE_OPTIONS: DefaultEdgeOptions = {
-  type: "smoothstep",
-  animated: true,
-};
-
-const GLOBAL_OPTION_FIELDS: GlobalOptionField[] = [
-  "tone",
-  "polarity",
-  "reversibility",
-  "concept",
-  "action_type_name",
-  "action_type_color",
-  "card_style",
-];
-
-const GLOBAL_OPTION_LABELS: Record<GlobalOptionField, string> = {
-  tone: "Tone",
-  polarity: "Polarity",
-  reversibility: "Reversibility",
-  concept: "Concept",
-  action_type_name: "Action Type Name",
-  action_type_color: "Action Type Color",
-  card_style: "Card Style",
-};
-
-const DEFAULT_GLOBAL_OPTIONS: GlobalOptionConfig = {
-  tone: ["neutral", "friendly", "formal", "urgent"],
-  polarity: ["neutral", "positive", "destructive"],
-  reversibility: ["reversible", "irreversible"],
-  concept: ["Entry point", "Confirmation", "Error handling"],
-  action_type_name: ["Submit Data", "Acknowledge", "Navigate"],
-  action_type_color: ["#4f46e5", "#047857", "#dc2626"],
-  card_style: ["default", "subtle", "warning", "success"],
-};
-
-const CONTROLLED_LANGUAGE_FIELDS: ControlledLanguageFieldType[] = [
-  "primary_cta",
-  "secondary_cta",
-  "helper_text",
-  "error_text",
-  "menu_term",
-];
-
-const CONTROLLED_LANGUAGE_NODE_FIELDS: NodeControlledLanguageFieldType[] = [
-  "primary_cta",
-  "secondary_cta",
-  "helper_text",
-  "error_text",
-];
-
-const CONTROLLED_LANGUAGE_FIELD_LABELS: Record<ControlledLanguageFieldType, string> = {
-  primary_cta: "Primary CTA",
-  secondary_cta: "Secondary CTA",
-  helper_text: "Helper Text",
-  error_text: "Error Text",
-  menu_term: "Menu Term",
-};
-
-const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<ControlledLanguageFieldType, number> = {
-  primary_cta: 0,
-  secondary_cta: 1,
-  helper_text: 2,
-  error_text: 3,
-  menu_term: 4,
-};
-
-const CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS = 6;
-const CONTROLLED_LANGUAGE_ROW_HEIGHT_PX = 42;
-const CONTROLLED_LANGUAGE_TABLE_HEADER_HEIGHT_PX = 34;
-const CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX =
-  CONTROLLED_LANGUAGE_TABLE_HEADER_HEIGHT_PX +
-  CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS * CONTROLLED_LANGUAGE_ROW_HEIGHT_PX;
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  border: "1px solid #d4d4d8",
-  borderRadius: 6,
-  padding: "6px 8px",
-  fontSize: 12,
-  background: "#fff",
-};
-
-const buttonStyle: React.CSSProperties = {
-  border: "1px solid #d4d4d8",
-  borderRadius: 6,
-  background: "#fff",
-  padding: "6px 10px",
-  cursor: "pointer",
-  fontSize: 12,
-};
-
-const UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS: Record<
-  UiJourneyConversationExportFormat,
-  string
-> = {
-  txt: "TXT",
-  md: "Markdown",
-  html: "HTML",
-  rtf: "RTF",
-};
-
-const UI_JOURNEY_CONVERSATION_EXPORT_FORMATS: UiJourneyConversationExportFormat[] = [
-  "txt",
-  "md",
-  "html",
-  "rtf",
-];
-
-const getToggleButtonStyle = (isActive: boolean): React.CSSProperties => ({
-  ...buttonStyle,
-  borderColor: isActive ? "#1d4ed8" : "#bfdbfe",
-  background: isActive ? "#2563eb" : "#eff6ff",
-  color: isActive ? "#ffffff" : "#1e3a8a",
-  fontWeight: 700,
-  boxShadow: isActive ? "0 4px 12px rgba(37, 99, 235, 0.3)" : "none",
-});
-
-const inspectorFieldLabelStyle: React.CSSProperties = {
-  fontSize: 12,
-  marginBottom: 4,
-  fontWeight: 700,
-  color: "#1e293b",
 };
 
 const buildUiJourneyConversationEntryId = (
@@ -1047,10 +848,6 @@ const cloneUiJourneySnapshotPresets = (
     conversation: cloneUiJourneyConversationEntries(preset.conversation),
   }));
 
-const SIDE_PANEL_MIN_WIDTH = 420;
-const SIDE_PANEL_MAX_WIDTH = Math.round(SIDE_PANEL_MIN_WIDTH * 2.1);
-const SIDE_PANEL_WIDTH_STORAGE_KEY = "flowcopy.editor.canvasSidePanelWidth";
-
 const clampSidePanelWidth = (value: number): number =>
   Math.min(SIDE_PANEL_MAX_WIDTH, Math.max(SIDE_PANEL_MIN_WIDTH, Math.round(value)));
 
@@ -1070,65 +867,6 @@ const readInitialSidePanelWidth = (): number => {
   }
 
   return clampSidePanelWidth(parsedWidth);
-};
-
-const TABLE_TEXTAREA_FIELDS = new Set<EditableMicrocopyField>(["body_text", "notes"]);
-
-const TABLE_SELECT_FIELDS = new Set<EditableMicrocopyField>([
-  "tone",
-  "polarity",
-  "reversibility",
-  "concept",
-  "action_type_name",
-  "action_type_color",
-  "card_style",
-  "node_shape",
-]);
-
-const TABLE_FIELD_LABELS: Record<EditableMicrocopyField, string> = {
-  title: "Title",
-  body_text: "Body Text",
-  primary_cta: "Primary CTA",
-  secondary_cta: "Secondary CTA",
-  helper_text: "Helper Text",
-  error_text: "Error Text",
-  tone: "Tone",
-  polarity: "Polarity",
-  reversibility: "Reversibility",
-  concept: "Concept",
-  notes: "Notes",
-  action_type_name: "Action Type Name",
-  action_type_color: "Action Type Color",
-  card_style: "Card Style",
-  node_shape: "Node Shape",
-};
-
-const TABLE_EDITABLE_FIELDS: EditableMicrocopyField[] = [
-  "title",
-  "body_text",
-  "primary_cta",
-  "secondary_cta",
-  "helper_text",
-  "error_text",
-  "tone",
-  "polarity",
-  "reversibility",
-  "concept",
-  "notes",
-  "action_type_name",
-  "action_type_color",
-  "card_style",
-  "node_shape",
-];
-
-const GLOBAL_OPTION_TO_NODE_FIELD: Record<GlobalOptionField, EditableMicrocopyField> = {
-  tone: "tone",
-  polarity: "polarity",
-  reversibility: "reversibility",
-  concept: "concept",
-  action_type_name: "action_type_name",
-  action_type_color: "action_type_color",
-  card_style: "card_style",
 };
 
 const isEditorSurfaceMode = (value: unknown): value is EditorSurfaceMode =>
@@ -2354,16 +2092,6 @@ const toNumeric = (value: string | undefined): number | null => {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-};
-
-const DOWNLOAD_TEXT_MIME_BY_EXTENSION: Record<DownloadTextExtension, string> = {
-  csv: "text/csv;charset=utf-8",
-  xml: "application/xml;charset=utf-8",
-  json: "application/json;charset=utf-8",
-  txt: "text/plain;charset=utf-8",
-  md: "text/markdown;charset=utf-8",
-  html: "text/html;charset=utf-8",
-  rtf: "application/rtf;charset=utf-8",
 };
 
 const buildDownloadFileName = (
@@ -9913,6 +9641,7 @@ export default function Page() {
     </div>
   );
 }
+
 
 
 

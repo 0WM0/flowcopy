@@ -1,0 +1,372 @@
+import type React from "react";
+import { MarkerType, type DefaultEdgeOptions } from "@xyflow/react";
+import type {
+  FrameShade,
+  EdgeKind,
+  GlobalOptionField,
+  GlobalOptionConfig,
+  EditableMicrocopyField,
+  ControlledLanguageFieldType,
+  NodeControlledLanguageFieldType,
+  UiJourneyConversationExportFormat,
+  DownloadTextExtension,
+  FlatExportColumn,
+} from "../types";
+
+export const FLAT_EXPORT_COLUMNS = [
+  "session_activeAccountId",
+  "session_activeProjectId",
+  "session_view",
+  "session_editorMode",
+  "account_id",
+  "account_code",
+  "project_id",
+  "project_name",
+  "project_createdAt",
+  "project_updatedAt",
+  "project_sequence_id",
+  "node_id",
+  "node_order_id",
+  "sequence_index",
+  "parallel_group_id",
+  "position_x",
+  "position_y",
+  "title",
+  "body_text",
+  "primary_cta",
+  "secondary_cta",
+  "helper_text",
+  "error_text",
+  "display_term_field",
+  "tone",
+  "polarity",
+  "reversibility",
+  "concept",
+  "notes",
+  "action_type_name",
+  "action_type_color",
+  "card_style",
+  "node_shape",
+  "node_type",
+  "menu_config_json",
+  "frame_config_json",
+  "project_admin_options_json",
+  "project_controlled_language_json",
+  "project_edges_json",
+] as const satisfies readonly FlatExportColumn[];
+
+export const APP_STORAGE_KEY = "flowcopy.store.v1";
+export const LEGACY_STORAGE_KEY = "flowcopy.canvas.v2";
+export const SINGLE_ACCOUNT_CODE = "000";
+export const FULL_PROJECT_EXPORT_FORMAT = "flowcopy.project.full";
+export const FULL_PROJECT_EXPORT_SCHEMA_VERSION = 1;
+
+export const NODE_SHAPE_OPTIONS = [
+  "rectangle",
+  "rounded",
+  "pill",
+  "diamond",
+];
+
+export const NODE_TYPE_OPTIONS = ["default", "menu", "frame"];
+export const NODE_TYPE_LABELS: Record<(typeof NODE_TYPE_OPTIONS)[number], string> = {
+  default: "Default",
+  menu: "Menu",
+  frame: "Frame",
+};
+export const FRAME_SHADE_OPTIONS: FrameShade[] = ["light", "medium", "dark"];
+export const FRAME_SHADE_LABELS: Record<FrameShade, string> = {
+  light: "Light",
+  medium: "Medium",
+  dark: "Dark",
+};
+
+export const MENU_NODE_RIGHT_CONNECTIONS_MIN = 1;
+export const MENU_NODE_RIGHT_CONNECTIONS_MAX = 12;
+export const MENU_SOURCE_HANDLE_PREFIX = "menu-src-";
+export const MENU_NODE_MINIMUM_TERM_ERROR_MESSAGE =
+  "You must have at least 1 menu term for this note type. You can change the term if you like.";
+
+export const FRAME_NODE_MIN_WIDTH = 260;
+export const FRAME_NODE_MIN_HEIGHT = 180;
+export const FRAME_NODE_PADDING = 28;
+
+export const FRAME_SHADE_STYLES: Record<
+  FrameShade,
+  {
+    border: string;
+    background: string;
+    tabBackground: string;
+    tabText: string;
+  }
+> = {
+  light: {
+    border: "#cbd5e1",
+    background: "rgba(248, 250, 252, 0.88)",
+    tabBackground: "#f1f5f9",
+    tabText: "#475569",
+  },
+  medium: {
+    border: "#94a3b8",
+    background: "rgba(241, 245, 249, 0.72)",
+    tabBackground: "#e2e8f0",
+    tabText: "#334155",
+  },
+  dark: {
+    border: "#64748b",
+    background: "rgba(226, 232, 240, 0.58)",
+    tabBackground: "#cbd5e1",
+    tabText: "#1e293b",
+  },
+};
+
+export const EDGE_STROKE_COLOR = "#1d4ed8";
+export const PARALLEL_EDGE_STROKE_COLOR = "#64748b";
+
+export const EDGE_LINE_STYLE_OPTIONS = [
+  "solid",
+  "dashed",
+  "dotted",
+] as const;
+
+export const EDGE_LINE_STYLE_DASH: Record<
+  (typeof EDGE_LINE_STYLE_OPTIONS)[number],
+  string | undefined
+> = {
+  solid: undefined,
+  dashed: "6 4",
+  dotted: "2 4",
+};
+
+export const EDGE_BASE_STYLE: React.CSSProperties = {
+  stroke: EDGE_STROKE_COLOR,
+  strokeWidth: 2.6,
+};
+
+export const SEQUENTIAL_SOURCE_HANDLE_ID = "s-src";
+export const SEQUENTIAL_TARGET_HANDLE_ID = "s-tgt";
+export const PARALLEL_SOURCE_HANDLE_ID = "p-src";
+export const PARALLEL_TARGET_HANDLE_ID = "p-tgt";
+export const PARALLEL_ALT_SOURCE_HANDLE_ID = "p-src-top";
+export const PARALLEL_ALT_TARGET_HANDLE_ID = "p-tgt-bottom";
+
+export const SEQUENTIAL_SELECTED_STROKE_COLOR = "#0f172a";
+export const PARALLEL_SELECTED_STROKE_COLOR = "#334155";
+export const UI_JOURNEY_HIGHLIGHT_STROKE_COLOR = "#6366f1";
+export const UI_JOURNEY_RECALLED_STROKE_COLOR = "#7c3aed";
+
+export const DIAMOND_CLIP_PATH = "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)";
+
+export const DEFAULT_EDGE_OPTIONS: DefaultEdgeOptions = {
+  type: "smoothstep",
+  animated: true,
+};
+
+export const GLOBAL_OPTION_FIELDS: GlobalOptionField[] = [
+  "tone",
+  "polarity",
+  "reversibility",
+  "concept",
+  "action_type_name",
+  "action_type_color",
+  "card_style",
+];
+
+export const GLOBAL_OPTION_LABELS: Record<GlobalOptionField, string> = {
+  tone: "Tone",
+  polarity: "Polarity",
+  reversibility: "Reversibility",
+  concept: "Concept",
+  action_type_name: "Action Type Name",
+  action_type_color: "Action Type Color",
+  card_style: "Card Style",
+};
+
+export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionConfig = {
+  tone: ["neutral", "friendly", "formal", "urgent"],
+  polarity: ["neutral", "positive", "destructive"],
+  reversibility: ["reversible", "irreversible"],
+  concept: ["Entry point", "Confirmation", "Error handling"],
+  action_type_name: ["Submit Data", "Acknowledge", "Navigate"],
+  action_type_color: ["#4f46e5", "#047857", "#dc2626"],
+  card_style: ["default", "subtle", "warning", "success"],
+};
+
+export const CONTROLLED_LANGUAGE_FIELDS: ControlledLanguageFieldType[] = [
+  "primary_cta",
+  "secondary_cta",
+  "helper_text",
+  "error_text",
+  "menu_term",
+];
+
+export const CONTROLLED_LANGUAGE_NODE_FIELDS: NodeControlledLanguageFieldType[] = [
+  "primary_cta",
+  "secondary_cta",
+  "helper_text",
+  "error_text",
+];
+
+export const CONTROLLED_LANGUAGE_FIELD_LABELS: Record<
+  ControlledLanguageFieldType,
+  string
+> = {
+  primary_cta: "Primary CTA",
+  secondary_cta: "Secondary CTA",
+  helper_text: "Helper Text",
+  error_text: "Error Text",
+  menu_term: "Menu Term",
+};
+
+export const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<
+  ControlledLanguageFieldType,
+  number
+> = {
+  primary_cta: 0,
+  secondary_cta: 1,
+  helper_text: 2,
+  error_text: 3,
+  menu_term: 4,
+};
+
+export const CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS = 6;
+export const CONTROLLED_LANGUAGE_ROW_HEIGHT_PX = 42;
+export const CONTROLLED_LANGUAGE_TABLE_HEADER_HEIGHT_PX = 34;
+export const CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX =
+  CONTROLLED_LANGUAGE_TABLE_HEADER_HEIGHT_PX +
+  CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS * CONTROLLED_LANGUAGE_ROW_HEIGHT_PX;
+
+export const UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS: Record<
+  UiJourneyConversationExportFormat,
+  string
+> = {
+  txt: "TXT",
+  md: "Markdown",
+  html: "HTML",
+  rtf: "RTF",
+};
+
+export const UI_JOURNEY_CONVERSATION_EXPORT_FORMATS: UiJourneyConversationExportFormat[] = [
+  "txt",
+  "md",
+  "html",
+  "rtf",
+];
+
+export const DOWNLOAD_TEXT_MIME_BY_EXTENSION: Record<
+  DownloadTextExtension,
+  string
+> = {
+  csv: "text/csv;charset=utf-8",
+  xml: "application/xml;charset=utf-8",
+  json: "application/json;charset=utf-8",
+  txt: "text/plain;charset=utf-8",
+  md: "text/markdown;charset=utf-8",
+  html: "text/html;charset=utf-8",
+  rtf: "application/rtf;charset=utf-8",
+};
+
+export const TABLE_TEXTAREA_FIELDS = new Set<EditableMicrocopyField>([
+  "body_text",
+  "notes",
+]);
+
+export const TABLE_SELECT_FIELDS = new Set<EditableMicrocopyField>([
+  "tone",
+  "polarity",
+  "reversibility",
+  "concept",
+  "action_type_name",
+  "action_type_color",
+  "card_style",
+  "node_shape",
+]);
+
+export const TABLE_FIELD_LABELS: Record<EditableMicrocopyField, string> = {
+  title: "Title",
+  body_text: "Body Text",
+  primary_cta: "Primary CTA",
+  secondary_cta: "Secondary CTA",
+  helper_text: "Helper Text",
+  error_text: "Error Text",
+  tone: "Tone",
+  polarity: "Polarity",
+  reversibility: "Reversibility",
+  concept: "Concept",
+  notes: "Notes",
+  action_type_name: "Action Type Name",
+  action_type_color: "Action Type Color",
+  card_style: "Card Style",
+  node_shape: "Node Shape",
+};
+
+export const TABLE_EDITABLE_FIELDS: EditableMicrocopyField[] = [
+  "title",
+  "body_text",
+  "primary_cta",
+  "secondary_cta",
+  "helper_text",
+  "error_text",
+  "tone",
+  "polarity",
+  "reversibility",
+  "concept",
+  "notes",
+  "action_type_name",
+  "action_type_color",
+  "card_style",
+  "node_shape",
+];
+
+export const GLOBAL_OPTION_TO_NODE_FIELD: Record<
+  GlobalOptionField,
+  EditableMicrocopyField
+> = {
+  tone: "tone",
+  polarity: "polarity",
+  reversibility: "reversibility",
+  concept: "concept",
+  action_type_name: "action_type_name",
+  action_type_color: "action_type_color",
+  card_style: "card_style",
+};
+
+export const SIDE_PANEL_MIN_WIDTH = 420;
+export const SIDE_PANEL_MAX_WIDTH = Math.round(SIDE_PANEL_MIN_WIDTH * 2.1);
+export const SIDE_PANEL_WIDTH_STORAGE_KEY = "flowcopy.editor.canvasSidePanelWidth";
+
+export const inputStyle: React.CSSProperties = {
+  width: "100%",
+  border: "1px solid #d4d4d8",
+  borderRadius: 6,
+  padding: "6px 8px",
+  fontSize: 12,
+  background: "#fff",
+};
+
+export const buttonStyle: React.CSSProperties = {
+  border: "1px solid #d4d4d8",
+  borderRadius: 6,
+  background: "#fff",
+  padding: "6px 10px",
+  cursor: "pointer",
+  fontSize: 12,
+};
+
+export const getToggleButtonStyle = (
+  isActive: boolean
+): React.CSSProperties => ({
+  ...buttonStyle,
+  borderColor: isActive ? "#1d4ed8" : "#bfdbfe",
+  background: isActive ? "#2563eb" : "#eff6ff",
+  color: isActive ? "#ffffff" : "#1e3a8a",
+  fontWeight: 700,
+  boxShadow: isActive ? "0 4px 12px rgba(37, 99, 235, 0.3)" : "none",
+});
+
+export const inspectorFieldLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  marginBottom: 4,
+  fontWeight: 700,
+  color: "#1e293b",
+};
