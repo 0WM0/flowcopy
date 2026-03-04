@@ -10,6 +10,8 @@ import type {
   FrameShade,
   MenuNodeConfig,
   MenuNodeTerm,
+  RibbonNodeCell,
+  RibbonNodeConfig,
   FrameNodeConfig,
   PersistableMicrocopyNodeData,
 } from "../types";
@@ -24,6 +26,11 @@ import {
   MENU_NODE_RIGHT_CONNECTIONS_MIN,
   MENU_NODE_RIGHT_CONNECTIONS_MAX,
   MENU_SOURCE_HANDLE_PREFIX,
+  RIBBON_NODE_MAX_ROWS,
+  RIBBON_NODE_MIN_COLUMNS,
+  RIBBON_NODE_DEFAULT_COLUMNS,
+  RIBBON_NODE_DEFAULT_ROWS,
+  RIBBON_SOURCE_HANDLE_PREFIX,
   UI_JOURNEY_HIGHLIGHT_STROKE_COLOR,
   UI_JOURNEY_RECALLED_STROKE_COLOR,
 } from "../constants";
@@ -348,6 +355,147 @@ export const buildMenuSourceHandleIds = (menuConfig: MenuNodeConfig): string[] =
 export const isMenuSourceHandleId = (value: string | null | undefined): value is string =>
   typeof value === "string" && value.startsWith(MENU_SOURCE_HANDLE_PREFIX);
 
+export const createRibbonCellId = (): string =>
+  `rc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+
+export const createRibbonNodeCell = (
+  row: number,
+  column: number
+): RibbonNodeCell => ({
+  id: createRibbonCellId(),
+  row,
+  column,
+  key_command: "",
+  tool_tip: "",
+});
+
+export const normalizeRibbonNodeConfig = (value: unknown): RibbonNodeConfig => {
+  const source =
+    value && typeof value === "object" ? (value as Partial<RibbonNodeConfig>) : undefined;
+
+  const requestedRows =
+    typeof source?.rows === "number" ? source.rows : RIBBON_NODE_DEFAULT_ROWS;
+  const requestedColumns =
+    typeof source?.columns === "number" ? source.columns : RIBBON_NODE_DEFAULT_COLUMNS;
+
+  const rows = Number.isFinite(requestedRows)
+    ? Math.min(RIBBON_NODE_MAX_ROWS, Math.max(1, Math.round(requestedRows)))
+    : RIBBON_NODE_DEFAULT_ROWS;
+  const columns = Number.isFinite(requestedColumns)
+    ? Math.max(RIBBON_NODE_MIN_COLUMNS, Math.round(requestedColumns))
+    : RIBBON_NODE_DEFAULT_COLUMNS;
+
+  const usedCellIds = new Set<string>();
+  const occupiedPositions = new Set<string>();
+  const normalizedCells: RibbonNodeCell[] = [];
+  const sourceCells = Array.isArray(source?.cells) ? source.cells : [];
+
+  sourceCells.forEach((cellValue) => {
+    if (!cellValue || typeof cellValue !== "object") {
+      return;
+    }
+
+    const sourceCell = cellValue as Partial<RibbonNodeCell>;
+    const row =
+      typeof sourceCell.row === "number" && Number.isFinite(sourceCell.row)
+        ? Math.round(sourceCell.row)
+        : Number.NaN;
+    const column =
+      typeof sourceCell.column === "number" && Number.isFinite(sourceCell.column)
+        ? Math.round(sourceCell.column)
+        : Number.NaN;
+
+    if (!Number.isFinite(row) || !Number.isFinite(column)) {
+      return;
+    }
+
+    if (row < 1 || row > rows || column < 1 || column > columns) {
+      return;
+    }
+
+    const positionKey = `${row}:${column}`;
+    if (occupiedPositions.has(positionKey)) {
+      return;
+    }
+
+    let nextCellId =
+      typeof sourceCell.id === "string" && sourceCell.id.trim().length > 0
+        ? sourceCell.id.trim()
+        : createRibbonCellId();
+
+    while (usedCellIds.has(nextCellId)) {
+      nextCellId = createRibbonCellId();
+    }
+
+    usedCellIds.add(nextCellId);
+    occupiedPositions.add(positionKey);
+
+    normalizedCells.push({
+      id: nextCellId,
+      row,
+      column,
+      key_command:
+        typeof sourceCell.key_command === "string" ? sourceCell.key_command : "",
+      tool_tip: typeof sourceCell.tool_tip === "string" ? sourceCell.tool_tip : "",
+    });
+  });
+
+  for (let row = 1; row <= rows; row += 1) {
+    for (let column = 1; column <= columns; column += 1) {
+      const positionKey = `${row}:${column}`;
+
+      if (occupiedPositions.has(positionKey)) {
+        continue;
+      }
+
+      let nextCell = createRibbonNodeCell(row, column);
+
+      while (usedCellIds.has(nextCell.id)) {
+        nextCell = {
+          ...nextCell,
+          id: createRibbonCellId(),
+        };
+      }
+
+      usedCellIds.add(nextCell.id);
+      occupiedPositions.add(positionKey);
+      normalizedCells.push(nextCell);
+    }
+  }
+
+  normalizedCells.sort((a, b) => {
+    if (a.row !== b.row) {
+      return a.row - b.row;
+    }
+
+    return a.column - b.column;
+  });
+
+  return {
+    rows,
+    columns,
+    cells: normalizedCells,
+    ribbon_style: typeof source?.ribbon_style === "string" ? source.ribbon_style : "",
+  };
+};
+
+export const buildRibbonSourceHandleId = (cellId: string): string =>
+  `${RIBBON_SOURCE_HANDLE_PREFIX}${cellId}`;
+
+export const buildRibbonSourceHandleIds = (config: RibbonNodeConfig): string[] =>
+  config.cells.map((cell) => buildRibbonSourceHandleId(cell.id));
+
+export const isRibbonSourceHandleId = (handleId: string): boolean =>
+  handleId.startsWith(RIBBON_SOURCE_HANDLE_PREFIX);
+
+export const applyRibbonConfigToNodeData = (
+  nodeData: MicrocopyNodeData,
+  config: RibbonNodeConfig
+): MicrocopyNodeData => ({
+  ...nodeData,
+  ribbon_config: config,
+});
+
 export const normalizeMenuNodeConfig = (
   value: unknown,
   fallbackPrimaryTerm: string,
@@ -519,7 +667,7 @@ export const createDefaultNodeData = (
     1
   ),
   frame_config: normalizeFrameNodeConfig(overrides.frame_config),
-  ribbon_config: overrides.ribbon_config ?? null,
+  ribbon_config: null,
   parallel_group_id:
     typeof overrides.parallel_group_id === "string" &&
     overrides.parallel_group_id.trim().length > 0
@@ -531,12 +679,26 @@ export const createDefaultNodeData = (
 export const normalizeNode = (
   node: SerializableFlowNode,
   globalOptions: GlobalOptionConfig
-): FlowNode => ({
-  id: node.id,
-  type: "flowcopyNode",
-  position: node.position ?? { x: 0, y: 0 },
-  data: createDefaultNodeData(globalOptions, node.data ?? {}),
-});
+): FlowNode => {
+  const sourceData =
+    node.data && typeof node.data === "object"
+      ? (node.data as Partial<PersistableMicrocopyNodeData>)
+      : {};
+  const defaultData = createDefaultNodeData(globalOptions, sourceData);
+
+  return {
+    id: node.id,
+    type: "flowcopyNode",
+    position: node.position ?? { x: 0, y: 0 },
+    data: {
+      ...defaultData,
+      ribbon_config:
+        defaultData.node_type === "ribbon"
+          ? normalizeRibbonNodeConfig(sourceData.ribbon_config)
+          : null,
+    },
+  };
+};
 
 export const sanitizePersistedNodes = (
   persistedNodes: SerializableFlowNode[],
@@ -788,7 +950,10 @@ export const serializeNodesForStorage = (
           : 1
       ),
       frame_config: normalizeFrameNodeConfig(node.data.frame_config),
-      ribbon_config: node.data.ribbon_config,
+      ribbon_config:
+        node.data.node_type === "ribbon"
+          ? normalizeRibbonNodeConfig(node.data.ribbon_config)
+          : null,
       parallel_group_id:
         parallelGroupByNodeId[node.id] ?? node.data.parallel_group_id ?? null,
     };

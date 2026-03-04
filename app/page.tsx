@@ -203,6 +203,7 @@ import {
   computeNodesBoundingRect,
   normalizeFrameNodeConfig,
   normalizeMenuNodeConfig,
+  normalizeRibbonNodeConfig,
   pruneFrameNodeMembership,
   applyFrameMovementToMemberNodes,
   constrainNodesToFrameMembershipBounds,
@@ -2151,6 +2152,25 @@ export default function Page() {
                     (memberNodeId) => memberNodeId !== node.id
                   ),
                 },
+              },
+            };
+          }
+
+          if (nextType === "ribbon") {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                node_type: "ribbon",
+                primary_cta: getPrimaryMenuTermValue(
+                  node.data.menu_config,
+                  node.data.primary_cta
+                ),
+                secondary_cta: getSecondaryMenuTermValue(
+                  node.data.menu_config,
+                  node.data.secondary_cta
+                ),
+                ribbon_config: normalizeRibbonNodeConfig(node.data.ribbon_config),
               },
             };
           }
@@ -6159,6 +6179,7 @@ export default function Page() {
     </div>
   );
 }
+
 
 
 

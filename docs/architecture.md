@@ -32,6 +32,111 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-04-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session introduced the **Ribbon node utility foundation** (Task 2) without adding ribbon canvas rendering yet.
+
+At the product level:
+
+- users can switch a node to `Ribbon` from the inspector node-type dropdown
+- app behavior remains stable and non-crashing when switching between `Default`, `Menu`, `Frame`, and `Ribbon`
+- ribbon nodes intentionally remain visually minimal until the rendering-focused follow-up task
+
+## 2) Core Data Model
+
+Core node contracts now have full utility support for `ribbon_config` handling:
+
+- ribbon cell identity helper: `createRibbonCellId()`
+- ribbon cell constructor: `createRibbonNodeCell(row, column)`
+- ribbon config normalization: `normalizeRibbonNodeConfig(value)`
+- ribbon handle helpers:
+  - `buildRibbonSourceHandleId(cellId)`
+  - `buildRibbonSourceHandleIds(config)`
+  - `isRibbonSourceHandleId(handleId)`
+- ribbon data application helper: `applyRibbonConfigToNodeData(nodeData, config)`
+
+Normalization guarantees:
+
+- `rows` clamped to `1..RIBBON_NODE_MAX_ROWS`
+- `columns` clamped to `>= RIBBON_NODE_MIN_COLUMNS`
+- invalid/out-of-range cells are removed
+- missing row/column positions are filled with generated cells
+- each cell has unique ID + valid `row`, `column`, `key_command`, and `tool_tip`
+
+## 3) Persistence and Migration Strategy
+
+Ribbon persistence is now wired end-to-end through existing project storage paths:
+
+- `createDefaultNodeData(...)` now initializes `ribbon_config: null`
+- `normalizeNode(...)` sets:
+  - normalized ribbon config when `node_type === "ribbon"`
+  - `null` otherwise
+- `serializeNodesForStorage(...)` now serializes ribbon config using normalization when node type is ribbon
+
+`sanitizeProjectRecord(...)` did not need direct ribbon-specific logic changes because node-level ribbon normalization remains correctly enforced via the existing hydration pipeline (`sanitizePersistedNodes(...)` + `normalizeNode(...)`).
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering or sequence-ID algorithm changes were introduced.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Ribbon utility additions are orthogonal to sequence computation.
+
+## 5) Node Rendering and Shape System
+
+No ribbon visual rendering work was added in this session (by design).
+
+- `app/components/FlowCopyNode.tsx` rendering code was not modified
+- no JSX rendering expansion for ribbon cards was introduced
+
+A non-visual node-type transition path was added so switching to ribbon is state-safe and prepares normalized ribbon data for future rendering tasks.
+
+## 6) Editor Interaction Model
+
+Node-type switching logic was extended so inspector-driven type transitions include ribbon handling:
+
+- when switching to `ribbon`, node data now receives normalized `ribbon_config`
+- existing menu-to-default handle remapping behavior remains intact
+- switching back from ribbon to other types remains stable
+
+Edge utility behavior was expanded for ribbon handles:
+
+- `syncSequentialEdgesForRibbonNode(...)` removes stale sequential edges whose ribbon source handles no longer exist
+- `isRibbonSequentialConnectionAllowed(...)` enforces one outgoing sequential edge per valid ribbon cell handle
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added and exported all requested ribbon helpers in `app/lib/node-utils.ts`.
+2. Wired ribbon through node normalization/default/serialization paths.
+3. Added ribbon sequential-edge utility helpers in `app/lib/edge-utils.ts`.
+4. Extended controlled-language collection to include ribbon `key_command` and `tool_tip` terms.
+5. Added inspector node-type transition support for `ribbon` in `app/page.tsx` logic (without rendering changes).
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` passed (`EXITCODE:0`)
+
+Operational note:
+
+- local `next dev` startup in this environment reported an existing `.next/dev/lock` from another running instance; this did not affect TypeScript validation.
+
+## 9) Recommended Next Steps
+
+1. Implement ribbon-specific canvas rendering in `FlowCopyNode` (next task scope).
+2. Add inspector editing controls for ribbon rows/columns/cells if required by product flow.
+3. Add tests for ribbon config normalization edge cases (invalid cells, duplicate IDs, bounds filtering).
+4. Add edge-behavior tests for ribbon-handle pruning and connection-allowance rules.
+
 ##03-03-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -2999,6 +3104,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 

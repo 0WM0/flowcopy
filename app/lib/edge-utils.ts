@@ -7,6 +7,7 @@ import type {
   EdgeLineStyle,
   EdgeDirection,
   MenuNodeConfig,
+  RibbonNodeConfig,
 } from "../types";
 import {
   EDGE_STROKE_COLOR,
@@ -20,7 +21,12 @@ import {
 } from "../constants";
 import type { EdgeChange, NodeChange } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
-import { buildMenuSourceHandleIds, isMenuSourceHandleId } from "./node-utils";
+import {
+  buildMenuSourceHandleIds,
+  isMenuSourceHandleId,
+  buildRibbonSourceHandleIds,
+  isRibbonSourceHandleId,
+} from "./node-utils";
 
 export const isEdgeKind = (value: unknown): value is EdgeKind =>
   value === "sequential" || value === "parallel";
@@ -60,6 +66,22 @@ export const syncSequentialEdgesForMenuNode = (
         sourceHandle: fallbackHandleId,
       },
     ];
+  });
+};
+
+export const syncSequentialEdgesForRibbonNode = (
+  nodeId: string,
+  config: RibbonNodeConfig,
+  edges: FlowEdge[]
+): FlowEdge[] => {
+  const allowedHandleIds = buildRibbonSourceHandleIds(config);
+  const allowedHandleIdSet = new Set(allowedHandleIds);
+
+  return edges.filter((edge) => {
+    if (edge.source !== nodeId) return true;
+    if (!edge.sourceHandle) return true;
+    if (!isRibbonSourceHandleId(edge.sourceHandle)) return true;
+    return allowedHandleIdSet.has(edge.sourceHandle);
   });
 };
 
@@ -176,6 +198,24 @@ export const isMenuSequentialConnectionAllowed = (
   }
 
   return true;
+};
+
+export const isRibbonSequentialConnectionAllowed = (
+  nodeId: string,
+  handleId: string,
+  config: RibbonNodeConfig,
+  edges: FlowEdge[]
+): boolean => {
+  if (!isRibbonSourceHandleId(handleId)) return false;
+
+  const allowedHandleIds = new Set(buildRibbonSourceHandleIds(config));
+  if (!allowedHandleIds.has(handleId)) return false;
+
+  const existing = edges.filter(
+    (edge) => edge.source === nodeId && edge.sourceHandle === handleId
+  );
+
+  return existing.length === 0;
 };
 
 export const getDefaultEdgeStrokeColor = (edgeKind: EdgeKind): string =>

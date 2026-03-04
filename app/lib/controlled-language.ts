@@ -54,6 +54,21 @@ export const collectControlledLanguageTermsFromNode = (
     return menuTerms;
   }
 
+  if (node.data.node_type === "ribbon") {
+    const ribbonCells = node.data.ribbon_config?.cells ?? [];
+
+    return ribbonCells.flatMap((cell) => [
+      {
+        field_type: "key_command" as const,
+        term: cell.key_command,
+      },
+      {
+        field_type: "tool_tip" as const,
+        term: cell.tool_tip,
+      },
+    ]);
+  }
+
   return CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => ({
     field_type: fieldType,
     term: node.data[fieldType],
