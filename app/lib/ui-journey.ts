@@ -488,7 +488,6 @@ export const resolveUiJourneyConversationIncludedNodeIds = ({
 
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const frameIdsByMemberNodeId = new Map<string, Set<string>>();
-  const memberNodeIdsByFrameId = new Map<string, string[]>();
 
   nodes.forEach((node) => {
     if (node.data.node_type !== "frame") {
@@ -500,8 +499,6 @@ export const resolveUiJourneyConversationIncludedNodeIds = ({
       const memberNode = nodeById.get(memberNodeId);
       return Boolean(memberNode && memberNode.data.node_type !== "frame");
     });
-
-    memberNodeIdsByFrameId.set(node.id, validMemberNodeIds);
 
     validMemberNodeIds.forEach((memberNodeId) => {
       const existingFrameIds = frameIdsByMemberNodeId.get(memberNodeId);
@@ -540,8 +537,6 @@ export const resolveUiJourneyConversationIncludedNodeIds = ({
     }
 
     if (currentNode.data.node_type === "frame") {
-      const memberNodeIds = memberNodeIdsByFrameId.get(currentNodeId) ?? [];
-      memberNodeIds.forEach(enqueueNodeId);
       continue;
     }
 
