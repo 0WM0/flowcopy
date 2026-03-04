@@ -50,6 +50,7 @@ export const FLAT_EXPORT_COLUMNS = [
   "node_type",
   "menu_config_json",
   "frame_config_json",
+  "ribbon_cells_json",
   "project_admin_options_json",
   "project_controlled_language_json",
   "project_edges_json",
@@ -68,11 +69,12 @@ export const NODE_SHAPE_OPTIONS = [
   "diamond",
 ];
 
-export const NODE_TYPE_OPTIONS = ["default", "menu", "frame"];
+export const NODE_TYPE_OPTIONS = ["default", "menu", "frame", "ribbon"];
 export const NODE_TYPE_LABELS: Record<(typeof NODE_TYPE_OPTIONS)[number], string> = {
   default: "Default",
   menu: "Menu",
   frame: "Frame",
+  ribbon: "Ribbon",
 };
 export const FRAME_SHADE_OPTIONS: FrameShade[] = ["light", "medium", "dark"];
 export const FRAME_SHADE_LABELS: Record<FrameShade, string> = {
@@ -90,6 +92,15 @@ export const MENU_NODE_MINIMUM_TERM_ERROR_MESSAGE =
 export const FRAME_NODE_MIN_WIDTH = 260;
 export const FRAME_NODE_MIN_HEIGHT = 180;
 export const FRAME_NODE_PADDING = 28;
+
+export const RIBBON_NODE_MAX_ROWS = 3;
+export const RIBBON_NODE_MIN_COLUMNS = 1;
+export const RIBBON_NODE_DEFAULT_COLUMNS = 3;
+export const RIBBON_NODE_DEFAULT_ROWS = 1;
+export const RIBBON_CELL_MAX_KEY_COMMAND_LENGTH = 24;
+export const RIBBON_SOURCE_HANDLE_PREFIX = "ribbon-cell-";
+export const RIBBON_TOP_HANDLE_ID = "ribbon-top";
+export const RIBBON_BOTTOM_HANDLE_ID = "ribbon-bottom";
 
 export const FRAME_SHADE_STYLES: Record<
   FrameShade,
@@ -198,6 +209,8 @@ export const CONTROLLED_LANGUAGE_FIELDS: ControlledLanguageFieldType[] = [
   "helper_text",
   "error_text",
   "menu_term",
+  "key_command",
+  "tool_tip",
 ];
 
 export const CONTROLLED_LANGUAGE_NODE_FIELDS: NodeControlledLanguageFieldType[] = [
@@ -216,6 +229,8 @@ export const CONTROLLED_LANGUAGE_FIELD_LABELS: Record<
   helper_text: "Helper Text",
   error_text: "Error Text",
   menu_term: "Menu Term",
+  key_command: "Key Command",
+  tool_tip: "Tool Tip",
 };
 
 export const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<
@@ -227,6 +242,8 @@ export const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<
   helper_text: 2,
   error_text: 3,
   menu_term: 4,
+  key_command: 5,
+  tool_tip: 6,
 };
 
 export const CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS = 6;

@@ -20,7 +20,9 @@ export const isControlledLanguageFieldType = (
   value === "secondary_cta" ||
   value === "helper_text" ||
   value === "error_text" ||
-  value === "menu_term";
+  value === "menu_term" ||
+  value === "key_command" ||
+  value === "tool_tip";
 
 export const normalizeControlledLanguageFieldType = (
   value: unknown
@@ -176,6 +178,8 @@ export const createEmptyControlledLanguageTermsByField = (): Record<
   helper_text: [],
   error_text: [],
   menu_term: [],
+  key_command: [],
+  tool_tip: [],
 });
 
 export const buildControlledLanguageTermsByField = (

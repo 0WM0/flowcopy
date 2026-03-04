@@ -4,7 +4,7 @@ export type NodeShape = "rectangle" | "rounded" | "pill" | "diamond";
 export type EdgeKind = "sequential" | "parallel";
 export type EdgeLineStyle = "solid" | "dashed" | "dotted";
 export type FrameShade = "light" | "medium" | "dark";
-export type NodeType = "default" | "menu" | "frame";
+export type NodeType = "default" | "menu" | "frame" | "ribbon";
 export type NodeControlledLanguageFieldType =
   | "primary_cta"
   | "secondary_cta"
@@ -12,7 +12,9 @@ export type NodeControlledLanguageFieldType =
   | "error_text";
 export type ControlledLanguageFieldType =
   | NodeControlledLanguageFieldType
-  | "menu_term";
+  | "menu_term"
+  | "key_command"
+  | "tool_tip";
 
 export type MenuNodeTerm = {
   id: string;
@@ -29,6 +31,21 @@ export type FrameNodeConfig = {
   member_node_ids: string[];
   width: number;
   height: number;
+};
+
+export type RibbonNodeCell = {
+  id: string;
+  row: number;
+  column: number;
+  key_command: string;
+  tool_tip: string;
+};
+
+export type RibbonNodeConfig = {
+  rows: number;
+  columns: number;
+  cells: RibbonNodeCell[];
+  ribbon_style: string;
 };
 
 export type EdgeDirection = "forward" | "reversed";
@@ -60,6 +77,7 @@ export type MicrocopyNodeData = {
   node_type: NodeType;
   menu_config: MenuNodeConfig;
   frame_config: FrameNodeConfig;
+  ribbon_config: RibbonNodeConfig | null;
   parallel_group_id: string | null;
   sequence_index: number | null;
   ui_journey_highlighted?: boolean;
@@ -76,6 +94,7 @@ export type EditableMicrocopyField = Exclude<
   | "parallel_group_id"
   | "menu_config"
   | "frame_config"
+  | "ribbon_config"
   | "node_type"
   | "display_term_field"
 >;
@@ -208,6 +227,7 @@ export type FlatExportColumn =
   | "node_type"
   | "menu_config_json"
   | "frame_config_json"
+  | "ribbon_cells_json"
   | "project_admin_options_json"
   | "project_controlled_language_json"
   | "project_edges_json";

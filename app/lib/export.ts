@@ -447,6 +447,9 @@ export const createFlatExportRows = ({
       node_type: node?.data.node_type ?? "default",
       menu_config_json: node ? JSON.stringify(node.data.menu_config) : "",
       frame_config_json: node ? JSON.stringify(node.data.frame_config) : "",
+      ribbon_cells_json: node
+        ? JSON.stringify(node.data.ribbon_config?.cells ?? [])
+        : "",
       project_admin_options_json: adminOptionsJson,
       project_controlled_language_json: controlledLanguageJson,
       project_edges_json: edgesJson,

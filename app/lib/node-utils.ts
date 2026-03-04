@@ -33,7 +33,10 @@ export const isFrameShade = (value: unknown): value is FrameShade =>
   value === "light" || value === "medium" || value === "dark";
 
 export const isNodeType = (value: unknown): value is NodeType =>
-  value === "default" || value === "menu" || value === "frame";
+  value === "default" ||
+  value === "menu" ||
+  value === "frame" ||
+  value === "ribbon";
 
 export const clampFrameDimension = (value: number, minimum: number): number => {
   if (!Number.isFinite(value)) {
@@ -516,6 +519,7 @@ export const createDefaultNodeData = (
     1
   ),
   frame_config: normalizeFrameNodeConfig(overrides.frame_config),
+  ribbon_config: overrides.ribbon_config ?? null,
   parallel_group_id:
     typeof overrides.parallel_group_id === "string" &&
     overrides.parallel_group_id.trim().length > 0
@@ -784,6 +788,7 @@ export const serializeNodesForStorage = (
           : 1
       ),
       frame_config: normalizeFrameNodeConfig(node.data.frame_config),
+      ribbon_config: node.data.ribbon_config,
       parallel_group_id:
         parallelGroupByNodeId[node.id] ?? node.data.parallel_group_id ?? null,
     };
