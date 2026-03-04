@@ -1688,24 +1688,15 @@ export default function Page() {
       return [];
     }
 
-    const selectedIdsFromFlowState = nodes
-      .filter((node) => Boolean(node.selected))
-      .map((node) => node.id);
-
-    const fallbackSelectedIds =
+    const canonicalSelectedIds =
       selectedNodeIds.length > 0
         ? selectedNodeIds
         : selectedNodeId
           ? [selectedNodeId]
           : [];
 
-    const resolvedSelectedIds =
-      selectedIdsFromFlowState.length > 0
-        ? selectedIdsFromFlowState
-        : fallbackSelectedIds;
-
-    return Array.from(new Set(resolvedSelectedIds));
-  }, [nodes, selectedEdgeId, selectedNodeId, selectedNodeIds]);
+    return Array.from(new Set(canonicalSelectedIds));
+  }, [selectedEdgeId, selectedNodeId, selectedNodeIds]);
 
   const uiJourneySnapshotCapture = useMemo(
     () =>
@@ -5902,11 +5893,109 @@ export default function Page() {
                 No nodes found in the current selection.
               </p>
             ) : (
-              <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ display: "grid", gap: 10, maxHeight: 480, overflowY: "auto" }}>
                 {uiJourneyConversationSnapshot.map((entry) => {
                   const heading = `${entry.sequence ?? "-"} - ${entry.title || "Untitled"}`;
                   const isFrameEntry = entry.nodeType === "frame";
                   const isOrphanEntry = entry.connectionMeta.isOrphan;
+                  const headingColor = isOrphanEntry ? "#dc2626" : "#64748b";
+                  const contentColor = isOrphanEntry ? "#7f1d1d" : "#334155";
+                  const labelColor = isOrphanEntry ? "#b91c1c" : "#64748b";
+
+                  if (isFrameEntry) {
+                    return (
+                      <section
+                        key={`ui-journey-conversation:${entry.nodeId}`}
+                        style={{
+                          border: isOrphanEntry ? "1px solid #fecaca" : "1px solid #dbeafe",
+                          borderRadius: 10,
+                          background: isOrphanEntry ? "#fef2f2" : "#f8fafc",
+                          padding: "10px 12px",
+                          textAlign: "center",
+                          display: "grid",
+                          gap: 4,
+                        }}
+                      >
+                        <div style={{ display: "inline-flex", justifyContent: "center" }}>
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              fontSize: 12,
+                              color: headingColor,
+                            }}
+                          >
+                            {heading}
+                          </span>
+                          {isOrphanEntry && (
+                            <span
+                              style={{
+                                marginLeft: 6,
+                                fontSize: 9,
+                                fontWeight: 700,
+                                color: "#b91c1c",
+                                border: "1px solid #fecaca",
+                                borderRadius: 999,
+                                background: "#fee2e2",
+                                padding: "1px 6px",
+                                lineHeight: 1.35,
+                              }}
+                            >
+                              (Orphaned)
+                            </span>
+                          )}
+                        </div>
+
+                        {entry.fields.length > 0 ? (
+                          entry.fields.map((field) => (
+                            <div
+                              key={`${entry.nodeId}:${field.label}`}
+                              style={{
+                                fontSize: 15,
+                                color: "#0f172a",
+                                textAlign: "center",
+                              }}
+                            >
+                              <strong>{field.label}:</strong> {field.value}
+                            </div>
+                          ))
+                        ) : (
+                          <div
+                            style={{
+                              fontSize: 14,
+                              color: isOrphanEntry ? "#b91c1c" : "#94a3b8",
+                              textAlign: "center",
+                              fontStyle: "italic",
+                            }}
+                          >
+                            No copy fields provided.
+                          </div>
+                        )}
+
+                        {entry.notes && (
+                          <div style={{ marginTop: 4 }}>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: labelColor,
+                              }}
+                            >
+                              Notes
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 14,
+                                color: contentColor,
+                                textAlign: "center",
+                              }}
+                            >
+                              {entry.notes}
+                            </div>
+                          </div>
+                        )}
+                      </section>
+                    );
+                  }
 
                   return (
                     <section
@@ -5920,72 +6009,145 @@ export default function Page() {
                             ? "#f8fafc"
                             : "#ffffff",
                         padding: "10px 12px",
-                        display: "grid",
-                        gap: 4,
                       }}
                     >
                       <div
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: isFrameEntry ? "center" : "flex-start",
-                          flexWrap: "wrap",
-                          gap: 6,
-                          textAlign: isFrameEntry ? "center" : "left",
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr 1fr",
+                          gap: 12,
                         }}
                       >
-                        <span
-                          style={{
-                            fontWeight: 700,
-                            fontSize: isFrameEntry ? 18 : 16,
-                            color: isOrphanEntry ? "#b91c1c" : "#0f172a",
-                          }}
-                        >
-                          {heading}
-                        </span>
-                        {isOrphanEntry && (
-                          <span
+                        <div style={{ display: "grid", gap: 4 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "flex-start",
+                              flexWrap: "wrap",
+                              gap: 6,
+                              textAlign: "left",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontWeight: 600,
+                                fontSize: 11,
+                                color: headingColor,
+                              }}
+                            >
+                              {heading}
+                            </span>
+                            {isOrphanEntry && (
+                              <span
+                                style={{
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  color: "#b91c1c",
+                                  border: "1px solid #fecaca",
+                                  borderRadius: 999,
+                                  background: "#fee2e2",
+                                  padding: "1px 6px",
+                                  lineHeight: 1.35,
+                                }}
+                              >
+                                (Orphaned)
+                              </span>
+                            )}
+                          </div>
+
+                          {entry.fields.length > 0 ? (
+                            entry.fields.map((field) => (
+                              <div
+                                key={`${entry.nodeId}:${field.label}`}
+                                style={{
+                                  fontSize: 14,
+                                  textAlign: "left",
+                                }}
+                              >
+                                <strong
+                                  style={{
+                                    fontSize: 14,
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {field.label}:
+                                </strong>{" "}
+                                <span
+                                  style={{
+                                    fontSize: 14,
+                                    fontWeight: 400,
+                                    color: "#0f172a",
+                                  }}
+                                >
+                                  {field.value}
+                                </span>
+                              </div>
+                            ))
+                          ) : (
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: isOrphanEntry ? "#b91c1c" : "#94a3b8",
+                                textAlign: "left",
+                                fontStyle: "italic",
+                              }}
+                            >
+                              No copy fields provided.
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: "grid", alignContent: "start", gap: 2 }}>
+                          <div
                             style={{
                               fontSize: 11,
                               fontWeight: 700,
-                              color: "#b91c1c",
-                              border: "1px solid #fecaca",
-                              borderRadius: 999,
-                              background: "#fee2e2",
-                              padding: "1px 6px",
-                              lineHeight: 1.35,
+                              color: labelColor,
+                              marginBottom: 2,
+                              textAlign: "left",
                             }}
                           >
-                            (Orphaned)
-                          </span>
-                        )}
-                      </div>
-
-                      {entry.fields.length > 0 ? (
-                        entry.fields.map((field) => (
-                          <div
-                            key={`${entry.nodeId}:${field.label}`}
-                            style={{
-                              fontSize: isFrameEntry ? 14 : 12,
-                              color: isOrphanEntry ? "#7f1d1d" : "#334155",
-                              textAlign: isFrameEntry ? "center" : "left",
-                            }}
-                          >
-                            <strong>{field.label}:</strong> {field.value}
+                            Body Text
                           </div>
-                        ))
-                      ) : (
-                        <div
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: contentColor,
+                              textAlign: "left",
+                              whiteSpace: "pre-wrap",
+                              minHeight: 16,
+                            }}
+                          >
+                            {entry.bodyText}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "grid", alignContent: "start", gap: 2 }}>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: labelColor,
+                              marginBottom: 2,
+                              textAlign: "left",
+                            }}
+                          >
+                            Notes
+                          </div>
+                          <div
                           style={{
-                            fontSize: isFrameEntry ? 14 : 12,
-                            color: isOrphanEntry ? "#b91c1c" : "#94a3b8",
-                            textAlign: isFrameEntry ? "center" : "left",
-                            fontStyle: "italic",
+                            fontSize: 12,
+                            color: contentColor,
+                            textAlign: "left",
+                            whiteSpace: "pre-wrap",
+                            minHeight: 16,
                           }}
                         >
-                          No copy fields provided.
+                          {entry.notes}
                         </div>
-                      )}
+                        </div>
+                      </div>
                     </section>
                   );
                 })}
@@ -5997,6 +6159,9 @@ export default function Page() {
     </div>
   );
 }
+
+
+
 
 
 

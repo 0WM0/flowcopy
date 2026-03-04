@@ -40,18 +40,33 @@ export const buildUiJourneyConversationConnectionMetaByNodeId = ({
   nodes: FlowNode[];
   includedNodeIds: string[];
   edges: FlowEdge[];
-}): Partial<Record<string, UiJourneyConversationConnectionMeta>> => {
+}): Record<string, UiJourneyConversationConnectionMeta> => {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const includedNodeIdSet = new Set(includedNodeIds);
+  const normalizedIncludedNodeIds = Array.from(new Set(includedNodeIds));
+  const includedNodeIdSet = new Set(normalizedIncludedNodeIds);
   const adjacency = new Map<string, Set<string>>();
   const internalConnectorIdsByNodeId = new Map<string, Set<string>>();
   const allConnectorIdsByNodeId = new Map<string, Set<string>>();
 
-  includedNodeIds.forEach((nodeId) => {
+  normalizedIncludedNodeIds.forEach((nodeId) => {
     adjacency.set(nodeId, new Set<string>());
     internalConnectorIdsByNodeId.set(nodeId, new Set<string>());
     allConnectorIdsByNodeId.set(nodeId, new Set<string>());
   });
+
+  const hasValidFrameMembers = (nodeId: string): boolean => {
+    const currentNode = nodeById.get(nodeId);
+    if (!currentNode || currentNode.data.node_type !== "frame") {
+      return false;
+    }
+
+    return normalizeFrameNodeConfig(currentNode.data.frame_config).member_node_ids.some(
+      (memberNodeId) => {
+        const memberNode = nodeById.get(memberNodeId);
+        return Boolean(memberNode && memberNode.data.node_type !== "frame");
+      }
+    );
+  };
 
   edges.forEach((edge) => {
     const sourceIncluded = includedNodeIdSet.has(edge.source);
@@ -80,11 +95,11 @@ export const buildUiJourneyConversationConnectionMetaByNodeId = ({
     internalConnectorIdsByNodeId.get(edge.target)?.add(edge.id);
   });
 
-  const metaByNodeId: Partial<Record<string, UiJourneyConversationConnectionMeta>> = {};
+  const metaByNodeId: Record<string, UiJourneyConversationConnectionMeta> = {};
   const visitedNodeIds = new Set<string>();
   let nextGroupIndex = 0;
 
-  includedNodeIds
+  normalizedIncludedNodeIds
     .slice()
     .sort((a, b) => a.localeCompare(b))
     .forEach((nodeId) => {
@@ -101,17 +116,7 @@ export const buildUiJourneyConversationConnectionMetaByNodeId = ({
         const connectorIds = Array.from(allConnectorIdsByNodeId.get(nodeId) ?? []).sort(
           (a, b) => a.localeCompare(b)
         );
-        const currentNode = nodeById.get(nodeId);
-        const hasValidFrameMembers =
-          currentNode?.data.node_type === "frame"
-            ? normalizeFrameNodeConfig(currentNode.data.frame_config).member_node_ids.some(
-                (memberNodeId) => {
-                  const memberNode = nodeById.get(memberNodeId);
-                  return Boolean(memberNode && memberNode.data.node_type !== "frame");
-                }
-              )
-            : false;
-        const isOrphan = connectorIds.length === 0 && !hasValidFrameMembers;
+        const isOrphan = connectorIds.length === 0 && !hasValidFrameMembers(nodeId);
 
         metaByNodeId[nodeId] = {
           groupId: isOrphan ? null : `group:external:${nodeId}`,
@@ -174,6 +179,25 @@ export const buildUiJourneyConversationConnectionMetaByNodeId = ({
       });
     });
 
+  normalizedIncludedNodeIds.forEach((nodeId) => {
+    if (metaByNodeId[nodeId]) {
+      return;
+    }
+
+    const connectorIds = Array.from(allConnectorIdsByNodeId.get(nodeId) ?? []).sort((a, b) =>
+      a.localeCompare(b)
+    );
+    const isOrphan = connectorIds.length === 0 && !hasValidFrameMembers(nodeId);
+
+    metaByNodeId[nodeId] = {
+      groupId: isOrphan ? null : `group:external:${nodeId}`,
+      groupIndex: isOrphan ? null : nextGroupIndex++,
+      connectorIds,
+      connectedNodeIds: [],
+      isOrphan,
+    };
+  });
+
   return metaByNodeId;
 };
 
@@ -197,7 +221,6 @@ export const buildUiJourneyConversationFields = (
     });
   };
 
-  addField("Body Text", "body_text", nodeData.body_text);
   addField("Primary CTA", "primary_cta", nodeData.primary_cta);
   addField("Secondary CTA", "secondary_cta", nodeData.secondary_cta);
   addField("Helper Text", "helper_text", nodeData.helper_text);
@@ -230,6 +253,8 @@ export const cloneUiJourneyConversationEntries = (
       connectedNodeIds: [...entry.connectionMeta.connectedNodeIds],
       isOrphan: entry.connectionMeta.isOrphan,
     },
+    bodyText: entry.bodyText,
+    notes: entry.notes,
   }));
 
 export const sanitizeUniqueStringArray = (value: unknown): string[] => {
@@ -276,6 +301,9 @@ export const sanitizeUiJourneyConversationEntries = (
     }
 
     const title = typeof source.title === "string" ? source.title : "";
+    const bodyText =
+      typeof source.bodyText === "string" ? source.bodyText.trim() : "";
+    const notes = typeof source.notes === "string" ? source.notes.trim() : "";
     const sequence =
       typeof source.sequence === "number" && Number.isFinite(source.sequence)
         ? source.sequence
@@ -361,6 +389,8 @@ export const sanitizeUiJourneyConversationEntries = (
         sequence,
         title,
         fields,
+        bodyText,
+        notes,
         connectionMeta: {
           groupId,
           groupIndex,
@@ -458,6 +488,7 @@ export const resolveUiJourneyConversationIncludedNodeIds = ({
 
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const frameIdsByMemberNodeId = new Map<string, Set<string>>();
+  const memberNodeIdsByFrameId = new Map<string, string[]>();
 
   nodes.forEach((node) => {
     if (node.data.node_type !== "frame") {
@@ -465,12 +496,14 @@ export const resolveUiJourneyConversationIncludedNodeIds = ({
     }
 
     const frameConfig = normalizeFrameNodeConfig(node.data.frame_config);
+    const validMemberNodeIds = frameConfig.member_node_ids.filter((memberNodeId) => {
+      const memberNode = nodeById.get(memberNodeId);
+      return Boolean(memberNode && memberNode.data.node_type !== "frame");
+    });
 
-    frameConfig.member_node_ids.forEach((memberNodeId) => {
-      if (!nodeById.has(memberNodeId)) {
-        return;
-      }
+    memberNodeIdsByFrameId.set(node.id, validMemberNodeIds);
 
+    validMemberNodeIds.forEach((memberNodeId) => {
       const existingFrameIds = frameIdsByMemberNodeId.get(memberNodeId);
       if (existingFrameIds) {
         existingFrameIds.add(node.id);
@@ -502,7 +535,13 @@ export const resolveUiJourneyConversationIncludedNodeIds = ({
     }
 
     const currentNode = nodeById.get(currentNodeId);
-    if (!currentNode || currentNode.data.node_type === "frame") {
+    if (!currentNode) {
+      continue;
+    }
+
+    if (currentNode.data.node_type === "frame") {
+      const memberNodeIds = memberNodeIdsByFrameId.get(currentNodeId) ?? [];
+      memberNodeIds.forEach(enqueueNodeId);
       continue;
     }
 
@@ -571,6 +610,8 @@ export const buildUiJourneyConversationEntries = ({
         sequence,
         title: node.data.title.trim(),
         fields: buildUiJourneyConversationFields(nodeId, node.data),
+        bodyText: (node.data.body_text ?? "").trim(),
+        notes: (node.data.notes ?? "").trim(),
         connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
       };
     })

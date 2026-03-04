@@ -58,6 +58,13 @@ export const buildUiJourneyConversationPlainText = (
       });
     }
 
+    if (entry.bodyText) {
+      lines.push(`Body Text: ${normalizeMultilineText(entry.bodyText)}`);
+    }
+    if (entry.notes) {
+      lines.push(`Notes: ${normalizeMultilineText(entry.notes)}`);
+    }
+
     if (entryIndex < entries.length - 1) {
       lines.push("");
     }
@@ -103,6 +110,29 @@ export const buildUiJourneyConversationMarkdown = (
       });
     }
 
+    if (entry.bodyText) {
+      const normalizedBodyText = normalizeMultilineText(entry.bodyText).trim();
+      if (normalizedBodyText.includes("\n")) {
+        lines.push(`- **Body Text:**`);
+        lines.push("```");
+        lines.push(normalizedBodyText);
+        lines.push("```");
+      } else {
+        lines.push(`- **Body Text:** ${normalizedBodyText}`);
+      }
+    }
+    if (entry.notes) {
+      const normalizedNotes = normalizeMultilineText(entry.notes).trim();
+      if (normalizedNotes.includes("\n")) {
+        lines.push(`- **Notes:**`);
+        lines.push("```");
+        lines.push(normalizedNotes);
+        lines.push("```");
+      } else {
+        lines.push(`- **Notes:** ${normalizedNotes}`);
+      }
+    }
+
     if (entryIndex < entries.length - 1) {
       lines.push("");
     }
@@ -144,13 +174,25 @@ export const buildUiJourneyConversationHtml = (
                         })
                         .join("");
 
+                const bodyTextHtml = entry.bodyText
+                  ? `<p style="margin: 0; font-size: 12px; color: #334155; text-align: left;"><strong>Body Text:</strong> ${escapeXmlText(normalizeMultilineText(entry.bodyText)).replace(/\n/g, "<br />")}</p>`
+                  : "";
+                const notesHtml = entry.notes
+                  ? `<p style="margin: 0; font-size: 12px; color: #334155; text-align: left;"><strong>Notes:</strong> ${escapeXmlText(normalizeMultilineText(entry.notes)).replace(/\n/g, "<br />")}</p>`
+                  : "";
+                const frameNotesHtml = entry.notes
+                  ? `<p style="margin: 0; font-size: 14px; color: #334155; text-align: center;"><strong>Notes:</strong> ${escapeXmlText(normalizeMultilineText(entry.notes)).replace(/\n/g, "<br />")}</p>`
+                  : "";
+
                 return `<section style="border: 1px solid #dbeafe; border-radius: 10px; background: ${
                   isFrameEntry ? "#f8fafc" : "#ffffff"
                 }; padding: 10px 12px; display: grid; gap: 4px; margin-bottom: 10px;"><h2 style="margin: 0; font-size: ${
                   isFrameEntry ? 22 : 18
                 }px; color: #0f172a; text-align: ${
                   isFrameEntry ? "center" : "left"
-                }">${heading}</h2>${renderedFields}</section>`;
+                }">${heading}</h2>${renderedFields}${
+                  isFrameEntry ? frameNotesHtml : `${bodyTextHtml}${notesHtml}`
+                }</section>`;
               })
               .join("")
       }
@@ -255,6 +297,21 @@ export const buildUiJourneyConversationRtf = (
           `\\pard${isFrameEntry ? "\\qc" : "\\ql"}\\sa90\\f0\\fs22\\b ${label}\\b0 ${value}\\par`
         );
       });
+    }
+
+    if (entry.bodyText) {
+      const label = escapeRtfText("Body Text:");
+      const value = escapeRtfText(entry.bodyText);
+      lines.push(
+        `\\pard${isFrameEntry ? "\\qc" : "\\ql"}\\sa90\\f0\\fs22\\b ${label}\\b0 ${value}\\par`
+      );
+    }
+    if (entry.notes) {
+      const label = escapeRtfText("Notes:");
+      const value = escapeRtfText(entry.notes);
+      lines.push(
+        `\\pard${isFrameEntry ? "\\qc" : "\\ql"}\\sa90\\f0\\fs22\\b ${label}\\b0 ${value}\\par`
+      );
     }
 
     if (entryIndex < entries.length - 1) {

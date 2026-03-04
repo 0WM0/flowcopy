@@ -244,6 +244,8 @@ export type UiJourneyConversationEntry = {
   title: string;
   fields: UiJourneyConversationField[];
   connectionMeta: UiJourneyConversationConnectionMeta;
+  bodyText: string;
+  notes: string;
 };
 
 export type UiJourneySnapshotPreset = {

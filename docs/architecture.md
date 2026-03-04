@@ -32,6 +32,377 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-03-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session finalized the Task 5 cleanup stage of the monolith refactor by tightening `app/page.tsx` to only directly-owned imports and moving any node-renderer-specific dependencies out of the page surface.
+
+Product behavior remains unchanged, but the editor entrypoint is now cleaner and safer for the next auth/database layering work.
+
+## 2) Core Data Model
+
+No type/schema contracts changed in this session.
+
+The cleanup was import-boundary only:
+
+- no changes to `app/types/index.ts` model definitions
+- no changes to graph/store/journey/export record shapes
+- no changes to persisted payload structure
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- local storage keys remain the same
+- project serialization format is unchanged
+- migration utilities in `app/lib/store.ts` were not modified
+
+This session did not alter save/load behavior.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering changes were introduced:
+
+- `computeFlowOrdering(...)` unchanged
+- `computeParallelGroups(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Import cleanup did not affect sequence semantics.
+
+## 5) Node Rendering and Shape System
+
+Rendering ownership boundaries were reinforced:
+
+- `ReactMarkdown` and `remarkGfm` were removed from `app/page.tsx`
+- markdown/rendering concerns remain owned by `app/components/FlowCopyNode.tsx` (`BodyTextPreview` path)
+
+No visual behavior changes were made to node/edge rendering.
+
+## 6) Editor Interaction Model
+
+Editor interactions remained behaviorally identical. The update only removed direct `page.tsx` dependency on node/edge implementation imports that are now module-owned.
+
+Specifically removed from `@xyflow/react` import in `page.tsx`:
+
+- `Handle`
+- `Position`
+- `useReactFlow`
+- `useUpdateNodeInternals`
+- `MarkerType`
+
+Also removed clearly unused page-level types:
+
+- `type Edge`
+- `type Node`
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Completed Task 5 import cleanup in `app/page.tsx`.
+2. Removed node-renderer-only imports from the page entrypoint.
+3. Kept `"use client"`, React hooks, required xyflow imports, and existing module import structure intact.
+4. Preserved move-and-export refactor discipline (no logic rewrite, no behavior change).
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npm run build` passed with zero errors
+- no TypeScript circular import issues were reported
+
+Operationally, this confirms the import-boundary cleanup is stable and runtime-equivalent.
+
+## 9) Recommended Next Steps
+
+1. Continue session-by-session architecture logging with newest-first dated entries.
+2. Keep `page.tsx` focused on orchestration and avoid reintroducing renderer-specific imports.
+3. Proceed to the next planned integration phase (auth/persistent backend) against the extracted module boundaries.
+
+##03-03-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a documentation-maintenance checkpoint after the completed modularization tasks. The product surface remains the same (account → dashboard → editor with canvas/table, controlled language, journey snapshots, and transfer tools), while architecture ownership remains split across dedicated modules instead of a single monolith.
+
+No end-user behavior changed in this session; the work focused on keeping the architecture log current and chronologically correct.
+
+## 2) Core Data Model
+
+Core contracts remain centralized in `app/types/index.ts`, with shared usage across `app/page.tsx`, `app/components/FlowCopyNode.tsx`, and `app/lib/*` modules.
+
+This session introduced no schema/type mutations. Key model groupings remain:
+
+- graph + node/edge contracts (`FlowNode`, `FlowEdge`, `MicrocopyNodeData`, `FlowEdgeData`)
+- store/project contracts (`AppStore`, `AccountRecord`, `ProjectRecord`, `PersistedCanvasState`)
+- journey + transfer contracts (`UiJourneyConversationEntry`, `UiJourneySnapshotPreset`, `FlatExportRow`, `FullProjectExportEnvelope`)
+
+## 3) Persistence and Migration Strategy
+
+Persistence architecture is unchanged and still local-first:
+
+- app store key: `flowcopy.store.v1`
+- legacy migration key: `flowcopy.canvas.v2`
+- migration/bootstrap and sanitization remain in `app/lib/store.ts`
+
+No migration-path changes or storage-key changes were made in this session.
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering remains unchanged and continues to be sourced from extracted ordering utilities:
+
+- `computeFlowOrdering(...)`
+- `computeParallelGroups(...)`
+- `computeProjectSequenceId(...)`
+
+No ordering rules or sequence-ID behavior were modified in this session.
+
+## 5) Node Rendering and Shape System
+
+Renderer architecture remains as established in prior extraction work:
+
+- `FlowCopyNode` and `BodyTextPreview` live in `app/components/FlowCopyNode.tsx`
+- shape/layout helper behavior remains in `app/lib/node-utils.ts`
+- visual constants remain in `app/constants/index.ts`
+
+No rendering or shape-system behavior changed in this session.
+
+## 6) Editor Interaction Model
+
+Interaction orchestration remains in `app/page.tsx`, with helper responsibilities split across libs (`edge-utils`, `controlled-language`, `ui-journey`, `import/export`, `store`).
+
+This session did not alter keyboard shortcuts, selection/delete flows, undo behavior, journey modal interactions, or import/export actions.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added a **new top architecture entry** for today using the required date-marker format.
+2. Preserved reverse-chronological ordering (newest first).
+3. Kept all prior session entries intact as historical context.
+4. Recorded current modular architecture state without changing runtime code.
+
+## 8) Validation and Operational Notes
+
+Validation in this session was documentation-focused:
+
+- reviewed `docs/architecture.md` structure and confirmed the new entry is at the top of **Session Entries**
+- confirmed historical entries were not deleted
+
+No code/build validation was required because no application code changed.
+
+## 9) Recommended Next Steps
+
+1. Continue adding one new top entry per working session with `##MM-DD-YYYY##` markers.
+2. Keep architecture summaries aligned to actual implementation deltas (code vs docs-only sessions).
+3. As refactoring proceeds, document module-boundary shifts early to reduce onboarding and review overhead.
+
+##03-03-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session completed Task 4 of the monolith breakup by extracting the custom node renderer surface out of `app/page.tsx` into a dedicated component module.
+
+Product behavior remains unchanged, but architectural boundaries are cleaner:
+
+- `app/page.tsx` now orchestrates editor state and wiring.
+- `app/components/FlowCopyNode.tsx` now owns node-card rendering logic.
+
+The extraction was strictly move-and-export (no logic rewrite, no behavior change).
+
+## 2) Core Data Model
+
+No persisted schema changes were introduced.
+
+The component-level type surface is now modularized via:
+
+- `FlowCopyNodeProps` exported from `app/components/FlowCopyNode.tsx`
+- existing shared graph/data contracts still imported from `app/types/index.ts` (`FlowNode`, `FlowEdge`, `MenuNodeConfig`, `PersistableMicrocopyNodeData`, etc.)
+
+This session changed ownership of renderer types, not data contracts.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no localStorage key changes
+- no store schema changes
+- no migration-path updates
+
+All persistence remains in the existing store/module pipeline (`app/lib/store.ts` + page-level autosave orchestration).
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed in this session.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeParallelGroups(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Renderer extraction is orthogonal to sequence/ordering semantics.
+
+## 5) Node Rendering and Shape System
+
+Rendering responsibilities moved to `app/components/FlowCopyNode.tsx`:
+
+- moved `BodyTextPreview`
+- moved `FlowCopyNodeProps`
+- moved `FlowCopyNode`
+
+The extracted component continues to use the same constants and node-utils helpers for:
+
+- frame rendering and title-tab inline editing
+- menu term editing/handles/glossary interactions
+- default-node shape/card rendering (including diamond layering helpers)
+- highlight/recalled visual state resolution
+
+`"use client"` is preserved both in `app/page.tsx` and the new component module.
+
+## 6) Editor Interaction Model
+
+Interaction behavior is preserved with the same callback wiring from `Page` into `FlowCopyNode` props:
+
+- `onBeforeChange`
+- `onMenuNodeConfigChange`
+- `onMenuTermDeleteBlocked`
+- display toggles and glossary-term inputs
+
+In `page.tsx`, `nodeTypes.flowcopyNode` now renders the imported `FlowCopyNode` component instead of an in-file implementation.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Created `app/components/FlowCopyNode.tsx` with named exports.
+2. Moved renderer/helper/type block out of `app/page.tsx` without renaming symbols.
+3. Added `import { FlowCopyNode, BodyTextPreview } from "./components/FlowCopyNode";` in `app/page.tsx`.
+4. Removed temporary extraction script after completion to keep repo clean.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully after extraction:
+
+- `npx tsc --noEmit`
+- `npm run build`
+
+Both checks passed with zero errors, and no TypeScript circular import warnings were reported.
+
+## 9) Recommended Next Steps
+
+1. Continue extracting remaining `page.tsx` orchestration blocks into focused components/hooks.
+2. Add focused tests around `FlowCopyNode` interaction paths (menu term add/delete, frame title editing, glossary insertion).
+3. Preserve move-and-export discipline for next refactor tasks to keep behavior parity stable.
+
+##03-03-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session completed the modularization phase that turns the prior monolithic editor implementation into a structured feature shell composed of typed modules. `app/page.tsx` now acts as the orchestration surface, while core behaviors are delegated to dedicated files in `app/constants`, `app/lib`, `app/types`, and `app/components`.
+
+At the product level, visible functionality remains the same (account gate, dashboard, canvas/table editor, controlled language, snapshots, import/export), but maintainability and future integration readiness (auth/persistent backend layering) are materially improved by reducing single-file coupling.
+
+## 2) Core Data Model
+
+The canonical type layer now lives in `app/types/index.ts` and is consumed via named type imports from `page.tsx` and other modules. Centralized contracts include:
+
+- graph primitives (`FlowNode`, `FlowEdge`, `FlowEdgeData`, `NodeType`, `FrameNodeConfig`, `MenuNodeConfig`)
+- persistence/store records (`PersistedCanvasState`, `ProjectRecord`, `AccountRecord`, `AppStore`)
+- controlled-language structures (`ControlledLanguageGlossaryEntry`, `ControlledLanguageAuditRow`, `ControlledLanguageDraftRow`)
+- transfer and journey models (`FlatExportRow`, `ParsedTabularPayload`, `UiJourneyConversationEntry`, `UiJourneySnapshotPreset`, `FullProjectExportEnvelope`)
+
+During this session line, `UiJourneyConversationEntry` now explicitly carries `bodyText` and `notes` in the shared type contract, which is reflected through `app/lib/ui-journey.ts`, modal rendering in `app/page.tsx`, and text/markdown/html/rtf builders in `app/lib/export.ts`.
+
+## 3) Persistence and Migration Strategy
+
+Persistence logic has been extracted to `app/lib/store.ts`, preserving current local-first behavior while isolating migration and sanitization responsibilities:
+
+- storage keys remain unchanged (`flowcopy.store.v1`, legacy `flowcopy.canvas.v2`)
+- store bootstrap and migration remain in `readAppStore()` + `migrateLegacyCanvasToStore()`
+- project/canvas normalization remains explicit (`sanitizeProjectRecord`, `sanitizeAppStore`, `normalizeGlobalOptionConfig`)
+- UI state persistence for panel width remains bounded and local (`clampSidePanelWidth`, `readInitialSidePanelWidth`)
+
+No schema or key changes were introduced; this is a structural extraction with parity behavior.
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering and sequence generation are now isolated in `app/lib/flow-ordering.ts` and consumed as pure functions by `page.tsx`:
+
+- `computeFlowOrdering(...)` still governs deterministic node sequence
+- `computeParallelGroups(...)` still governs parallel component membership/group IDs
+- `computeProjectSequenceId(...)` still derives stable project sequence identity
+
+No algorithmic behavior changes were introduced in this session; extraction preserved existing topological + tie-break semantics and project-sequence ID computation.
+
+## 5) Node Rendering and Shape System
+
+Node rendering has been extracted into `app/components/FlowCopyNode.tsx`, which now owns canvas card rendering details while receiving controlled callbacks/props from `page.tsx`.
+
+Shape and frame/menu rendering systems remain intact:
+
+- rectangle/rounded/pill/diamond visual paths still rely on node-utils helpers
+- frame title-tab, shade variants, and membership visuals are preserved
+- menu term editing and per-term handle behavior are preserved
+
+Styling constants and display toggles are centralized in `app/constants/index.ts`, reducing inline duplication and making renderer behavior easier to reason about.
+
+## 6) Editor Interaction Model
+
+Interaction logic is now split by responsibility across dedicated libs while `page.tsx` coordinates state transitions:
+
+- edge semantics and guardrails in `app/lib/edge-utils.ts` (kind inference, visuals, reconnect/connect constraints)
+- node normalization/membership/layout helpers in `app/lib/node-utils.ts`
+- controlled-language term audit/glossary logic in `app/lib/controlled-language.ts`
+- UI journey capture/snapshot sanitization/building in `app/lib/ui-journey.ts`
+- transfer build/parsing split into `app/lib/export.ts` and `app/lib/import.ts`
+
+The user interaction model remains behaviorally equivalent (keyboard shortcuts, selection flows, undo stack, modal flows, import/export actions), but dependency boundaries are significantly cleaner.
+
+## 7) Refactor Outcomes
+
+This session chain (through Task 5) delivered the architectural breakup of the original monolith:
+
+1. extracted all shared type definitions into `app/types/index.ts`
+2. extracted constants/UI config maps into `app/constants/index.ts`
+3. extracted pure logic into `app/lib/*` (store, ordering, node, edge, import/export, UI journey, controlled language)
+4. extracted node renderer into `app/components/FlowCopyNode.tsx`
+5. cleaned/normalized `app/page.tsx` imports and orchestration boundaries
+
+Recent commit trail confirms progression:
+
+- `4094840` task-1 extract types
+- `b5ee851` task-2 extract constants
+- `6ec1573` task-3 extract pure functions
+- `29b8247` task-4 extract FlowCopyNode
+- `ee659cd` task-5 page import cleanup
+
+## 8) Validation and Operational Notes
+
+Operationally, this refactor preserved runtime behavior while reducing change risk for upcoming auth/database integration work.
+
+Session verification notes:
+
+- repository history indicates completed incremental extraction commits up to task-5
+- architecture source files now physically present and referenced (`app/types`, `app/constants`, `app/lib`, `app/components`)
+- no package, tsconfig, or dependency-surface changes were required for this phase
+
+As with prior sessions, shell output in this environment may include spinner/control artifacts during commands; use explicit success markers or follow-up commands where needed.
+
+## 9) Recommended Next Steps
+
+1. Begin the next planned extraction tranche by decomposing `page.tsx` orchestration into smaller feature hooks/controllers (selection, undo, transfer, snapshot state machines).
+2. Add focused unit coverage around extracted pure modules (`flow-ordering`, `edge-utils`, `import/export`, `ui-journey`) to lock parity before auth/database integration.
+3. Add integration tests for cross-surface parity (canvas ↔ table ↔ export/import roundtrip) now that module seams are stable.
+4. Proceed with auth (Supabase/Clerk) and persistent backend layering against the new module boundaries rather than directly against page-level state.
+
 ##03-02-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -2628,6 +2999,10 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
+
+
+
 
 
 
