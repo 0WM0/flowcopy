@@ -154,7 +154,7 @@ function FlowCopyNode({
 
     const rows: RibbonNodeCell[][] = [];
 
-    for (let row = 1; row <= ribbonConfig.rows; row += 1) {
+    for (let row = 0; row < ribbonConfig.rows; row += 1) {
       const rowCells = ribbonConfig.cells
         .filter((cell) => cell.row === row)
         .sort((a, b) => a.column - b.column);
@@ -472,16 +472,48 @@ function FlowCopyNode({
           type="target"
           position={Position.Left}
           id={SEQUENTIAL_TARGET_HANDLE_ID}
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: -3,
+            transform: "translateY(-50%)",
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: "#64748b",
+          }}
         />
         <Handle
           type="target"
-          position={Position.Top}
+          position={Position.Left}
           id={PARALLEL_TARGET_HANDLE_ID}
+          style={{
+            position: "absolute",
+            top: -5,
+            left: -5,
+            transform: "translateY(0%) !important" as any,
+            width: 10,
+            height: 10,
+            borderRadius: 2,
+            background: "#1e293b",
+            zIndex: 10,
+          }}
         />
         <Handle
           type="source"
-          position={Position.Top}
+          position={Position.Left}
           id={PARALLEL_ALT_SOURCE_HANDLE_ID}
+          style={{
+            position: "absolute",
+            top: -5,
+            left: -5,
+            transform: "translateY(0%) !important" as any,
+            width: 10,
+            height: 10,
+            borderRadius: 2,
+            background: "#1e293b",
+            zIndex: 10,
+          }}
         />
 
         <div
@@ -589,13 +621,35 @@ function FlowCopyNode({
         />
         <Handle
           type="source"
-          position={Position.Bottom}
+          position={Position.Left}
           id={PARALLEL_SOURCE_HANDLE_ID}
+          style={{
+            position: "absolute",
+            top: "calc(100% - 5px)",
+            left: -5,
+            transform: "translateY(0%) !important" as any,
+            width: 10,
+            height: 10,
+            borderRadius: 2,
+            background: "#1e293b",
+            zIndex: 10,
+          }}
         />
         <Handle
           type="target"
-          position={Position.Bottom}
+          position={Position.Left}
           id={PARALLEL_ALT_TARGET_HANDLE_ID}
+          style={{
+            position: "absolute",
+            top: "calc(100% - 5px)",
+            left: -5,
+            transform: "translateY(0%) !important" as any,
+            width: 10,
+            height: 10,
+            borderRadius: 2,
+            background: "#1e293b",
+            zIndex: 10,
+          }}
         />
       </div>
     );
@@ -953,16 +1007,48 @@ function FlowCopyNode({
         type="target"
         position={Position.Left}
         id={SEQUENTIAL_TARGET_HANDLE_ID}
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: -3,
+          transform: "translateY(-50%)",
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: "#64748b",
+        }}
       />
       <Handle
         type="target"
-        position={Position.Top}
+        position={Position.Left}
         id={PARALLEL_TARGET_HANDLE_ID}
+        style={{
+          position: "absolute",
+          top: -5,
+          left: -5,
+          transform: "translateY(0%) !important" as any,
+          width: 10,
+          height: 10,
+          borderRadius: 2,
+          background: "#1e293b",
+          zIndex: 10,
+        }}
       />
       <Handle
         type="source"
-        position={Position.Top}
+        position={Position.Left}
         id={PARALLEL_ALT_SOURCE_HANDLE_ID}
+        style={{
+          position: "absolute",
+          top: -5,
+          left: -5,
+          transform: "translateY(0%) !important" as any,
+          width: 10,
+          height: 10,
+          borderRadius: 2,
+          background: "#1e293b",
+          zIndex: 10,
+        }}
       />
 
       {data.node_shape === "diamond" && (
@@ -1225,13 +1311,35 @@ function FlowCopyNode({
 
       <Handle
         type="source"
-        position={Position.Bottom}
+        position={Position.Left}
         id={PARALLEL_SOURCE_HANDLE_ID}
+        style={{
+          position: "absolute",
+          top: "calc(100% - 5px)",
+          left: -5,
+          transform: "translateY(0%) !important" as any,
+          width: 10,
+          height: 10,
+          borderRadius: 2,
+          background: "#1e293b",
+          zIndex: 10,
+        }}
       />
       <Handle
         type="target"
-        position={Position.Bottom}
+        position={Position.Left}
         id={PARALLEL_ALT_TARGET_HANDLE_ID}
+        style={{
+          position: "absolute",
+          top: "calc(100% - 5px)",
+          left: -5,
+          transform: "translateY(0%) !important" as any,
+          width: 10,
+          height: 10,
+          borderRadius: 2,
+          background: "#1e293b",
+          zIndex: 10,
+        }}
       />
     </div>
   );

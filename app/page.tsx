@@ -91,6 +91,8 @@ import {
   FRAME_NODE_MIN_WIDTH,
   FRAME_NODE_MIN_HEIGHT,
   FRAME_NODE_PADDING,
+  RIBBON_NODE_MAX_ROWS,
+  RIBBON_NODE_MIN_COLUMNS,
   EDGE_STROKE_COLOR,
   PARALLEL_EDGE_STROKE_COLOR,
   EDGE_LINE_STYLE_OPTIONS,
@@ -204,6 +206,7 @@ import {
   normalizeFrameNodeConfig,
   normalizeMenuNodeConfig,
   normalizeRibbonNodeConfig,
+  createRibbonNodeCell,
   pruneFrameNodeMembership,
   applyFrameMovementToMemberNodes,
   constrainNodesToFrameMembershipBounds,
@@ -236,6 +239,7 @@ import {
   getEdgeKind,
   isSequentialEdge,
   syncSequentialEdgesForMenuNode,
+  syncSequentialEdgesForRibbonNode,
   assignSequentialEdgesToMenuHandles,
   remapMenuSequentialEdgesToDefaultHandle,
   hasNonSelectionNodeChanges,
@@ -1840,6 +1844,12 @@ export default function Page() {
       ? null
       : edges.find((edge) => edge.id === effectiveSelectedEdgeId) ?? null;
 
+  const selectedNodeIsDefaultInspectorNode =
+    selectedNode !== null &&
+    selectedNode.data.node_type !== "ribbon" &&
+    selectedNode.data.node_type !== "menu" &&
+    selectedNode.data.node_type !== "frame";
+
   const selectedNonFrameNodesForFrameCreation = useMemo(() => {
     if (selectedEdgeId) {
       return [];
@@ -2315,6 +2325,14 @@ export default function Page() {
     return normalizeFrameNodeConfig(selectedNode.data.frame_config);
   }, [selectedNode]);
 
+  const selectedRibbonNodeConfig = useMemo(() => {
+    if (!selectedNode || selectedNode.data.node_type !== "ribbon") {
+      return null;
+    }
+
+    return normalizeRibbonNodeConfig(selectedNode.data.ribbon_config);
+  }, [selectedNode]);
+
   const visibleInspectorMenuGlossaryTermId =
     selectedMenuNodeConfig &&
     openInspectorMenuGlossaryTermId &&
@@ -2381,6 +2399,134 @@ export default function Page() {
       );
     },
     [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
+  );
+
+  const updateRibbonRows = useCallback(
+    (delta: number) => {
+      if (!effectiveSelectedNodeId || (delta !== 1 && delta !== -1)) {
+        return;
+      }
+
+      const targetNode = nodes.find((node) => node.id === effectiveSelectedNodeId);
+      if (!targetNode || targetNode.data.node_type !== "ribbon") {
+        return;
+      }
+
+      const currentRibbonConfig = normalizeRibbonNodeConfig(targetNode.data.ribbon_config);
+      const nextRows = Math.min(
+        RIBBON_NODE_MAX_ROWS,
+        Math.max(1, currentRibbonConfig.rows + delta)
+      );
+
+      if (nextRows === currentRibbonConfig.rows) {
+        return;
+      }
+
+      let nextCells = [...currentRibbonConfig.cells];
+
+      if (nextRows > currentRibbonConfig.rows) {
+        for (let row = currentRibbonConfig.rows; row < nextRows; row += 1) {
+          for (let column = 0; column < currentRibbonConfig.columns; column += 1) {
+            nextCells.push(createRibbonNodeCell(row, column));
+          }
+        }
+      } else {
+        nextCells = nextCells.filter((cell) => cell.row < nextRows);
+      }
+
+      const nextRibbonConfig = normalizeRibbonNodeConfig({
+        ...currentRibbonConfig,
+        rows: nextRows,
+        cells: nextCells,
+      });
+
+      queueUndoSnapshot();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) =>
+          node.id === targetNode.id
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  ribbon_config: nextRibbonConfig,
+                },
+              }
+            : node
+        )
+      );
+
+      setEdges((currentEdges) =>
+        syncSequentialEdgesForRibbonNode(targetNode.id, nextRibbonConfig, currentEdges)
+      );
+    },
+    [effectiveSelectedNodeId, nodes, queueUndoSnapshot, setEdges, setNodes]
+  );
+
+  const updateRibbonColumns = useCallback(
+    (delta: number) => {
+      if (!effectiveSelectedNodeId || (delta !== 1 && delta !== -1)) {
+        return;
+      }
+
+      const targetNode = nodes.find((node) => node.id === effectiveSelectedNodeId);
+      if (!targetNode || targetNode.data.node_type !== "ribbon") {
+        return;
+      }
+
+      const currentRibbonConfig = normalizeRibbonNodeConfig(targetNode.data.ribbon_config);
+      const nextColumns = Math.max(
+        RIBBON_NODE_MIN_COLUMNS,
+        currentRibbonConfig.columns + delta
+      );
+
+      if (nextColumns === currentRibbonConfig.columns) {
+        return;
+      }
+
+      let nextCells = [...currentRibbonConfig.cells];
+
+      if (nextColumns > currentRibbonConfig.columns) {
+        for (let row = 0; row < currentRibbonConfig.rows; row += 1) {
+          for (
+            let column = currentRibbonConfig.columns;
+            column < nextColumns;
+            column += 1
+          ) {
+            nextCells.push(createRibbonNodeCell(row, column));
+          }
+        }
+      } else {
+        nextCells = nextCells.filter((cell) => cell.column < nextColumns);
+      }
+
+      const nextRibbonConfig = normalizeRibbonNodeConfig({
+        ...currentRibbonConfig,
+        columns: nextColumns,
+        cells: nextCells,
+      });
+
+      queueUndoSnapshot();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) =>
+          node.id === targetNode.id
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  ribbon_config: nextRibbonConfig,
+                },
+              }
+            : node
+        )
+      );
+
+      setEdges((currentEdges) =>
+        syncSequentialEdgesForRibbonNode(targetNode.id, nextRibbonConfig, currentEdges)
+      );
+    },
+    [effectiveSelectedNodeId, nodes, queueUndoSnapshot, setEdges, setNodes]
   );
 
   const commitSelectedMenuRightConnectionsInput = useCallback((rawValue: string) => {
@@ -5447,22 +5593,24 @@ export default function Page() {
               </>
             ) : (
               <>
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Node shape</div>
-                  <select
-                    style={inputStyle}
-                    value={selectedNode.data.node_shape}
-                    onChange={(event) =>
-                      updateSelectedField("node_shape", event.target.value as NodeShape)
-                    }
-                  >
-                    {NODE_SHAPE_OPTIONS.map((shape) => (
-                      <option key={`shape:${shape}`} value={shape}>
-                        {shape.charAt(0).toUpperCase() + shape.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {selectedNode.data.node_type !== "ribbon" && (
+                  <label>
+                    <div style={inspectorFieldLabelStyle}>Node shape</div>
+                    <select
+                      style={inputStyle}
+                      value={selectedNode.data.node_shape}
+                      onChange={(event) =>
+                        updateSelectedField("node_shape", event.target.value as NodeShape)
+                      }
+                    >
+                      {NODE_SHAPE_OPTIONS.map((shape) => (
+                        <option key={`shape:${shape}`} value={shape}>
+                          {shape.charAt(0).toUpperCase() + shape.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
 
                 <div>
                   <div
@@ -5475,24 +5623,26 @@ export default function Page() {
                     }}
                   >
                     <div style={{ ...inspectorFieldLabelStyle, marginBottom: 0 }}>Title</div>
-                    <label
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        fontSize: 11,
-                        color: "#334155",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={showDefaultNodeTitleOnCanvas}
-                        onChange={(event) =>
-                          setShowDefaultNodeTitleOnCanvas(event.target.checked)
-                        }
-                      />
-                      Show
-                    </label>
+                    {selectedNode.data.node_type !== "ribbon" && (
+                      <label
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: 11,
+                          color: "#334155",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={showDefaultNodeTitleOnCanvas}
+                          onChange={(event) =>
+                            setShowDefaultNodeTitleOnCanvas(event.target.checked)
+                          }
+                        />
+                        Show
+                      </label>
+                    )}
                   </div>
                   <input
                     style={inputStyle}
@@ -5501,152 +5651,297 @@ export default function Page() {
                   />
                 </div>
 
-                <div
-                  style={{
-                    border: "1px solid #dbeafe",
-                    borderRadius: 8,
-                    padding: 8,
-                    background: "#f8fbff",
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
-                    Displayed term in node
-                  </div>
+                {selectedNode.data.node_type === "ribbon" && selectedRibbonNodeConfig && (
+                  <div
+                    style={{
+                      border: "1px solid #dbeafe",
+                      borderRadius: 8,
+                      padding: 8,
+                      background: "#f8fbff",
+                      display: "grid",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e40af" }}>
+                      Ribbon Grid
+                    </div>
 
-                  {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => (
-                    <label
-                      key={`display-term-field:${fieldType}`}
+                    <div
                       style={{
                         display: "flex",
                         alignItems: "center",
+                        justifyContent: "space-between",
                         gap: 8,
-                        fontSize: 12,
-                        color: "#334155",
                       }}
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedNode.data.display_term_field === fieldType}
-                        onChange={(event) => {
-                          if (!event.target.checked) {
-                            return;
-                          }
-
-                          updateSelectedDisplayTermField(fieldType);
-                        }}
-                      />
-                      {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
-                    </label>
-                  ))}
-                </div>
-
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Body text</div>
-                  <textarea
-                    style={{ ...inputStyle, minHeight: 68, resize: "vertical" }}
-                    value={selectedNode.data.body_text}
-                    onChange={(event) => updateSelectedField("body_text", event.target.value)}
-                  />
-                </label>
-
-                <div>
-                  <div style={{ fontSize: 12, marginBottom: 4, color: "#334155" }}>
-                    Body text preview (markdown)
-                  </div>
-                  <div
-                    style={{
-                      border: "1px solid #e2e8f0",
-                      borderRadius: 6,
-                      background: "#f8fafc",
-                      padding: 8,
-                    }}
-                  >
-                    <BodyTextPreview value={selectedNode.data.body_text} />
-                  </div>
-                </div>
-
-                {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => {
-                  const isDropdownOpen = openControlledLanguageFieldType === fieldType;
-                  const includedTerms = controlledLanguageTermsByField[fieldType];
-
-                  return (
-                    <label key={`controlled-language-field:${fieldType}`}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 8,
-                          marginBottom: 4,
-                        }}
-                      >
-                        <div style={inspectorFieldLabelStyle}>{CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}</div>
+                      <div style={{ fontSize: 12, color: "#334155", fontWeight: 600 }}>
+                        Rows: {selectedRibbonNodeConfig.rows}
+                      </div>
+                      <div style={{ display: "flex", gap: 6 }}>
                         <button
                           type="button"
                           style={{
                             ...buttonStyle,
-                            fontSize: 10,
-                            padding: "2px 6px",
-                            background: isDropdownOpen ? "#dbeafe" : "#fff",
-                            borderColor: isDropdownOpen ? "#93c5fd" : "#d4d4d8",
+                            width: 24,
+                            height: 24,
+                            minWidth: 24,
+                            padding: 0,
+                            fontWeight: 700,
+                            lineHeight: 1,
+                            opacity:
+                              selectedRibbonNodeConfig.rows >= RIBBON_NODE_MAX_ROWS ? 0.45 : 1,
+                            cursor:
+                              selectedRibbonNodeConfig.rows >= RIBBON_NODE_MAX_ROWS
+                                ? "not-allowed"
+                                : "pointer",
                           }}
-                          title="Click to toggle glossary dropdown"
-                          onClick={() => toggleControlledLanguageFieldDropdown(fieldType)}
+                          onClick={() => updateRibbonRows(1)}
+                          disabled={selectedRibbonNodeConfig.rows >= RIBBON_NODE_MAX_ROWS}
+                          aria-label="Add ribbon row"
+                          title="Add ribbon row"
                         >
-                          Glossary ▾
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          style={{
+                            ...buttonStyle,
+                            width: 24,
+                            height: 24,
+                            minWidth: 24,
+                            padding: 0,
+                            fontWeight: 700,
+                            lineHeight: 1,
+                            opacity: selectedRibbonNodeConfig.rows <= 1 ? 0.45 : 1,
+                            cursor:
+                              selectedRibbonNodeConfig.rows <= 1
+                                ? "not-allowed"
+                                : "pointer",
+                          }}
+                          onClick={() => updateRibbonRows(-1)}
+                          disabled={selectedRibbonNodeConfig.rows <= 1}
+                          aria-label="Remove ribbon row"
+                          title="Remove ribbon row"
+                        >
+                          -
                         </button>
                       </div>
+                    </div>
 
-                      <input
-                        style={inputStyle}
-                        value={selectedNode.data[fieldType]}
-                        onChange={(event) =>
-                          updateSelectedField(fieldType, event.target.value)
-                        }
-                      />
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ fontSize: 12, color: "#334155", fontWeight: 600 }}>
+                        Columns: {selectedRibbonNodeConfig.columns}
+                      </div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          type="button"
+                          style={{
+                            ...buttonStyle,
+                            width: 24,
+                            height: 24,
+                            minWidth: 24,
+                            padding: 0,
+                            fontWeight: 700,
+                            lineHeight: 1,
+                          }}
+                          onClick={() => updateRibbonColumns(1)}
+                          aria-label="Add ribbon column"
+                          title="Add ribbon column"
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          style={{
+                            ...buttonStyle,
+                            width: 24,
+                            height: 24,
+                            minWidth: 24,
+                            padding: 0,
+                            fontWeight: 700,
+                            lineHeight: 1,
+                            opacity:
+                              selectedRibbonNodeConfig.columns <= RIBBON_NODE_MIN_COLUMNS
+                                ? 0.45
+                                : 1,
+                            cursor:
+                              selectedRibbonNodeConfig.columns <= RIBBON_NODE_MIN_COLUMNS
+                                ? "not-allowed"
+                                : "pointer",
+                          }}
+                          onClick={() => updateRibbonColumns(-1)}
+                          disabled={selectedRibbonNodeConfig.columns <= RIBBON_NODE_MIN_COLUMNS}
+                          aria-label="Remove ribbon column"
+                          title="Remove ribbon column"
+                        >
+                          -
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-                      {isDropdownOpen && (
+                {selectedNodeIsDefaultInspectorNode && (
+                    <>
+                      <div
+                        style={{
+                          border: "1px solid #dbeafe",
+                          borderRadius: 8,
+                          padding: 8,
+                          background: "#f8fbff",
+                          display: "grid",
+                          gap: 6,
+                        }}
+                      >
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                          Displayed term in node
+                        </div>
+
+                        {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => (
+                          <label
+                            key={`display-term-field:${fieldType}`}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              fontSize: 12,
+                              color: "#334155",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.display_term_field === fieldType}
+                              onChange={(event) => {
+                                if (!event.target.checked) {
+                                  return;
+                                }
+
+                                updateSelectedDisplayTermField(fieldType);
+                              }}
+                            />
+                            {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
+                          </label>
+                        ))}
+                      </div>
+
+                      <label>
+                        <div style={inspectorFieldLabelStyle}>Body text</div>
+                        <textarea
+                          style={{ ...inputStyle, minHeight: 68, resize: "vertical" }}
+                          value={selectedNode.data.body_text}
+                          onChange={(event) =>
+                            updateSelectedField("body_text", event.target.value)
+                          }
+                        />
+                      </label>
+
+                      <div>
+                        <div style={{ fontSize: 12, marginBottom: 4, color: "#334155" }}>
+                          Body text preview (markdown)
+                        </div>
                         <div
                           style={{
-                            marginTop: 6,
-                            border: "1px solid #dbeafe",
+                            border: "1px solid #e2e8f0",
                             borderRadius: 6,
-                            background: "#f8fbff",
-                            padding: 6,
+                            background: "#f8fafc",
+                            padding: 8,
                           }}
                         >
-                          {includedTerms.length === 0 ? (
-                            <div style={{ fontSize: 11, color: "#64748b" }}>
-                              No included glossary terms for this field type yet.
-                            </div>
-                          ) : (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {includedTerms.map((term) => (
-                                <button
-                                  key={`controlled-language-option:${fieldType}:${term}`}
-                                  type="button"
-                                  style={{
-                                    ...buttonStyle,
-                                    padding: "3px 8px",
-                                    fontSize: 11,
-                                    background: "#fff",
-                                  }}
-                                  onClick={() =>
-                                    applyControlledLanguageTermToField(fieldType, term)
-                                  }
-                                >
-                                  {term}
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                          <BodyTextPreview value={selectedNode.data.body_text} />
                         </div>
-                      )}
-                    </label>
-                  );
-                })}
+                      </div>
+
+                      {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => {
+                        const isDropdownOpen = openControlledLanguageFieldType === fieldType;
+                        const includedTerms = controlledLanguageTermsByField[fieldType];
+
+                        return (
+                          <label key={`controlled-language-field:${fieldType}`}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 8,
+                                marginBottom: 4,
+                              }}
+                            >
+                              <div style={inspectorFieldLabelStyle}>
+                                {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
+                              </div>
+                              <button
+                                type="button"
+                                style={{
+                                  ...buttonStyle,
+                                  fontSize: 10,
+                                  padding: "2px 6px",
+                                  background: isDropdownOpen ? "#dbeafe" : "#fff",
+                                  borderColor: isDropdownOpen ? "#93c5fd" : "#d4d4d8",
+                                }}
+                                title="Click to toggle glossary dropdown"
+                                onClick={() => toggleControlledLanguageFieldDropdown(fieldType)}
+                              >
+                                Glossary ▾
+                              </button>
+                            </div>
+
+                            <input
+                              style={inputStyle}
+                              value={selectedNode.data[fieldType]}
+                              onChange={(event) =>
+                                updateSelectedField(fieldType, event.target.value)
+                              }
+                            />
+
+                            {isDropdownOpen && (
+                              <div
+                                style={{
+                                  marginTop: 6,
+                                  border: "1px solid #dbeafe",
+                                  borderRadius: 6,
+                                  background: "#f8fbff",
+                                  padding: 6,
+                                }}
+                              >
+                                {includedTerms.length === 0 ? (
+                                  <div style={{ fontSize: 11, color: "#64748b" }}>
+                                    No included glossary terms for this field type yet.
+                                  </div>
+                                ) : (
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                    {includedTerms.map((term) => (
+                                      <button
+                                        key={`controlled-language-option:${fieldType}:${term}`}
+                                        type="button"
+                                        style={{
+                                          ...buttonStyle,
+                                          padding: "3px 8px",
+                                          fontSize: 11,
+                                          background: "#fff",
+                                        }}
+                                        onClick={() =>
+                                          applyControlledLanguageTermToField(fieldType, term)
+                                        }
+                                      >
+                                        {term}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </>
+                  )}
               </>
             )}
 
@@ -6179,6 +6474,13 @@ export default function Page() {
     </div>
   );
 }
+
+
+
+
+
+
+
 
 
 

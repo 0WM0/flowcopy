@@ -401,6 +401,40 @@ export const normalizeRibbonNodeConfig = (value: unknown): RibbonNodeConfig => {
   const occupiedPositions = new Set<string>();
   const normalizedCells: RibbonNodeCell[] = [];
   const sourceCells = Array.isArray(source?.cells) ? source.cells : [];
+  const sourceCellCoordinates = sourceCells.flatMap((cellValue) => {
+    if (!cellValue || typeof cellValue !== "object") {
+      return [];
+    }
+
+    const sourceCell = cellValue as Partial<RibbonNodeCell>;
+    if (
+      typeof sourceCell.row !== "number" ||
+      !Number.isFinite(sourceCell.row) ||
+      typeof sourceCell.column !== "number" ||
+      !Number.isFinite(sourceCell.column)
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        row: Math.round(sourceCell.row),
+        column: Math.round(sourceCell.column),
+      },
+    ];
+  });
+  const shouldNormalizeRowsFromOneBased =
+    sourceCellCoordinates.length > 0 &&
+    !sourceCellCoordinates.some((coordinate) => coordinate.row === 0) &&
+    sourceCellCoordinates.every(
+      (coordinate) => coordinate.row >= 1 && coordinate.row <= rows
+    );
+  const shouldNormalizeColumnsFromOneBased =
+    sourceCellCoordinates.length > 0 &&
+    !sourceCellCoordinates.some((coordinate) => coordinate.column === 0) &&
+    sourceCellCoordinates.every(
+      (coordinate) => coordinate.column >= 1 && coordinate.column <= columns
+    );
 
   sourceCells.forEach((cellValue) => {
     if (!cellValue || typeof cellValue !== "object") {
@@ -408,20 +442,23 @@ export const normalizeRibbonNodeConfig = (value: unknown): RibbonNodeConfig => {
     }
 
     const sourceCell = cellValue as Partial<RibbonNodeCell>;
-    const row =
+    const rawRow =
       typeof sourceCell.row === "number" && Number.isFinite(sourceCell.row)
         ? Math.round(sourceCell.row)
         : Number.NaN;
-    const column =
+    const rawColumn =
       typeof sourceCell.column === "number" && Number.isFinite(sourceCell.column)
         ? Math.round(sourceCell.column)
         : Number.NaN;
 
-    if (!Number.isFinite(row) || !Number.isFinite(column)) {
+    if (!Number.isFinite(rawRow) || !Number.isFinite(rawColumn)) {
       return;
     }
 
-    if (row < 1 || row > rows || column < 1 || column > columns) {
+    const row = shouldNormalizeRowsFromOneBased ? rawRow - 1 : rawRow;
+    const column = shouldNormalizeColumnsFromOneBased ? rawColumn - 1 : rawColumn;
+
+    if (row < 0 || row >= rows || column < 0 || column >= columns) {
       return;
     }
 
@@ -453,8 +490,8 @@ export const normalizeRibbonNodeConfig = (value: unknown): RibbonNodeConfig => {
     });
   });
 
-  for (let row = 1; row <= rows; row += 1) {
-    for (let column = 1; column <= columns; column += 1) {
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
       const positionKey = `${row}:${column}`;
 
       if (occupiedPositions.has(positionKey)) {

@@ -32,6 +32,166 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-05-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a focused inspector UX adjustment for ribbon nodes. In the Node Data Panel, ribbon nodes no longer expose controls that are not applicable to ribbon behavior: the Node shape selector and the Title "Show" toggle.
+
+The result is a cleaner ribbon editing experience and less chance of users interacting with controls that do not apply to ribbon nodes.
+
+## 2) Core Data Model
+
+No data model or schema contracts changed in this session.
+
+- `node_type`, `node_shape`, `title`, and related node fields remain unchanged.
+- The implementation uses existing `selectedNode.data.node_type` checks in inspector rendering logic.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no localStorage key changes
+- no project serialization changes
+- no migration-path updates
+
+This was a presentation-layer change only.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+## 5) Node Rendering and Shape System
+
+Canvas rendering and node-shape drawing logic were unchanged.
+
+Inspector rendering in `app/page.tsx` was updated in the default-node inspector branch:
+
+- The **Node shape** control now renders only when `selectedNode.data.node_type !== "ribbon"`.
+- The Title-row **Show** checkbox (`showDefaultNodeTitleOnCanvas`) now renders only when `selectedNode.data.node_type !== "ribbon"`.
+- The Title text input remains visible for ribbon nodes.
+
+## 6) Editor Interaction Model
+
+Interaction behavior now differs by node type in the inspector:
+
+- For **ribbon** nodes: shape selector and Show checkbox are hidden.
+- For **non-ribbon** nodes: existing behavior remains unchanged.
+
+This keeps ribbon editing focused while preserving prior controls for other node types.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Wrapped Node shape dropdown JSX in a ribbon-exclusion conditional.
+2. Wrapped Title "Show" checkbox JSX in a ribbon-exclusion conditional.
+3. Kept all existing handlers and surrounding inspector structure intact.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` passed (exit code `0`).
+
+No package/config changes were required.
+
+## 9) Recommended Next Steps
+
+1. Add a regression test for ribbon inspector visibility rules.
+2. Consider extracting node-type-specific inspector visibility into reusable helper predicates.
+3. Review other ribbon-inapplicable inspector controls for consistency.
+
+##03-05-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a targeted ribbon-grid correctness fix. The product issue was that ribbon handle rail labels showed the first row as `R2`, caused by one-based cell coordinates leaking into a view that expects zero-based storage and `+1` display formatting.
+
+The result is now consistent behavior: first row/column are stored as `0/0`, and the UI labels correctly render as `R1C1` for the first cell.
+
+## 2) Core Data Model
+
+No type contract changes were introduced. Existing ribbon contracts remain:
+
+- `RibbonNodeCell` (`row`, `column`, `label`, `key_command`, `tool_tip`)
+- `RibbonNodeConfig` (`rows`, `columns`, `cells`, `ribbon_style`)
+
+What changed was coordinate semantics enforcement in runtime normalization and generation:
+
+- internal row/column coordinates are now consistently treated as zero-based (`0..rows-1`, `0..columns-1`).
+
+## 3) Persistence and Migration Strategy
+
+Storage keys and schema were unchanged, but normalization behavior was hardened for compatibility:
+
+- `normalizeRibbonNodeConfig(...)` now validates/fills cells using zero-based bounds.
+- It also includes a legacy-safe conversion path: when incoming saved cells appear strictly one-based, rows/columns are shifted to zero-based during normalization.
+
+This preserves backward compatibility for older persisted ribbon cell coordinates without requiring a storage migration.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering or sequence-ID logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Ribbon coordinate fixes affect cell layout/handles only, not graph sequencing.
+
+## 5) Node Rendering and Shape System
+
+Ribbon rendering in `FlowCopyNode` was aligned to zero-based row iteration:
+
+- row grouping loop now iterates `row = 0; row < rows`.
+- grouped row filtering now correctly matches zero-based `cell.row`.
+- rail labels remain `R${cell.row + 1}C${cell.column + 1}`, which now displays correctly with zero-based storage.
+
+No non-ribbon shape rendering changes were made.
+
+## 6) Editor Interaction Model
+
+Ribbon inspector row/column controls now create/remove cells with zero-based coordinates:
+
+- `updateRibbonRows(...)`
+  - add path creates rows starting at current `rows` index
+  - remove path filters with `cell.row < nextRows`
+- `updateRibbonColumns(...)`
+  - add path creates columns starting at current `columns` index
+  - remove path filters with `cell.column < nextColumns`
+
+This keeps add/remove behavior consistent with ribbon label/handle generation.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Corrected `normalizeRibbonNodeConfig(...)` bounds and grid-filling loops to zero-based indexing.
+2. Added one-based-to-zero-based compatibility conversion in ribbon normalization for legacy persisted cells.
+3. Corrected ribbon inspector row/column add-remove callback generation/filter logic in `app/page.tsx`.
+4. Corrected ribbon row grouping iteration in `app/components/FlowCopyNode.tsx`.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` passed (exit code `0`).
+
+Operationally, this resolves the previously observed off-by-one display issue where the first ribbon row appeared as `R2`.
+
+## 9) Recommended Next Steps
+
+1. Add regression tests for ribbon coordinate normalization (zero-based and legacy one-based inputs).
+2. Add UI tests for row/column add-remove ensuring labels start at `R1C1`.
+3. Consider centralizing ribbon coordinate constants/helpers to avoid future mixed-index regressions.
+
 ##03-04-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -3406,6 +3566,9 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
+
+
 
 
 
