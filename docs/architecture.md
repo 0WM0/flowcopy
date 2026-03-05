@@ -38,6 +38,88 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session finalized/verified ribbon-inspector glossary parity with menu-term glossary behavior.
+
+In the **Ribbon Cells** inspector cards, both **Label** and **Key Command** now follow the same toggle-picker workflow style as menu terms (button + contextual dropdown + click-to-apply), while **Tool Tip** remains a plain textarea with no glossary picker.
+
+## 2) Core Data Model
+
+No persisted schema contracts were changed in this session.
+
+The implementation uses existing ribbon and controlled-language structures:
+
+- ribbon cell fields: `label`, `key_command`, `tool_tip`
+- controlled language buckets: `cell_label`, `key_command`
+- scoped open-state shape in inspector: `{ cellId, field: "label" | "key_command" }`
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no storage key changes
+- no project payload/schema changes
+- no migration path updates
+
+Ribbon glossary application still flows through existing node-state updates and autosave.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Inspector glossary selection updates copy fields only and does not affect graph topology.
+
+## 5) Node Rendering and Shape System
+
+Rendering behavior in `app/page.tsx` ribbon inspector cards is now aligned to the requested menu-term glossary pattern:
+
+- Label row has `Glossary ▾` toggle button beside the input.
+- Key Command row has `Glossary ▾` toggle button beside the input.
+- Button active styling matches the menu-term glossary toggle treatment (`#dbeafe`/`#93c5fd` when open).
+- Label dropdown terms are sourced from `controlledLanguageTermsByField.cell_label`.
+- Key Command dropdown terms are sourced from `controlledLanguageTermsByField.key_command`.
+- Tool Tip remains textarea-only (no glossary dropdown).
+
+## 6) Editor Interaction Model
+
+Ribbon glossary interaction behavior uses the same open/apply pattern already used by menu terms:
+
+- `toggleInspectorRibbonCellGlossary(cellId, field)` toggles per-cell/per-field dropdown visibility.
+- `applyGlossaryTermToInspectorRibbonCell(cellId, field, glossaryTerm)` writes the selected term into the target ribbon cell field and closes the dropdown.
+- Visibility is guarded through `visibleInspectorRibbonCellGlossary` so stale cell references do not stay open if ribbon config changes.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes for this session:
+
+1. Confirmed ribbon inspector glossary behavior is wired for both Label and Key Command with correct field filters.
+2. Confirmed Tool Tip remains plain textarea-only.
+3. Confirmed menu-term and ribbon-cell glossary UX patterns are aligned in the inspector.
+
+## 8) Validation and Operational Notes
+
+Validation run this session:
+
+- `npx tsc --noEmit` ✅ (passes)
+
+Operational note:
+
+- A transient parse error was observed once in generated `.next/dev/types/routes.d.ts`; rerunning typecheck after regeneration completed successfully.
+
+## 9) Recommended Next Steps
+
+1. Add focused UI regression coverage for ribbon glossary toggle/open/apply behavior per cell.
+2. Add tests ensuring field-filter correctness (`cell_label` for Label, `key_command` for Key Command).
+3. Consider extracting repeated glossary-toggle/dropdown JSX into a shared inspector helper component.
+
+##03-05-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session expanded the Ribbon inspector so ribbon-cell metadata can be edited directly in one place.
 
 After the existing **Ribbon Cells** heading and column controls, the inspector now renders a full list of cells from the selected ribbon node, making label/shortcut/tooltip editing explicit and batch-friendly.
@@ -3658,6 +3740,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 
