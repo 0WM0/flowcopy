@@ -38,6 +38,105 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session delivered the ribbon-node handle-rail refinement: ribbon cell connection points are now rendered in a dedicated right-side rail with per-cell labels, instead of inside each cell tile.
+
+At the product level, this makes ribbon connections easier to distinguish vertically (especially in multi-cell ribbons) while keeping tab-order top/bottom handles and cell editing behavior intact.
+
+## 2) Core Data Model
+
+No persisted schema/type contract changes were introduced.
+
+The implementation uses existing ribbon contracts and IDs:
+
+- `RibbonNodeConfig`
+- `RibbonNodeCell`
+- `buildRibbonSourceHandleId(...)`
+- `RIBBON_TOP_HANDLE_ID` / `RIBBON_BOTTOM_HANDLE_ID`
+
+Render-time derived values were added in the ribbon branch:
+
+- `sortedCells` (row-first then column)
+- `totalCells`
+- `existingHeight`
+- `minNodeHeight`
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no storage key changes
+- no payload/schema changes
+- no migration-path changes
+
+This was a rendering/layout pass only.
+
+## 4) Ordering Model and Project Sequence ID
+
+No graph ordering or sequence-ID logic changed:
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Cell sorting added here is strictly local UI ordering for rail handle placement (row/column reading order), not flow sequencing.
+
+## 5) Node Rendering and Shape System
+
+`app/components/FlowCopyNode.tsx` ribbon rendering was updated as follows:
+
+- right rail now renders one label + one source `Handle` per ribbon cell
+- rail labels render as `R{row+1}C{column+1}`
+- rail handle vertical placement follows exact formula: `8 + (index * 18) + 9`
+- handle style uses compact circular blue dots with white border and `zIndex: 5`
+- outer ribbon flex container now applies `minHeight: Math.max(existingHeight, (totalCells * 18) + 16)`
+- in-cell ribbon source handles remain removed (all cell handles are rail-only)
+
+Top and bottom ribbon handles remain on the outer container and were not moved.
+
+## 6) Editor Interaction Model
+
+Connection interaction behavior for ribbon cells now routes through the rail:
+
+- dragging from a cell-specific rail handle uses `buildRibbonSourceHandleId(cell.id)`
+- vertical separation between handles is deterministic by sorted index
+- existing ribbon cell popup editing flow (label/key command/tool tip) remains unchanged
+
+No inspector JSX behavior was modified in this session.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Reintroduced `buildRibbonSourceHandleId` import in `FlowCopyNode` for rail handles.
+2. Added sorted ribbon-cell iteration for deterministic rail render order.
+3. Implemented per-cell rail label + handle rendering with required absolute positioning/styling.
+4. Added outer ribbon min-height guard based on handle-count spacing requirement.
+5. Preserved existing top/bottom ribbon handles and existing cell text/edit popup behavior.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` passed with exit code `0`.
+
+Ground-rule compliance notes:
+
+- no package installation
+- no `tsconfig` changes
+- no `package.json` edits
+- no inspector panel JSX edits in `app/page.tsx`
+
+## 9) Recommended Next Steps
+
+1. Add a small visual regression check for rail label/handle alignment across different row/column counts.
+2. Add interaction tests confirming unique edge origins from top/middle/bottom rail handles.
+3. Consider extracting ribbon-rail constants (`18`, `8`, `16`) into named constants for easier future tuning.
+
+##03-04-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session delivered the **Ribbon Node — Add Cell Label Field** enhancement.
 
 At the product level, ribbon cells now support a dedicated `Label` value that takes display priority over `Key Command` on the canvas. Editing remains inline through the existing ribbon-cell popup, with no layout or package/config changes.
@@ -3307,6 +3406,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 

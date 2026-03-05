@@ -608,11 +608,24 @@ function FlowCopyNode({
       uiJourneyRecalled: Boolean(data.ui_journey_recalled),
     });
 
+    const sortedCells = [...ribbonConfig.cells].sort((a, b) => {
+      if (a.row !== b.row) {
+        return a.row - b.row;
+      }
+
+      return a.column - b.column;
+    });
+    const totalCells = sortedCells.length;
+    const existingHeight = 30 + ribbonConfig.rows * 34;
+    const minNodeHeight = Math.max(existingHeight, totalCells * 18 + 16);
+
     return (
       <div
         ref={ribbonContainerRef}
         data-ribbon-source-prefix={RIBBON_SOURCE_HANDLE_PREFIX}
         style={{
+          display: "flex",
+          flexDirection: "row",
           position: "relative",
           boxSizing: "border-box",
           borderRadius: 8,
@@ -621,6 +634,7 @@ function FlowCopyNode({
           boxShadow: ribbonHighlightColor
             ? `0 0 0 3px ${ribbonHighlightColor}, 0 3px 10px rgba(0, 0, 0, 0.12)`
             : "0 1px 3px rgba(0,0,0,0.08)",
+          minHeight: minNodeHeight,
           overflow: "visible",
         }}
       >
@@ -632,128 +646,167 @@ function FlowCopyNode({
 
         <div
           style={{
-            background: "#e2e8f0",
-            borderBottom: "1px solid #cbd5e1",
-            borderRadius: "6px 6px 0 0",
-            padding: "6px 10px",
-            fontSize: 12,
-            fontWeight: 600,
-            color: "#334155",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
+            flex: 1,
           }}
-          title={data.title || "Ribbon"}
         >
-          {data.title || "Ribbon"}
+          <div
+            style={{
+              background: "#e2e8f0",
+              borderBottom: "1px solid #cbd5e1",
+              borderRadius: "6px 6px 0 0",
+              padding: "6px 10px",
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#334155",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={data.title || "Ribbon"}
+          >
+            {data.title || "Ribbon"}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 0,
+              padding: 8,
+            }}
+          >
+            {cellsByRow.map((rowCells, rowIndex) => (
+              <div
+                key={`ribbon-row:${id}:${rowIndex}`}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${Math.max(1, ribbonConfig.columns)}, minmax(80px, auto))`,
+                }}
+              >
+                {rowCells.map((cell) => {
+                  const cellDisplayText = cell.label || cell.key_command || "—";
+                  const isShowingLabel = Boolean(cell.label);
+                  const isShowingKeyCommand = !isShowingLabel && Boolean(cell.key_command);
+
+                  return (
+                    <div
+                      key={`ribbon-cell:${cell.id}`}
+                      data-ribbon-cell-id={cell.id}
+                      className="nodrag"
+                      role="button"
+                      tabIndex={0}
+                      onClick={(event) =>
+                        openRibbonCellEditor(event.currentTarget, cell.id, {
+                          x: event.clientX,
+                          y: event.clientY,
+                        })
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openRibbonCellEditor(event.currentTarget, cell.id);
+                        }
+                      }}
+                      style={{
+                        position: "relative",
+                        border: "1px solid #cbd5e1",
+                        background: "#ffffff",
+                        padding: "4px 8px",
+                        minWidth: 80,
+                        minHeight: 28,
+                        display: "flex",
+                        alignItems: "center",
+                      
+                        cursor: "text",
+                      }}
+                      title={cell.tool_tip || "Click to edit label, key command, and tool tip"}
+                    >
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color:
+                            isShowingLabel || isShowingKeyCommand ? "#1e293b" : "#94a3b8",
+                          fontFamily: isShowingKeyCommand
+                            ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+                            : "inherit",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          width: "100%",
+                          fontStyle:
+                            isShowingLabel || isShowingKeyCommand ? "normal" : "italic",
+                        }}
+                      >
+                        {cellDisplayText}
+                      </span>
+
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          {showNodeId && (
+            <div
+              style={{
+                padding: "0 10px 8px",
+                fontSize: 10,
+                color: "#64748b",
+              }}
+            >
+              id: {id}
+            </div>
+          )}
         </div>
 
         <div
           style={{
-            display: "grid",
-            gap: 0,
-            padding: 8,
+            width: 36,
+            position: "relative",
+            borderLeft: "1px solid #e2e8f0",
+            background: "#f8fafc",
+            borderTopRightRadius: 7,
+            borderBottomRightRadius: 7,
           }}
         >
-          {cellsByRow.map((rowCells, rowIndex) => (
-            <div
-              key={`ribbon-row:${id}:${rowIndex}`}
-              style={{
-                display: "grid",
-                gridTemplateColumns: `repeat(${Math.max(1, ribbonConfig.columns)}, minmax(80px, auto))`,
-              }}
-            >
-              {rowCells.map((cell) => {
-                const cellDisplayText = cell.label || cell.key_command || "—";
-                const isShowingLabel = Boolean(cell.label);
-                const isShowingKeyCommand = !isShowingLabel && Boolean(cell.key_command);
+          {sortedCells.map((cell, index) => {
+            const top = 8 + index * 18 + 9;
 
-                return (
-                  <div
-                    key={`ribbon-cell:${cell.id}`}
-                    data-ribbon-cell-id={cell.id}
-                    className="nodrag"
-                    role="button"
-                    tabIndex={0}
-                    onClick={(event) =>
-                      openRibbonCellEditor(event.currentTarget, cell.id, {
-                        x: event.clientX,
-                        y: event.clientY,
-                      })
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        openRibbonCellEditor(event.currentTarget, cell.id);
-                      }
-                    }}
-                    style={{
-                      position: "relative",
-                      border: "1px solid #cbd5e1",
-                      background: "#ffffff",
-                      padding: "4px 8px",
-                      minWidth: 80,
-                      minHeight: 28,
-                      display: "flex",
-                      alignItems: "center",
-                      paddingRight: 20,
-                      cursor: "text",
-                    }}
-                    title={cell.tool_tip || "Click to edit label, key command, and tool tip"}
-                  >
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color:
-                          isShowingLabel || isShowingKeyCommand ? "#1e293b" : "#94a3b8",
-                        fontFamily: isShowingKeyCommand
-                          ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
-                          : "inherit",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        width: "100%",
-                        fontStyle:
-                          isShowingLabel || isShowingKeyCommand ? "normal" : "italic",
-                      }}
-                    >
-                      {cellDisplayText}
-                    </span>
+            return (
+              <React.Fragment key={cell.id}>
+                <span
+                  style={{
+                    position: "absolute",
+                    top,
+                    left: 3,
+                    fontSize: 7,
+                    color: "#94a3b8",
+                  }}
+                >
+                  {`R${cell.row + 1}C${cell.column + 1}`}
+                </span>
 
-                    <Handle
-                      type="source"
-                      position={Position.Right}
-                      id={buildRibbonSourceHandleId(cell.id)}
-                      style={{
-                        position: "absolute",
-                        top: "50%",
-                        right: -4,
-                        transform: "translateY(-50%)",
-                        width: 8,
-                        height: 8,
-                        background: "#3b82f6",
-                        border: "2px solid #ffffff",
-                        borderRadius: "50%",
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+                <Handle
+                  id={buildRibbonSourceHandleId(cell.id)}
+                  type="source"
+                  position={Position.Right}
+                  style={{
+                    position: "absolute",
+                    top,
+                    right: -4,
+                    width: 8,
+                    height: 8,
+                    background: "#3b82f6",
+                    border: "2px solid #ffffff",
+                    borderRadius: "50%",
+                    zIndex: 5,
+                    transform: "translateY(-50%)",
+                  }}
+                />
+              </React.Fragment>
+            );
+          })}
         </div>
-
-        {showNodeId && (
-          <div
-            style={{
-              padding: "0 10px 8px",
-              fontSize: 10,
-              color: "#64748b",
-            }}
-          >
-            id: {id}
-          </div>
-        )}
 
         <Handle
           type="source"
