@@ -91,7 +91,6 @@ import {
   FRAME_NODE_MIN_WIDTH,
   FRAME_NODE_MIN_HEIGHT,
   FRAME_NODE_PADDING,
-  RIBBON_NODE_MAX_ROWS,
   RIBBON_NODE_MIN_COLUMNS,
   EDGE_STROKE_COLOR,
   PARALLEL_EDGE_STROKE_COLOR,
@@ -2401,68 +2400,6 @@ export default function Page() {
     [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
   );
 
-  const updateRibbonRows = useCallback(
-    (delta: number) => {
-      if (!effectiveSelectedNodeId || (delta !== 1 && delta !== -1)) {
-        return;
-      }
-
-      const targetNode = nodes.find((node) => node.id === effectiveSelectedNodeId);
-      if (!targetNode || targetNode.data.node_type !== "ribbon") {
-        return;
-      }
-
-      const currentRibbonConfig = normalizeRibbonNodeConfig(targetNode.data.ribbon_config);
-      const nextRows = Math.min(
-        RIBBON_NODE_MAX_ROWS,
-        Math.max(1, currentRibbonConfig.rows + delta)
-      );
-
-      if (nextRows === currentRibbonConfig.rows) {
-        return;
-      }
-
-      let nextCells = [...currentRibbonConfig.cells];
-
-      if (nextRows > currentRibbonConfig.rows) {
-        for (let row = currentRibbonConfig.rows; row < nextRows; row += 1) {
-          for (let column = 0; column < currentRibbonConfig.columns; column += 1) {
-            nextCells.push(createRibbonNodeCell(row, column));
-          }
-        }
-      } else {
-        nextCells = nextCells.filter((cell) => cell.row < nextRows);
-      }
-
-      const nextRibbonConfig = normalizeRibbonNodeConfig({
-        ...currentRibbonConfig,
-        rows: nextRows,
-        cells: nextCells,
-      });
-
-      queueUndoSnapshot();
-
-      setNodes((currentNodes) =>
-        currentNodes.map((node) =>
-          node.id === targetNode.id
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  ribbon_config: nextRibbonConfig,
-                },
-              }
-            : node
-        )
-      );
-
-      setEdges((currentEdges) =>
-        syncSequentialEdgesForRibbonNode(targetNode.id, nextRibbonConfig, currentEdges)
-      );
-    },
-    [effectiveSelectedNodeId, nodes, queueUndoSnapshot, setEdges, setNodes]
-  );
-
   const updateRibbonColumns = useCallback(
     (delta: number) => {
       if (!effectiveSelectedNodeId || (delta !== 1 && delta !== -1)) {
@@ -2527,6 +2464,57 @@ export default function Page() {
       );
     },
     [effectiveSelectedNodeId, nodes, queueUndoSnapshot, setEdges, setNodes]
+  );
+
+  const updateRibbonCellField = useCallback(
+    (
+      cellId: string,
+      fieldName: "label" | "key_command" | "tool_tip",
+      value: string
+    ) => {
+      if (!effectiveSelectedNodeId || !selectedNode || selectedNode.data.node_type !== "ribbon") {
+        return;
+      }
+
+      const targetNode = nodes.find((node) => node.id === effectiveSelectedNodeId);
+      if (!targetNode || targetNode.data.node_type !== "ribbon") {
+        return;
+      }
+
+      const currentRibbonConfig = normalizeRibbonNodeConfig(selectedNode.data.ribbon_config);
+      if (!currentRibbonConfig.cells.some((cell) => cell.id === cellId)) {
+        return;
+      }
+
+      const nextRibbonConfig = normalizeRibbonNodeConfig({
+        ...currentRibbonConfig,
+        cells: currentRibbonConfig.cells.map((cell) =>
+          cell.id === cellId
+            ? {
+                ...cell,
+                [fieldName]: value,
+              }
+            : cell
+        ),
+      });
+
+      queueUndoSnapshot();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) =>
+          node.id === targetNode.id
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  ribbon_config: nextRibbonConfig,
+                },
+              }
+            : node
+        )
+      );
+    },
+    [effectiveSelectedNodeId, nodes, queueUndoSnapshot, selectedNode, setNodes]
   );
 
   const commitSelectedMenuRightConnectionsInput = useCallback((rawValue: string) => {
@@ -5663,69 +5651,7 @@ export default function Page() {
                     }}
                   >
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#1e40af" }}>
-                      Ribbon Grid
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
-                      }}
-                    >
-                      <div style={{ fontSize: 12, color: "#334155", fontWeight: 600 }}>
-                        Rows: {selectedRibbonNodeConfig.rows}
-                      </div>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button
-                          type="button"
-                          style={{
-                            ...buttonStyle,
-                            width: 24,
-                            height: 24,
-                            minWidth: 24,
-                            padding: 0,
-                            fontWeight: 700,
-                            lineHeight: 1,
-                            opacity:
-                              selectedRibbonNodeConfig.rows >= RIBBON_NODE_MAX_ROWS ? 0.45 : 1,
-                            cursor:
-                              selectedRibbonNodeConfig.rows >= RIBBON_NODE_MAX_ROWS
-                                ? "not-allowed"
-                                : "pointer",
-                          }}
-                          onClick={() => updateRibbonRows(1)}
-                          disabled={selectedRibbonNodeConfig.rows >= RIBBON_NODE_MAX_ROWS}
-                          aria-label="Add ribbon row"
-                          title="Add ribbon row"
-                        >
-                          +
-                        </button>
-                        <button
-                          type="button"
-                          style={{
-                            ...buttonStyle,
-                            width: 24,
-                            height: 24,
-                            minWidth: 24,
-                            padding: 0,
-                            fontWeight: 700,
-                            lineHeight: 1,
-                            opacity: selectedRibbonNodeConfig.rows <= 1 ? 0.45 : 1,
-                            cursor:
-                              selectedRibbonNodeConfig.rows <= 1
-                                ? "not-allowed"
-                                : "pointer",
-                          }}
-                          onClick={() => updateRibbonRows(-1)}
-                          disabled={selectedRibbonNodeConfig.rows <= 1}
-                          aria-label="Remove ribbon row"
-                          title="Remove ribbon row"
-                        >
-                          -
-                        </button>
-                      </div>
+                      Ribbon Cells
                     </div>
 
                     <div
@@ -5784,6 +5710,76 @@ export default function Page() {
                           -
                         </button>
                       </div>
+                    </div>
+
+                    <div style={{ marginTop: 2 }}>
+                      {[...selectedRibbonNodeConfig.cells]
+                        .sort((cellA, cellB) =>
+                          cellA.column === cellB.column
+                            ? cellA.row - cellB.row
+                            : cellA.column - cellB.column
+                        )
+                        .map((cell) => (
+                          <div
+                            key={`inspector-ribbon-cell:${cell.id}`}
+                            style={{
+                              border: "1px solid #e2e8f0",
+                              borderRadius: 6,
+                              padding: "6px 8px",
+                              marginBottom: 6,
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: "#64748b",
+                                marginBottom: 6,
+                              }}
+                            >
+                              Cell {cell.column + 1}
+                            </div>
+
+                            <div style={{ display: "grid", gap: 4 }}>
+                              <input
+                                style={{ ...inputStyle, fontSize: 11 }}
+                                value={cell.label}
+                                placeholder="Label"
+                                onChange={(event) =>
+                                  updateRibbonCellField(cell.id, "label", event.target.value)
+                                }
+                              />
+
+                              <input
+                                style={{
+                                  ...inputStyle,
+                                  fontSize: 11,
+                                  fontFamily: "monospace",
+                                }}
+                                value={cell.key_command}
+                                placeholder="Key Command"
+                                maxLength={24}
+                                onChange={(event) =>
+                                  updateRibbonCellField(
+                                    cell.id,
+                                    "key_command",
+                                    event.target.value
+                                  )
+                                }
+                              />
+
+                              <textarea
+                                style={{ ...inputStyle, fontSize: 11 }}
+                                value={cell.tool_tip}
+                                placeholder="Tool Tip"
+                                rows={2}
+                                onChange={(event) =>
+                                  updateRibbonCellField(cell.id, "tool_tip", event.target.value)
+                                }
+                              />
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   </div>
                 )}
@@ -6474,6 +6470,10 @@ export default function Page() {
     </div>
   );
 }
+
+
+
+
 
 
 

@@ -38,6 +38,98 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session expanded the Ribbon inspector so ribbon-cell metadata can be edited directly in one place.
+
+After the existing **Ribbon Cells** heading and column controls, the inspector now renders a full list of cells from the selected ribbon node, making label/shortcut/tooltip editing explicit and batch-friendly.
+
+## 2) Core Data Model
+
+No schema contracts changed.
+
+The session uses the existing ribbon cell fields already present in `RibbonNodeConfig.cells`:
+
+- `label`
+- `key_command`
+- `tool_tip`
+
+Updates are applied immutably to the selected node’s `ribbon_config` in `app/page.tsx`.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no storage key changes
+- no project payload changes
+- no migration-path changes
+
+Because edits go through normal `setNodes(...)` updates, existing autosave behavior continues to persist ribbon cell field changes.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Ribbon inspector field editing is metadata-level and does not affect graph topology.
+
+## 5) Node Rendering and Shape System
+
+The rendering update was inspector-side in `app/page.tsx`:
+
+- cells are rendered as small bordered cards (`1px solid #e2e8f0`, radius `6`, padding `6px 8px`, `marginBottom: 6`)
+- cards are sorted by column (then row for stability)
+- each card header shows `Cell {column + 1}` with compact muted styling
+- each card includes stacked inputs for:
+  - Label (`input`, placeholder `Label`)
+  - Key Command (`input`, monospace, `maxLength={24}`, placeholder `Key Command`)
+  - Tool Tip (`textarea`, `rows={2}`, placeholder `Tool Tip`)
+
+## 6) Editor Interaction Model
+
+Added `updateRibbonCellField` as a dedicated `useCallback` for ribbon-cell metadata edits.
+
+Behavior implemented:
+
+1. Read current config via `normalizeRibbonNodeConfig(selectedNode.data.ribbon_config)`.
+2. Validate target cell exists by `cellId`.
+3. Build next config by mapping cells and updating `[fieldName]: value` for the matching cell.
+4. Update nodes using the same immutable update pattern used in menu-term editing:
+   - find target node in `nodes`
+   - set updated `ribbon_config`
+   - call `setNodes(...)`
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added list-based ribbon cell editor cards to the inspector.
+2. Added `updateRibbonCellField(cellId, fieldName, value)` callback for per-cell metadata updates.
+3. Wired all three input controls to live ribbon cell field updates.
+4. Kept unrelated formatting-only edge-utils changes out of the final implementation scope.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` passed (exit code `0`).
+
+Operational note:
+
+- a prior attempt to run `npm run dev` reported an existing Next dev lock (`.next/dev/lock`), indicating another dev instance was active.
+
+## 9) Recommended Next Steps
+
+1. Add focused tests for `updateRibbonCellField` to ensure cell-id-targeted updates only mutate one cell.
+2. Add UI regression coverage for ribbon inspector card ordering and field placeholders.
+3. Consider extracting ribbon inspector card rendering into a small component to reduce `app/page.tsx` complexity.
+
+##03-05-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session was a focused inspector UX adjustment for ribbon nodes. In the Node Data Panel, ribbon nodes no longer expose controls that are not applicable to ribbon behavior: the Node shape selector and the Title "Show" toggle.
 
 The result is a cleaner ribbon editing experience and less chance of users interacting with controls that do not apply to ribbon nodes.
@@ -3566,6 +3658,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 
