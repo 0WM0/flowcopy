@@ -38,6 +38,209 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session delivered the **Ribbon Node — Add Cell Label Field** enhancement.
+
+At the product level, ribbon cells now support a dedicated `Label` value that takes display priority over `Key Command` on the canvas. Editing remains inline through the existing ribbon-cell popup, with no layout or package/config changes.
+
+## 2) Core Data Model
+
+Ribbon cell typing was expanded:
+
+- `RibbonNodeCell` now includes `label: string` (positioned before `key_command` in the type contract).
+
+Controlled-language typing was also expanded:
+
+- `ControlledLanguageFieldType` now includes `"cell_label"`.
+
+This keeps ribbon labels as first-class typed data in both node config and controlled-language workflows.
+
+## 3) Persistence and Migration Strategy
+
+Persistence contracts were updated in a backward-compatible way:
+
+- `createRibbonNodeCell(...)` now initializes `label: ""`.
+- `normalizeRibbonNodeConfig(...)` now normalizes `label` on every cell and defaults missing persisted values to `""`.
+
+No storage keys or migration keys changed; this is a safe additive field with normalization fallback for older saved data.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering or sequence-ID algorithms changed in this session.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Ribbon label behavior is presentation/content-layer only and does not alter graph sequencing semantics.
+
+## 5) Node Rendering and Shape System
+
+Ribbon cell canvas rendering now follows explicit text-priority rules:
+
+- display `cell.label` when present
+- else display `cell.key_command`
+- else display `"—"`
+
+Typography behavior was aligned to the spec:
+
+- `label` renders in regular font
+- `key_command` renders monospace only when label is absent
+- dash placeholder remains muted/italic as empty-state affordance
+
+No frame/default/menu shape geometry or global node layout rules were changed.
+
+## 6) Editor Interaction Model
+
+Ribbon cell popup editing now includes three fields in this order:
+
+1. `Label` (text input, regular font, no max length)
+2. `Key Command` (text input, monospace, `RIBBON_CELL_MAX_KEY_COMMAND_LENGTH` enforced)
+3. `Tool Tip` (textarea, 2 rows)
+
+Ribbon cell update handlers were widened to support editing `label` in the same immutable update flow as existing ribbon cell fields.
+
+## 7) Refactor Outcomes
+
+Concrete implementation outcomes from this session:
+
+1. Updated `app/types/index.ts` for `RibbonNodeCell.label` and `ControlledLanguageFieldType` `"cell_label"`.
+2. Updated `app/lib/node-utils.ts` ribbon cell creation + normalization defaults for `label`.
+3. Updated `app/components/FlowCopyNode.tsx` cell display priority logic and popup field ordering.
+4. Updated `app/constants/index.ts` controlled-language field list/labels/order to include `cell_label`.
+5. Updated `app/lib/controlled-language.ts` to collect ribbon labels under `field_type: "cell_label"` and include it in field guards/maps.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` passed with exit code `0`.
+
+Ground rules were respected:
+
+- no package installation
+- no `tsconfig` changes
+- no `package.json` edits
+
+## 9) Recommended Next Steps
+
+1. Add targeted tests for ribbon cell display precedence (`label` > `key_command` > dash).
+2. Add regression coverage for ribbon config hydration when persisted cells are missing `label`.
+3. Add controlled-language audit tests that verify `cell_label` term collection and ordering.
+
+##03-04-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session implemented **Ribbon Node — Task 3: Canvas Rendering**.
+
+At the product level, ribbon nodes now render as table-like cards directly on the canvas, with:
+
+- a ribbon title bar (tab name)
+- a row/column cell grid
+- per-cell right-side source handles
+- top/bottom ribbon handles for tab-order linking
+- in-canvas click-to-edit popup for `key_command` and `tool_tip`
+
+Default/menu/frame node behavior remains intact.
+
+## 2) Core Data Model
+
+No persisted type/schema contracts changed this session.
+
+Implementation uses existing ribbon contracts/constants:
+
+- `RibbonNodeConfig`
+- `RibbonNodeCell`
+- `RIBBON_TOP_HANDLE_ID`, `RIBBON_BOTTOM_HANDLE_ID`
+- `RIBBON_CELL_MAX_KEY_COMMAND_LENGTH`
+- `buildRibbonSourceHandleId(...)`
+- `normalizeRibbonNodeConfig(...)`
+
+Ribbon cell editing updates are applied in-node via `setNodes(...)` by replacing `node.data.ribbon_config` immutably.
+
+## 3) Persistence and Migration Strategy
+
+Persistence format was unchanged.
+
+- no localStorage key changes
+- no project schema changes
+- no migration changes
+
+Ribbon popup edits write through the existing autosave path because they mutate node data through normal graph state updates.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering algorithm changes were made.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+This session added new ribbon connection endpoints in rendering (top/bottom tab-order handles and per-cell source handles), but did not modify ordering computation rules.
+
+## 5) Node Rendering and Shape System
+
+`FlowCopyNode` gained a dedicated `ribbon` rendering branch with:
+
+- ribbon card background + rounded border styling
+- muted title bar (`#e2e8f0`)
+- grid rows built from normalized ribbon config
+- bordered white cells (`1px solid #cbd5e1`, compact monospace text)
+- right-side per-cell handle at vertical center (natural row staggering)
+- top target handle (`ribbon-top`) and bottom source handle (`ribbon-bottom`)
+- existing left sequential target and parallel handles retained
+
+Node sizing remains auto-measured by React Flow (no fixed node width/height set in the ribbon renderer).
+
+## 6) Editor Interaction Model
+
+Ribbon cell inline editing was added to canvas interaction:
+
+- state: `editingCellId`, `cellPopupPosition`
+- click cell to open popup near pointer/cell
+- popup fields:
+  - `key_command` (`maxLength` enforced)
+  - `tool_tip` (textarea)
+- close paths:
+  - **Done** button
+  - click outside popup
+  - `Escape`
+- clicking another cell switches popup target instead of hard-closing first
+
+Renderer internals refresh was expanded so React Flow updates handle measurements when ribbon config shape changes.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added ribbon-specific imports, state, and helpers in `app/components/FlowCopyNode.tsx`.
+2. Added full ribbon canvas rendering branch with cell grid + connection handles.
+3. Added in-canvas ribbon cell popup editing wired to node data updates.
+4. Added ribbon fallback size in `app/lib/node-utils.ts` (`{ width: 300, height: 120 }`).
+5. Added explicit ribbon fallback path in `getNodeVisualSize(...)` when measured size is unavailable.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` passed with zero errors.
+
+Operational note:
+
+- `next dev` in this environment reported an existing `.next/dev/lock` from another running instance; this did not affect TypeScript validation.
+
+## 9) Recommended Next Steps
+
+1. Implement Task 4 ribbon inspector controls (rows/columns/cell management) if planned.
+2. Add focused tests for ribbon popup editing and per-cell handle behavior.
+3. Add regression tests to ensure non-ribbon node rendering paths remain unaffected.
+
+##03-04-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session introduced the **Ribbon node utility foundation** (Task 2) without adding ribbon canvas rendering yet.
 
 At the product level:
@@ -3104,6 +3307,8 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
+
 
 
 

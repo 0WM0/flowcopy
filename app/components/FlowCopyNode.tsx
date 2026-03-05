@@ -17,6 +17,8 @@ import type {
   FlowNode,
   MenuNodeConfig,
   MenuNodeTerm,
+  RibbonNodeConfig,
+  RibbonNodeCell,
   NodeType,
   PersistableMicrocopyNodeData,
 } from "../types";
@@ -25,6 +27,10 @@ import {
   MENU_NODE_RIGHT_CONNECTIONS_MIN,
   MENU_NODE_RIGHT_CONNECTIONS_MAX,
   MENU_SOURCE_HANDLE_PREFIX,
+  RIBBON_SOURCE_HANDLE_PREFIX,
+  RIBBON_TOP_HANDLE_ID,
+  RIBBON_BOTTOM_HANDLE_ID,
+  RIBBON_CELL_MAX_KEY_COMMAND_LENGTH,
   FRAME_SHADE_STYLES,
   SEQUENTIAL_SOURCE_HANDLE_ID,
   SEQUENTIAL_TARGET_HANDLE_ID,
@@ -41,9 +47,11 @@ import {
 import {
   normalizeMenuNodeConfig,
   normalizeFrameNodeConfig,
+  normalizeRibbonNodeConfig,
   clampMenuRightConnections,
   createMenuNodeTerm,
   buildMenuSourceHandleId,
+  buildRibbonSourceHandleId,
   resolveNodeHighlightColor,
   getNodeShapeStyle,
   getDiamondBorderLayerStyle,
@@ -104,13 +112,21 @@ function FlowCopyNode({
   const { setNodes } = useReactFlow<FlowNode, FlowEdge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const frameTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const ribbonContainerRef = useRef<HTMLDivElement | null>(null);
+  const ribbonPopupRef = useRef<HTMLDivElement | null>(null);
   const [openMenuGlossaryTermId, setOpenMenuGlossaryTermId] = useState<string | null>(
     null
   );
   const [isEditingFrameTitle, setIsEditingFrameTitle] = useState(false);
+  const [editingCellId, setEditingCellId] = useState<string | null>(null);
+  const [cellPopupPosition, setCellPopupPosition] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
 
   const isMenuNode = data.node_type === "menu";
   const isFrameNode = data.node_type === "frame";
+  const isRibbonNode = data.node_type === "ribbon";
   const menuConfig = useMemo(
     () =>
       normalizeMenuNodeConfig(
@@ -127,6 +143,27 @@ function FlowCopyNode({
     () => normalizeFrameNodeConfig(data.frame_config),
     [data.frame_config]
   );
+  const ribbonConfig = useMemo(
+    () => normalizeRibbonNodeConfig(data.ribbon_config),
+    [data.ribbon_config]
+  );
+  const cellsByRow = useMemo<RibbonNodeCell[][]>(() => {
+    if (!isRibbonNode) {
+      return [];
+    }
+
+    const rows: RibbonNodeCell[][] = [];
+
+    for (let row = 1; row <= ribbonConfig.rows; row += 1) {
+      const rowCells = ribbonConfig.cells
+        .filter((cell) => cell.row === row)
+        .sort((a, b) => a.column - b.column);
+
+      rows.push(rowCells);
+    }
+
+    return rows;
+  }, [isRibbonNode, ribbonConfig.cells, ribbonConfig.rows]);
   const frameShadeStyle = FRAME_SHADE_STYLES[frameConfig.shade];
 
   const visibleMenuGlossaryTermId =
@@ -139,10 +176,25 @@ function FlowCopyNode({
   const displayTermFieldType = data.display_term_field;
   const displayTermFieldLabel = CONTROLLED_LANGUAGE_FIELD_LABELS[displayTermFieldType];
   const displayTermValue = data[displayTermFieldType];
+  const editingRibbonCell = useMemo(() => {
+    if (!isRibbonNode || !editingCellId) {
+      return null;
+    }
+
+    return ribbonConfig.cells.find((cell) => cell.id === editingCellId) ?? null;
+  }, [editingCellId, isRibbonNode, ribbonConfig.cells]);
 
   useEffect(() => {
     updateNodeInternals(id);
-  }, [data.node_type, id, menuConfig.terms.length, updateNodeInternals]);
+  }, [
+    data.node_type,
+    id,
+    menuConfig.terms.length,
+    ribbonConfig.rows,
+    ribbonConfig.columns,
+    ribbonConfig.cells.length,
+    updateNodeInternals,
+  ]);
 
   useEffect(() => {
     if (!isEditingFrameTitle) {
@@ -262,6 +314,136 @@ function FlowCopyNode({
     },
     [updateMenuTermById]
   );
+
+  const closeRibbonCellPopup = useCallback(() => {
+    setEditingCellId(null);
+  }, []);
+
+  const openRibbonCellEditor = useCallback(
+    (
+      cellElement: HTMLDivElement,
+      cellId: string,
+      pointerPosition?: { x: number; y: number }
+    ) => {
+      const containerBounds = ribbonContainerRef.current?.getBoundingClientRect();
+      const cellBounds = cellElement.getBoundingClientRect();
+
+      if (containerBounds) {
+        if (pointerPosition) {
+          setCellPopupPosition({
+            x: pointerPosition.x - containerBounds.left + 8,
+            y: pointerPosition.y - containerBounds.top + 10,
+          });
+        } else {
+          setCellPopupPosition({
+            x: cellBounds.left - containerBounds.left + 8,
+            y: cellBounds.bottom - containerBounds.top + 6,
+          });
+        }
+      } else {
+        setCellPopupPosition({ x: 8, y: 8 });
+      }
+
+      setEditingCellId(cellId);
+    },
+    []
+  );
+
+  const updateRibbonCellField = useCallback(
+    <K extends keyof Pick<RibbonNodeCell, "label" | "key_command" | "tool_tip">>(
+      cellId: string,
+      field: K,
+      value: RibbonNodeCell[K]
+    ) => {
+      onBeforeChange();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== id || node.data.node_type !== "ribbon") {
+            return node;
+          }
+
+          const currentRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
+          const nextRibbonConfig: RibbonNodeConfig = {
+            ...currentRibbonConfig,
+            cells: currentRibbonConfig.cells.map((cell) =>
+              cell.id === cellId
+                ? {
+                    ...cell,
+                    [field]: value,
+                  }
+                : cell
+            ),
+          };
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              ribbon_config: nextRibbonConfig,
+            },
+          };
+        })
+      );
+    },
+    [id, onBeforeChange, setNodes]
+  );
+
+  useEffect(() => {
+    if (!isRibbonNode) {
+      setEditingCellId(null);
+      return;
+    }
+
+    if (editingCellId && !ribbonConfig.cells.some((cell) => cell.id === editingCellId)) {
+      setEditingCellId(null);
+    }
+  }, [editingCellId, isRibbonNode, ribbonConfig.cells]);
+
+  useEffect(() => {
+    if (!editingCellId) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (ribbonPopupRef.current?.contains(target)) {
+        return;
+      }
+
+      if (
+        target instanceof HTMLElement &&
+        target.closest("[data-ribbon-cell-id]") &&
+        ribbonContainerRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      closeRibbonCellPopup();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      closeRibbonCellPopup();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeRibbonCellPopup, editingCellId]);
 
   if (isFrameNode) {
     const frameTitle = data.title.trim();
@@ -415,6 +597,294 @@ function FlowCopyNode({
           position={Position.Bottom}
           id={PARALLEL_ALT_TARGET_HANDLE_ID}
         />
+      </div>
+    );
+  }
+
+  if (isRibbonNode) {
+    const ribbonHighlightColor = resolveNodeHighlightColor({
+      selected,
+      uiJourneyHighlighted: Boolean(data.ui_journey_highlighted),
+      uiJourneyRecalled: Boolean(data.ui_journey_recalled),
+    });
+
+    return (
+      <div
+        ref={ribbonContainerRef}
+        data-ribbon-source-prefix={RIBBON_SOURCE_HANDLE_PREFIX}
+        style={{
+          position: "relative",
+          boxSizing: "border-box",
+          borderRadius: 8,
+          border: `2px solid ${ribbonHighlightColor ?? "#94a3b8"}`,
+          background: "#f1f5f9",
+          boxShadow: ribbonHighlightColor
+            ? `0 0 0 3px ${ribbonHighlightColor}, 0 3px 10px rgba(0, 0, 0, 0.12)`
+            : "0 1px 3px rgba(0,0,0,0.08)",
+          overflow: "visible",
+        }}
+      >
+        <Handle
+          type="target"
+          position={Position.Top}
+          id={RIBBON_TOP_HANDLE_ID}
+        />
+
+        <div
+          style={{
+            background: "#e2e8f0",
+            borderBottom: "1px solid #cbd5e1",
+            borderRadius: "6px 6px 0 0",
+            padding: "6px 10px",
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#334155",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+          title={data.title || "Ribbon"}
+        >
+          {data.title || "Ribbon"}
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gap: 0,
+            padding: 8,
+          }}
+        >
+          {cellsByRow.map((rowCells, rowIndex) => (
+            <div
+              key={`ribbon-row:${id}:${rowIndex}`}
+              style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${Math.max(1, ribbonConfig.columns)}, minmax(80px, auto))`,
+              }}
+            >
+              {rowCells.map((cell) => {
+                const cellDisplayText = cell.label || cell.key_command || "—";
+                const isShowingLabel = Boolean(cell.label);
+                const isShowingKeyCommand = !isShowingLabel && Boolean(cell.key_command);
+
+                return (
+                  <div
+                    key={`ribbon-cell:${cell.id}`}
+                    data-ribbon-cell-id={cell.id}
+                    className="nodrag"
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) =>
+                      openRibbonCellEditor(event.currentTarget, cell.id, {
+                        x: event.clientX,
+                        y: event.clientY,
+                      })
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openRibbonCellEditor(event.currentTarget, cell.id);
+                      }
+                    }}
+                    style={{
+                      position: "relative",
+                      border: "1px solid #cbd5e1",
+                      background: "#ffffff",
+                      padding: "4px 8px",
+                      minWidth: 80,
+                      minHeight: 28,
+                      display: "flex",
+                      alignItems: "center",
+                      paddingRight: 20,
+                      cursor: "text",
+                    }}
+                    title={cell.tool_tip || "Click to edit label, key command, and tool tip"}
+                  >
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color:
+                          isShowingLabel || isShowingKeyCommand ? "#1e293b" : "#94a3b8",
+                        fontFamily: isShowingKeyCommand
+                          ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+                          : "inherit",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        width: "100%",
+                        fontStyle:
+                          isShowingLabel || isShowingKeyCommand ? "normal" : "italic",
+                      }}
+                    >
+                      {cellDisplayText}
+                    </span>
+
+                    <Handle
+                      type="source"
+                      position={Position.Right}
+                      id={buildRibbonSourceHandleId(cell.id)}
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        right: -4,
+                        transform: "translateY(-50%)",
+                        width: 8,
+                        height: 8,
+                        background: "#3b82f6",
+                        border: "2px solid #ffffff",
+                        borderRadius: "50%",
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {showNodeId && (
+          <div
+            style={{
+              padding: "0 10px 8px",
+              fontSize: 10,
+              color: "#64748b",
+            }}
+          >
+            id: {id}
+          </div>
+        )}
+
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id={RIBBON_BOTTOM_HANDLE_ID}
+        />
+
+        {editingRibbonCell && (
+          <div
+            ref={ribbonPopupRef}
+            className="nodrag"
+            style={{
+              position: "absolute",
+              left: cellPopupPosition.x,
+              top: cellPopupPosition.y,
+              width: 220,
+              background: "#ffffff",
+              border: "1px solid #94a3b8",
+              borderRadius: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              padding: "8px 10px",
+              zIndex: 10,
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            <label>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "#64748b",
+                  marginBottom: 4,
+                }}
+              >
+                Label
+              </div>
+              <input
+                className="nodrag"
+                style={{
+                  ...inputStyle,
+                  fontSize: 11,
+                }}
+                value={editingRibbonCell.label}
+                onChange={(event) =>
+                  updateRibbonCellField(
+                    editingRibbonCell.id,
+                    "label",
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+
+            <label>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "#64748b",
+                  marginBottom: 4,
+                }}
+              >
+                Key Command
+              </div>
+              <input
+                className="nodrag"
+                style={{
+                  ...inputStyle,
+                  fontSize: 11,
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                }}
+                value={editingRibbonCell.key_command}
+                maxLength={RIBBON_CELL_MAX_KEY_COMMAND_LENGTH}
+                onChange={(event) =>
+                  updateRibbonCellField(
+                    editingRibbonCell.id,
+                    "key_command",
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+
+            <label>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "#64748b",
+                  marginBottom: 4,
+                }}
+              >
+                Tool Tip
+              </div>
+              <textarea
+                className="nodrag"
+                style={{
+                  ...inputStyle,
+                  fontSize: 11,
+                  resize: "vertical",
+                  minHeight: 44,
+                }}
+                rows={2}
+                value={editingRibbonCell.tool_tip}
+                onChange={(event) =>
+                  updateRibbonCellField(
+                    editingRibbonCell.id,
+                    "tool_tip",
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="nodrag"
+                style={{
+                  ...buttonStyle,
+                  fontSize: 11,
+                  padding: "4px 10px",
+                }}
+                onClick={closeRibbonCellPopup}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

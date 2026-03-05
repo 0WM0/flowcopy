@@ -210,6 +210,7 @@ export const CONTROLLED_LANGUAGE_FIELDS: ControlledLanguageFieldType[] = [
   "error_text",
   "menu_term",
   "key_command",
+  "cell_label",
   "tool_tip",
 ];
 
@@ -230,6 +231,7 @@ export const CONTROLLED_LANGUAGE_FIELD_LABELS: Record<
   error_text: "Error Text",
   menu_term: "Menu Term",
   key_command: "Key Command",
+  cell_label: "Cell Label",
   tool_tip: "Tool Tip",
 };
 
@@ -243,7 +245,8 @@ export const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<
   error_text: 3,
   menu_term: 4,
   key_command: 5,
-  tool_tip: 6,
+  cell_label: 6,
+  tool_tip: 7,
 };
 
 export const CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS = 6;

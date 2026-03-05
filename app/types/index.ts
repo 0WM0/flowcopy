@@ -14,7 +14,8 @@ export type ControlledLanguageFieldType =
   | NodeControlledLanguageFieldType
   | "menu_term"
   | "key_command"
-  | "tool_tip";
+  | "tool_tip"
+  | "cell_label";
 
 export type MenuNodeTerm = {
   id: string;
@@ -37,6 +38,7 @@ export type RibbonNodeCell = {
   id: string;
   row: number;
   column: number;
+  label: string;
   key_command: string;
   tool_tip: string;
 };

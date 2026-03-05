@@ -22,6 +22,7 @@ export const isControlledLanguageFieldType = (
   value === "error_text" ||
   value === "menu_term" ||
   value === "key_command" ||
+  value === "cell_label" ||
   value === "tool_tip";
 
 export const normalizeControlledLanguageFieldType = (
@@ -58,6 +59,10 @@ export const collectControlledLanguageTermsFromNode = (
     const ribbonCells = node.data.ribbon_config?.cells ?? [];
 
     return ribbonCells.flatMap((cell) => [
+      {
+        field_type: "cell_label" as const,
+        term: cell.label,
+      },
       {
         field_type: "key_command" as const,
         term: cell.key_command,
@@ -194,6 +199,7 @@ export const createEmptyControlledLanguageTermsByField = (): Record<
   error_text: [],
   menu_term: [],
   key_command: [],
+  cell_label: [],
   tool_tip: [],
 });
 

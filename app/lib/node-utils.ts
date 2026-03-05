@@ -117,6 +117,13 @@ export const getFallbackNodeSize = (node: FlowNode): { width: number; height: nu
     };
   }
 
+  if (node.data.node_type === "ribbon") {
+    return {
+      width: 300,
+      height: 120,
+    };
+  }
+
   switch (node.data.node_shape) {
     case "pill":
       return { width: 380, height: 190 };
@@ -158,6 +165,10 @@ export const getNodeVisualSize = (node: FlowNode): { width: number; height: numb
       width: widthCandidate,
       height: heightCandidate,
     };
+  }
+
+  if (node.data.node_type === "ribbon") {
+    return getFallbackNodeSize(node);
   }
 
   return getFallbackNodeSize(node);
@@ -365,6 +376,7 @@ export const createRibbonNodeCell = (
   id: createRibbonCellId(),
   row,
   column,
+  label: "",
   key_command: "",
   tool_tip: "",
 });
@@ -434,6 +446,7 @@ export const normalizeRibbonNodeConfig = (value: unknown): RibbonNodeConfig => {
       id: nextCellId,
       row,
       column,
+      label: typeof sourceCell.label === "string" ? sourceCell.label : "",
       key_command:
         typeof sourceCell.key_command === "string" ? sourceCell.key_command : "",
       tool_tip: typeof sourceCell.tool_tip === "string" ? sourceCell.tool_tip : "",
