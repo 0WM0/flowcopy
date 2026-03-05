@@ -28,8 +28,6 @@ import {
   MENU_NODE_RIGHT_CONNECTIONS_MAX,
   MENU_SOURCE_HANDLE_PREFIX,
   RIBBON_SOURCE_HANDLE_PREFIX,
-  RIBBON_TOP_HANDLE_ID,
-  RIBBON_BOTTOM_HANDLE_ID,
   RIBBON_CELL_MAX_KEY_COMMAND_LENGTH,
   FRAME_SHADE_STYLES,
   SEQUENTIAL_SOURCE_HANDLE_ID,
@@ -147,23 +145,19 @@ function FlowCopyNode({
     () => normalizeRibbonNodeConfig(data.ribbon_config),
     [data.ribbon_config]
   );
-  const cellsByRow = useMemo<RibbonNodeCell[][]>(() => {
+  const sortedRibbonCells = useMemo<RibbonNodeCell[]>(() => {
     if (!isRibbonNode) {
       return [];
     }
 
-    const rows: RibbonNodeCell[][] = [];
+    return [...ribbonConfig.cells].sort((a, b) => {
+      if (a.row !== b.row) {
+        return a.row - b.row;
+      }
 
-    for (let row = 0; row < ribbonConfig.rows; row += 1) {
-      const rowCells = ribbonConfig.cells
-        .filter((cell) => cell.row === row)
-        .sort((a, b) => a.column - b.column);
-
-      rows.push(rowCells);
-    }
-
-    return rows;
-  }, [isRibbonNode, ribbonConfig.cells, ribbonConfig.rows]);
+      return a.column - b.column;
+    });
+  }, [isRibbonNode, ribbonConfig.cells]);
   const frameShadeStyle = FRAME_SHADE_STYLES[frameConfig.shade];
 
   const visibleMenuGlossaryTermId =
@@ -190,7 +184,6 @@ function FlowCopyNode({
     data.node_type,
     id,
     menuConfig.terms.length,
-    ribbonConfig.rows,
     ribbonConfig.columns,
     ribbonConfig.cells.length,
     updateNodeInternals,
@@ -662,16 +655,8 @@ function FlowCopyNode({
       uiJourneyRecalled: Boolean(data.ui_journey_recalled),
     });
 
-    const sortedCells = [...ribbonConfig.cells].sort((a, b) => {
-      if (a.row !== b.row) {
-        return a.row - b.row;
-      }
-
-      return a.column - b.column;
-    });
-    const totalCells = sortedCells.length;
-    const existingHeight = 30 + ribbonConfig.rows * 34;
-    const minNodeHeight = Math.max(existingHeight, totalCells * 18 + 16);
+    const totalCells = sortedRibbonCells.length;
+    const minNodeHeight = Math.max(70, totalCells > 0 ? 86 : 70);
 
     return (
       <div
@@ -690,14 +675,9 @@ function FlowCopyNode({
             : "0 1px 3px rgba(0,0,0,0.08)",
           minHeight: minNodeHeight,
           overflow: "visible",
+          paddingBottom: 12,
         }}
       >
-        <Handle
-          type="target"
-          position={Position.Top}
-          id={RIBBON_TOP_HANDLE_ID}
-        />
-
         <div
           style={{
             flex: 1,
@@ -728,76 +708,90 @@ function FlowCopyNode({
               padding: 8,
             }}
           >
-            {cellsByRow.map((rowCells, rowIndex) => (
-              <div
-                key={`ribbon-row:${id}:${rowIndex}`}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: `repeat(${Math.max(1, ribbonConfig.columns)}, minmax(80px, auto))`,
-                }}
-              >
-                {rowCells.map((cell) => {
-                  const cellDisplayText = cell.label || cell.key_command || "—";
-                  const isShowingLabel = Boolean(cell.label);
-                  const isShowingKeyCommand = !isShowingLabel && Boolean(cell.key_command);
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${Math.max(1, sortedRibbonCells.length)}, minmax(80px, auto))`,
+              }}
+            >
+              {sortedRibbonCells.map((cell) => {
+                const cellDisplayText = cell.label || cell.key_command || "—";
+                const isShowingLabel = Boolean(cell.label);
+                const isShowingKeyCommand = !isShowingLabel && Boolean(cell.key_command);
 
-                  return (
-                    <div
-                      key={`ribbon-cell:${cell.id}`}
-                      data-ribbon-cell-id={cell.id}
-                      className="nodrag"
-                      role="button"
-                      tabIndex={0}
-                      onClick={(event) =>
-                        openRibbonCellEditor(event.currentTarget, cell.id, {
-                          x: event.clientX,
-                          y: event.clientY,
-                        })
+                return (
+                  <div
+                    key={`ribbon-cell:${cell.id}`}
+                    data-ribbon-cell-id={cell.id}
+                    className="nodrag"
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) =>
+                      openRibbonCellEditor(event.currentTarget, cell.id, {
+                        x: event.clientX,
+                        y: event.clientY,
+                      })
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openRibbonCellEditor(event.currentTarget, cell.id);
                       }
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          openRibbonCellEditor(event.currentTarget, cell.id);
-                        }
-                      }}
+                    }}
+                    style={{
+                      position: "relative",
+                      overflow: "visible",
+                      border: "1px solid #cbd5e1",
+                      background: "#ffffff",
+                      padding: "4px 8px",
+                      minWidth: 80,
+                      minHeight: 28,
+                      display: "flex",
+                      alignItems: "center",
+                      cursor: "text",
+                    }}
+                    title={cell.tool_tip || "Click to edit label, key command, and tool tip"}
+                  >
+                    <span
                       style={{
-                        position: "relative",
-                        border: "1px solid #cbd5e1",
-                        background: "#ffffff",
-                        padding: "4px 8px",
-                        minWidth: 80,
-                        minHeight: 28,
-                        display: "flex",
-                        alignItems: "center",
-                      
-                        cursor: "text",
+                        fontSize: 11,
+                        color:
+                          isShowingLabel || isShowingKeyCommand ? "#1e293b" : "#94a3b8",
+                        fontFamily: isShowingKeyCommand
+                          ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+                          : "inherit",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        width: "100%",
+                        fontStyle:
+                          isShowingLabel || isShowingKeyCommand ? "normal" : "italic",
                       }}
-                      title={cell.tool_tip || "Click to edit label, key command, and tool tip"}
                     >
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color:
-                            isShowingLabel || isShowingKeyCommand ? "#1e293b" : "#94a3b8",
-                          fontFamily: isShowingKeyCommand
-                            ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
-                            : "inherit",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          width: "100%",
-                          fontStyle:
-                            isShowingLabel || isShowingKeyCommand ? "normal" : "italic",
-                        }}
-                      >
-                        {cellDisplayText}
-                      </span>
+                      {cellDisplayText}
+                    </span>
 
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+                    <Handle
+                      id={buildRibbonSourceHandleId(cell.id)}
+                      type="source"
+                      position={Position.Bottom}
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 2px)",
+                        left: "50%",
+                        transform: "translateX(-50%) translateY(0%) !important" as any,
+                        width: 8,
+                        height: 8,
+                        background: "#3b82f6",
+                        border: "2px solid #ffffff",
+                        borderRadius: "50%",
+                        zIndex: 5,
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {showNodeId && (
@@ -812,61 +806,6 @@ function FlowCopyNode({
             </div>
           )}
         </div>
-
-        <div
-          style={{
-            width: 36,
-            position: "relative",
-            borderLeft: "1px solid #e2e8f0",
-            background: "#f8fafc",
-            borderTopRightRadius: 7,
-            borderBottomRightRadius: 7,
-          }}
-        >
-          {sortedCells.map((cell, index) => {
-            const top = 8 + index * 18 + 9;
-
-            return (
-              <React.Fragment key={cell.id}>
-                <span
-                  style={{
-                    position: "absolute",
-                    top,
-                    left: 3,
-                    fontSize: 7,
-                    color: "#94a3b8",
-                  }}
-                >
-                  {`R${cell.row + 1}C${cell.column + 1}`}
-                </span>
-
-                <Handle
-                  id={buildRibbonSourceHandleId(cell.id)}
-                  type="source"
-                  position={Position.Right}
-                  style={{
-                    position: "absolute",
-                    top,
-                    right: -4,
-                    width: 8,
-                    height: 8,
-                    background: "#3b82f6",
-                    border: "2px solid #ffffff",
-                    borderRadius: "50%",
-                    zIndex: 5,
-                    transform: "translateY(-50%)",
-                  }}
-                />
-              </React.Fragment>
-            );
-          })}
-        </div>
-
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          id={RIBBON_BOTTOM_HANDLE_ID}
-        />
 
         {editingRibbonCell && (
           <div
