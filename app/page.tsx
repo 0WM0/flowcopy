@@ -607,6 +607,10 @@ export default function Page() {
   const [openInspectorMenuGlossaryTermId, setOpenInspectorMenuGlossaryTermId] = useState<
     string | null
   >(null);
+  const [openInspectorRibbonCellGlossary, setOpenInspectorRibbonCellGlossary] = useState<{
+    cellId: string;
+    field: "label" | "key_command";
+  } | null>(null);
   const [menuTermDeleteError, setMenuTermDeleteError] = useState<string | null>(null);
   const [pendingOptionInputs, setPendingOptionInputs] = useState<
     Record<GlobalOptionField, string>
@@ -796,6 +800,8 @@ export default function Page() {
       );
       setControlledLanguageDraftRow(createEmptyControlledLanguageDraftRow());
       setOpenControlledLanguageFieldType(null);
+      setOpenInspectorMenuGlossaryTermId(null);
+      setOpenInspectorRibbonCellGlossary(null);
       setNodes(prunedHydratedNodes);
       setEdges(hydratedEdges);
       setUiJourneySnapshotPresets(normalizedUiJourneySnapshotPresets);
@@ -1477,12 +1483,14 @@ export default function Page() {
       if (event.detail === 2) {
         setOpenControlledLanguageFieldType(null);
         setOpenInspectorMenuGlossaryTermId(null);
+        setOpenInspectorRibbonCellGlossary(null);
         addNodeAtEvent(event);
         return;
       }
 
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
+      setOpenInspectorRibbonCellGlossary(null);
       setSelectedNodeId(null);
       setSelectedNodeIds([]);
       setSelectedEdgeId(null);
@@ -1495,6 +1503,7 @@ export default function Page() {
       clearMenuTermDeleteError();
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
+      setOpenInspectorRibbonCellGlossary(null);
       setSelectedNodeId(node.id);
       setSelectedEdgeId(null);
     },
@@ -1506,6 +1515,7 @@ export default function Page() {
       clearMenuTermDeleteError();
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
+      setOpenInspectorRibbonCellGlossary(null);
       setSelectedEdgeId(edge.id);
       setSelectedNodeId(null);
       setSelectedNodeIds([]);
@@ -1523,6 +1533,7 @@ export default function Page() {
 
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
+      setOpenInspectorRibbonCellGlossary(null);
       setSelectedEdgeId(nextSelectedEdgeId);
       setSelectedNodeId(nextSelectedEdgeId ? null : nextSelectedNodeId);
       setSelectedNodeIds(nextSelectedEdgeId ? [] : nextSelectedNodeIds);
@@ -2229,6 +2240,7 @@ export default function Page() {
 
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
+      setOpenInspectorRibbonCellGlossary(null);
     },
     [clearMenuTermDeleteError, nodes, queueUndoSnapshot, setEdges, setNodes]
   );
@@ -2339,6 +2351,15 @@ export default function Page() {
       (term) => term.id === openInspectorMenuGlossaryTermId
     )
       ? openInspectorMenuGlossaryTermId
+      : null;
+
+  const visibleInspectorRibbonCellGlossary =
+    selectedRibbonNodeConfig &&
+    openInspectorRibbonCellGlossary &&
+    selectedRibbonNodeConfig.cells.some(
+      (cell) => cell.id === openInspectorRibbonCellGlossary.cellId
+    )
+      ? openInspectorRibbonCellGlossary
       : null;
 
   const updateSelectedMenuMaxRightConnections = useCallback(
@@ -2461,6 +2482,12 @@ export default function Page() {
 
       setEdges((currentEdges) =>
         syncSequentialEdgesForRibbonNode(targetNode.id, nextRibbonConfig, currentEdges)
+      );
+
+      setOpenInspectorRibbonCellGlossary((current) =>
+        current && nextRibbonConfig.cells.some((cell) => cell.id === current.cellId)
+          ? current
+          : null
       );
     },
     [effectiveSelectedNodeId, nodes, queueUndoSnapshot, setEdges, setNodes]
@@ -2637,6 +2664,25 @@ export default function Page() {
     [updateSelectedMenuTermById]
   );
 
+  const toggleInspectorRibbonCellGlossary = useCallback(
+    (cellId: string, field: "label" | "key_command") => {
+      setOpenInspectorRibbonCellGlossary((current) =>
+        current && current.cellId === cellId && current.field === field
+          ? null
+          : { cellId, field }
+      );
+    },
+    []
+  );
+
+  const applyGlossaryTermToInspectorRibbonCell = useCallback(
+    (cellId: string, field: "label" | "key_command", glossaryTerm: string) => {
+      updateRibbonCellField(cellId, field, glossaryTerm);
+      setOpenInspectorRibbonCellGlossary(null);
+    },
+    [updateRibbonCellField]
+  );
+
   const createFrameFromSelection = useCallback(() => {
     if (selectedNonFrameNodesForFrameCreation.length < 2) {
       return;
@@ -2688,6 +2734,7 @@ export default function Page() {
 
     setOpenControlledLanguageFieldType(null);
     setOpenInspectorMenuGlossaryTermId(null);
+    setOpenInspectorRibbonCellGlossary(null);
     setSelectedEdgeId(null);
     setSelectedNodeId(frameId);
     setSelectedNodeIds([frameId]);
@@ -5740,43 +5787,237 @@ export default function Page() {
                               Cell {cell.column + 1}
                             </div>
 
-                            <div style={{ display: "grid", gap: 4 }}>
-                              <input
-                                style={{ ...inputStyle, fontSize: 11 }}
-                                value={cell.label}
-                                placeholder="Label"
-                                onChange={(event) =>
-                                  updateRibbonCellField(cell.id, "label", event.target.value)
-                                }
-                              />
+                            <div style={{ display: "grid", gap: 6 }}>
+                              <div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: 8,
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  <div style={{ fontSize: 11, color: "#334155", fontWeight: 700 }}>
+                                    Label
+                                  </div>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      ...buttonStyle,
+                                      fontSize: 10,
+                                      padding: "2px 6px",
+                                      background:
+                                        visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
+                                        visibleInspectorRibbonCellGlossary.field === "label"
+                                          ? "#dbeafe"
+                                          : "#fff",
+                                      borderColor:
+                                        visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
+                                        visibleInspectorRibbonCellGlossary.field === "label"
+                                          ? "#93c5fd"
+                                          : "#d4d4d8",
+                                    }}
+                                    onClick={() =>
+                                      toggleInspectorRibbonCellGlossary(cell.id, "label")
+                                    }
+                                  >
+                                    Glossary ▾
+                                  </button>
+                                </div>
 
-                              <input
-                                style={{
-                                  ...inputStyle,
-                                  fontSize: 11,
-                                  fontFamily: "monospace",
-                                }}
-                                value={cell.key_command}
-                                placeholder="Key Command"
-                                maxLength={24}
-                                onChange={(event) =>
-                                  updateRibbonCellField(
-                                    cell.id,
-                                    "key_command",
-                                    event.target.value
-                                  )
-                                }
-                              />
+                                <input
+                                  style={{ ...inputStyle, fontSize: 11 }}
+                                  value={cell.label}
+                                  placeholder="Label"
+                                  onChange={(event) =>
+                                    updateRibbonCellField(cell.id, "label", event.target.value)
+                                  }
+                                />
 
-                              <textarea
-                                style={{ ...inputStyle, fontSize: 11 }}
-                                value={cell.tool_tip}
-                                placeholder="Tool Tip"
-                                rows={2}
-                                onChange={(event) =>
-                                  updateRibbonCellField(cell.id, "tool_tip", event.target.value)
-                                }
-                              />
+                                {visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
+                                  visibleInspectorRibbonCellGlossary.field === "label" && (
+                                    <div
+                                      style={{
+                                        marginTop: 6,
+                                        border: "1px solid #dbeafe",
+                                        borderRadius: 6,
+                                        background: "#f8fbff",
+                                        padding: 6,
+                                      }}
+                                    >
+                                      {controlledLanguageTermsByField.cell_label.length === 0 ? (
+                                        <div style={{ fontSize: 10, color: "#64748b" }}>
+                                          No included glossary terms for Cell Label yet.
+                                        </div>
+                                      ) : (
+                                        <div
+                                          style={{
+                                            display: "flex",
+                                            flexWrap: "wrap",
+                                            gap: 6,
+                                          }}
+                                        >
+                                          {controlledLanguageTermsByField.cell_label.map(
+                                            (glossaryTerm) => (
+                                              <button
+                                                key={`inspector-ribbon-cell-label-glossary:${cell.id}:${glossaryTerm}`}
+                                                type="button"
+                                                style={{
+                                                  ...buttonStyle,
+                                                  fontSize: 10,
+                                                  padding: "2px 6px",
+                                                }}
+                                                onClick={() =>
+                                                  applyGlossaryTermToInspectorRibbonCell(
+                                                    cell.id,
+                                                    "label",
+                                                    glossaryTerm
+                                                  )
+                                                }
+                                              >
+                                                {glossaryTerm}
+                                              </button>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                              </div>
+
+                              <div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: 8,
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  <div style={{ fontSize: 11, color: "#334155", fontWeight: 700 }}>
+                                    Key Command
+                                  </div>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      ...buttonStyle,
+                                      fontSize: 10,
+                                      padding: "2px 6px",
+                                      background:
+                                        visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
+                                        visibleInspectorRibbonCellGlossary.field === "key_command"
+                                          ? "#dbeafe"
+                                          : "#fff",
+                                      borderColor:
+                                        visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
+                                        visibleInspectorRibbonCellGlossary.field === "key_command"
+                                          ? "#93c5fd"
+                                          : "#d4d4d8",
+                                    }}
+                                    onClick={() =>
+                                      toggleInspectorRibbonCellGlossary(
+                                        cell.id,
+                                        "key_command"
+                                      )
+                                    }
+                                  >
+                                    Glossary ▾
+                                  </button>
+                                </div>
+
+                                <input
+                                  style={{
+                                    ...inputStyle,
+                                    fontSize: 11,
+                                    fontFamily: "monospace",
+                                  }}
+                                  value={cell.key_command}
+                                  placeholder="Key Command"
+                                  maxLength={24}
+                                  onChange={(event) =>
+                                    updateRibbonCellField(
+                                      cell.id,
+                                      "key_command",
+                                      event.target.value
+                                    )
+                                  }
+                                />
+
+                                {visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
+                                  visibleInspectorRibbonCellGlossary.field ===
+                                    "key_command" && (
+                                    <div
+                                      style={{
+                                        marginTop: 6,
+                                        border: "1px solid #dbeafe",
+                                        borderRadius: 6,
+                                        background: "#f8fbff",
+                                        padding: 6,
+                                      }}
+                                    >
+                                      {controlledLanguageTermsByField.key_command.length === 0 ? (
+                                        <div style={{ fontSize: 10, color: "#64748b" }}>
+                                          No included glossary terms for Key Command yet.
+                                        </div>
+                                      ) : (
+                                        <div
+                                          style={{
+                                            display: "flex",
+                                            flexWrap: "wrap",
+                                            gap: 6,
+                                          }}
+                                        >
+                                          {controlledLanguageTermsByField.key_command.map(
+                                            (glossaryTerm) => (
+                                              <button
+                                                key={`inspector-ribbon-key-command-glossary:${cell.id}:${glossaryTerm}`}
+                                                type="button"
+                                                style={{
+                                                  ...buttonStyle,
+                                                  fontSize: 10,
+                                                  padding: "2px 6px",
+                                                }}
+                                                onClick={() =>
+                                                  applyGlossaryTermToInspectorRibbonCell(
+                                                    cell.id,
+                                                    "key_command",
+                                                    glossaryTerm
+                                                  )
+                                                }
+                                              >
+                                                {glossaryTerm}
+                                              </button>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                              </div>
+
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    color: "#334155",
+                                    fontWeight: 700,
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  Tool Tip
+                                </div>
+                                <textarea
+                                  style={{ ...inputStyle, fontSize: 11 }}
+                                  value={cell.tool_tip}
+                                  placeholder="Tool Tip"
+                                  rows={2}
+                                  onChange={(event) =>
+                                    updateRibbonCellField(cell.id, "tool_tip", event.target.value)
+                                  }
+                                />
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -6470,6 +6711,9 @@ export default function Page() {
     </div>
   );
 }
+
+
+
 
 
 
