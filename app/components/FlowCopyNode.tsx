@@ -769,16 +769,29 @@ function FlowCopyNode({
               borderBottom: "1px solid #cbd5e1",
               borderRadius: "6px 6px 0 0",
               padding: "6px 10px",
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#334155",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
             }}
-            title={data.title || "Ribbon"}
           >
-            {data.title || "Ribbon"}
+            <span style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600 }}>
+              #{data.sequence_index ?? "-"}
+            </span>
+            <span
+              style={{
+                flex: 1,
+                minWidth: 0,
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#334155",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+              title={data.title || "Ribbon"}
+            >
+              {data.title || "Ribbon"}
+            </span>
           </div>
 
           <div

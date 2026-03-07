@@ -4040,6 +4040,9 @@ export default function Page() {
                     {TABLE_FIELD_LABELS[field]}
                   </th>
                 ))}
+                <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                  Ribbon Cells
+                </th>
               </tr>
             </thead>
 
@@ -4047,64 +4050,101 @@ export default function Page() {
               {projectTableRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5 + TABLE_EDITABLE_FIELDS.length}
+                    colSpan={6 + TABLE_EDITABLE_FIELDS.length}
                     style={{ border: "1px solid #e4e4e7", padding: 12, fontSize: 12 }}
                   >
                     No nodes in this project yet. Switch to Canvas View to add nodes.
                   </td>
                 </tr>
               ) : (
-                projectTableRows.map(({ node, sequenceIndex, parallelGroupId }) => (
-                  <tr key={`table-row:${node.id}`}>
-                    <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
-                      <code>{node.id}</code>
-                    </td>
-                    <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
-                      {sequenceIndex ?? ""}
-                    </td>
-                    <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
-                      {parallelGroupId ?? ""}
-                    </td>
-                    <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
-                      {Math.round(node.position.x)}
-                    </td>
-                    <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
-                      {Math.round(node.position.y)}
-                    </td>
+                projectTableRows.map(({ node, sequenceIndex, parallelGroupId }) => {
+                  const ribbonCellSummary =
+                    node.data.node_type === "ribbon"
+                      ? (() => {
+                          const ribbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
 
-                    {TABLE_EDITABLE_FIELDS.map((field) => {
-                      const baseCellStyle: React.CSSProperties = {
-                        border: "1px solid #e4e4e7",
-                        padding: 6,
-                        minWidth: TABLE_TEXTAREA_FIELDS.has(field) ? 240 : 170,
-                        verticalAlign: "top",
-                      };
+                          if (ribbonConfig.cells.length === 0) {
+                            return "0 cells";
+                          }
 
-                      if (TABLE_SELECT_FIELDS.has(field)) {
+                          const ribbonCellValues = ribbonConfig.cells.map((cell) => {
+                            const label = cell.label.trim();
+                            if (label.length > 0) {
+                              return label;
+                            }
+
+                            const keyCommand = cell.key_command.trim();
+                            return keyCommand.length > 0 ? keyCommand : "—";
+                          });
+
+                          return `${ribbonConfig.cells.length} cells: ${ribbonCellValues.join(", ")}`;
+                        })()
+                      : "";
+
+                  return (
+                    <tr key={`table-row:${node.id}`}>
+                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                        <code>{node.id}</code>
+                      </td>
+                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                        {sequenceIndex ?? ""}
+                      </td>
+                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                        {parallelGroupId ?? ""}
+                      </td>
+                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                        {Math.round(node.position.x)}
+                      </td>
+                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                        {Math.round(node.position.y)}
+                      </td>
+
+                      {TABLE_EDITABLE_FIELDS.map((field) => {
+                        const baseCellStyle: React.CSSProperties = {
+                          border: "1px solid #e4e4e7",
+                          padding: 6,
+                          minWidth: TABLE_TEXTAREA_FIELDS.has(field) ? 240 : 170,
+                          verticalAlign: "top",
+                        };
+
+                        if (TABLE_SELECT_FIELDS.has(field)) {
+                          return (
+                            <td key={`cell:${node.id}:${field}`} style={baseCellStyle}>
+                              <select
+                                style={inputStyle}
+                                value={String(node.data[field] ?? "")}
+                                onChange={(event) =>
+                                  updateNodeFieldById(node.id, field, event.target.value)
+                                }
+                              >
+                                {getTableSelectOptions(field, node).map((option) => (
+                                  <option key={`${node.id}:${field}:${option}`} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                          );
+                        }
+
+                        if (TABLE_TEXTAREA_FIELDS.has(field)) {
+                          return (
+                            <td key={`cell:${node.id}:${field}`} style={baseCellStyle}>
+                              <textarea
+                                style={{ ...inputStyle, minHeight: 70, resize: "vertical" }}
+                                value={String(node.data[field] ?? "")}
+                                onChange={(event) =>
+                                  updateNodeFieldById(node.id, field, event.target.value)
+                                }
+                              />
+                            </td>
+                          );
+                        }
+
                         return (
                           <td key={`cell:${node.id}:${field}`} style={baseCellStyle}>
-                            <select
+                            <input
                               style={inputStyle}
-                              value={String(node.data[field] ?? "")}
-                              onChange={(event) =>
-                                updateNodeFieldById(node.id, field, event.target.value)
-                              }
-                            >
-                              {getTableSelectOptions(field, node).map((option) => (
-                                <option key={`${node.id}:${field}:${option}`} value={option}>
-                                  {option}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                        );
-                      }
-
-                      if (TABLE_TEXTAREA_FIELDS.has(field)) {
-                        return (
-                          <td key={`cell:${node.id}:${field}`} style={baseCellStyle}>
-                            <textarea
-                              style={{ ...inputStyle, minHeight: 70, resize: "vertical" }}
                               value={String(node.data[field] ?? "")}
                               onChange={(event) =>
                                 updateNodeFieldById(node.id, field, event.target.value)
@@ -4112,22 +4152,21 @@ export default function Page() {
                             />
                           </td>
                         );
-                      }
+                      })}
 
-                      return (
-                        <td key={`cell:${node.id}:${field}`} style={baseCellStyle}>
-                          <input
-                            style={inputStyle}
-                            value={String(node.data[field] ?? "")}
-                            onChange={(event) =>
-                              updateNodeFieldById(node.id, field, event.target.value)
-                            }
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))
+                      <td
+                        style={{
+                          border: "1px solid #e4e4e7",
+                          padding: 8,
+                          fontSize: 12,
+                          minWidth: 220,
+                        }}
+                      >
+                        {ribbonCellSummary}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -6711,6 +6750,7 @@ export default function Page() {
     </div>
   );
 }
+
 
 
 

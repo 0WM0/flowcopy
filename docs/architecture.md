@@ -32,6 +32,154 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-06-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a transfer-path verification pass focused on ribbon data completeness.
+
+The project JSON envelope export/import path was re-checked end-to-end to ensure ribbon node configuration remains included and recoverable, alongside previously validated flat-export ribbon cell behavior.
+
+## 2) Core Data Model
+
+No schema/type contracts changed.
+
+The existing model remains authoritative:
+
+- `MicrocopyNodeData.ribbon_config: RibbonNodeConfig | null`
+- persisted node payload includes `menu_config`, `frame_config`, and `ribbon_config`
+- flat export keeps `ribbon_cells_json` as the ribbon-specific tabular projection
+
+## 3) Persistence and Migration Strategy
+
+Persistence/migration paths were verified without structural changes.
+
+Export verification:
+
+- `app/page.tsx` `exportProjectData("json")` builds the full envelope payload using `serializeNodesForStorage(...)`
+- `app/lib/node-utils.ts` `serializeNodesForStorage(...)` includes `ribbon_config` for `node_type === "ribbon"` (normalized), otherwise `null`
+
+Import verification:
+
+- `app/lib/import.ts` `parseProjectRecordFromJsonText(...)` validates full-envelope format/schema and passes payload project through `sanitizeProjectRecord(...)`
+- hydration continues through `sanitizePersistedNodes(...)` → `normalizeNode(...)`, where ribbon nodes rehydrate via `normalizeRibbonNodeConfig(...)`
+
+No migration keys or storage formats were changed.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Ribbon export/import verification is orthogonal to sequence computation.
+
+## 5) Node Rendering and Shape System
+
+No renderer/shape updates were required.
+
+Ribbon rendering contracts remain unchanged and continue to consume normalized `ribbon_config` after import hydration.
+
+## 6) Editor Interaction Model
+
+No new interaction flows were introduced.
+
+Existing import/export actions were verified to preserve ribbon configuration in full-project JSON transfer and maintain expected editor hydration behavior.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Verified full-project JSON export already includes `ribbon_config` through `serializeNodesForStorage(...)`.
+2. Verified full-project JSON import already preserves ribbon data through sanitize + normalize hydration.
+3. Confirmed no additional code changes were required for ribbon JSON envelope compatibility.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operational note:
+
+- this session was verification-focused; implementation code remained unchanged while confirming correctness of existing export/import pathways.
+
+## 9) Recommended Next Steps
+
+1. Add targeted tests for JSON envelope round-trip fidelity of `ribbon_config`.
+2. Add focused tests for flat-export `ribbon_cells_json` behavior (ribbon vs non-ribbon rows).
+3. Add a transfer regression suite covering JSON + CSV/XML consistency for ribbon-heavy projects.
+
+##03-05-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session delivered a focused flat-export correctness update for ribbon nodes.
+
+The export pipeline now writes ribbon cell payloads only for ribbon nodes, while keeping non-ribbon rows blank for the ribbon-specific column.
+
+## 2) Core Data Model
+
+No schema/type contracts changed.
+
+The existing flat export column `ribbon_cells_json` continues to be used, with conditional value assignment in `createFlatExportRows(...)` based on `node_type`.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no localStorage key changes
+- no project schema changes
+- no migration-path updates
+
+This session changed export-row value shaping only.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+The export fix is orthogonal to sequence computation.
+
+## 5) Node Rendering and Shape System
+
+No node/canvas rendering changes were required for the requested task.
+
+The implementation remained scoped to the export-layer row builder.
+
+## 6) Editor Interaction Model
+
+No interaction behavior changed in this session.
+
+This was a data-export pipeline adjustment only.
+
+## 7) Refactor Outcomes
+
+Concrete implementation outcome:
+
+1. Updated `app/lib/export.ts` in `createFlatExportRows(...)` so:
+   - ribbon nodes export `JSON.stringify(node.data.ribbon_config?.cells ?? [])`
+   - non-ribbon nodes export `""` for `ribbon_cells_json`
+2. Kept all other row fields unchanged.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+## 9) Recommended Next Steps
+
+1. Add a focused unit test for `createFlatExportRows(...)` covering ribbon vs non-ribbon `ribbon_cells_json` behavior.
+2. Add CSV/XML round-trip coverage to ensure `ribbon_cells_json` fidelity through export/import paths.
+
 ##03-05-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -3740,6 +3888,8 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
+
 
 
 
