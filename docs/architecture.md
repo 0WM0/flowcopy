@@ -38,6 +38,96 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session delivered two targeted editor UX improvements:
+
+1. Ribbon nodes now visibly show their sequence number on-canvas.
+2. Table view now includes a dedicated `Ribbon Cells` column with per-node ribbon summaries.
+
+The goal was consistency: ribbon nodes now surface sequence/order information the same way users expect from other node types, and ribbon-specific metadata is visible in tabular editing/export-review workflows.
+
+## 2) Core Data Model
+
+No schema/type contracts changed.
+
+The updates rely on existing fields:
+
+- `node_type === "ribbon"`
+- `sequence_index`
+- `ribbon_config.cells[]` (`label`, `key_command`)
+
+For table rendering, ribbon summaries are computed from normalized ribbon config and display labels first, with key-command fallback when labels are empty.
+
+## 3) Persistence and Migration Strategy
+
+Persistence/migration behavior was unchanged:
+
+- no localStorage key changes
+- no project payload shape changes
+- no migration-path changes
+
+This session was presentation-layer/UI-wiring only.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Sequence display improvements are consumer/UI updates of existing ordering outputs.
+
+## 5) Node Rendering and Shape System
+
+`app/components/FlowCopyNode.tsx` ribbon rendering was updated so the ribbon header shows:
+
+- a sequence badge (`#{data.sequence_index ?? "-"}`)
+- the ribbon title beside it in the same header row
+
+No new node shapes or geometry systems were introduced.
+
+## 6) Editor Interaction Model
+
+`app/page.tsx` table mode now includes a trailing `Ribbon Cells` column:
+
+- added header cell `Ribbon Cells`
+- added row-level summary cell at end of each row
+- for ribbon nodes: renders summaries like `3 cells: Bold, Italic, Underline`
+- for non-ribbon nodes: renders empty value
+- empty-state `colSpan` updated to account for the new column
+
+This improves data visibility in table workflows without changing edit semantics for other fields.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Updated ribbon node header in `app/components/FlowCopyNode.tsx` to display sequence index.
+2. Added `Ribbon Cells` table column in `app/page.tsx`.
+3. Implemented ribbon summary formatting with label-first, key-command fallback behavior.
+4. Kept unrelated table/editor behavior unchanged.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operational note:
+
+- the session included recovery from interrupted edits; final diffs were constrained to requested ribbon-sequence and ribbon-table-summary updates.
+
+## 9) Recommended Next Steps
+
+1. Add focused tests for ribbon sequence-badge rendering in `FlowCopyNode`.
+2. Add table-view tests for ribbon summary output (labels, key-command fallback, non-ribbon empty cell).
+3. Consider reusing ribbon-summary formatting in export previews to keep cross-surface wording consistent.
+
+##03-06-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session was a transfer-path verification pass focused on ribbon data completeness.
 
 The project JSON envelope export/import path was re-checked end-to-end to ensure ribbon node configuration remains included and recoverable, alongside previously validated flat-export ribbon cell behavior.
@@ -3888,6 +3978,7 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
 
 
 

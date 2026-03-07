@@ -281,6 +281,14 @@ type ImportFeedback = {
   message: string;
 };
 
+const TABLE_SHOEHORNING_DISABLED_FIELDS = new Set<EditableMicrocopyField>([
+  "body_text",
+  "primary_cta",
+  "secondary_cta",
+  "helper_text",
+  "error_text",
+]);
+
 
 
 type EditorSnapshot = {
@@ -2836,6 +2844,54 @@ export default function Page() {
     [orderedNodes, ordering.parallelGroupByNodeId, ordering.sequenceByNodeId]
   );
 
+  const maxMenuTermColumnCount = useMemo(
+    () =>
+      projectTableRows.reduce((maxCount, { node }) => {
+        if (node.data.node_type !== "menu") {
+          return maxCount;
+        }
+
+        const normalizedMenuConfig = normalizeMenuNodeConfig(
+          node.data.menu_config,
+          node.data.primary_cta,
+          Math.max(
+            MENU_NODE_RIGHT_CONNECTIONS_MIN,
+            node.data.menu_config.max_right_connections
+          )
+        );
+
+        return Math.max(maxCount, normalizedMenuConfig.terms.length);
+      }, 0),
+    [projectTableRows]
+  );
+
+  const menuTermColumnIndexes = useMemo(
+    () => Array.from({ length: maxMenuTermColumnCount }, (_, menuTermIndex) => menuTermIndex),
+    [maxMenuTermColumnCount]
+  );
+
+  const maxRibbonCellColumnCount = useMemo(
+    () =>
+      projectTableRows.reduce((maxCount, { node }) => {
+        if (node.data.node_type !== "ribbon") {
+          return maxCount;
+        }
+
+        const normalizedRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
+        return Math.max(maxCount, normalizedRibbonConfig.cells.length);
+      }, 0),
+    [projectTableRows]
+  );
+
+  const ribbonCellColumnIndexes = useMemo(
+    () =>
+      Array.from(
+        { length: maxRibbonCellColumnCount },
+        (_, ribbonCellIndex) => ribbonCellIndex
+      ),
+    [maxRibbonCellColumnCount]
+  );
+
   const controlledLanguageAuditRows = useMemo(
     () => buildControlledLanguageAuditRows(nodes, controlledLanguageGlossary),
     [nodes, controlledLanguageGlossary]
@@ -4028,6 +4084,9 @@ export default function Page() {
                   sequence_index
                 </th>
                 <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                  Node Type
+                </th>
+                <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
                   parallel_group_id
                 </th>
                 <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>position_x</th>
@@ -4043,6 +4102,27 @@ export default function Page() {
                 <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
                   Ribbon Cells
                 </th>
+                {menuTermColumnIndexes.map((menuTermIndex) => (
+                  <th
+                    key={`table-menu-term-head:${menuTermIndex}`}
+                    style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}
+                  >
+                    {`Menu Term ${menuTermIndex + 1}`}
+                  </th>
+                ))}
+                {ribbonCellColumnIndexes.map((ribbonCellIndex) => (
+                  <React.Fragment key={`table-ribbon-cell-head:${ribbonCellIndex}`}>
+                    <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                      {`Ribbon Label ${ribbonCellIndex + 1}`}
+                    </th>
+                    <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                      {`Ribbon Key Command ${ribbonCellIndex + 1}`}
+                    </th>
+                    <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                      {`Ribbon Tool Tip ${ribbonCellIndex + 1}`}
+                    </th>
+                  </React.Fragment>
+                ))}
               </tr>
             </thead>
 
@@ -4050,7 +4130,12 @@ export default function Page() {
               {projectTableRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6 + TABLE_EDITABLE_FIELDS.length}
+                    colSpan={
+                      7 +
+                      TABLE_EDITABLE_FIELDS.length +
+                      menuTermColumnIndexes.length +
+                      ribbonCellColumnIndexes.length * 3
+                    }
                     style={{ border: "1px solid #e4e4e7", padding: 12, fontSize: 12 }}
                   >
                     No nodes in this project yet. Switch to Canvas View to add nodes.
@@ -4058,16 +4143,39 @@ export default function Page() {
                 </tr>
               ) : (
                 projectTableRows.map(({ node, sequenceIndex, parallelGroupId }) => {
-                  const ribbonCellSummary =
-                    node.data.node_type === "ribbon"
-                      ? (() => {
-                          const ribbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
+                  const menuTermValues =
+                    node.data.node_type === "menu"
+                      ? normalizeMenuNodeConfig(
+                          node.data.menu_config,
+                          node.data.primary_cta,
+                          Math.max(
+                            MENU_NODE_RIGHT_CONNECTIONS_MIN,
+                            node.data.menu_config.max_right_connections
+                          )
+                        ).terms.map((menuTerm) => menuTerm.term)
+                      : [];
 
-                          if (ribbonConfig.cells.length === 0) {
+                  const normalizedRibbonConfig =
+                    node.data.node_type === "ribbon"
+                      ? normalizeRibbonNodeConfig(node.data.ribbon_config)
+                      : null;
+
+                  const ribbonCellValues = normalizedRibbonConfig
+                    ? normalizedRibbonConfig.cells.map((cell) => ({
+                        label: cell.label,
+                        keyCommand: cell.key_command,
+                        toolTip: cell.tool_tip,
+                      }))
+                    : [];
+
+                  const ribbonCellSummary =
+                    normalizedRibbonConfig
+                      ? (() => {
+                          if (normalizedRibbonConfig.cells.length === 0) {
                             return "0 cells";
                           }
 
-                          const ribbonCellValues = ribbonConfig.cells.map((cell) => {
+                          const ribbonCellSummaryValues = normalizedRibbonConfig.cells.map((cell) => {
                             const label = cell.label.trim();
                             if (label.length > 0) {
                               return label;
@@ -4077,9 +4185,14 @@ export default function Page() {
                             return keyCommand.length > 0 ? keyCommand : "—";
                           });
 
-                          return `${ribbonConfig.cells.length} cells: ${ribbonCellValues.join(", ")}`;
+                          return `${normalizedRibbonConfig.cells.length} cells: ${ribbonCellSummaryValues.join(", ")}`;
                         })()
                       : "";
+
+                  const shouldDisableShoehornedFields =
+                    node.data.node_type === "menu" ||
+                    node.data.node_type === "ribbon" ||
+                    node.data.node_type === "frame";
 
                   return (
                     <tr key={`table-row:${node.id}`}>
@@ -4088,6 +4201,9 @@ export default function Page() {
                       </td>
                       <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
                         {sequenceIndex ?? ""}
+                      </td>
+                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                        {node.data.node_type}
                       </td>
                       <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
                         {parallelGroupId ?? ""}
@@ -4106,6 +4222,14 @@ export default function Page() {
                           minWidth: TABLE_TEXTAREA_FIELDS.has(field) ? 240 : 170,
                           verticalAlign: "top",
                         };
+
+                        const shouldRenderEmptyCell =
+                          shouldDisableShoehornedFields &&
+                          TABLE_SHOEHORNING_DISABLED_FIELDS.has(field);
+
+                        if (shouldRenderEmptyCell) {
+                          return <td key={`cell:${node.id}:${field}`} style={baseCellStyle}></td>;
+                        }
 
                         if (TABLE_SELECT_FIELDS.has(field)) {
                           return (
@@ -4164,6 +4288,61 @@ export default function Page() {
                       >
                         {ribbonCellSummary}
                       </td>
+
+                      {menuTermColumnIndexes.map((menuTermIndex) => (
+                        <td
+                          key={`menu-term-cell:${node.id}:${menuTermIndex}`}
+                          style={{
+                            border: "1px solid #e4e4e7",
+                            padding: 8,
+                            fontSize: 12,
+                            minWidth: 170,
+                          }}
+                        >
+                          {menuTermValues[menuTermIndex] ?? ""}
+                        </td>
+                      ))}
+
+                      {ribbonCellColumnIndexes.map((ribbonCellIndex) => {
+                        const ribbonCell = ribbonCellValues[ribbonCellIndex];
+
+                        return (
+                          <React.Fragment
+                            key={`ribbon-cell-column-group:${node.id}:${ribbonCellIndex}`}
+                          >
+                            <td
+                              style={{
+                                border: "1px solid #e4e4e7",
+                                padding: 8,
+                                fontSize: 12,
+                                minWidth: 170,
+                              }}
+                            >
+                              {ribbonCell?.label ?? ""}
+                            </td>
+                            <td
+                              style={{
+                                border: "1px solid #e4e4e7",
+                                padding: 8,
+                                fontSize: 12,
+                                minWidth: 170,
+                              }}
+                            >
+                              {ribbonCell?.keyCommand ?? ""}
+                            </td>
+                            <td
+                              style={{
+                                border: "1px solid #e4e4e7",
+                                padding: 8,
+                                fontSize: 12,
+                                minWidth: 220,
+                              }}
+                            >
+                              {ribbonCell?.toolTip ?? ""}
+                            </td>
+                          </React.Fragment>
+                        );
+                      })}
                     </tr>
                   );
                 })
@@ -6750,6 +6929,9 @@ export default function Page() {
     </div>
   );
 }
+
+
+
 
 
 
