@@ -32,6 +32,189 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-07-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session finalized UI Journey Conversation correctness for ribbon-driven flows.
+
+Two conversation-facing fixes were delivered:
+
+- Ribbon cell entries are now emitted only when they actually connect to nodes included in the active conversation scope.
+- Conversation modal section keys are now truly unique for ribbon header + ribbon cell rows, eliminating duplicate-key rendering risks.
+
+## 2) Core Data Model
+
+No persisted schema/type contracts were changed.
+
+The implementation reused existing models and identifiers:
+
+- `FlowEdge` + sequential edge-kind semantics
+- `includedNodeIds` conversation scope set
+- ribbon source-handle naming via `RIBBON_SOURCE_HANDLE_PREFIX`
+- unique conversation-entry identity via `entry.entryId`
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no storage key updates
+- no project payload/schema updates
+- no migration-path changes
+
+All changes were runtime conversation-generation and modal-rendering corrections.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering algorithms changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Conversation filtering now applies an additional inclusion guard for ribbon cells: an outgoing **sequential** edge must target a node in the current included-node set.
+
+## 5) Node Rendering and Shape System
+
+`app/page.tsx` UI Journey Conversation modal rendering was updated so section keys now use entry identity instead of node identity:
+
+- from: ``ui-journey-conversation:${entry.nodeId}``
+- to: ``ui-journey-conversation:${entry.entryId}``
+
+This removes duplicate React keys when a ribbon contributes multiple entries that share the same `nodeId`.
+
+## 6) Editor Interaction Model
+
+`app/lib/ui-journey.ts` ribbon cell conversation generation now filters cells by actual conversation-relevant connectivity.
+
+A ribbon cell entry is only created when an edge exists such that:
+
+- `edge.source === ribbonNodeId`
+- edge is sequential (`isSequentialEdge(edge)`)
+- `edge.sourceHandle` starts with `${RIBBON_SOURCE_HANDLE_PREFIX}${cell.id}`
+- `edge.target` is in `includedNodeIds`
+
+Result: UI Journey Conversation now includes only ribbon cells that lead to nodes inside the current selected conversation path.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added ribbon-cell edge-target inclusion filtering in `buildUiJourneyConversationEntries(...)`.
+2. Imported and used `isSequentialEdge` + `RIBBON_SOURCE_HANDLE_PREFIX` in the conversation builder.
+3. Updated both modal section key call sites in `app/page.tsx` to `entry.entryId`.
+4. Eliminated duplicate-key risk for ribbon header/cell mixed conversation rows.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operationally, the conversation output is now stricter about included-path relevance for ribbon cells and safer for React list rendering.
+
+## 9) Recommended Next Steps
+
+1. Add focused tests for ribbon-cell inclusion filtering against included-node targets.
+2. Add modal rendering regression tests to assert unique keys for multi-entry ribbon nodes.
+3. Add a small snapshot fixture covering ribbon header + multiple cell entries + mixed included/excluded targets.
+
+##03-06-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session expanded Table View so node-type-specific data is visible in dedicated trailing columns instead of being shoehorned into default text fields.
+
+The table now supports dynamic column groups for:
+
+- Menu terms (`Menu Term 1..N`)
+- Ribbon cells (`Ribbon Label N`, `Ribbon Key Command N`, `Ribbon Tool Tip N`)
+
+where `N` is computed from the current project’s data.
+
+## 2) Core Data Model
+
+No schema/type contracts changed.
+
+The implementation uses existing node data contracts:
+
+- `node.data.node_type`
+- `node.data.menu_config.terms[]`
+- `node.data.ribbon_config.cells[]` (`label`, `key_command`, `tool_tip`)
+
+and computes dynamic table width from normalized runtime values rather than adding new persisted fields.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no localStorage key changes
+- no project payload/schema changes
+- no migration updates
+
+This was a presentation-layer/table-rendering update only.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Dynamic columns are derived from already ordered `projectTableRows` and do not affect sequence computation.
+
+## 5) Node Rendering and Shape System
+
+`app/page.tsx` table rendering now computes dynamic column counts:
+
+- `maxMenuTermColumnCount` + `menuTermColumnIndexes`
+- `maxRibbonCellColumnCount` + `ribbonCellColumnIndexes`
+
+Header rendering appends:
+
+- one header per menu term index
+- three headers per ribbon cell index (label/key command/tool tip)
+
+Row rendering fills values by index for matching node types and leaves non-applicable cells empty.
+
+## 6) Editor Interaction Model
+
+Table interaction behavior now reflects node-type-specific data placement:
+
+- Menu nodes populate `Menu Term 1..N` columns by term index.
+- Ribbon nodes populate grouped ribbon columns by cell index.
+- Non-menu nodes leave menu-term columns blank.
+- Non-ribbon nodes leave ribbon grouped columns blank.
+
+Empty-state table `colSpan` now includes both dynamic menu and ribbon column counts.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added dynamic max-count scanning for menu terms across current project rows.
+2. Added dynamic max-count scanning for ribbon cells across current project rows.
+3. Appended dynamic menu-term headers and row cells.
+4. Appended dynamic ribbon header triplets and row cells.
+5. Updated empty-state `colSpan` to stay aligned with dynamic table width.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operationally, this keeps table output adaptive to mixed project data without changing persisted node contracts.
+
+## 9) Recommended Next Steps
+
+1. Add focused tests for dynamic menu/ribbon column count computation.
+2. Add table rendering tests for mixed node types (menu, ribbon, default, frame).
+3. Consider aligning flat export columns with these dynamic table-only projections for analyst workflows.
+
 ##03-06-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
@@ -3978,6 +4161,8 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
+
+
 
 
 

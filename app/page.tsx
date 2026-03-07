@@ -6667,15 +6667,17 @@ export default function Page() {
                 {uiJourneyConversationSnapshot.map((entry) => {
                   const heading = `${entry.sequence ?? "-"} - ${entry.title || "Untitled"}`;
                   const isFrameEntry = entry.nodeType === "frame";
+                  const isCenteredHeaderEntry =
+                    entry.nodeType === "frame" || entry.nodeType === "ribbon";
                   const isOrphanEntry = entry.connectionMeta.isOrphan;
                   const headingColor = isOrphanEntry ? "#dc2626" : "#64748b";
                   const contentColor = isOrphanEntry ? "#7f1d1d" : "#334155";
                   const labelColor = isOrphanEntry ? "#b91c1c" : "#64748b";
 
-                  if (isFrameEntry) {
+                  if (isCenteredHeaderEntry) {
                     return (
                       <section
-                        key={`ui-journey-conversation:${entry.nodeId}`}
+                        key={`ui-journey-conversation:${entry.entryId}`}
                         style={{
                           border: isOrphanEntry ? "1px solid #fecaca" : "1px solid #dbeafe",
                           borderRadius: 10,
@@ -6769,13 +6771,13 @@ export default function Page() {
 
                   return (
                     <section
-                      key={`ui-journey-conversation:${entry.nodeId}`}
+                      key={`ui-journey-conversation:${entry.entryId}`}
                       style={{
                         border: isOrphanEntry ? "1px solid #fecaca" : "1px solid #dbeafe",
                         borderRadius: 10,
                         background: isOrphanEntry
                           ? "#fef2f2"
-                          : isFrameEntry
+                          : isCenteredHeaderEntry
                             ? "#f8fafc"
                             : "#ffffff",
                         padding: "10px 12px",
@@ -6929,6 +6931,8 @@ export default function Page() {
     </div>
   );
 }
+
+
 
 
 

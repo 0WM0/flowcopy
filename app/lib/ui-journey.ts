@@ -9,9 +9,19 @@ import type {
   UiJourneySnapshotPreset,
   NodeControlledLanguageFieldType,
 } from "../types";
-import { CONTROLLED_LANGUAGE_NODE_FIELDS, CONTROLLED_LANGUAGE_FIELD_LABELS } from "../constants";
+import {
+  CONTROLLED_LANGUAGE_NODE_FIELDS,
+  CONTROLLED_LANGUAGE_FIELD_LABELS,
+  RIBBON_SOURCE_HANDLE_PREFIX,
+} from "../constants";
 import { computeFlowOrdering } from "./flow-ordering";
-import { isNodeType, normalizeFrameNodeConfig, normalizeMenuNodeConfig } from "./node-utils";
+import { isSequentialEdge } from "./edge-utils";
+import {
+  isNodeType,
+  normalizeFrameNodeConfig,
+  normalizeMenuNodeConfig,
+  normalizeRibbonNodeConfig,
+} from "./node-utils";
 
 type UiJourneySnapshotCapture = {
   nodeIds: string[];
@@ -31,6 +41,12 @@ export const buildUiJourneyConversationFieldId = (
   nodeId: string,
   sourceKey: string
 ): string => `field:${nodeId}:${sourceKey}`;
+
+const buildUiJourneyConversationRibbonCellEntryId = (
+  nodeId: string,
+  cellId: string,
+  sequence: number | null
+): string => `entry:${nodeId}:cell:${cellId}:seq-${sequence ?? "x"}`;
 
 export const buildUiJourneyConversationConnectionMetaByNodeId = ({
   nodes,
@@ -225,6 +241,61 @@ export const buildUiJourneyConversationFields = (
   addField("Secondary CTA", "secondary_cta", nodeData.secondary_cta);
   addField("Helper Text", "helper_text", nodeData.helper_text);
   addField("Error Text", "error_text", nodeData.error_text);
+
+  return fields;
+};
+
+const buildUiJourneyConversationRibbonHeaderFields = (
+  nodeId: string,
+  nodeData: MicrocopyNodeData
+): UiJourneyConversationField[] => {
+  const fields: UiJourneyConversationField[] = [];
+
+  const addField = (label: string, sourceKey: string, value: string) => {
+    const normalizedValue = value.trim();
+    if (!normalizedValue) {
+      return;
+    }
+
+    fields.push({
+      id: buildUiJourneyConversationFieldId(nodeId, sourceKey),
+      sourceKey,
+      label,
+      value: normalizedValue,
+    });
+  };
+
+  addField("Concept", "concept", nodeData.concept);
+  addField("Notes", "notes", nodeData.notes);
+
+  return fields;
+};
+
+const buildUiJourneyConversationRibbonCellFields = (
+  nodeId: string,
+  cellId: string,
+  keyCommand: string,
+  toolTip: string
+): UiJourneyConversationField[] => {
+  const fields: UiJourneyConversationField[] = [];
+  const cellScopedNodeId = `${nodeId}:cell:${cellId}`;
+
+  const addField = (label: string, sourceKey: string, value: string) => {
+    const normalizedValue = value.trim();
+    if (!normalizedValue) {
+      return;
+    }
+
+    fields.push({
+      id: buildUiJourneyConversationFieldId(cellScopedNodeId, sourceKey),
+      sourceKey,
+      label,
+      value: normalizedValue,
+    });
+  };
+
+  addField("Key Command", "key_command", keyCommand);
+  addField("Tool Tip", "tool_tip", toolTip);
 
   return fields;
 };
@@ -581,10 +652,10 @@ export const buildUiJourneyConversationEntries = ({
   });
 
   return orderedIncludedNodeIds
-    .map((nodeId) => {
+    .flatMap((nodeId) => {
       const node = nodeById.get(nodeId);
       if (!node) {
-        return null;
+        return [];
       }
 
       const sequence = ordering.sequenceByNodeId[nodeId] ?? null;
@@ -596,7 +667,89 @@ export const buildUiJourneyConversationEntries = ({
         isOrphan: true,
       };
 
-      return {
+      if (node.data.node_type === "ribbon") {
+        const ribbonHeaderEntry: UiJourneyConversationEntry = {
+          entryId: buildUiJourneyConversationEntryId(nodeId, sequence),
+          nodeInstanceId: nodeId,
+          titleFieldId: buildUiJourneyConversationTitleFieldId(nodeId),
+          nodeId,
+          nodeType: "ribbon",
+          sequence,
+          title: node.data.title.trim(),
+          fields: buildUiJourneyConversationRibbonHeaderFields(nodeId, node.data),
+          bodyText: "",
+          notes: "",
+          connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
+        };
+
+        const normalizedRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
+
+        const ribbonCellEntries: UiJourneyConversationEntry[] = [...normalizedRibbonConfig.cells]
+          .sort((cellA, cellB) => {
+            if (cellA.column !== cellB.column) {
+              return cellA.column - cellB.column;
+            }
+
+            if (cellA.row !== cellB.row) {
+              return cellA.row - cellB.row;
+            }
+
+            return cellA.id.localeCompare(cellB.id);
+          })
+          .filter((cell) => {
+            const cellSourceHandlePrefix = `${RIBBON_SOURCE_HANDLE_PREFIX}${cell.id}`;
+
+            return edges.some((edge) => {
+              if (edge.source !== nodeId) {
+                return false;
+              }
+
+              if (!isSequentialEdge(edge)) {
+                return false;
+              }
+
+              if (!includedNodeIds.has(edge.target)) {
+                return false;
+              }
+
+              return (
+                typeof edge.sourceHandle === "string" &&
+                edge.sourceHandle.startsWith(cellSourceHandlePrefix)
+              );
+            });
+          })
+          .map((cell) => {
+            const cellScopedNodeId = `${nodeId}:cell:${cell.id}`;
+            const normalizedCellLabel = cell.label.trim();
+
+            return {
+              entryId: buildUiJourneyConversationRibbonCellEntryId(nodeId, cell.id, sequence),
+              nodeInstanceId: cellScopedNodeId,
+              titleFieldId: buildUiJourneyConversationTitleFieldId(cellScopedNodeId),
+              nodeId,
+              nodeType: "default",
+              sequence,
+              title:
+                normalizedCellLabel.length > 0
+                  ? normalizedCellLabel
+                  : `Cell ${cell.column + 1}`,
+              fields: buildUiJourneyConversationRibbonCellFields(
+                nodeId,
+                cell.id,
+                cell.key_command,
+                cell.tool_tip
+              ),
+              bodyText: "",
+              notes: "",
+              connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
+            };
+          });
+
+        return [ribbonHeaderEntry, ...ribbonCellEntries];
+      }
+
+      return [
+        {
         entryId: buildUiJourneyConversationEntryId(nodeId, sequence),
         nodeInstanceId: nodeId,
         titleFieldId: buildUiJourneyConversationTitleFieldId(nodeId),
@@ -608,9 +761,9 @@ export const buildUiJourneyConversationEntries = ({
         bodyText: (node.data.body_text ?? "").trim(),
         notes: (node.data.notes ?? "").trim(),
         connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
-      };
-    })
-    .filter((entry): entry is UiJourneyConversationEntry => Boolean(entry));
+      },
+      ];
+    });
 };
 
 export const buildUiJourneySnapshotCapture = ({
