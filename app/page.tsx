@@ -290,6 +290,8 @@ const TABLE_SHOEHORNING_DISABLED_FIELDS = new Set<EditableMicrocopyField>([
   "error_text",
 ]);
 
+const ACCOUNT_ENTRY_CODE = "111";
+
 
 
 type EditorSnapshot = {
@@ -1049,8 +1051,8 @@ export default function Page() {
       return;
     }
 
-    if (enteredCode !== SINGLE_ACCOUNT_CODE) {
-      setAccountError("For now, only account code 000 is available.");
+    if (enteredCode !== ACCOUNT_ENTRY_CODE) {
+      setAccountError(`For now, only account code ${ACCOUNT_ENTRY_CODE} is available.`);
       return;
     }
 
@@ -3922,7 +3924,7 @@ export default function Page() {
         >
           <h1 style={{ marginTop: 0, marginBottom: 8 }}>FlowCopy Account</h1>
           <p style={{ marginTop: 0, fontSize: 13, color: "#475569" }}>
-            Enter your 3-digit code to continue. For now, use <strong>000</strong>.
+            Enter your 3-digit code to continue. For now, use <strong>{ACCOUNT_ENTRY_CODE}</strong>.
           </p>
 
           <label>
