@@ -38,6 +38,206 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session hardened node-type transitions in the inspector to prevent destructive retyping of specialized nodes.
+
+The main product behavior change is:
+
+- nodes created as `menu`, `frame`, or `ribbon` are now type-locked in the inspector
+- `default` remains the only type that can transition to any other type
+
+This keeps specialized configuration (menu terms, frame membership/bounds, ribbon cell config) from being unintentionally invalidated by type switching.
+
+## 2) Core Data Model
+
+No persisted schema or type contract changed.
+
+The implementation formalized a transition policy using the existing `node_type` model:
+
+- from `default` -> any type is allowed
+- from `menu`/`frame`/`ribbon` -> only same-type selection is allowed
+
+No new fields were added to node data.
+
+## 3) Persistence and Migration Strategy
+
+Persistence behavior remains unchanged:
+
+- node edits still flow through existing `setNodes(...)` and autosave/persist pathways
+- no storage-key updates
+- no migration/version updates
+
+Locking is enforced at interaction/runtime level, not through migration.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed in this session.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Sequence generation behavior is unaffected by node-type lock controls.
+
+## 5) Node Rendering and Shape System
+
+Inspector node-type UI in `app/page.tsx` was changed from a `<select>` dropdown to a 4-button type group:
+
+- Default
+- Menu
+- Frame
+- Ribbon
+
+Rendering behavior now communicates lock state directly:
+
+- active/current type appears selected
+- disallowed transitions render disabled (grayed out, not clickable)
+
+## 6) Editor Interaction Model
+
+Two layers now enforce type-lock behavior:
+
+1. **UI gating** in the inspector node-type button group:
+   - `isEnabled = selectedNode.data.node_type === "default" || isActive`
+   - disabled buttons are non-interactive and visibly muted
+2. **Defensive guard** in `updateNodeTypeById(...)`:
+   - early return when attempting non-default -> different-type transitions
+
+Additionally, Shift+F frame creation shortcut behavior was re-verified as already present:
+
+- guarded by `isEditableEventTarget(...)` in keyboard handler
+- invokes `createFrameFromSelectionRef.current()`
+- frame creation requires at least 2 selected non-frame nodes
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Replaced inspector node-type dropdown with explicit type buttons.
+2. Added visual/interaction disabled states for non-active specialized type options.
+3. Added transition guard in `updateNodeTypeById(...)` to prevent unsafe type mutation.
+4. Confirmed existing Shift+F frame shortcut already satisfied required behavior.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operational note observed during session:
+
+- local `next dev` startup can fail when a prior dev instance still holds `.next/dev/lock`; this did not affect compile validation.
+
+## 9) Recommended Next Steps
+
+1. Add focused tests for `updateNodeTypeById(...)` transition rules (default vs specialized).
+2. Add UI interaction tests for disabled node-type buttons in inspector.
+3. Consider adding a small inspector hint text explaining why specialized types are locked.
+4. Optionally centralize transition policy in a reusable helper for future editor surfaces.
+
+##03-07-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session expanded the Controlled Language inspector panel into a full glossary transfer surface.
+
+Users can now both export and import glossary terms directly from the same panel controls:
+
+- Export JSON / Export CSV
+- Import JSON / Import CSV
+
+The implementation stayed scoped to the inspector flow in `app/page.tsx` and preserved existing editor behavior.
+
+## 2) Core Data Model
+
+No persistent schema contracts were changed, but glossary transfer contracts were clarified:
+
+- Export payload is now built from `controlledLanguageAuditRows` and maps to:
+  - `fieldType`
+  - `term`
+  - `include`
+- JSON import expects array entries with `fieldType` and `term` (optional `include` ignored).
+- CSV import expects `Field Type` and `Term` columns (optional `Include` ignored).
+- Imported terms are always written as `include: true`.
+
+Duplicate detection uses the existing glossary identity key:
+
+- `buildControlledLanguageGlossaryKey(fieldType, term)`
+
+## 3) Persistence and Migration Strategy
+
+Persistence behavior remained compatible with current project storage:
+
+- imports update glossary state through `updateControlledLanguageGlossaryEntries(...)`
+- existing autosave/persist pipeline continues writing glossary changes to project canvas state
+- no migration key, storage key, or payload-version changes were introduced
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering or project-sequence logic changed in this session.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Glossary transfer changes are orthogonal to graph sequencing.
+
+## 5) Node Rendering and Shape System
+
+Canvas node/edge rendering contracts were unchanged.
+
+Inspector UI rendering in `app/page.tsx` was extended with:
+
+- new **Import JSON** and **Import CSV** buttons beside glossary export controls
+- two hidden file inputs (JSON/CSV) using the same pattern as project import pickers
+
+## 6) Editor Interaction Model
+
+Controlled Language panel interaction now supports file-based glossary ingestion:
+
+- clicking import buttons opens hidden file pickers
+- selected files are read client-side
+- JSON/CSV parsers normalize field type + term values
+- invalid/missing values are ignored
+- duplicates are skipped by glossary key
+
+Feedback behavior is surfaced through existing transfer feedback UI:
+
+- `Imported {count} glossary terms.` when new terms are added
+- `No new terms to import.` when all terms are duplicates/invalid
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Updated glossary export source to `controlledLanguageAuditRows` for Field Type/Term/Include parity.
+2. Added glossary JSON import flow with duplicate-skipping key logic.
+3. Added glossary CSV import flow with required column validation.
+4. Added dedicated hidden file inputs and trigger callbacks for glossary imports.
+5. Reused existing `transferFeedback` surface for success/info/error messaging.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operational note:
+
+- import parsing is intentionally tolerant of optional `include` fields/columns and enforces `include: true` on accepted new entries.
+
+## 9) Recommended Next Steps
+
+1. Add unit tests for glossary import normalization and duplicate-skipping behavior.
+2. Add tests for CSV header variants/whitespace handling.
+3. Add optional glossary import preview before commit for large files.
+4. Consider extracting glossary transfer handlers from `app/page.tsx` into a dedicated utility module.
+
+##03-07-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session finalized UI Journey Conversation correctness for ribbon-driven flows.
 
 Two conversation-facing fixes were delivered:
@@ -4161,48 +4361,3 @@ Local dev server occasionally reported an existing Next lock/port conflict due t
    - migration/sanitization helpers
 3. Add visual regression coverage for shape rendering (especially diamond layering).
 4. Consider backend sync model once multi-user/project sharing is needed.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

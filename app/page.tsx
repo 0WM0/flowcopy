@@ -165,6 +165,7 @@ import {
   buildUiJourneyConversationHtml,
   buildUiJourneyConversationRtf,
   buildDownloadFileName,
+  escapeCsvCell,
 } from "./lib/export";
 
 import {
@@ -655,6 +656,8 @@ export default function Page() {
   const isCanvasPointerInsideRef = useRef(false);
   const isCanvasPointerDownRef = useRef(false);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
+  const controlledLanguageJsonImportInputRef = useRef<HTMLInputElement | null>(null);
+  const controlledLanguageCsvImportInputRef = useRef<HTMLInputElement | null>(null);
   const hasLoadedStoreRef = useRef(false);
   const undoCaptureTimeoutRef = useRef<number | null>(null);
   const menuTermDeleteErrorTimeoutRef = useRef<number | null>(null);
@@ -1371,7 +1374,7 @@ export default function Page() {
   const addNodeAtClientPosition = useCallback(
     (
       clientPosition: { x: number; y: number },
-      nodeType: "default" | "menu" = "default"
+      nodeType: "default" | "menu" | "ribbon" = "default"
     ) => {
       const rf = rfRef.current;
       if (!rf) {
@@ -1393,6 +1396,15 @@ export default function Page() {
                 primary_cta: "Continue",
               },
             }
+          : nodeType === "ribbon"
+            ? {
+                id,
+                position,
+                data: {
+                  node_type: "ribbon",
+                  ribbon_config: normalizeRibbonNodeConfig(null),
+                },
+              }
           : {
               id,
               position,
@@ -1412,7 +1424,7 @@ export default function Page() {
   const addNodeAtEvent = useCallback(
     (
       event: React.MouseEvent,
-      nodeType: "default" | "menu" = "default"
+      nodeType: "default" | "menu" | "ribbon" = "default"
     ) => {
       addNodeAtClientPosition(
         {
@@ -1640,6 +1652,39 @@ export default function Page() {
           clientPosition,
           event.shiftKey ? "menu" : "default"
         );
+        return;
+      }
+
+      if (
+        event.key.toLowerCase() === "r" &&
+        event.shiftKey &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey
+      ) {
+        if (isEditableEventTarget(event.target)) {
+          return;
+        }
+
+        if (!isTargetInsideCanvas && !isBodyTarget) {
+          return;
+        }
+
+        if (isCanvasPointerDownRef.current) {
+          return;
+        }
+
+        if (!isTargetInsideCanvas && !isCanvasPointerInsideRef.current) {
+          return;
+        }
+
+        event.preventDefault();
+
+        const clientPosition =
+          lastCanvasPointerClientPositionRef.current ??
+          getCanvasFallbackClientPosition();
+
+        addNodeAtClientPosition(clientPosition, "ribbon");
         return;
       }
 
@@ -2109,7 +2154,18 @@ export default function Page() {
   const updateNodeTypeById = useCallback(
     (nodeId: string, nextType: NodeType) => {
       const targetNode = nodes.find((node) => node.id === nodeId);
-      if (!targetNode || targetNode.data.node_type === nextType) {
+      if (!targetNode) {
+        return;
+      }
+
+      if (
+        targetNode.data.node_type !== "default" &&
+        targetNode.data.node_type !== nextType
+      ) {
+        return;
+      }
+
+      if (targetNode.data.node_type === nextType) {
         return;
       }
 
@@ -3142,19 +3198,233 @@ export default function Page() {
   );
 
   const downloadTextFile = useCallback(
-    (projectId: string, extension: DownloadTextExtension, payload: string) => {
+    (
+      projectId: string,
+      extension: DownloadTextExtension,
+      payload: string,
+      explicitFileName?: string
+    ) => {
       const mimeType = DOWNLOAD_TEXT_MIME_BY_EXTENSION[extension];
       const blob = new Blob([payload], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = buildDownloadFileName(projectId, extension);
+      anchor.download =
+        explicitFileName ?? buildDownloadFileName(projectId, extension);
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
     },
     []
+  );
+
+  const importControlledLanguageGlossaryTerms = useCallback(
+    (entries: Array<{ fieldType: unknown; term: unknown }>): number => {
+      const existingGlossaryEntries = sanitizeControlledLanguageGlossary(
+        controlledLanguageGlossary
+      );
+      const glossaryKeySet = new Set(
+        existingGlossaryEntries.map((entry) =>
+          buildControlledLanguageGlossaryKey(entry.field_type, entry.term)
+        )
+      );
+      const nextGlossaryEntries = [...existingGlossaryEntries];
+      let importedCount = 0;
+
+      entries.forEach((entry) => {
+        const fieldType = normalizeControlledLanguageFieldType(entry.fieldType);
+        const term =
+          typeof entry.term === "string"
+            ? normalizeControlledLanguageTerm(entry.term)
+            : "";
+
+        if (!fieldType || !term) {
+          return;
+        }
+
+        const key = buildControlledLanguageGlossaryKey(fieldType, term);
+        if (glossaryKeySet.has(key)) {
+          return;
+        }
+
+        glossaryKeySet.add(key);
+        nextGlossaryEntries.push({
+          field_type: fieldType,
+          term,
+          include: true,
+        });
+        importedCount += 1;
+      });
+
+      if (importedCount > 0) {
+        updateControlledLanguageGlossaryEntries(() => nextGlossaryEntries);
+      }
+
+      return importedCount;
+    },
+    [controlledLanguageGlossary, updateControlledLanguageGlossaryEntries]
+  );
+
+  const exportControlledLanguageGlossary = useCallback(
+    (format: "json" | "csv") => {
+      if (!activeProject) {
+        return;
+      }
+
+      const glossaryEntries = controlledLanguageAuditRows.map((row) => ({
+        fieldType: row.field_type,
+        term: row.term,
+        include: row.include,
+      }));
+
+      const projectName = activeProject.name.trim() || activeProject.id;
+
+      if (format === "json") {
+        const payload = JSON.stringify(glossaryEntries, null, 2);
+
+        downloadTextFile(
+          activeProject.id,
+          "json",
+          payload,
+          `${projectName}-glossary.json`
+        );
+        return;
+      }
+
+      const header = ["Field Type", "Term", "Include"].join(",");
+      const rows = glossaryEntries.map((entry) =>
+        [
+          escapeCsvCell(entry.fieldType),
+          escapeCsvCell(entry.term),
+          escapeCsvCell(String(entry.include)),
+        ].join(",")
+      );
+      const payload = [header, ...rows].join("\n");
+
+      downloadTextFile(
+        activeProject.id,
+        "csv",
+        payload,
+        `${projectName}-glossary.csv`
+      );
+    },
+    [activeProject, controlledLanguageAuditRows, downloadTextFile]
+  );
+
+  const triggerControlledLanguageJsonImportPicker = useCallback(() => {
+    controlledLanguageJsonImportInputRef.current?.click();
+  }, []);
+
+  const triggerControlledLanguageCsvImportPicker = useCallback(() => {
+    controlledLanguageCsvImportInputRef.current?.click();
+  }, []);
+
+  const importControlledLanguageGlossaryFromJsonFile = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.currentTarget.value = "";
+
+      if (!file || !activeProject) {
+        return;
+      }
+
+      try {
+        const fileText = await file.text();
+        const parsed = safeJsonParse(fileText);
+
+        if (!Array.isArray(parsed)) {
+          throw new Error("Invalid glossary JSON. Expected an array of entries.");
+        }
+
+        const importedCount = importControlledLanguageGlossaryTerms(
+          parsed.map((item) => {
+            if (!item || typeof item !== "object") {
+              return { fieldType: null, term: null };
+            }
+
+            const source = item as {
+              fieldType?: unknown;
+              term?: unknown;
+            };
+
+            return {
+              fieldType: source.fieldType,
+              term: source.term,
+            };
+          })
+        );
+
+        setTransferFeedback({
+          type: importedCount > 0 ? "success" : "info",
+          message:
+            importedCount > 0
+              ? `Imported ${importedCount} glossary terms.`
+              : "No new terms to import.",
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to import glossary JSON.";
+        setTransferFeedback({
+          type: "error",
+          message,
+        });
+      }
+    },
+    [activeProject, importControlledLanguageGlossaryTerms]
+  );
+
+  const importControlledLanguageGlossaryFromCsvFile = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.currentTarget.value = "";
+
+      if (!file || !activeProject) {
+        return;
+      }
+
+      try {
+        const fileText = await file.text();
+        const parsed = parseCsvText(fileText);
+
+        const headerMap = new Map(
+          parsed.headers.map((header) => [header.trim().toLowerCase(), header])
+        );
+        const fieldTypeHeader = headerMap.get("field type");
+        const termHeader = headerMap.get("term");
+
+        if (!fieldTypeHeader || !termHeader) {
+          throw new Error('CSV must include "Field Type" and "Term" columns.');
+        }
+
+        const importedCount = importControlledLanguageGlossaryTerms(
+          parsed.rows.map((row) => ({
+            fieldType: row[fieldTypeHeader],
+            term: row[termHeader],
+          }))
+        );
+
+        setTransferFeedback({
+          type: importedCount > 0 ? "success" : "info",
+          message:
+            importedCount > 0
+              ? `Imported ${importedCount} glossary terms.`
+              : "No new terms to import.",
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to import glossary CSV.";
+        setTransferFeedback({
+          type: "error",
+          message,
+        });
+      }
+    },
+    [activeProject, importControlledLanguageGlossaryTerms]
   );
 
   const exportUiJourneyConversation = useCallback(
@@ -4671,6 +4941,7 @@ export default function Page() {
           Click a node to edit structured fields. Double-click empty canvas to add a
           default node. Keyboard shortcuts: <strong>Tab</strong> adds Default, and
           <strong> Shift+Tab</strong> adds Menu at the pointer position.
+          <strong> Shift+R</strong> adds Ribbon at the pointer position.
           <strong> Shift+F</strong> frames selected nodes. All changes autosave. Use
           each field’s “Glossary” button to open a term picker.
         </p>
@@ -5013,9 +5284,62 @@ export default function Page() {
               <h3 style={{ margin: 0, fontSize: 14, color: "#1e3a8a" }}>
                 Controlled Language
               </h3>
-              <span style={{ fontSize: 11, color: "#1e3a8a", fontWeight: 700 }}>
-                {controlledLanguageAuditRows.length} term row(s)
-              </span>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexWrap: "wrap",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <span style={{ fontSize: 11, color: "#1e3a8a", fontWeight: 700 }}>
+                  {controlledLanguageAuditRows.length} term row(s)
+                </span>
+                <button
+                  type="button"
+                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
+                  onClick={() => exportControlledLanguageGlossary("json")}
+                >
+                  Export JSON
+                </button>
+                <button
+                  type="button"
+                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
+                  onClick={() => exportControlledLanguageGlossary("csv")}
+                >
+                  Export CSV
+                </button>
+                <button
+                  type="button"
+                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
+                  onClick={triggerControlledLanguageJsonImportPicker}
+                >
+                  Import JSON
+                </button>
+                <button
+                  type="button"
+                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
+                  onClick={triggerControlledLanguageCsvImportPicker}
+                >
+                  Import CSV
+                </button>
+                <input
+                  ref={controlledLanguageJsonImportInputRef}
+                  type="file"
+                  accept=".json,application/json,text/json"
+                  style={{ display: "none" }}
+                  onChange={importControlledLanguageGlossaryFromJsonFile}
+                />
+                <input
+                  ref={controlledLanguageCsvImportInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  style={{ display: "none" }}
+                  onChange={importControlledLanguageGlossaryFromCsvFile}
+                />
+              </div>
             </div>
 
             <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
@@ -5515,27 +5839,45 @@ export default function Page() {
               <strong>Y position:</strong> {Math.round(selectedNode.position.y)}
             </div>
 
-            <label>
+            <div>
               <div style={inspectorFieldLabelStyle}>Node type</div>
-              <select
-                style={inputStyle}
-                value={selectedNode.data.node_type}
-                onChange={(event) => {
-                  const nextType = event.target.value;
-                  if (!isNodeType(nextType)) {
-                    return;
-                  }
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {NODE_TYPE_OPTIONS.map((nodeTypeOption) => {
+                  const isActive = selectedNode.data.node_type === nodeTypeOption;
+                  const isEnabled =
+                    selectedNode.data.node_type === "default" || isActive;
 
-                  updateSelectedNodeType(nextType);
-                }}
-              >
-                {NODE_TYPE_OPTIONS.map((nodeTypeOption) => (
-                  <option key={`inspector-node-type:${nodeTypeOption}`} value={nodeTypeOption}>
-                    {NODE_TYPE_LABELS[nodeTypeOption]}
-                  </option>
-                ))}
-              </select>
-            </label>
+                  return (
+                    <button
+                      key={`inspector-node-type:${nodeTypeOption}`}
+                      type="button"
+                      style={{
+                        ...buttonStyle,
+                        fontSize: 11,
+                        padding: "4px 8px",
+                        borderColor: isActive ? "#1d4ed8" : "#d4d4d8",
+                        background: isActive ? "#dbeafe" : isEnabled ? "#fff" : "#f4f4f5",
+                        color: isActive ? "#1e3a8a" : isEnabled ? "#334155" : "#a1a1aa",
+                        fontWeight: isActive ? 700 : 600,
+                        cursor: isEnabled ? "pointer" : "not-allowed",
+                        opacity: isEnabled ? 1 : 0.7,
+                      }}
+                      disabled={!isEnabled}
+                      aria-pressed={isActive}
+                      onClick={() => {
+                        if (!isEnabled || !isNodeType(nodeTypeOption)) {
+                          return;
+                        }
+
+                        updateSelectedNodeType(nodeTypeOption);
+                      }}
+                    >
+                      {NODE_TYPE_LABELS[nodeTypeOption]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             {selectedNode.data.node_type === "menu" ? (
               <>
@@ -6931,129 +7273,3 @@ export default function Page() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
