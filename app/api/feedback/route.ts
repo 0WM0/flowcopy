@@ -58,9 +58,9 @@ export async function POST(request: Request) {
     }
 
     const email = toNullableTrimmedString(body.email);
-    if (email && !FEEDBACK_EMAIL_REGEX.test(email)) {
+    if (email && email.includes("@") && !FEEDBACK_EMAIL_REGEX.test(email)) {
       return NextResponse.json(
-        { error: "Email must be valid or omitted." },
+        { error: "If you include an email, it must be valid." },
         { status: 400 }
       );
     }

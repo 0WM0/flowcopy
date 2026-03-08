@@ -32,6 +32,105 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-08-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session added a new in-editor help surface and refined feedback intake wording/validation.
+
+Two user-facing outcomes shipped:
+
+- A red **Get Help** action was added beside **Send Feedback**, opening a dedicated Help modal.
+- Feedback contact input was broadened from email-only wording to **Name or email (optional)**.
+
+## 2) Core Data Model
+
+No persisted app schema changed.
+
+Runtime/UI contracts added in `app/page.tsx`:
+
+- `HelpShortcutDefinition`
+- `HELP_CANVAS_SHORTCUTS`
+- `HELP_CONTEXT_SHORTCUTS`
+
+Feedback payload shape remains compatible (`feedbackType`, `email`, `message`, `context`), but `email` now semantically accepts either:
+
+- plain name/contact text, or
+- a valid email address.
+
+## 3) Persistence and Migration Strategy
+
+No storage/migration changes were required:
+
+- no localStorage key updates
+- no project payload changes
+- no migration-path updates
+
+Feedback transport remains `POST /api/feedback` to Supabase. Validation was aligned client/server to only enforce email regex when the input includes `@`.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Help/feedback UX changes are orthogonal to graph sequencing.
+
+## 5) Node Rendering and Shape System
+
+Canvas node/edge shape rendering was unchanged.
+
+UI rendering additions were modal/action-bar scoped:
+
+- new red **Get Help** button in top actions
+- new Help modal overlay with shortcut/workflow/tool reference sections
+
+## 6) Editor Interaction Model
+
+### Help modal behavior
+
+- Open via **Get Help** button.
+- Close via backdrop click, `Escape`, **Close**, or **Got it**.
+
+### Feedback modal behavior
+
+- Label updated to **Name or email (optional)**.
+- Input changed from `type="email"` to `type="text"`.
+- Placeholder updated to `Jane Doe or you@example.com`.
+- Client-side validation now treats non-`@` values as valid names; only `@` values are email-validated.
+- API route now mirrors this rule so server validation matches frontend behavior.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added help modal state/handlers and keyboard/backdrop close behavior.
+2. Added red **Get Help** button adjacent to **Send Feedback**.
+3. Added structured help content for shortcuts, context behavior, workflows, and panel map.
+4. Updated feedback contact wording and validation semantics to support name-or-email input.
+5. Updated `/api/feedback` validation message/rule for contact compatibility.
+
+## 8) Validation and Operational Notes
+
+Validation run this session:
+
+- `npx eslint app/page.tsx app/api/feedback/route.ts`
+
+Result:
+
+- 0 errors
+- existing baseline warnings remain in `app/page.tsx` (unused imports/vars), unchanged by this feature behavior.
+
+## 9) Recommended Next Steps
+
+1. Rename internal variable/API naming from `email` to `contact` (or split into `name` + `email`) for clearer semantics.
+2. Add focused tests for feedback validation parity (name-only, valid email, invalid email-like input).
+3. Extract Help/Feedback modals into dedicated components to reduce `app/page.tsx` size.
+4. Consider adding Help modal deep-links/anchors for faster navigation as help content grows.
+
 ##03-07-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.

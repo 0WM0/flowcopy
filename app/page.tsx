@@ -285,6 +285,11 @@ type ImportFeedback = {
 type FeedbackType = "user_interface" | "tool_functionality" | "other";
 type FeedbackSubmitStatus = "idle" | "submitting" | "success" | "error";
 
+type HelpShortcutDefinition = {
+  keys: string;
+  description: string;
+};
+
 const FEEDBACK_TYPE_OPTIONS: Array<{ value: FeedbackType; label: string }> = [
   { value: "user_interface", label: "User Interface" },
   { value: "tool_functionality", label: "Tool functionality" },
@@ -293,6 +298,85 @@ const FEEDBACK_TYPE_OPTIONS: Array<{ value: FeedbackType; label: string }> = [
 
 const FEEDBACK_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const FEEDBACK_MAX_MESSAGE_LENGTH = 5000;
+
+const HELP_CANVAS_SHORTCUTS: HelpShortcutDefinition[] = [
+  {
+    keys: "Tab",
+    description: "Add a Default node at the pointer position in Canvas mode.",
+  },
+  {
+    keys: "Shift + Tab",
+    description: "Add a Menu node at the pointer position in Canvas mode.",
+  },
+  {
+    keys: "Shift + R",
+    description: "Add a Ribbon node at the pointer position in Canvas mode.",
+  },
+  {
+    keys: "Shift + F",
+    description:
+      "Frame selected non-frame nodes (requires at least two selected nodes).",
+  },
+  {
+    keys: "Delete / Backspace",
+    description: "Delete selected node(s) or selected edge.",
+  },
+  {
+    keys: "Escape",
+    description: "Close the currently open modal window.",
+  },
+];
+
+const HELP_CONTEXT_SHORTCUTS: HelpShortcutDefinition[] = [
+  {
+    keys: "Enter (Account code)",
+    description: "Submit account code on the account-entry view.",
+  },
+  {
+    keys: "Enter (New project name)",
+    description: "Create the project from the create-project input.",
+  },
+  {
+    keys: "Enter (Snapshot name)",
+    description: "Save the UI Journey snapshot using the typed name.",
+  },
+  {
+    keys: "Enter (Global option input)",
+    description: "Add the typed option in Global Attribute Admin.",
+  },
+  {
+    keys: "Enter (Controlled Language draft term)",
+    description: "Add a new glossary term row.",
+  },
+  {
+    keys: "Enter (Controlled Language row term)",
+    description: "Commit rename edits for an existing glossary term.",
+  },
+  {
+    keys: "Enter (Menu right connections)",
+    description: "Commit and normalize menu right-connections value.",
+  },
+  {
+    keys: "Enter / Space (Frame title chip)",
+    description: "Start frame-title editing.",
+  },
+  {
+    keys: "Enter (Frame title input)",
+    description: "Commit frame title (blur input).",
+  },
+  {
+    keys: "Escape (Frame title input)",
+    description: "Exit frame-title editing.",
+  },
+  {
+    keys: "Enter / Space (Ribbon cell)",
+    description: "Open Ribbon cell editor popup.",
+  },
+  {
+    keys: "Escape (Ribbon cell popup)",
+    description: "Close Ribbon cell editor popup.",
+  },
+];
 
 const TABLE_SHOEHORNING_DISABLED_FIELDS = new Set<EditableMicrocopyField>([
   "body_text",
@@ -661,6 +745,7 @@ export default function Page() {
   const [transferFeedback, setTransferFeedback] = useState<ImportFeedback | null>(null);
   const [sidePanelWidth, setSidePanelWidth] = useState<number>(readInitialSidePanelWidth);
   const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackType, setFeedbackType] = useState<FeedbackType>("user_interface");
   const [feedbackEmail, setFeedbackEmail] = useState("");
@@ -1980,7 +2065,9 @@ export default function Page() {
   const trimmedFeedbackEmail = feedbackEmail.trim();
   const trimmedFeedbackMessage = feedbackMessage.trim();
   const isFeedbackEmailValid =
-    trimmedFeedbackEmail.length === 0 || FEEDBACK_EMAIL_REGEX.test(trimmedFeedbackEmail);
+    trimmedFeedbackEmail.length === 0 ||
+    !trimmedFeedbackEmail.includes("@") ||
+    FEEDBACK_EMAIL_REGEX.test(trimmedFeedbackEmail);
   const isFeedbackMessageValid =
     trimmedFeedbackMessage.length > 0 &&
     trimmedFeedbackMessage.length <= FEEDBACK_MAX_MESSAGE_LENGTH;
@@ -1988,6 +2075,14 @@ export default function Page() {
     feedbackSubmitStatus !== "submitting" &&
     isFeedbackEmailValid &&
     isFeedbackMessageValid;
+
+  const openHelpModal = useCallback(() => {
+    setIsHelpModalOpen(true);
+  }, []);
+
+  const closeHelpModal = useCallback(() => {
+    setIsHelpModalOpen(false);
+  }, []);
 
   const openFeedbackModal = useCallback(() => {
     setFeedbackSubmitStatus("idle");
@@ -2023,11 +2118,12 @@ export default function Page() {
 
       if (
         trimmedFeedbackEmail.length > 0 &&
+        trimmedFeedbackEmail.includes("@") &&
         !FEEDBACK_EMAIL_REGEX.test(trimmedFeedbackEmail)
       ) {
         setFeedbackSubmitStatus("error");
         setFeedbackSubmitMessage(
-          "Please enter a valid email address or leave it blank."
+          "If you include an email, please enter a valid email address."
         );
         return;
       }
@@ -4047,6 +4143,24 @@ export default function Page() {
     };
   }, [closeFeedbackModal, isFeedbackModalOpen]);
 
+  useEffect(() => {
+    if (!isHelpModalOpen) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeHelpModal();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [closeHelpModal, isHelpModalOpen]);
+
   if (store.session.view === "account") {
     return (
       <main
@@ -4924,6 +5038,19 @@ export default function Page() {
               onClick={openFeedbackModal}
             >
               Send Feedback
+            </button>
+            <button
+              type="button"
+              style={{
+                ...buttonStyle,
+                borderColor: "#dc2626",
+                background: "#fef2f2",
+                color: "#991b1b",
+                fontWeight: 700,
+              }}
+              onClick={openHelpModal}
+            >
+              Get Help
             </button>
             <input
               ref={importFileInputRef}
@@ -7095,6 +7222,200 @@ export default function Page() {
         </section>
       </aside>
 
+      {isHelpModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="help-modal-title"
+          onClick={closeHelpModal}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 2090,
+            background: "rgba(15, 23, 42, 0.58)",
+            display: "grid",
+            placeItems: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(960px, 97vw)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              border: "1px solid #cbd5e1",
+              borderRadius: 12,
+              background: "#ffffff",
+              boxShadow: "0 22px 45px rgba(15, 23, 42, 0.24)",
+              padding: 14,
+              display: "grid",
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              <h3 id="help-modal-title" style={{ margin: 0, fontSize: 18, color: "#0f172a" }}>
+                FlowCopy Help &amp; Key Commands
+              </h3>
+
+              <button
+                type="button"
+                style={{
+                  ...buttonStyle,
+                  borderColor: "#94a3b8",
+                  color: "#0f172a",
+                  fontWeight: 700,
+                }}
+                onClick={closeHelpModal}
+              >
+                Close
+              </button>
+            </div>
+
+            <p style={{ margin: 0, fontSize: 12, color: "#475569" }}>
+              This guide covers core workflows, keyboard shortcuts, and where to find
+              each feature in the editor.
+            </p>
+
+            <section
+              style={{
+                border: "1px solid #dbeafe",
+                borderRadius: 8,
+                background: "#f8fbff",
+                padding: 10,
+              }}
+            >
+              <h4 style={{ marginTop: 0, marginBottom: 8, fontSize: 14, color: "#1e3a8a" }}>
+                Global keyboard shortcuts (Canvas mode)
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 12 }}>
+                {HELP_CANVAS_SHORTCUTS.map((shortcut) => (
+                  <li key={`help-canvas-shortcut:${shortcut.keys}`}>
+                    <strong>{shortcut.keys}</strong> — {shortcut.description}
+                  </li>
+                ))}
+              </ul>
+              <p style={{ marginTop: 8, marginBottom: 0, fontSize: 11, color: "#475569" }}>
+                Note: these shortcuts are ignored while typing in inputs, textareas, or select fields.
+              </p>
+            </section>
+
+            <section
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: 8,
+                background: "#f8fafc",
+                padding: 10,
+              }}
+            >
+              <h4 style={{ marginTop: 0, marginBottom: 8, fontSize: 14, color: "#1e293b" }}>
+                Context-specific key behavior
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 12 }}>
+                {HELP_CONTEXT_SHORTCUTS.map((shortcut) => (
+                  <li key={`help-context-shortcut:${shortcut.keys}`}>
+                    <strong>{shortcut.keys}</strong> — {shortcut.description}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: 8,
+                background: "#ffffff",
+                padding: 10,
+              }}
+            >
+              <h4 style={{ marginTop: 0, marginBottom: 8, fontSize: 14, color: "#1e293b" }}>
+                Core workflows
+              </h4>
+              <ol style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 12 }}>
+                <li>
+                  <strong>Create nodes:</strong> double-click empty canvas to add Default, or use Tab / Shift+Tab / Shift+R.
+                </li>
+                <li>
+                  <strong>Connect nodes:</strong> drag from source handles to target handles to create edges.
+                </li>
+                <li>
+                  <strong>Edit node data:</strong> click a node, then use the Node Data Panel on the right.
+                </li>
+                <li>
+                  <strong>Frame a flow area:</strong> select 2+ non-frame nodes, then use Shift+F or “Frame selected nodes”.
+                </li>
+                <li>
+                  <strong>Edit edges:</strong> click an edge to open Edge Inspector and adjust color/style/direction.
+                </li>
+                <li>
+                  <strong>Undo recent changes:</strong> use Undo in the top actions bar (up to 3 snapshots).
+                </li>
+              </ol>
+            </section>
+
+            <section
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: 8,
+                background: "#ffffff",
+                padding: 10,
+              }}
+            >
+              <h4 style={{ marginTop: 0, marginBottom: 8, fontSize: 14, color: "#1e293b" }}>
+                Panels and tools (where to do what)
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 12 }}>
+                <li>
+                  <strong>Top actions:</strong> Back, Canvas/Table view toggle, Export CSV/XML/JSON, Import, Undo, Send Feedback, Get Help.
+                </li>
+                <li>
+                  <strong>Project Sequence ID panel:</strong> sequence preview, ordered node list, and node-id visibility toggle.
+                </li>
+                <li>
+                  <strong>Node Data Panel:</strong> edit node-type fields (Default / Menu / Ribbon / Frame).
+                </li>
+                <li>
+                  <strong>Controlled Language panel:</strong> manage glossary terms, include/exclude options, and import/export glossary.
+                </li>
+                <li>
+                  <strong>Global Attribute Admin:</strong> manage option lists for Tone, Polarity, Reversibility, Concept, Action Type, and Card Style.
+                </li>
+                <li>
+                  <strong>UI Journey Conversation + Snapshots:</strong> build/export conversation text and save/recall journey snapshots.
+                </li>
+                <li>
+                  <strong>Feedback modal:</strong> submit Product/UI/tool feedback to the Supabase feedback endpoint.
+                </li>
+              </ul>
+            </section>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                style={{
+                  ...buttonStyle,
+                  borderColor: "#dc2626",
+                  background: "#fef2f2",
+                  color: "#991b1b",
+                  fontWeight: 700,
+                }}
+                onClick={closeHelpModal}
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isFeedbackModalOpen && (
         <div
           role="dialog"
@@ -7177,13 +7498,13 @@ export default function Page() {
               </label>
 
               <label>
-                <div style={inspectorFieldLabelStyle}>Email (optional)</div>
+                <div style={inspectorFieldLabelStyle}>Name or email (optional)</div>
                 <input
                   style={inputStyle}
-                  type="email"
+                  type="text"
                   value={feedbackEmail}
                   onChange={(event) => setFeedbackEmail(event.target.value)}
-                  placeholder="you@example.com"
+                  placeholder="Jane Doe or you@example.com"
                   disabled={feedbackSubmitStatus === "submitting"}
                 />
               </label>
@@ -7213,8 +7534,8 @@ export default function Page() {
               >
                 <span>
                   {isFeedbackEmailValid
-                    ? "Email is optional."
-                    : "Please enter a valid email format or leave it empty."}
+                    ? "Name or email is optional."
+                    : "If you include an email, please use a valid format."}
                 </span>
                 <span>
                   {trimmedFeedbackMessage.length}/{FEEDBACK_MAX_MESSAGE_LENGTH}
