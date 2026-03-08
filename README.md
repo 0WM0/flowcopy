@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FlowCopy
+
+FlowCopy is a Next.js app for authoring and reviewing UX microcopy flows.
 
 ## Getting Started
 
-First, run the development server:
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Feedback Modal → Supabase Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The inspector panel includes a **Send Feedback** button (purple) that opens a modal with:
 
-## Learn More
+- Feedback type: `User Interface` / `Tool functionality` / `Other`
+- Optional email
+- Long text feedback field
 
-To learn more about Next.js, take a look at the following resources:
+Submissions are sent to `POST /api/feedback`, which writes to Supabase using the REST API.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 1) Environment Variables
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Add the following to your `.env.local`:
 
-## Deploy on Vercel
+```bash
+SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+# Optional: defaults to feedback_submissions
+SUPABASE_FEEDBACK_TABLE=feedback_submissions
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+> **Important:** `SUPABASE_SERVICE_ROLE_KEY` is server-only. Do not expose it to the browser.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 2) Create Table in Supabase
+
+Run this SQL in Supabase SQL editor:
+
+```sql
+create table if not exists public.feedback_submissions (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  feedback_type text not null check (feedback_type in ('user_interface', 'tool_functionality', 'other')),
+  email text null,
+  message text not null,
+  account_id text null,
+  account_code text null,
+  project_id text null,
+  project_name text null,
+  user_agent text null
+);
+```
+
+If you set `SUPABASE_FEEDBACK_TABLE` to a different name, create that table instead.
+
+### 3) Verify
+
+1. Open any project in the editor.
+2. In the inspector, click **Send Feedback**.
+3. Submit a message.
+4. Confirm row insertion in your Supabase table.
+

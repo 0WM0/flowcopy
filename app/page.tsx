@@ -282,6 +282,18 @@ type ImportFeedback = {
   message: string;
 };
 
+type FeedbackType = "user_interface" | "tool_functionality" | "other";
+type FeedbackSubmitStatus = "idle" | "submitting" | "success" | "error";
+
+const FEEDBACK_TYPE_OPTIONS: Array<{ value: FeedbackType; label: string }> = [
+  { value: "user_interface", label: "User Interface" },
+  { value: "tool_functionality", label: "Tool functionality" },
+  { value: "other", label: "Other" },
+];
+
+const FEEDBACK_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const FEEDBACK_MAX_MESSAGE_LENGTH = 5000;
+
 const TABLE_SHOEHORNING_DISABLED_FIELDS = new Set<EditableMicrocopyField>([
   "body_text",
   "primary_cta",
@@ -649,6 +661,15 @@ export default function Page() {
   const [transferFeedback, setTransferFeedback] = useState<ImportFeedback | null>(null);
   const [sidePanelWidth, setSidePanelWidth] = useState<number>(readInitialSidePanelWidth);
   const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [feedbackType, setFeedbackType] = useState<FeedbackType>("user_interface");
+  const [feedbackEmail, setFeedbackEmail] = useState("");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackSubmitStatus, setFeedbackSubmitStatus] =
+    useState<FeedbackSubmitStatus>("idle");
+  const [feedbackSubmitMessage, setFeedbackSubmitMessage] = useState<string | null>(
+    null
+  );
 
   const rfRef = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1955,6 +1976,114 @@ export default function Page() {
 
   const canCreateFrameFromSelection =
     selectedNonFrameNodesForFrameCreation.length >= 2;
+
+  const trimmedFeedbackEmail = feedbackEmail.trim();
+  const trimmedFeedbackMessage = feedbackMessage.trim();
+  const isFeedbackEmailValid =
+    trimmedFeedbackEmail.length === 0 || FEEDBACK_EMAIL_REGEX.test(trimmedFeedbackEmail);
+  const isFeedbackMessageValid =
+    trimmedFeedbackMessage.length > 0 &&
+    trimmedFeedbackMessage.length <= FEEDBACK_MAX_MESSAGE_LENGTH;
+  const canSubmitFeedback =
+    feedbackSubmitStatus !== "submitting" &&
+    isFeedbackEmailValid &&
+    isFeedbackMessageValid;
+
+  const openFeedbackModal = useCallback(() => {
+    setFeedbackSubmitStatus("idle");
+    setFeedbackSubmitMessage(null);
+    setIsFeedbackModalOpen(true);
+  }, []);
+
+  const closeFeedbackModal = useCallback(() => {
+    if (feedbackSubmitStatus === "submitting") {
+      return;
+    }
+
+    setIsFeedbackModalOpen(false);
+  }, [feedbackSubmitStatus]);
+
+  const handleFeedbackSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      if (trimmedFeedbackMessage.length === 0) {
+        setFeedbackSubmitStatus("error");
+        setFeedbackSubmitMessage("Please add your feedback before sending.");
+        return;
+      }
+
+      if (trimmedFeedbackMessage.length > FEEDBACK_MAX_MESSAGE_LENGTH) {
+        setFeedbackSubmitStatus("error");
+        setFeedbackSubmitMessage(
+          `Feedback must be ${FEEDBACK_MAX_MESSAGE_LENGTH} characters or less.`
+        );
+        return;
+      }
+
+      if (
+        trimmedFeedbackEmail.length > 0 &&
+        !FEEDBACK_EMAIL_REGEX.test(trimmedFeedbackEmail)
+      ) {
+        setFeedbackSubmitStatus("error");
+        setFeedbackSubmitMessage(
+          "Please enter a valid email address or leave it blank."
+        );
+        return;
+      }
+
+      setFeedbackSubmitStatus("submitting");
+      setFeedbackSubmitMessage(null);
+
+      try {
+        const response = await fetch("/api/feedback", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            feedbackType,
+            email: trimmedFeedbackEmail || null,
+            message: trimmedFeedbackMessage,
+            context: {
+              accountId: activeAccount?.id ?? null,
+              accountCode: activeAccount?.code ?? null,
+              projectId: activeProject?.id ?? null,
+              projectName: activeProject?.name ?? null,
+            },
+          }),
+        });
+
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Unable to send feedback right now.");
+        }
+
+        setFeedbackSubmitStatus("success");
+        setFeedbackSubmitMessage("Thanks! Your feedback has been sent.");
+        setFeedbackType("user_interface");
+        setFeedbackEmail("");
+        setFeedbackMessage("");
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Unable to send feedback right now.";
+        setFeedbackSubmitStatus("error");
+        setFeedbackSubmitMessage(message);
+      }
+    },
+    [
+      activeAccount?.code,
+      activeAccount?.id,
+      activeProject?.id,
+      activeProject?.name,
+      feedbackType,
+      trimmedFeedbackEmail,
+      trimmedFeedbackMessage,
+    ]
+  );
 
   const openUiJourneyConversation = useCallback(() => {
     const entries = buildUiJourneyConversationEntries({
@@ -3900,6 +4029,24 @@ export default function Page() {
     };
   }, [isUiJourneyConversationOpen]);
 
+  useEffect(() => {
+    if (!isFeedbackModalOpen) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeFeedbackModal();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [closeFeedbackModal, isFeedbackModalOpen]);
+
   if (store.session.view === "account") {
     return (
       <main
@@ -4761,6 +4908,22 @@ export default function Page() {
               disabled={undoStack.length === 0}
             >
               Undo ({undoStack.length}/3)
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              style={{
+                ...buttonStyle,
+                borderColor: "#a855f7",
+                background: "#faf5ff",
+                color: "#6b21a8",
+                fontWeight: 700,
+              }}
+              onClick={openFeedbackModal}
+            >
+              Send Feedback
             </button>
             <input
               ref={importFileInputRef}
@@ -6931,6 +7094,199 @@ export default function Page() {
         )}
         </section>
       </aside>
+
+      {isFeedbackModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="feedback-modal-title"
+          onClick={closeFeedbackModal}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 2100,
+            background: "rgba(15, 23, 42, 0.56)",
+            display: "grid",
+            placeItems: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(640px, 96vw)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              border: "1px solid #cbd5e1",
+              borderRadius: 12,
+              background: "#ffffff",
+              boxShadow: "0 22px 45px rgba(15, 23, 42, 0.24)",
+              padding: 14,
+              display: "grid",
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <h3 id="feedback-modal-title" style={{ margin: 0, fontSize: 18, color: "#0f172a" }}>
+                Send Feedback
+              </h3>
+
+              <button
+                type="button"
+                style={{
+                  ...buttonStyle,
+                  borderColor: "#94a3b8",
+                  color: "#0f172a",
+                  fontWeight: 700,
+                  opacity: feedbackSubmitStatus === "submitting" ? 0.5 : 1,
+                  cursor: feedbackSubmitStatus === "submitting" ? "not-allowed" : "pointer",
+                }}
+                onClick={closeFeedbackModal}
+                disabled={feedbackSubmitStatus === "submitting"}
+              >
+                Close
+              </button>
+            </div>
+
+            <p style={{ margin: 0, fontSize: 12, color: "#475569" }}>
+              Share product feedback directly into your Supabase feedback inbox.
+            </p>
+
+            <form onSubmit={handleFeedbackSubmit} style={{ display: "grid", gap: 10 }}>
+              <label>
+                <div style={inspectorFieldLabelStyle}>Feedback type</div>
+                <select
+                  style={inputStyle}
+                  value={feedbackType}
+                  onChange={(event) => setFeedbackType(event.target.value as FeedbackType)}
+                  disabled={feedbackSubmitStatus === "submitting"}
+                >
+                  {FEEDBACK_TYPE_OPTIONS.map((option) => (
+                    <option key={`feedback-type:${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <div style={inspectorFieldLabelStyle}>Email (optional)</div>
+                <input
+                  style={inputStyle}
+                  type="email"
+                  value={feedbackEmail}
+                  onChange={(event) => setFeedbackEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  disabled={feedbackSubmitStatus === "submitting"}
+                />
+              </label>
+
+              <label>
+                <div style={inspectorFieldLabelStyle}>Feedback</div>
+                <textarea
+                  style={{ ...inputStyle, minHeight: 160, resize: "vertical" }}
+                  value={feedbackMessage}
+                  onChange={(event) => setFeedbackMessage(event.target.value)}
+                  maxLength={FEEDBACK_MAX_MESSAGE_LENGTH}
+                  placeholder="What should we improve?"
+                  disabled={feedbackSubmitStatus === "submitting"}
+                />
+              </label>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  fontSize: 11,
+                  color: isFeedbackEmailValid ? "#64748b" : "#b91c1c",
+                }}
+              >
+                <span>
+                  {isFeedbackEmailValid
+                    ? "Email is optional."
+                    : "Please enter a valid email format or leave it empty."}
+                </span>
+                <span>
+                  {trimmedFeedbackMessage.length}/{FEEDBACK_MAX_MESSAGE_LENGTH}
+                </span>
+              </div>
+
+              {feedbackSubmitMessage && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    borderRadius: 6,
+                    padding: "6px 8px",
+                    border:
+                      feedbackSubmitStatus === "error"
+                        ? "1px solid #fecaca"
+                        : feedbackSubmitStatus === "success"
+                          ? "1px solid #bbf7d0"
+                          : "1px solid #bfdbfe",
+                    background:
+                      feedbackSubmitStatus === "error"
+                        ? "#fef2f2"
+                        : feedbackSubmitStatus === "success"
+                          ? "#f0fdf4"
+                          : "#eff6ff",
+                    color:
+                      feedbackSubmitStatus === "error"
+                        ? "#991b1b"
+                        : feedbackSubmitStatus === "success"
+                          ? "#14532d"
+                          : "#1e3a8a",
+                  }}
+                >
+                  {feedbackSubmitMessage}
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button
+                  type="button"
+                  style={{
+                    ...buttonStyle,
+                    borderColor: "#94a3b8",
+                    color: "#0f172a",
+                    fontWeight: 700,
+                    opacity: feedbackSubmitStatus === "submitting" ? 0.5 : 1,
+                    cursor: feedbackSubmitStatus === "submitting" ? "not-allowed" : "pointer",
+                  }}
+                  onClick={closeFeedbackModal}
+                  disabled={feedbackSubmitStatus === "submitting"}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    ...buttonStyle,
+                    borderColor: "#a855f7",
+                    background: "#faf5ff",
+                    color: "#6b21a8",
+                    fontWeight: 700,
+                    opacity: canSubmitFeedback ? 1 : 0.55,
+                    cursor: canSubmitFeedback ? "pointer" : "not-allowed",
+                  }}
+                  disabled={!canSubmitFeedback}
+                >
+                  {feedbackSubmitStatus === "submitting" ? "Sending..." : "Send feedback"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {isUiJourneyConversationOpen && (
         <div
