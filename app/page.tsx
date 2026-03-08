@@ -662,7 +662,9 @@ export default function Page() {
   const undoCaptureTimeoutRef = useRef<number | null>(null);
   const menuTermDeleteErrorTimeoutRef = useRef<number | null>(null);
   const captureUndoSnapshotRef = useRef<() => void>(() => undefined);
-  const createFrameFromSelectionRef = useRef<() => void>(() => undefined);
+  const createFrameFromSelectionRef = useRef<
+    (selectedNodesForFrameCreation?: FlowNode[]) => void
+  >(() => undefined);
   const updateMenuNodeConfigByIdRef = useRef<
     (
       nodeId: string,
@@ -1547,6 +1549,7 @@ export default function Page() {
     ({ nodes: selectedNodes, edges: selectedEdges }: OnSelectionChangeParams<FlowNode, FlowEdge>) => {
       clearMenuTermDeleteError();
 
+      const hasSelectedNodes = selectedNodes.length > 0;
       const nextSelectedEdgeId = selectedEdges[0]?.id ?? null;
       const nextSelectedNodeIds = selectedNodes.map((selectedNode) => selectedNode.id);
       const nextSelectedNodeId = selectedNodes[0]?.id ?? null;
@@ -1554,9 +1557,9 @@ export default function Page() {
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
       setOpenInspectorRibbonCellGlossary(null);
-      setSelectedEdgeId(nextSelectedEdgeId);
-      setSelectedNodeId(nextSelectedEdgeId ? null : nextSelectedNodeId);
-      setSelectedNodeIds(nextSelectedEdgeId ? [] : nextSelectedNodeIds);
+      setSelectedEdgeId(hasSelectedNodes ? null : nextSelectedEdgeId);
+      setSelectedNodeId(nextSelectedNodeId);
+      setSelectedNodeIds(nextSelectedNodeIds);
     },
     [clearMenuTermDeleteError]
   );
@@ -1707,8 +1710,22 @@ export default function Page() {
           return;
         }
 
+        const selectedNodeIdsForFrameCreation =
+          selectedNodeIds.length > 0
+            ? selectedNodeIds
+            : selectedNodeId
+              ? [selectedNodeId]
+              : [];
+
+        const selectedNodeIdsForFrameCreationSet = new Set(selectedNodeIdsForFrameCreation);
+        const selectedNonFrameNodesForFrameCreation = nodes.filter(
+          (node) =>
+            selectedNodeIdsForFrameCreationSet.has(node.id) &&
+            node.data.node_type !== "frame"
+        );
+
         event.preventDefault();
-        createFrameFromSelectionRef.current();
+        createFrameFromSelectionRef.current(selectedNonFrameNodesForFrameCreation);
         return;
       }
 
@@ -1737,6 +1754,7 @@ export default function Page() {
     addNodeAtClientPosition,
     getCanvasFallbackClientPosition,
     handleDeleteSelection,
+    nodes,
     selectedEdgeId,
     selectedNodeId,
     selectedNodeIds,
@@ -1913,11 +1931,9 @@ export default function Page() {
     selectedNode.data.node_type !== "menu" &&
     selectedNode.data.node_type !== "frame";
 
-  const selectedNonFrameNodesForFrameCreation = useMemo(() => {
-    if (selectedEdgeId) {
-      return [];
-    }
+  const hasSelectedNodes = selectedNodeIds.length > 0 || selectedNode !== null;
 
+  const selectedNonFrameNodesForFrameCreation = useMemo(() => {
     const selectedIds =
       selectedNodeIds.length > 0
         ? selectedNodeIds
@@ -1933,7 +1949,7 @@ export default function Page() {
     return nodes.filter(
       (node) => selectedIdSet.has(node.id) && node.data.node_type !== "frame"
     );
-  }, [nodes, selectedEdgeId, selectedNodeId, selectedNodeIds]);
+  }, [nodes, selectedNodeId, selectedNodeIds]);
 
   const canCreateFrameFromSelection =
     selectedNonFrameNodesForFrameCreation.length >= 2;
@@ -2747,12 +2763,13 @@ export default function Page() {
     [updateRibbonCellField]
   );
 
-  const createFrameFromSelection = useCallback(() => {
-    if (selectedNonFrameNodesForFrameCreation.length < 2) {
+  const createFrameFromSelection = useCallback(
+    (selectedNodesForFrameCreation: FlowNode[] = selectedNonFrameNodesForFrameCreation) => {
+    if (selectedNodesForFrameCreation.length < 2) {
       return;
     }
 
-    const bounds = computeNodesBoundingRect(selectedNonFrameNodesForFrameCreation);
+    const bounds = computeNodesBoundingRect(selectedNodesForFrameCreation);
     if (!bounds) {
       return;
     }
@@ -2770,7 +2787,7 @@ export default function Page() {
       bounds.height + FRAME_NODE_PADDING * 2,
       FRAME_NODE_MIN_HEIGHT
     );
-    const memberNodeIds = selectedNonFrameNodesForFrameCreation.map((node) => node.id);
+    const memberNodeIds = selectedNodesForFrameCreation.map((node) => node.id);
 
     queueUndoSnapshot();
 
@@ -2802,12 +2819,9 @@ export default function Page() {
     setSelectedEdgeId(null);
     setSelectedNodeId(frameId);
     setSelectedNodeIds([frameId]);
-  }, [
-    adminOptions,
-    queueUndoSnapshot,
-    selectedNonFrameNodesForFrameCreation,
-    setNodes,
-  ]);
+    },
+    [adminOptions, queueUndoSnapshot, selectedNonFrameNodesForFrameCreation, setNodes]
+  );
 
   useEffect(() => {
     updateMenuNodeConfigByIdRef.current = updateMenuNodeConfigById;
@@ -5230,7 +5244,7 @@ export default function Page() {
               background: "#f8fafc",
               fontWeight: 700,
             }}
-            onClick={createFrameFromSelection}
+            onClick={() => createFrameFromSelection()}
           >
             Frame selected nodes ({selectedNonFrameNodesForFrameCreation.length})
           </button>
@@ -5714,7 +5728,7 @@ export default function Page() {
           </section>
         )}
 
-        {selectedEdge && normalizedSelectedEdgeData ? (
+        {selectedEdge && normalizedSelectedEdgeData && !hasSelectedNodes ? (
           <section
             style={{
               border: "1px solid #cbd5e1",
