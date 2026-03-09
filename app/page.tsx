@@ -282,6 +282,11 @@ type ImportFeedback = {
   message: string;
 };
 
+type CanvasClipboardSnapshot = {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+};
+
 type FeedbackType = "user_interface" | "tool_functionality" | "other";
 type FeedbackSubmitStatus = "idle" | "submitting" | "success" | "error";
 
@@ -316,6 +321,16 @@ const HELP_CANVAS_SHORTCUTS: HelpShortcutDefinition[] = [
     keys: "Shift + F",
     description:
       "Frame selected non-frame nodes (requires at least two selected nodes).",
+  },
+  {
+    keys: "Ctrl/Cmd + C",
+    description:
+      "Copy selected nodes to clipboard (selected frames include their member nodes).",
+  },
+  {
+    keys: "Ctrl/Cmd + V",
+    description:
+      "Paste copied nodes with new IDs and internal edges (non-destructive duplicate).",
   },
   {
     keys: "Delete / Backspace",
@@ -782,6 +797,8 @@ export default function Page() {
   const menuTermGlossaryTermsRef = useRef<string[]>([]);
   const sidePanelResizeStartXRef = useRef(0);
   const sidePanelResizeStartWidthRef = useRef(SIDE_PANEL_MIN_WIDTH);
+  const canvasClipboardRef = useRef<CanvasClipboardSnapshot | null>(null);
+  const pasteInvocationCountRef = useRef(0);
 
   const updateStore = useCallback((updater: (prev: AppStore) => AppStore) => {
     setStore((prev) => {
@@ -937,6 +954,8 @@ export default function Page() {
       setSelectedEdgeId(null);
       setUndoStack([]);
       setIsProjectSequencePanelOpen(false);
+      canvasClipboardRef.current = null;
+      pasteInvocationCountRef.current = 0;
       clearMenuTermDeleteError();
       setPendingOptionInputs(createEmptyPendingOptionInputs());
     },
@@ -1672,6 +1691,167 @@ export default function Page() {
     [clearMenuTermDeleteError]
   );
 
+  const copySelectedCanvasNodes = useCallback((): boolean => {
+    const directSelectedNodeIds =
+      selectedNodeIds.length > 0
+        ? selectedNodeIds
+        : selectedNodeId
+          ? [selectedNodeId]
+          : [];
+
+    if (directSelectedNodeIds.length === 0) {
+      return false;
+    }
+
+    const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+    const expandedNodeIdSet = new Set(directSelectedNodeIds);
+
+    directSelectedNodeIds.forEach((nodeId) => {
+      const selectedNodeForCopy = nodeById.get(nodeId);
+
+      if (!selectedNodeForCopy || selectedNodeForCopy.data.node_type !== "frame") {
+        return;
+      }
+
+      const selectedFrameConfig = normalizeFrameNodeConfig(
+        selectedNodeForCopy.data.frame_config
+      );
+
+      selectedFrameConfig.member_node_ids.forEach((memberNodeId) => {
+        expandedNodeIdSet.add(memberNodeId);
+      });
+    });
+
+    const copiedNodes = nodes.filter((node) => expandedNodeIdSet.has(node.id));
+    if (copiedNodes.length === 0) {
+      return false;
+    }
+
+    const copiedNodeIdSet = new Set(copiedNodes.map((node) => node.id));
+    const copiedInternalEdges = edges.filter(
+      (edge) => copiedNodeIdSet.has(edge.source) && copiedNodeIdSet.has(edge.target)
+    );
+
+    canvasClipboardRef.current = {
+      nodes: cloneFlowNodes(copiedNodes),
+      edges: cloneEdges(copiedInternalEdges),
+    };
+    pasteInvocationCountRef.current = 0;
+
+    setTransferFeedback({
+      type: "info",
+      message:
+        copiedInternalEdges.length > 0
+          ? `Copied ${copiedNodes.length} node(s) and ${copiedInternalEdges.length} internal edge(s).`
+          : `Copied ${copiedNodes.length} node(s).`,
+    });
+
+    return true;
+  }, [edges, nodes, selectedNodeId, selectedNodeIds]);
+
+  const pasteCopiedCanvasNodes = useCallback((): boolean => {
+    const clipboardSnapshot = canvasClipboardRef.current;
+
+    if (!clipboardSnapshot || clipboardSnapshot.nodes.length === 0) {
+      return false;
+    }
+
+    queueUndoSnapshot();
+
+    const nextPasteInvocationCount = pasteInvocationCountRef.current + 1;
+    pasteInvocationCountRef.current = nextPasteInvocationCount;
+    const pasteOffset = 44 * nextPasteInvocationCount;
+
+    const nodeIdMap = new Map<string, string>();
+
+    const pastedNodes = clipboardSnapshot.nodes.map((sourceNode) => {
+      const nextNodeId = createNodeId();
+      nodeIdMap.set(sourceNode.id, nextNodeId);
+
+      return {
+        ...sourceNode,
+        id: nextNodeId,
+        selected: false,
+        position: {
+          x: sourceNode.position.x + pasteOffset,
+          y: sourceNode.position.y + pasteOffset,
+        },
+        data: {
+          ...sourceNode.data,
+          sequence_index: null,
+          parallel_group_id: null,
+          ui_journey_highlighted: false,
+          ui_journey_recalled: false,
+        },
+      };
+    });
+
+    const remappedPastedNodes = pastedNodes.map((pastedNode) => {
+      if (pastedNode.data.node_type !== "frame") {
+        return pastedNode;
+      }
+
+      const pastedFrameConfig = normalizeFrameNodeConfig(pastedNode.data.frame_config);
+
+      return {
+        ...pastedNode,
+        data: {
+          ...pastedNode.data,
+          frame_config: {
+            ...pastedFrameConfig,
+            member_node_ids: pastedFrameConfig.member_node_ids.flatMap((memberNodeId) => {
+              const nextMemberNodeId = nodeIdMap.get(memberNodeId);
+              return nextMemberNodeId ? [nextMemberNodeId] : [];
+            }),
+          },
+        },
+      };
+    });
+
+    const pastedEdges = clipboardSnapshot.edges.flatMap((sourceEdge) => {
+      const mappedSourceNodeId = nodeIdMap.get(sourceEdge.source);
+      const mappedTargetNodeId = nodeIdMap.get(sourceEdge.target);
+
+      if (!mappedSourceNodeId || !mappedTargetNodeId) {
+        return [];
+      }
+
+      return [
+        applyEdgeVisuals({
+          ...sourceEdge,
+          id: `e-${mappedSourceNodeId}-${mappedTargetNodeId}-${createNodeId().slice(0, 8)}`,
+          source: mappedSourceNodeId,
+          target: mappedTargetNodeId,
+          selected: false,
+        }),
+      ];
+    });
+
+    const remappedPastedNodeIds = remappedPastedNodes.map((node) => node.id);
+
+    setNodes((currentNodes) =>
+      pruneFrameNodeMembership([...currentNodes, ...remappedPastedNodes])
+    );
+    setEdges((currentEdges) => [...currentEdges, ...pastedEdges]);
+    setSelectedNodeId(remappedPastedNodeIds[0] ?? null);
+    setSelectedNodeIds(remappedPastedNodeIds);
+    setSelectedEdgeId(null);
+    setOpenControlledLanguageFieldType(null);
+    setOpenInspectorMenuGlossaryTermId(null);
+    setOpenInspectorRibbonCellGlossary(null);
+    clearMenuTermDeleteError();
+
+    setTransferFeedback({
+      type: "success",
+      message:
+        pastedEdges.length > 0
+          ? `Pasted ${remappedPastedNodes.length} node(s) and ${pastedEdges.length} edge(s).`
+          : `Pasted ${remappedPastedNodes.length} node(s).`,
+    });
+
+    return true;
+  }, [clearMenuTermDeleteError, queueUndoSnapshot, setEdges, setNodes]);
+
   const handleDeleteSelection = useCallback(() => {
     if (selectedEdgeId) {
       queueUndoSnapshot();
@@ -1735,6 +1915,50 @@ export default function Page() {
         targetElement === null ||
         targetElement === document.body ||
         targetElement === document.documentElement;
+
+      const isCopyShortcut =
+        (event.ctrlKey || event.metaKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "c";
+
+      if (isCopyShortcut) {
+        if (isEditableEventTarget(event.target)) {
+          return;
+        }
+
+        if (!isTargetInsideCanvas && !isBodyTarget) {
+          return;
+        }
+
+        if (copySelectedCanvasNodes()) {
+          event.preventDefault();
+        }
+
+        return;
+      }
+
+      const isPasteShortcut =
+        (event.ctrlKey || event.metaKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "v";
+
+      if (isPasteShortcut) {
+        if (isEditableEventTarget(event.target)) {
+          return;
+        }
+
+        if (!isTargetInsideCanvas && !isBodyTarget) {
+          return;
+        }
+
+        if (pasteCopiedCanvasNodes()) {
+          event.preventDefault();
+        }
+
+        return;
+      }
 
       if (event.key === "Tab") {
         if (isEditableEventTarget(event.target)) {
@@ -1860,9 +2084,11 @@ export default function Page() {
     };
   }, [
     addNodeAtClientPosition,
+    copySelectedCanvasNodes,
     getCanvasFallbackClientPosition,
     handleDeleteSelection,
     nodes,
+    pasteCopiedCanvasNodes,
     selectedEdgeId,
     selectedNodeId,
     selectedNodeIds,
@@ -5248,7 +5474,9 @@ export default function Page() {
           default node. Keyboard shortcuts: <strong>Tab</strong> adds Default, and
           <strong> Shift+Tab</strong> adds Menu at the pointer position.
           <strong> Shift+R</strong> adds Ribbon at the pointer position.
-          <strong> Shift+F</strong> frames selected nodes. All changes autosave. Use
+          <strong> Shift+F</strong> frames selected nodes. <strong>Ctrl/Cmd+C</strong>
+          copies selected nodes (including frame members), and
+          <strong> Ctrl/Cmd+V</strong> pastes non-destructive duplicates. All changes autosave. Use
           each field’s “Glossary” button to open a term picker.
         </p>
 
