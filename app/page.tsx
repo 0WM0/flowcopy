@@ -325,12 +325,12 @@ const HELP_CANVAS_SHORTCUTS: HelpShortcutDefinition[] = [
   {
     keys: "Ctrl/Cmd + C",
     description:
-      "Copy selected nodes to clipboard (selected frames include their member nodes).",
+      "Copy selected nodes in Canvas mode to clipboard (selected frames include their member nodes).",
   },
   {
     keys: "Ctrl/Cmd + V",
     description:
-      "Paste copied nodes with new IDs and internal edges (non-destructive duplicate).",
+      "Paste copied nodes as non-destructive duplicates (new IDs, internal edges preserved, offset placement).",
   },
   {
     keys: "Delete / Backspace",
@@ -4110,6 +4110,63 @@ export default function Page() {
               const importedNodeType = isNodeType(row.node_type) ? row.node_type : "default";
               const importedMenuConfigRaw = safeJsonParse(row.menu_config_json ?? "");
               const importedFrameConfigRaw = safeJsonParse(row.frame_config_json ?? "");
+              const importedRibbonConfigRaw = (() => {
+                const rawRibbonCellsJson = row.ribbon_cells_json ?? "";
+                if (rawRibbonCellsJson.trim().length === 0) {
+                  return null;
+                }
+
+                try {
+                  const parsedRibbonCells = JSON.parse(rawRibbonCellsJson);
+
+                  if (!Array.isArray(parsedRibbonCells)) {
+                    return null;
+                  }
+
+                  const inferredRows = parsedRibbonCells.reduce((maxRows, cellValue) => {
+                    if (!cellValue || typeof cellValue !== "object") {
+                      return maxRows;
+                    }
+
+                    const sourceCell = cellValue as { row?: unknown };
+                    if (
+                      typeof sourceCell.row !== "number" ||
+                      !Number.isFinite(sourceCell.row)
+                    ) {
+                      return maxRows;
+                    }
+
+                    return Math.max(maxRows, Math.round(sourceCell.row) + 1);
+                  }, 1);
+
+                  const inferredColumns = parsedRibbonCells.reduce(
+                    (maxColumns, cellValue) => {
+                      if (!cellValue || typeof cellValue !== "object") {
+                        return maxColumns;
+                      }
+
+                      const sourceCell = cellValue as { column?: unknown };
+                      if (
+                        typeof sourceCell.column !== "number" ||
+                        !Number.isFinite(sourceCell.column)
+                      ) {
+                        return maxColumns;
+                      }
+
+                      return Math.max(maxColumns, Math.round(sourceCell.column) + 1);
+                    },
+                    RIBBON_NODE_MIN_COLUMNS
+                  );
+
+                  return {
+                    rows: inferredRows,
+                    columns: inferredColumns,
+                    cells: parsedRibbonCells,
+                  };
+                } catch {
+                  return null;
+                }
+              })();
 
               return {
                 id: nodeId,
@@ -4144,6 +4201,10 @@ export default function Page() {
                     row.primary_cta ?? ""
                   ),
                   frame_config: normalizeFrameNodeConfig(importedFrameConfigRaw),
+                  ribbon_config:
+                    importedNodeType === "ribbon" && importedRibbonConfigRaw
+                      ? normalizeRibbonNodeConfig(importedRibbonConfigRaw)
+                      : null,
                 },
               };
             }
@@ -7570,6 +7631,9 @@ export default function Page() {
               <ol style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 12 }}>
                 <li>
                   <strong>Create nodes:</strong> double-click empty canvas to add Default, or use Tab / Shift+Tab / Shift+R.
+                </li>
+                <li>
+                  <strong>Copy &amp; paste nodes:</strong> select node(s), press Ctrl/Cmd+C, then Ctrl/Cmd+V to paste safe duplicates with new IDs (frame copies include member nodes).
                 </li>
                 <li>
                   <strong>Connect nodes:</strong> drag from source handles to target handles to create edges.

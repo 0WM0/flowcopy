@@ -32,6 +32,76 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-09-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a corrective rollback pass.
+
+An earlier node-handle visual tweak (parallel corner handle offsets and default-node left sequential handle sizing) was intentionally reverted at user request, returning the editor to the prior stable look/feel.
+
+## 2) Core Data Model
+
+No data contracts or schema were changed.
+
+- no `app/types/index.ts` model changes
+- no node/edge payload shape updates
+- no new constants persisted into project data
+
+## 3) Persistence and Migration Strategy
+
+No persistence or migration behavior changed.
+
+- no localStorage key updates
+- no project-record/canvas-schema updates
+- no migration-path changes
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+The rollback was purely visual and did not touch graph sequencing semantics.
+
+## 5) Node Rendering and Shape System
+
+Net rendering outcome: unchanged from pre-session behavior.
+
+Temporary edits in `app/components/FlowCopyNode.tsx` (parallel left-handle inset and default sequential left-handle size alignment) were removed by restoring the file to `HEAD`.
+
+## 6) Editor Interaction Model
+
+No net interaction-model changes were retained.
+
+All keyboard/mouse editing flows remain as previously shipped because the temporary handle-style edits were fully reverted.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Confirmed uncommitted scope was isolated to `app/components/FlowCopyNode.tsx`.
+2. Reverted the file using `git restore -- app/components/FlowCopyNode.tsx`.
+3. Verified post-revert state with `git status --short` (clean working tree).
+
+## 8) Validation and Operational Notes
+
+Operational validation for this rollback:
+
+- `git restore -- app/components/FlowCopyNode.tsx` ✅
+- `git status --short` ✅ (no pending changes)
+
+This confirms the temporary handle-style modifications were removed completely.
+
+## 9) Recommended Next Steps
+
+1. If handle styling is revisited, apply changes behind explicit per-node-type constants so tweaks are easier to tune/revert.
+2. Use a short visual sign-off loop (before/after screenshots) before finalizing geometry adjustments.
+3. Keep rollback-friendly commits small and isolated when doing look/feel experiments.
+
 ##03-08-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
