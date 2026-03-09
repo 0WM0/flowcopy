@@ -38,6 +38,172 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session focused on help-surface discoverability for an already-implemented editor capability.
+
+The in-app **Get Help** modal now explicitly documents node copy/paste behavior so users can find and trust the workflow quickly:
+
+- `Ctrl/Cmd + C` for copying selected nodes
+- `Ctrl/Cmd + V` for pasting non-destructive duplicates
+
+## 2) Core Data Model
+
+No runtime or persisted schema contracts changed.
+
+This was a documentation/UI-copy update in `app/page.tsx` only (help shortcut text + workflow guidance), with no new data fields or type changes.
+
+## 3) Persistence and Migration Strategy
+
+No persistence or migration paths changed.
+
+- no localStorage key changes
+- no project payload changes
+- no migration updates
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Copy/paste help-text improvements are orthogonal to graph sequencing logic.
+
+## 5) Node Rendering and Shape System
+
+No node/edge rendering geometry changed.
+
+The only rendering delta was Help modal content text:
+
+- clarified canvas shortcut descriptions for copy/paste
+- added an explicit **Core workflows** bullet for Copy & Paste nodes
+
+## 6) Editor Interaction Model
+
+Interaction semantics were preserved and now better documented in the modal:
+
+- copy targets selected canvas nodes (including frame-member expansion)
+- paste creates safe duplicates with new IDs
+- internal edges between copied nodes are preserved
+- pasted nodes are offset on each invocation
+- shortcuts are ignored while typing in editable controls
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Updated `HELP_CANVAS_SHORTCUTS` wording for `Ctrl/Cmd + C` and `Ctrl/Cmd + V`.
+2. Added a dedicated **Copy & paste nodes** item in the Help modal’s Core workflows list.
+3. Kept copy/paste execution logic unchanged (this was a docs/help UX clarity pass).
+
+## 8) Validation and Operational Notes
+
+Validation run:
+
+- `npx tsc --noEmit` ✅
+- `npx eslint app/page.tsx` ✅ (existing baseline warnings only; no new errors)
+
+Operationally, this session improves feature discoverability without modifying transfer or graph logic.
+
+## 9) Recommended Next Steps
+
+1. Add a short “Copied N nodes” / “Pasted N nodes” help hint in the modal for extra clarity.
+2. Consider a tooltip near top actions linking directly to copy/paste guidance.
+3. Keep architecture log entries aligned with UX-discoverability updates, not only algorithmic changes.
+
+##03-09-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+Delta from the previous entry: the prior session was a visual rollback pass; this session added a serialization **safety-net test layer**.
+
+FlowCopy now has an automated round-trip contract test that verifies project data survives export/import across transfer formats (`csv`, `xml`, `json`) instead of relying on manual checks.
+
+## 2) Core Data Model
+
+No runtime/persisted product schema was changed for editor execution.
+
+Test-only contract modeling was introduced in `app/lib/__tests__/round-trip.test.ts`:
+
+- canonical fixture builder with one node of each type (`default`, `menu`, `frame`, `ribbon`)
+- typed contract-shape extraction for deep comparisons
+- explicit coverage of ribbon cells, menu terms, frame membership, edges, sequence IDs, glossary, and admin options
+
+## 3) Persistence and Migration Strategy
+
+No storage-key or migration-path changes were introduced.
+
+This session’s persistence delta is validation coverage:
+
+- export/import paths are exercised in-memory for all three transfer formats
+- imported payloads are normalized via existing sanitizers before comparison
+- drift now fails fast during test execution
+
+## 4) Ordering Model and Project Sequence ID
+
+Ordering algorithms remain unchanged.
+
+The new test explicitly reuses ordering logic (`computeFlowOrdering(...)`, `computeProjectSequenceId(...)`) in both expected/imported paths and asserts sequence/order parity after round-trip.
+
+## 5) Node Rendering and Shape System
+
+No node/edge rendering behavior changed in this session.
+
+Delta here is indirect quality protection: the test now guards node-type-specific data contracts (especially ribbon/menu/frame structures) that rendering depends on.
+
+## 6) Editor Interaction Model
+
+No end-user editor interaction changes were introduced.
+
+Developer interaction model changed by adding a stable test command path:
+
+- `npm test` now runs `vitest run`
+- format-parametrized round-trip contract checks execute as part of standard test workflow
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added test tooling and script wiring in `package.json` (`test: vitest run`).
+2. Added `app/lib/__tests__/round-trip.test.ts` with canonical project fixture + format-parametrized contract assertions.
+3. Added deep-comparison checks for:
+   - node count/type preservation
+   - ribbon cell configuration preservation
+   - menu terms and frame membership
+   - edge source/target validity + edge payload parity
+   - sequence/order stability
+   - controlled-language glossary parity
+4. Stabilized local Vitest execution by using `vitest@2.1.9` (environment-compatible in this workspace).
+
+## 8) Validation and Operational Notes
+
+Validation run:
+
+- `npm test`
+
+Current result:
+
+- `json` round-trip passes
+- `csv` and `xml` round-trip fail on ribbon drift:
+  - expected `ribbon_style: "compact"`
+  - received `ribbon_style: ""`
+
+This is the intended safety-net behavior when flat-format ribbon transfer is incomplete, and confirms the new contract test is detecting real serialization drift.
+
+## 9) Recommended Next Steps
+
+1. Complete flat transfer parity for ribbon style (`csv/xml`) so `ribbon_style` round-trips correctly.
+2. Re-run `npm test` and require full pass in CI before merge.
+3. Keep this contract test as a release gate for export/import changes.
+4. Add targeted micro-tests around ribbon field transfer to shorten triage time for future drift.
+
+##03-09-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session was a corrective rollback pass.
 
 An earlier node-handle visual tweak (parallel corner handle offsets and default-node left sequential handle sizing) was intentionally reverted at user request, returning the editor to the prior stable look/feel.
