@@ -930,7 +930,7 @@ export default function Page() {
         normalizedAdminOptions
       );
       const prunedHydratedNodes = pruneFrameNodeMembership(hydratedNodes);
-      const hydratedEdges = sanitizeEdges(project.canvas.edges, hydratedNodes);
+      const hydratedEdges = sanitizeEdges(project.canvas.edges, prunedHydratedNodes);
 
       setAdminOptions(normalizedAdminOptions);
       setControlledLanguageGlossary(
