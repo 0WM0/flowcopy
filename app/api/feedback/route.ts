@@ -111,22 +111,25 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error("[Feedback API] Supabase insert failed", {
+        status: response.status,
+        statusText: response.statusText,
+        errorText,
+      });
 
       return NextResponse.json(
-        {
-          error:
-            "Supabase insert failed." +
-            (errorText ? ` ${errorText.slice(0, 400)}` : ""),
-        },
-        { status: 502 }
+        { error: "Unable to submit feedback. Please try again later." },
+        { status: 500 }
       );
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unexpected feedback API error.";
+    console.error("[Feedback API]", error);
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Unable to submit feedback. Please try again later." },
+      { status: 500 }
+    );
   }
 }
