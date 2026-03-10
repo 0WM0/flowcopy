@@ -38,6 +38,257 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session finalized the auth email-confirmation callback route for the App Router flow.
+
+FlowCopy now has a concrete server route at:
+
+- `app/auth/confirm/route.ts`
+
+that receives Supabase confirmation callback parameters, verifies the OTP token, and redirects users to the intended next destination or a login error path.
+
+## 2) Core Data Model
+
+No project/editor schema contracts changed (`AppStore`, node/edge types, persisted canvas state).
+
+The route introduced/uses strongly typed callback parsing semantics:
+
+- `token_hash: string | null`
+- `type: "email" | "recovery" | null`
+- `next: string` (defaults to `/`)
+
+## 3) Persistence and Migration Strategy
+
+No localStorage keys, migration paths, or project serialization contracts were modified.
+
+Auth verification continues to rely on the existing Supabase SSR server client (`@/lib/supabase/server`) with cookie-backed session handling already defined in `lib/supabase/server.ts`.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Auth callback handling is orthogonal to graph sequencing.
+
+## 5) Node Rendering and Shape System
+
+No canvas/node/edge rendering contracts changed in this session.
+
+The update was route-level only and does not impact node visuals, frame/menu/ribbon behavior, or edge styling.
+
+## 6) Editor Interaction Model
+
+The confirmation callback flow is now explicit in `GET /auth/confirm`:
+
+1. Parse `token_hash`, `type`, and optional `next` from `request.url`.
+2. If `token_hash` and `type` are present, call:
+   - `supabase.auth.verifyOtp({ type, token_hash })`
+3. On successful verification, redirect to `next` relative to the current request URL.
+4. On missing/invalid params or verification failure, redirect to:
+   - `/login?error=confirmation_failed`
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added/verified `app/auth/confirm/route.ts` with typed `GET` handler.
+2. Wired OTP verification to Supabase server client usage (`createClient`).
+3. Standardized failure handling to a deterministic login error redirect.
+
+## 8) Validation and Operational Notes
+
+Operational verification confirmed callback behavior and route-level typing against the existing Supabase SSR utility setup.
+
+No package, storage, or migration changes were required for this route implementation.
+
+## 9) Recommended Next Steps
+
+1. Add integration coverage for `/auth/confirm` success/failure branches.
+2. Add user-facing login-page messaging for `error=confirmation_failed` to improve recovery guidance.
+3. Add explicit allowlist/guarding for external `next` targets if cross-origin redirects should be restricted.
+
+##03-09-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session added dedicated email/password auth entry pages for users before they reach the protected app surface:
+
+- `/login`
+- `/signup`
+
+The protected editor/dashboard flow remains middleware-guarded, and these pages now provide the direct sign-in/sign-up UX path.
+
+## 2) Core Data Model
+
+No persisted project/store schema contracts changed.
+
+This session added client-side form state only:
+
+- login: `email`, `password`, `errorMessage`, `isSubmitting`
+- signup: `email`, `password`, `confirmPassword`, `errorMessage`, `successMessage`, `isSubmitting`
+
+Both pages use the existing browser auth client factory: `createClient` from `@/lib/supabase/client`.
+
+## 3) Persistence and Migration Strategy
+
+No local storage keys, project payloads, or migration paths were changed.
+
+Authentication persistence remains Supabase cookie/session based through the existing server + middleware utilities. The new pages only trigger auth API calls and do not alter editor persistence contracts.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering or project-sequence logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Auth page additions are orthogonal to graph sequencing behavior.
+
+## 5) Node Rendering and Shape System
+
+No canvas node/edge rendering contracts changed.
+
+This session introduced minimal Tailwind-based auth card layouts in `app/login/page.tsx` and `app/signup/page.tsx`, with consistent form spacing, button styles, and inline success/error message blocks.
+
+## 6) Editor Interaction Model
+
+Interaction changes were auth-route scoped:
+
+- Login form submits with `supabase.auth.signInWithPassword({ email, password })`.
+- Login success redirects using `router.push("/")` + `router.refresh()`.
+- Login failures render Supabase error messages inline.
+- `Forgot password?` is visibly present and currently a no-op (`preventDefault`).
+- Signup form submits with `supabase.auth.signUp({ email, password })`.
+- Signup enforces client validation: password match + minimum 8 characters.
+- Signup success displays: `Check your email for a confirmation link`.
+- Cross-links are in place between `/login` and `/signup`.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added `app/login/page.tsx` client auth page with email/password sign-in flow.
+2. Added `app/signup/page.tsx` client auth page with confirm-password validation.
+3. Standardized minimal styling approach across both auth pages.
+4. Kept auth UI additions isolated from editor graph/state modules.
+
+## 8) Validation and Operational Notes
+
+Validation commands run:
+
+- `npx eslint app/login/page.tsx` ✅
+- `npx eslint app/signup/page.tsx` ✅
+
+Operational note: a prior `next dev` attempt reported an existing `.next/dev/lock` from another running instance; unrelated to these auth page changes.
+
+## 9) Recommended Next Steps
+
+1. Implement full forgot-password/reset flow behind the existing placeholder link.
+2. Add user-facing confirmation/redirect messaging after `/auth/confirm` outcomes.
+3. Add integration tests for login/signup success, Supabase error handling, and signup validation rules.
+4. Consider extracting shared auth form primitives to avoid duplication between `/login` and `/signup`.
+
+##03-09-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session introduced Supabase email/password authentication using the SSR App Router pattern.
+
+FlowCopy is now split into a protected app surface plus dedicated auth routes:
+
+- `/login`
+- `/signup`
+- `/auth/confirm`
+- `/auth/signout`
+
+The previous placeholder account-code gate was removed from user-facing login flow, while local project editing behavior remains intact after authentication.
+
+## 2) Core Data Model
+
+No project/schema database model changes were introduced.
+
+The main model-layer additions are auth client utilities and session boundaries:
+
+- `lib/supabase/client.ts` (browser client)
+- `lib/supabase/server.ts` (server client with cookie adapter)
+- `lib/supabase/middleware.ts` (`updateSession` refresh/guard helper)
+
+`AppStore` and project canvas contracts remain local-first and unchanged for now.
+
+## 3) Persistence and Migration Strategy
+
+Authentication persistence now uses Supabase cookie-based sessions managed through SSR helpers and middleware.
+
+- `updateSession(request)` forwards cookie reads/writes and refreshes auth state.
+- Middleware redirect rules enforce login routing for unauthenticated access.
+
+Editor/project persistence remains localStorage-based (`flowcopy.store.v1`) with no migration-key or payload-format changes in this session.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering or project-sequence changes were made.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Auth integration is orthogonal to graph sequencing behavior.
+
+## 5) Node Rendering and Shape System
+
+No node/edge shape rendering contracts were changed in this session.
+
+Canvas rendering, inspector rendering, and visual sequence/highlight systems remain as previously implemented.
+
+## 6) Editor Interaction Model
+
+Auth and routing interaction behavior now includes:
+
+- `middleware.ts` at project root calling `updateSession(request)`.
+- Route matcher excludes static assets and Next internals.
+- Unauthenticated requests to app pages redirect to `/login`.
+- Login form uses `supabase.auth.signInWithPassword(...)`.
+- Signup form uses `supabase.auth.signUp(...)` with password confirmation checks.
+- Email confirmation route verifies OTP via `supabase.auth.verifyOtp(...)`.
+- Sign-out is handled through `POST /auth/signout`, then redirected to `/login`.
+- Dashboard signout action now posts to `/auth/signout`.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Installed auth dependencies: `@supabase/supabase-js`, `@supabase/ssr`.
+2. Added root-level Supabase client utilities (`lib/supabase/client.ts`, `server.ts`).
+3. Added root-level middleware utilities (`lib/supabase/middleware.ts`, `middleware.ts`).
+4. Added auth route/pages (`app/login`, `app/signup`, `app/auth/confirm`, `app/auth/signout`).
+5. Kept feedback API route untouched (service-role path unchanged).
+
+## 8) Validation and Operational Notes
+
+Validation commands run during implementation:
+
+- `npx eslint lib/supabase/client.ts lib/supabase/server.ts` ✅
+- `npx eslint middleware.ts lib/supabase/middleware.ts` ✅
+
+Operationally, auth session refresh uses `getUser()` in middleware (not `getSession()`), aligning with current Supabase SSR guidance.
+
+## 9) Recommended Next Steps
+
+1. Add auth-state UX handling for login/signup query errors and confirmation states.
+2. Add password-reset flow (`forgot password`) and matching route handlers.
+3. Add integration tests for middleware redirects and auth callback/signout routes.
+4. Map authenticated Supabase user identity to local project/account ownership strategy before database persistence rollout.
+
+##03-09-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session focused on help-surface discoverability for an already-implemented editor capability.
 
 The in-app **Get Help** modal now explicitly documents node copy/paste behavior so users can find and trust the workflow quickly:

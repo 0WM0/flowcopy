@@ -344,10 +344,6 @@ const HELP_CANVAS_SHORTCUTS: HelpShortcutDefinition[] = [
 
 const HELP_CONTEXT_SHORTCUTS: HelpShortcutDefinition[] = [
   {
-    keys: "Enter (Account code)",
-    description: "Submit account code on the account-entry view.",
-  },
-  {
     keys: "Enter (New project name)",
     description: "Create the project from the create-project input.",
   },
@@ -400,8 +396,6 @@ const TABLE_SHOEHORNING_DISABLED_FIELDS = new Set<EditableMicrocopyField>([
   "helper_text",
   "error_text",
 ]);
-
-const ACCOUNT_ENTRY_CODE = "111";
 
 
 
@@ -705,8 +699,6 @@ type EditorSnapshot = {
 
 export default function Page() {
   const [store, setStore] = useState<AppStore>(createEmptyStore);
-  const [accountCodeInput, setAccountCodeInput] = useState(SINGLE_ACCOUNT_CODE);
-  const [accountError, setAccountError] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
 
   const [nodes, setNodes] = useNodesState<FlowNode>([]);
@@ -1168,30 +1160,20 @@ export default function Page() {
     menuTermGlossaryTermsRef.current = menuTermGlossaryTerms;
   }, [menuTermGlossaryTerms]);
 
-  const handleAccountEntry = useCallback(() => {
-    const enteredCode = accountCodeInput.trim();
-
-    if (!/^\d{3}$/.test(enteredCode)) {
-      setAccountError("Account code must be exactly 3 digits.");
-      return;
-    }
-
-    if (enteredCode !== ACCOUNT_ENTRY_CODE) {
-      setAccountError(`For now, only account code ${ACCOUNT_ENTRY_CODE} is available.`);
-      return;
-    }
-
-    setAccountError(null);
-
+  const bootstrapDefaultAccountSession = useCallback(() => {
     updateStore((prev) => {
+      if (prev.session.view !== "account") {
+        return prev;
+      }
+
       const existingAccount = prev.accounts.find(
-        (account) => account.code === enteredCode
+        (account) => account.code === SINGLE_ACCOUNT_CODE
       );
 
       const account =
         existingAccount ?? {
-          id: createAccountId(enteredCode),
-          code: enteredCode,
+          id: createAccountId(SINGLE_ACCOUNT_CODE),
+          code: SINGLE_ACCOUNT_CODE,
           projects: [],
         };
 
@@ -1204,25 +1186,19 @@ export default function Page() {
           activeAccountId: account.id,
           activeProjectId: null,
           view: "dashboard",
-          editorMode: "canvas",
+          editorMode: prev.session.editorMode,
         },
       };
     });
-  }, [accountCodeInput, updateStore]);
-
-  const handleSignOut = useCallback(() => {
-    updateStore((prev) => ({
-      ...prev,
-      session: {
-        activeAccountId: null,
-        activeProjectId: null,
-        view: "account",
-        editorMode: "canvas",
-      },
-    }));
-
-    setUndoStack([]);
   }, [updateStore]);
+
+  useEffect(() => {
+    if (store.session.view !== "account") {
+      return;
+    }
+
+    bootstrapDefaultAccountSession();
+  }, [bootstrapDefaultAccountSession, store.session.view]);
 
   const createProjectFromDashboard = useCallback(() => {
     if (!activeAccount) {
@@ -4460,68 +4436,9 @@ export default function Page() {
           padding: 16,
         }}
       >
-        <section
-          style={{
-            width: "min(420px, 100%)",
-            background: "#fff",
-            border: "1px solid #e2e8f0",
-            borderRadius: 12,
-            padding: 16,
-            boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
-          }}
-        >
-          <h1 style={{ marginTop: 0, marginBottom: 8 }}>FlowCopy Account</h1>
-          <p style={{ marginTop: 0, fontSize: 13, color: "#475569" }}>
-            Enter your 3-digit code to continue. For now, use <strong>{ACCOUNT_ENTRY_CODE}</strong>.
-          </p>
-
-          <label>
-            <div style={{ fontSize: 12, marginBottom: 6 }}>Account code</div>
-            <input
-              style={{ ...inputStyle, fontSize: 16, letterSpacing: 3, textAlign: "center" }}
-              maxLength={3}
-              value={accountCodeInput}
-              onChange={(event) =>
-                setAccountCodeInput(event.target.value.replace(/\D/g, "").slice(0, 3))
-              }
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  handleAccountEntry();
-                }
-              }}
-            />
-          </label>
-
-          {accountError && (
-            <div
-              style={{
-                marginTop: 10,
-                fontSize: 12,
-                color: "#b91c1c",
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
-                borderRadius: 6,
-                padding: "6px 8px",
-              }}
-            >
-              {accountError}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={handleAccountEntry}
-            style={{
-              ...buttonStyle,
-              marginTop: 12,
-              width: "100%",
-              fontWeight: 600,
-            }}
-          >
-            Enter Account
-          </button>
-        </section>
+        <p style={{ margin: 0, fontSize: 14, color: "#475569" }}>
+          Preparing your dashboard…
+        </p>
       </main>
     );
   }
@@ -4663,9 +4580,11 @@ export default function Page() {
               </div>
             </div>
 
-            <button type="button" style={dashboardButtonStyle} onClick={handleSignOut}>
-              Back to Account Code
-            </button>
+            <form action="/auth/signout" method="post" style={{ margin: 0 }}>
+              <button type="submit" style={dashboardButtonStyle}>
+                Sign out
+              </button>
+            </form>
           </section>
 
           <section
