@@ -1,27 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export default function LoginPage() {
-  const router = useRouter();
+export default function ForgotPasswordPage() {
   const supabase = createClient();
 
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
     setIsSubmitting(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
     });
 
     if (error) {
@@ -30,16 +28,16 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/");
-    router.refresh();
+    setSuccessMessage("Check your email for a reset link");
+    setIsSubmitting(false);
   };
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <section className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">Log in</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Forgot password</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Enter your email and password to continue.
+          Enter your email and we&apos;ll send you a reset link.
         </p>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -58,27 +56,15 @@ export default function LoginPage() {
             />
           </div>
 
-          <div>
-            <label
-              className="mb-1 block text-sm font-medium text-slate-700"
-              htmlFor="password"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-            />
-          </div>
-
           {errorMessage && (
             <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {errorMessage}
+            </p>
+          )}
+
+          {successMessage && (
+            <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              {successMessage}
             </p>
           )}
 
@@ -87,19 +73,16 @@ export default function LoginPage() {
             disabled={isSubmitting}
             className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Logging in..." : "Log in"}
+            {isSubmitting ? "Sending reset link..." : "Send reset link"}
           </button>
         </form>
 
-        <div className="mt-4 flex items-center justify-between text-sm">
-          <Link href="/login/forgot-password" className="text-slate-500 underline">
-            Forgot password?
+        <p className="mt-4 text-sm text-slate-600">
+          Remembered your password?{" "}
+          <Link href="/login" className="font-medium text-blue-700 underline">
+            Back to login
           </Link>
-
-          <Link href="/signup" className="font-medium text-blue-700 underline">
-            New user? Sign up
-          </Link>
-        </div>
+        </p>
       </section>
     </main>
   );
