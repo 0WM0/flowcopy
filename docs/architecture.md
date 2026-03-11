@@ -32,6 +32,99 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-11-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session completed the dashboard data-source cutover from legacy local project lists to Supabase-backed project records.
+
+The dashboard now treats Supabase as the source of truth for project listing and dashboard CRUD operations, eliminating the old ID mismatch where UI rows could still come from `flowcopy.store.v1` (`PRJ-...`) while rename/delete attempted UUID-based Supabase mutations.
+
+## 2) Core Data Model
+
+No project schema contracts changed, but dashboard list typing is now consistently DB-shaped in runtime usage:
+
+- `DbProjectListItem` (`id`, `title`, `created_at`, `updated_at`, `node_count`) is the active dashboard list model.
+- Dashboard card rendering now reads `title`, `node_count`, and `updated_at` (instead of local project `name` / `canvas.nodes.length` / `updatedAt`).
+
+The existing DB mapping helpers remain the bridge between DB and editor models:
+
+- `mapDbProjectToDashboardProject(...)`
+- `mapDbProjectToAppProject(...)`
+
+## 3) Persistence and Migration Strategy
+
+Persistence is now intentionally split by surface responsibility:
+
+- **Dashboard list + dashboard CRUD:** Supabase (`listProjects`, `createProject`, `updateProject`, `deleteProject`, `getProject`)
+- **In-editor local working state/session shell:** existing local store flow remains unchanged
+
+The old local dashboard source (`activeAccount?.projects`) is no longer used for dashboard card population, so legacy `PRJ-...` rows in localStorage no longer interfere with dashboard rename/delete behavior.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+This session was dashboard-data-source and CRUD-wiring focused.
+
+## 5) Node Rendering and Shape System
+
+Canvas node/edge rendering is unchanged.
+
+Dashboard rendering was updated to reflect Supabase list semantics:
+
+- cards display DB-backed `title`
+- node count uses `node_count`
+- last updated uses `updated_at`
+- loading state now has explicit dashboard messaging (`Loading projects...`)
+
+## 6) Editor Interaction Model
+
+Dashboard interaction flow now consistently runs against Supabase UUID IDs:
+
+- project list loads via `loadDashboardProjects()` calling `listProjects()`
+- load trigger remains mount/view-driven through `useEffect` when `store.session.view === "dashboard"`
+- create action calls `createProjectInDb(...)` and appends returned DB record to dashboard state
+- rename/delete/open actions operate on selected `dashboardProjects` rows (UUID IDs)
+
+Create UX was also tightened:
+
+- create input/button disable while create is pending
+- create action button shows `Creating...` pending label
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Replaced dashboard project-card source from local account projects to `dashboardProjects` Supabase state.
+2. Ensured dashboard card fields use DB list item properties (`title`, `node_count`, `updated_at`).
+3. Added explicit dashboard loading-state branch before empty-state rendering.
+4. Kept dashboard create/open/rename/delete actions consistently keyed by Supabase UUID IDs.
+5. Removed the practical failure mode where delete/rename could silently target non-DB `PRJ-...` IDs.
+
+## 8) Validation and Operational Notes
+
+Validation run this session:
+
+- `npm run lint -- app/page.tsx`
+
+Result:
+
+- no lint errors
+- existing baseline warnings in `app/page.tsx` remain (pre-existing unused-symbol warnings unrelated to this dashboard change)
+
+## 9) Recommended Next Steps
+
+1. Complete the same source-of-truth migration for editor project persistence (reduce hybrid local-store vs Supabase behavior).
+2. Add dashboard integration tests for UUID-based create/open/rename/delete flows.
+3. Add a lightweight dashboard refresh action after destructive operations for extra resilience.
+4. Remove stale unused imports/constants in `app/page.tsx` during a cleanup pass to reduce lint noise.
+
 ##03-09-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.

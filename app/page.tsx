@@ -255,8 +255,6 @@ import {
   readAppStore,
   createEmptyStore,
   createEmptyCanvasState,
-  createProjectRecord,
-  createProjectId,
   createAccountId,
   sanitizeProjectRecord,
   sanitizeAccountRecord,
@@ -275,6 +273,16 @@ import {
   isEditorSurfaceMode,
   ensureArrayOfStrings,
 } from "./lib/store";
+import {
+  listProjects,
+  getProject,
+  createProject as createProjectInDb,
+  updateProject,
+  deleteProject,
+  type ProjectListItem as DbProjectListItem,
+  type ProjectRecord as DbProjectRecord,
+} from "./lib/db";
+import { useAutoSave } from "./hooks/useAutoSave";
 
 
 type ImportFeedback = {
@@ -396,6 +404,48 @@ const TABLE_SHOEHORNING_DISABLED_FIELDS = new Set<EditableMicrocopyField>([
   "helper_text",
   "error_text",
 ]);
+
+const createEmptyProjectData = (): Record<string, unknown> =>
+  createEmptyCanvasState() as unknown as Record<string, unknown>;
+
+const mapDbProjectToAppProject = (project: DbProjectRecord): ProjectRecord => {
+  const sanitizedProject = sanitizeProjectRecord({
+    id: project.id,
+    name: project.title,
+    createdAt: project.created_at,
+    updatedAt: project.updated_at,
+    canvas: project.data,
+  });
+
+  return (
+    sanitizedProject ?? {
+      id: project.id,
+      name: project.title || "Untitled Project",
+      createdAt: project.created_at,
+      updatedAt: project.updated_at,
+      canvas: createEmptyCanvasState(),
+    }
+  );
+};
+
+const mapDbProjectToDashboardProject = (
+  project: DbProjectRecord
+): DbProjectListItem => {
+  const nodes = (project.data as { nodes?: unknown } | null | undefined)?.nodes;
+
+  return {
+    id: project.id,
+    title: project.title || "Untitled Project",
+    created_at: project.created_at,
+    updated_at: project.updated_at,
+    node_count: Array.isArray(nodes) ? nodes.length : 0,
+  };
+};
+
+const sortDashboardProjects = (
+  projects: DbProjectListItem[]
+): DbProjectListItem[] =>
+  projects.slice().sort((a, b) => b.updated_at.localeCompare(a.updated_at));
 
 
 
@@ -700,6 +750,10 @@ type EditorSnapshot = {
 export default function Page() {
   const [store, setStore] = useState<AppStore>(createEmptyStore);
   const [newProjectName, setNewProjectName] = useState("");
+  const [dashboardActionError, setDashboardActionError] = useState<string | null>(null);
+  const [dashboardActionProjectId, setDashboardActionProjectId] = useState<string | null>(null);
+  const [dashboardProjects, setDashboardProjects] = useState<DbProjectListItem[]>([]);
+  const [isDashboardProjectsLoading, setIsDashboardProjectsLoading] = useState(false);
 
   const [nodes, setNodes] = useNodesState<FlowNode>([]);
   const [edges, setEdges] = useEdgesState<FlowEdge>([]);
@@ -750,6 +804,7 @@ export default function Page() {
     useState(false);
   const [undoStack, setUndoStack] = useState<EditorSnapshot[]>([]);
   const [transferFeedback, setTransferFeedback] = useState<ImportFeedback | null>(null);
+  const [autoSaveChangeCounter, setAutoSaveChangeCounter] = useState(0);
   const [sidePanelWidth, setSidePanelWidth] = useState<number>(readInitialSidePanelWidth);
   const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
@@ -908,6 +963,60 @@ export default function Page() {
     [activeAccount, store.session.activeProjectId]
   );
 
+  const autoSaveProjectData = useMemo<Record<string, unknown>>(() => {
+    if (
+      store.session.view !== "editor" ||
+      !store.session.activeAccountId ||
+      !store.session.activeProjectId
+    ) {
+      return createEmptyProjectData();
+    }
+
+    const nodesWithPrunedFrameMembership = pruneFrameNodeMembership(nodes);
+    const parallelGroupByNodeId = computeParallelGroups(
+      nodesWithPrunedFrameMembership,
+      edges
+    ).parallelGroupByNodeId;
+
+    return {
+      nodes: serializeNodesForStorage(
+        nodesWithPrunedFrameMembership,
+        parallelGroupByNodeId
+      ),
+      edges: cloneEdges(edges),
+      adminOptions: cloneGlobalOptions(adminOptions),
+      controlledLanguageGlossary:
+        sanitizeControlledLanguageGlossary(controlledLanguageGlossary),
+      uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(
+        sanitizeUiJourneySnapshotPresets(uiJourneySnapshotPresets)
+      ),
+    };
+  }, [
+    adminOptions,
+    controlledLanguageGlossary,
+    edges,
+    nodes,
+    store.session.activeAccountId,
+    store.session.activeProjectId,
+    store.session.view,
+    uiJourneySnapshotPresets,
+  ]);
+
+  const autoSaveProjectId =
+    store.session.view === "editor" && store.session.activeProjectId
+      ? store.session.activeProjectId
+      : null;
+
+  const { saveNow: saveProjectNow } = useAutoSave(
+    autoSaveProjectId,
+    autoSaveProjectData,
+    autoSaveChangeCounter
+  );
+
+  const markProjectDirty = useCallback(() => {
+    setAutoSaveChangeCounter((currentCounter) => currentCounter + 1);
+  }, []);
+
   const loadProjectIntoEditor = useCallback(
     (project: ProjectRecord) => {
       const normalizedAdminOptions = normalizeGlobalOptionConfig(
@@ -1041,6 +1150,8 @@ export default function Page() {
       return;
     }
 
+    markProjectDirty();
+
     if (undoCaptureTimeoutRef.current !== null) {
       return;
     }
@@ -1080,6 +1191,7 @@ export default function Page() {
     uiJourneyConversationSnapshot,
     uiJourneySnapshotDraftName,
     uiJourneySnapshotPresets,
+    markProjectDirty,
   ]);
 
   useEffect(() => {
@@ -1087,10 +1199,16 @@ export default function Page() {
   }, [queueUndoSnapshot]);
 
   const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) {
+      return;
+    }
+
     if (undoCaptureTimeoutRef.current !== null) {
       window.clearTimeout(undoCaptureTimeoutRef.current);
       undoCaptureTimeoutRef.current = null;
     }
+
+    markProjectDirty();
 
     setUndoStack((prev) => {
       const previousSnapshot = prev[prev.length - 1];
@@ -1149,7 +1267,7 @@ export default function Page() {
 
       return prev.slice(0, -1);
     });
-  }, [setEdges, setNodes]);
+  }, [markProjectDirty, setEdges, setNodes, undoStack.length]);
 
   const menuTermGlossaryTerms = useMemo(
     () => buildMenuTermSelectorTerms(nodes, controlledLanguageGlossary),
@@ -1200,72 +1318,207 @@ export default function Page() {
     bootstrapDefaultAccountSession();
   }, [bootstrapDefaultAccountSession, store.session.view]);
 
-  const createProjectFromDashboard = useCallback(() => {
-    if (!activeAccount) {
+  const loadDashboardProjects = useCallback(async () => {
+    setIsDashboardProjectsLoading(true);
+    setDashboardActionError(null);
+
+    try {
+      const projects = await listProjects();
+      setDashboardProjects(sortDashboardProjects(projects));
+    } catch (error) {
+      console.error("[Dashboard] Failed to load projects", error);
+      setDashboardActionError("Could not load projects. Please refresh.");
+    } finally {
+      setIsDashboardProjectsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (store.session.view !== "dashboard") {
       return;
     }
 
+    void loadDashboardProjects();
+  }, [loadDashboardProjects, store.session.view]);
+
+  const createProjectFromDashboard = useCallback(async () => {
     const projectName = newProjectName.trim();
     if (!projectName) {
       return;
     }
 
-    const newProject = createProjectRecord(projectName, createEmptyCanvasState());
+    setDashboardActionError(null);
+    setDashboardActionProjectId("creating-project");
 
-    updateStore((prev) => {
-      const accountIndex = prev.accounts.findIndex(
-        (account) => account.id === activeAccount.id
+    try {
+      const createdProject = await createProjectInDb(projectName, createEmptyProjectData());
+      const dashboardProject = mapDbProjectToDashboardProject(createdProject);
+
+      setDashboardProjects((currentProjects) =>
+        sortDashboardProjects([...currentProjects, dashboardProject])
       );
+      setNewProjectName("");
+    } catch (error) {
+      console.error("[Dashboard] Failed to create project", error);
+      setDashboardActionError("Could not create project. Please try again.");
+    } finally {
+      setDashboardActionProjectId(null);
+    }
+  }, [newProjectName]);
 
-      if (accountIndex < 0) {
-        return prev;
-      }
-
-      const accounts = [...prev.accounts];
-      const account = accounts[accountIndex];
-
-      accounts[accountIndex] = {
-        ...account,
-        projects: [...account.projects, newProject],
-      };
-
-      return {
-        ...prev,
-        accounts,
-      };
-    });
-
-    setNewProjectName("");
-  }, [activeAccount, newProjectName, updateStore]);
-
-  const openProject = useCallback(
-    (projectId: string) => {
-      if (!activeAccount) {
-        return;
-      }
-
-      const project = activeAccount.projects.find((item) => item.id === projectId);
+  const renameProjectFromDashboard = useCallback(
+    async (projectId: string) => {
+      const project = dashboardProjects.find((item) => item.id === projectId);
       if (!project) {
         return;
       }
 
-      loadProjectIntoEditor(project);
+      const renamedProjectName = window.prompt("Rename project", project.title);
+      if (renamedProjectName === null) {
+        return;
+      }
 
-      updateStore((prev) => ({
-        ...prev,
-        session: {
-          activeAccountId: activeAccount.id,
-          activeProjectId: project.id,
-          view: "editor",
-          editorMode: prev.session.editorMode,
-        },
-      }));
+      const nextProjectName = renamedProjectName.trim();
+      if (!nextProjectName || nextProjectName === project.title) {
+        return;
+      }
+
+      setDashboardActionError(null);
+      setDashboardActionProjectId(project.id);
+
+      try {
+        await updateProject(project.id, { title: nextProjectName });
+
+        const updatedAt = new Date().toISOString();
+
+        setDashboardProjects((currentProjects) =>
+          sortDashboardProjects(
+            currentProjects.map((item) =>
+              item.id === project.id
+                ? {
+                    ...item,
+                    title: nextProjectName,
+                    updated_at: updatedAt,
+                  }
+                : item
+            )
+          )
+        );
+      } catch (error) {
+        console.error("[Dashboard] Failed to rename project", error);
+        setDashboardActionError("Could not rename project. Please try again.");
+      } finally {
+        setDashboardActionProjectId(null);
+      }
+    },
+    [dashboardProjects]
+  );
+
+  const deleteProjectFromDashboard = useCallback(
+    async (projectId: string) => {
+      const project = dashboardProjects.find((item) => item.id === projectId);
+      if (!project) {
+        return;
+      }
+
+      const shouldDeleteProject = window.confirm(
+        `Delete \"${project.title}\"? This action cannot be undone.`
+      );
+      if (!shouldDeleteProject) {
+        return;
+      }
+
+      setDashboardActionError(null);
+      setDashboardActionProjectId(project.id);
+
+      try {
+        await deleteProject(project.id);
+
+        setDashboardProjects((currentProjects) =>
+          currentProjects.filter((item) => item.id !== project.id)
+        );
+      } catch (error) {
+        console.error("[Dashboard] Failed to delete project", error);
+        setDashboardActionError("Could not delete project. Please try again.");
+      } finally {
+        setDashboardActionProjectId(null);
+      }
+    },
+    [dashboardProjects]
+  );
+
+  const openProject = useCallback(
+    async (projectId: string) => {
+      setDashboardActionError(null);
+      setDashboardActionProjectId(projectId);
+
+      try {
+        const projectFromDb = await getProject(projectId);
+
+        if (!projectFromDb) {
+          setDashboardActionError("Project not found.");
+          return;
+        }
+
+        const project = mapDbProjectToAppProject(projectFromDb);
+        const accountId = activeAccount?.id ?? createAccountId(SINGLE_ACCOUNT_CODE);
+        const accountCode = activeAccount?.code ?? SINGLE_ACCOUNT_CODE;
+
+        loadProjectIntoEditor(project);
+
+        updateStore((prev) => {
+          const accountIndex = prev.accounts.findIndex(
+            (account) => account.id === accountId
+          );
+          const accounts = [...prev.accounts];
+
+          if (accountIndex >= 0) {
+            const account = accounts[accountIndex];
+            const projects = [...account.projects];
+            const projectIndex = projects.findIndex((item) => item.id === project.id);
+
+            if (projectIndex >= 0) {
+              projects[projectIndex] = project;
+            } else {
+              projects.push(project);
+            }
+
+            accounts[accountIndex] = {
+              ...account,
+              projects,
+            };
+          } else {
+            accounts.push({
+              id: accountId,
+              code: accountCode,
+              projects: [project],
+            });
+          }
+
+          return {
+            ...prev,
+            accounts,
+            session: {
+              ...prev.session,
+              activeAccountId: accountId,
+              activeProjectId: project.id,
+              view: "editor",
+            },
+          };
+        });
+      } catch (error) {
+        console.error("[Dashboard] Failed to open project", error);
+        setDashboardActionError("Could not open project. Please try again.");
+      } finally {
+        setDashboardActionProjectId(null);
+      }
     },
     [activeAccount, loadProjectIntoEditor, updateStore]
   );
 
   const handleBackToDashboard = useCallback(() => {
     persistCurrentProjectState();
+    void saveProjectNow();
 
     updateStore((prev) => ({
       ...prev,
@@ -1277,7 +1530,7 @@ export default function Page() {
     }));
 
     setUndoStack([]);
-  }, [persistCurrentProjectState, updateStore]);
+  }, [persistCurrentProjectState, saveProjectNow, updateStore]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNode>[]) => {
@@ -4444,9 +4697,8 @@ export default function Page() {
   }
 
   if (store.session.view === "dashboard") {
-    const projects = (activeAccount?.projects ?? [])
-      .slice()
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const projects = dashboardProjects;
+    const isCreatingProject = dashboardActionProjectId === "creating-project";
     const dashboardProjectsSpacing = 8;
 
     const dashboardBlockStyle: React.CSSProperties = {
@@ -4605,20 +4857,22 @@ export default function Page() {
               style={dashboardCompactInputStyle}
               placeholder="e.g. Checkout Microcopy"
               value={newProjectName}
+              disabled={isCreatingProject}
               onChange={(event) => setNewProjectName(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
-                  createProjectFromDashboard();
+                  void createProjectFromDashboard();
                 }
               }}
             />
             <button
               type="button"
               style={dashboardPrimaryButtonStyle}
-              onClick={createProjectFromDashboard}
+              onClick={() => void createProjectFromDashboard()}
+              disabled={isCreatingProject}
             >
-              Create Project
+              {isCreatingProject ? "Creating..." : "Create Project"}
             </button>
           </section>
 
@@ -4634,11 +4888,40 @@ export default function Page() {
                 Projects
               </h2>
               <p style={{ margin: 0, fontSize: 16, color: "#475569", textAlign: "center" }}>
-                Click on a project to enter.
+                Open, rename, or delete your projects.
               </p>
             </div>
 
-            {projects.length === 0 ? (
+            {dashboardActionError && (
+              <div
+                style={{
+                  ...dashboardBlockStyle,
+                  borderColor: "#fecaca",
+                  background: "#fef2f2",
+                  color: "#991b1b",
+                  fontSize: 12,
+                  padding: "8px 10px",
+                }}
+              >
+                {dashboardActionError}
+              </div>
+            )}
+
+            {isDashboardProjectsLoading ? (
+              <div
+                style={{
+                  ...dashboardBlockStyle,
+                  borderStyle: "dashed",
+                  borderColor: "#94a3b8",
+                  padding: "14px 16px",
+                  textAlign: "center",
+                  color: "#475569",
+                  fontSize: 13,
+                }}
+              >
+                Loading projects...
+              </div>
+            ) : projects.length === 0 ? (
               <div
                 style={{
                   ...dashboardBlockStyle,
@@ -4660,43 +4943,83 @@ export default function Page() {
                   gap: 10,
                 }}
               >
-                {projects.map((project) => (
-                  <button
-                    key={project.id}
-                    type="button"
-                    onClick={() => openProject(project.id)}
-                    style={{
-                      textAlign: "left",
-                      border: "2px solid #bfdbfe",
-                      borderRadius: 12,
-                      padding: "9px 10px",
-                      background: "#fff",
-                      cursor: "pointer",
-                      display: "grid",
-                      gap: 3,
-                      boxShadow: "0 3px 10px rgba(37, 99, 235, 0.1)",
-                      lineHeight: 1.25,
-                    }}
-                  >
+                {projects.map((project) => {
+                  const isProjectActionPending = dashboardActionProjectId === project.id;
+
+                  return (
                     <div
+                      key={project.id}
                       style={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: "#1e293b",
-                        lineHeight: 1.2,
+                        textAlign: "left",
+                        border: "2px solid #bfdbfe",
+                        borderRadius: 12,
+                        padding: "9px 10px",
+                        background: "#fff",
+                        display: "grid",
+                        gap: 8,
+                        boxShadow: "0 3px 10px rgba(37, 99, 235, 0.1)",
+                        lineHeight: 1.25,
                       }}
                     >
-                      {project.name}
+                      <button
+                        type="button"
+                        onClick={() => openProject(project.id)}
+                        disabled={isProjectActionPending}
+                        style={{
+                          textAlign: "left",
+                          border: "none",
+                          padding: 0,
+                          background: "transparent",
+                          cursor: isProjectActionPending ? "default" : "pointer",
+                          display: "grid",
+                          gap: 3,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: "#1e293b",
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          {project.title}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#475569" }}>
+                          Nodes: {project.node_count}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#475569" }}>Project ID: {project.id}</div>
+                        <div style={{ fontSize: 10, color: "#94a3b8" }}>
+                          Updated: {formatDateTime(project.updated_at)}
+                        </div>
+                      </button>
+
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                        <button
+                          type="button"
+                          style={dashboardButtonStyle}
+                          onClick={() => void renameProjectFromDashboard(project.id)}
+                          disabled={isProjectActionPending}
+                        >
+                          Rename
+                        </button>
+                        <button
+                          type="button"
+                          style={{
+                            ...dashboardButtonStyle,
+                            borderColor: "#fecaca",
+                            color: "#991b1b",
+                            background: "#fef2f2",
+                          }}
+                          onClick={() => void deleteProjectFromDashboard(project.id)}
+                          disabled={isProjectActionPending}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 11, color: "#475569" }}>
-                      Nodes: {project.canvas.nodes.length}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#475569" }}>Project ID: {project.id}</div>
-                    <div style={{ fontSize: 10, color: "#94a3b8" }}>
-                      Updated: {formatDateTime(project.updatedAt)}
-                    </div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
