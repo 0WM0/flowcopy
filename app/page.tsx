@@ -4765,7 +4765,7 @@ export default function Page() {
             zIndex: 1,
           }}
         >
-          FlowCopy
+          Termpath
         </div>
 
         <div
@@ -7794,7 +7794,7 @@ export default function Page() {
               }}
             >
               <h3 id="help-modal-title" style={{ margin: 0, fontSize: 18, color: "#0f172a" }}>
-                FlowCopy Help &amp; Key Commands
+                Termpath Help &amp; Key Commands
               </h3>
 
               <button

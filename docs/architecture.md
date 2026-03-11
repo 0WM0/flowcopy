@@ -38,6 +38,102 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session fixed the Supabase auto-save regression and then stabilized the editor after an infinite re-render risk.
+
+The product-level outcome is:
+
+- auto-save now writes live editor state (not stale/default payloads)
+- auto-save no longer re-triggers from object-reference churn
+- editor remains idle after compile until a real edit happens
+
+## 2) Core Data Model
+
+No database table/schema changes were introduced. The key contract change was at hook API level:
+
+- `useAutoSave(projectId, data, changeCounter)`
+
+The Supabase `projects.data` payload shape remains aligned with editor/local persistence shape and continues to include:
+
+- `nodes`
+- `edges`
+- `adminOptions`
+- `controlledLanguageGlossary`
+- `uiJourneySnapshotPresets`
+
+## 3) Persistence and Migration Strategy
+
+Persistence flow was corrected and hardened without migration changes:
+
+- `latestDataRef.current = data` continues to hold the freshest serialized project payload
+- debounced save now schedules on explicit change signal (`changeCounter`) rather than `data` object dependency
+- `updateProject(projectId, { data: latestDataRef.current })` remains the Supabase write path
+
+No storage-key or migration-path updates were required.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+This session affected save triggering semantics only, not graph ordering computation.
+
+## 5) Node Rendering and Shape System
+
+No node/edge rendering contracts changed.
+
+All node shape, handle, and edge visual behavior remains as previously implemented. The fix was strictly in autosave orchestration and mutation signaling.
+
+## 6) Editor Interaction Model
+
+Auto-save trigger behavior is now mutation-driven:
+
+- added `autoSaveChangeCounter` state in `app/page.tsx`
+- added `markProjectDirty()` to increment the counter
+- wired dirty signaling into real mutation paths:
+  - `queueUndoSnapshot()` (broad edit coverage)
+  - `handleUndo()` (state mutation outside normal edit callback paths)
+
+`useAutoSave` now:
+
+- tracks project changes with internal refs
+- ignores unchanged counter values
+- resets baseline on project switch
+- debounces save for 2s only after real edit signals
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Removed loop-prone `data` dependency from autosave debounce effect.
+2. Introduced explicit change-trigger API (`changeCounter`) for autosave scheduling.
+3. Preserved latest-payload correctness through `latestDataRef` usage.
+4. Connected edit/undo flows to autosave signaling so real edits still persist reliably.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+- `npm run lint -- app/page.tsx app/hooks/useAutoSave.ts` ✅ (warnings only, no errors)
+
+Operational note:
+
+- local `next dev` startup in this environment reported `.next/dev/lock` contention from another running instance; unrelated to compile/type correctness.
+
+## 9) Recommended Next Steps
+
+1. Add focused tests for `useAutoSave` trigger semantics (no save on idle re-render, save on counter increment).
+2. Add regression tests for project-switch behavior to ensure baseline counter reset is stable.
+3. Consider centralizing mutation signaling into a dedicated editor “dirty tracker” utility to reduce missed save triggers.
+
+##03-11-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session completed the dashboard data-source cutover from legacy local project lists to Supabase-backed project records.
 
 The dashboard now treats Supabase as the source of truth for project listing and dashboard CRUD operations, eliminating the old ID mismatch where UI rows could still come from `flowcopy.store.v1` (`PRJ-...`) while rename/delete attempted UUID-based Supabase mutations.
