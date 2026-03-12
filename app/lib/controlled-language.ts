@@ -243,6 +243,30 @@ export const buildMenuTermSelectorTerms = (
   return Array.from(terms).sort((a, b) => a.localeCompare(b));
 };
 
+export const buildControlledLanguageNodeIdsByGlossaryKey = (
+  nodes: FlowNode[]
+): Map<string, string[]> => {
+  const nodeIdsByKey = new Map<string, Set<string>>();
+
+  nodes.forEach((node) => {
+    collectControlledLanguageTermsFromNode(node).forEach(({ field_type, term: rawTerm }) => {
+      const term = normalizeControlledLanguageTerm(rawTerm);
+      if (!term) {
+        return;
+      }
+
+      const key = buildControlledLanguageGlossaryKey(field_type, term);
+      const nodeIds = nodeIdsByKey.get(key) ?? new Set<string>();
+      nodeIds.add(node.id);
+      nodeIdsByKey.set(key, nodeIds);
+    });
+  });
+
+  return new Map(
+    Array.from(nodeIdsByKey.entries()).map(([key, nodeIds]) => [key, Array.from(nodeIds)])
+  );
+};
+
 export const buildControlledLanguageAuditRows = (
   nodes: FlowNode[],
   glossary: ControlledLanguageGlossaryEntry[]
@@ -289,4 +313,78 @@ export const buildControlledLanguageAuditRows = (
   });
 
   return sortControlledLanguageEntries(Array.from(rowByKey.values()));
+};
+
+export const replaceLiteralTerm = (
+  value: string,
+  term: string,
+  replacement: string
+): string => {
+  if (!term) {
+    return value;
+  }
+
+  return value.split(term).join(replacement);
+};
+
+export const replaceTermInNodeTextFields = (
+  node: FlowNode,
+  term: string,
+  replacement: string
+): { node: FlowNode; changed: boolean } => {
+  if (!term) {
+    return { node, changed: false };
+  }
+
+  let changed = false;
+
+  const replaceField = (value: string): string => {
+    const nextValue = replaceLiteralTerm(value, term, replacement);
+    if (nextValue !== value) {
+      changed = true;
+    }
+
+    return nextValue;
+  };
+
+  const nextNode: FlowNode = {
+    ...node,
+    data: {
+      ...node.data,
+      title: replaceField(node.data.title),
+      body_text: replaceField(node.data.body_text),
+      primary_cta: replaceField(node.data.primary_cta),
+      secondary_cta: replaceField(node.data.secondary_cta),
+      helper_text: replaceField(node.data.helper_text),
+      error_text: replaceField(node.data.error_text),
+      tone: replaceField(node.data.tone),
+      polarity: replaceField(node.data.polarity),
+      reversibility: replaceField(node.data.reversibility),
+      concept: replaceField(node.data.concept),
+      notes: replaceField(node.data.notes),
+      action_type_name: replaceField(node.data.action_type_name),
+      action_type_color: replaceField(node.data.action_type_color),
+      card_style: replaceField(node.data.card_style),
+      menu_config: {
+        ...node.data.menu_config,
+        terms: node.data.menu_config.terms.map((menuTerm) => ({
+          ...menuTerm,
+          term: replaceField(menuTerm.term),
+        })),
+      },
+      ribbon_config: node.data.ribbon_config
+        ? {
+            ...node.data.ribbon_config,
+            cells: node.data.ribbon_config.cells.map((cell) => ({
+              ...cell,
+              label: replaceField(cell.label),
+              key_command: replaceField(cell.key_command),
+              tool_tip: replaceField(cell.tool_tip),
+            })),
+          }
+        : node.data.ribbon_config,
+    },
+  };
+
+  return changed ? { node: nextNode, changed: true } : { node, changed: false };
 };

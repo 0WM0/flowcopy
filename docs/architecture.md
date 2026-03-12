@@ -32,6 +32,182 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-12-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session refined inspector behavior for multi-selection in Canvas mode.
+
+When more than one node is selected, the inspector no longer shows editable data for an arbitrary single node. Instead, it now shows a clear guidance message and requires users to narrow selection to exactly one node before editing node data.
+
+## 2) Core Data Model
+
+No persisted schema or type contracts changed.
+
+The change introduced selection-state derivation for inspector rendering in `app/page.tsx`:
+
+- `selectedInspectorNodeIds` (normalized, deduped selection set)
+- `hasExactlyOneSelectedNode`
+- `hasMultipleSelectedNodes`
+
+These are runtime UI-state derivations only and do not alter node/edge/project models.
+
+## 3) Persistence and Migration Strategy
+
+No persistence or migration behavior changed.
+
+- no localStorage key updates
+- no project payload updates
+- no migration-path updates
+
+This was a presentation/interaction guard update in inspector rendering logic.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering or sequence-ID behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Inspector gating is orthogonal to graph ordering computation.
+
+## 5) Node Rendering and Shape System
+
+Canvas node/edge rendering contracts were unchanged.
+
+The update was scoped to inspector-side rendering conditions in `app/page.tsx`:
+
+- node editor content now renders only when exactly one node is selected
+- multi-selection renders a neutral empty-state message
+- edge inspector still renders when an edge is selected and no nodes are selected
+
+## 6) Editor Interaction Model
+
+Inspector behavior now resolves selection states explicitly:
+
+1. **No node selected** → "No selection. Click a node or edge on the canvas."
+2. **Exactly one node selected** → full node editor UI
+3. **Multiple nodes selected** → "Multiple nodes selected. Select a single node to edit its data."
+
+Menu-node helper copy/error block visibility was also gated to single-node selection so menu-editing affordances do not appear in multi-select mode.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added normalized inspector selection-id derivation (`selectedInspectorNodeIds`).
+2. Added explicit single vs multiple selection booleans.
+3. Updated inspector conditional rendering to block node-editor rendering unless selection size is exactly one.
+4. Added multi-selection guidance message using the same empty-state visual style as no-selection messaging.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operational note: a follow-up `npm run dev` attempt in this environment reported an existing Next dev lock (`.next/dev/lock`) from another running instance; unrelated to this inspector logic change.
+
+## 9) Recommended Next Steps
+
+1. Add focused UI tests for inspector state gating (none/single/multiple selections).
+2. Add regression coverage ensuring multi-selection never mounts single-node editor controls.
+3. Consider adding a compact selection-count badge in the inspector header for additional clarity.
+
+##03-12-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session completed conversation-export parity across all primary formats by extending the already-updated CSV/XML/JSON behavior to HTML and RTF.
+
+The conversation export surface now consistently includes:
+
+- sequence boundary markers (`Sequence Start` / `Sequence End`)
+- step counters (`"1 of N"`)
+- omission of empty fields/values
+
+for conversation-view exports in CSV, XML, JSON, HTML, and RTF.
+
+## 2) Core Data Model
+
+No persisted schema/type contracts were changed.
+
+The session reused existing conversation export normalization contracts in `app/lib/export.ts`:
+
+- `normalizeUiJourneyConversationExportEntries(...)`
+- `visibleFields`
+- `stepLabel`
+- optional `bodyText` / `notes` nullability checks
+
+This kept export behavior model-driven without introducing new payload fields.
+
+## 3) Persistence and Migration Strategy
+
+No storage, migration, or project-schema changes were required.
+
+Changes were export-generation and UI routing only:
+
+- no localStorage key changes
+- no project payload format changes
+- no migration-path updates
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering/sequence algorithms changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Step counters in exports use existing conversation entry order and count; they do not alter graph ordering semantics.
+
+## 5) Node Rendering and Shape System
+
+No canvas node/edge rendering changes were made.
+
+HTML export rendering was enhanced to more closely mirror Conversation View presentation:
+
+- step labels per entry
+- sequence boundary markers in output
+- filtered field display (no empty values)
+- orphan-aware visual treatment retained in exported conversation styling
+
+## 6) Editor Interaction Model
+
+Conversation export button routing in `app/page.tsx` was updated so the conversation modal now calls conversation-specific exporters for HTML/RTF:
+
+- `html` → `buildUiJourneyConversationHtmlExport(...)`
+- `rtf` → `buildUiJourneyConversationRtfExport(...)`
+
+This aligns HTML/RTF behavior with existing conversation-specific CSV/XML/JSON export routing.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added `buildUiJourneyConversationHtmlExport(...)` in `app/lib/export.ts`.
+2. Added `buildUiJourneyConversationRtfExport(...)` in `app/lib/export.ts`.
+3. Implemented sequence start/end markers and step counters in both new exporters.
+4. Ensured empty conversation fields are omitted via normalized visible-field filtering.
+5. Updated conversation export switch in `app/page.tsx` to use new HTML/RTF conversation exporters.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operationally, this closes the format gap where HTML/RTF previously used older conversation export behavior.
+
+## 9) Recommended Next Steps
+
+1. Add focused tests for conversation HTML/RTF export parity (markers, step labels, empty-field omission).
+2. Add snapshot-based golden tests for exported HTML readability and RTF content structure.
+3. Consider consolidating legacy/plain conversation exporters vs conversation-specific export variants to reduce duplication.
+
 ##03-11-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.

@@ -848,11 +848,17 @@ export const resolveNodeHighlightColor = ({
   selected,
   uiJourneyHighlighted,
   uiJourneyRecalled,
+  glossaryHighlighted,
 }: {
   selected: boolean;
   uiJourneyHighlighted: boolean;
   uiJourneyRecalled: boolean;
+  glossaryHighlighted?: boolean;
 }): string | null => {
+  if (glossaryHighlighted) {
+    return "#f59e0b";
+  }
+
   if (uiJourneyRecalled) {
     return UI_JOURNEY_RECALLED_STROKE_COLOR;
   }
@@ -875,6 +881,7 @@ export const getNodeShapeStyle = (
   options: {
     uiJourneyHighlighted?: boolean;
     uiJourneyRecalled?: boolean;
+    glossaryHighlighted?: boolean;
   } = {}
 ): React.CSSProperties => {
   const resolvedAccentColor = accentColor?.trim() || "#4f46e5";
@@ -882,6 +889,7 @@ export const getNodeShapeStyle = (
     selected,
     uiJourneyHighlighted: options.uiJourneyHighlighted ?? false,
     uiJourneyRecalled: options.uiJourneyRecalled ?? false,
+    glossaryHighlighted: options.glossaryHighlighted ?? false,
   });
 
   const baseStyle: React.CSSProperties = {

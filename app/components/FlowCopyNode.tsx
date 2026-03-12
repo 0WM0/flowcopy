@@ -87,6 +87,7 @@ function BodyTextPreview({ value }: { value: string }) {
 type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onBeforeChange: () => void;
   menuTermGlossaryTerms: string[];
+  glossaryHighlightedNodeIds: ReadonlySet<string>;
   showNodeId: boolean;
   showDefaultNodeTitleOnCanvas: boolean;
   onMenuTermDeleteBlocked: () => void;
@@ -102,6 +103,7 @@ function FlowCopyNode({
   selected,
   onBeforeChange,
   menuTermGlossaryTerms,
+  glossaryHighlightedNodeIds,
   showNodeId,
   showDefaultNodeTitleOnCanvas,
   onMenuTermDeleteBlocked,
@@ -121,6 +123,7 @@ function FlowCopyNode({
     x: 0,
     y: 0,
   });
+  const isGlossaryHighlighted = glossaryHighlightedNodeIds.has(id);
 
   const isMenuNode = data.node_type === "menu";
   const isFrameNode = data.node_type === "frame";
@@ -444,6 +447,7 @@ function FlowCopyNode({
       selected,
       uiJourneyHighlighted: Boolean(data.ui_journey_highlighted),
       uiJourneyRecalled: Boolean(data.ui_journey_recalled),
+      glossaryHighlighted: isGlossaryHighlighted,
     });
 
     return (
@@ -653,6 +657,7 @@ function FlowCopyNode({
       selected,
       uiJourneyHighlighted: Boolean(data.ui_journey_highlighted),
       uiJourneyRecalled: Boolean(data.ui_journey_recalled),
+      glossaryHighlighted: isGlossaryHighlighted,
     });
 
     const totalCells = sortedRibbonCells.length;
@@ -1033,6 +1038,7 @@ function FlowCopyNode({
       style={getNodeShapeStyle(data.node_shape, selected, data.action_type_color, {
         uiJourneyHighlighted: Boolean(data.ui_journey_highlighted),
         uiJourneyRecalled: Boolean(data.ui_journey_recalled),
+        glossaryHighlighted: isGlossaryHighlighted,
       })}
     >
       <Handle

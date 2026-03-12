@@ -191,6 +191,7 @@ import {
   buildControlledLanguageTermsByField,
   buildMenuTermSelectorTerms,
   buildControlledLanguageAuditRows,
+  buildControlledLanguageNodeIdsByGlossaryKey,
   normalizeControlledLanguageTerm,
   buildControlledLanguageGlossaryKey,
   parseControlledLanguageGlossaryKey,
@@ -198,6 +199,7 @@ import {
   normalizeControlledLanguageFieldType,
   isNodeControlledLanguageFieldType,
   collectControlledLanguageTermsFromNode,
+  replaceTermInNodeTextFields,
 } from "./lib/controlled-language";
 
 import {
@@ -770,6 +772,12 @@ export default function Page() {
   const [controlledLanguageGlossary, setControlledLanguageGlossary] = useState<
     ControlledLanguageGlossaryEntry[]
   >([]);
+  const [glossaryHighlightedNodeIds, setGlossaryHighlightedNodeIds] = useState<string[]>(
+    []
+  );
+  const [activeGlossaryHighlightKey, setActiveGlossaryHighlightKey] = useState<
+    string | null
+  >(null);
   const [isControlledLanguagePanelOpen, setIsControlledLanguagePanelOpen] =
     useState(false);
   const [controlledLanguageDraftRow, setControlledLanguageDraftRow] =
@@ -906,6 +914,11 @@ export default function Page() {
       menuTermDeleteErrorTimeoutRef.current = null;
     }
     setMenuTermDeleteError(null);
+  }, []);
+
+  const clearGlossaryHighlights = useCallback(() => {
+    setGlossaryHighlightedNodeIds([]);
+    setActiveGlossaryHighlightKey(null);
   }, []);
 
   const showMenuTermDeleteBlockedMessage = useCallback(() => {
@@ -1862,6 +1875,7 @@ export default function Page() {
   const onPaneClick = useCallback(
     (event: React.MouseEvent) => {
       clearMenuTermDeleteError();
+      clearGlossaryHighlights();
 
       if (event.detail === 2) {
         setOpenControlledLanguageFieldType(null);
@@ -1878,24 +1892,26 @@ export default function Page() {
       setSelectedNodeIds([]);
       setSelectedEdgeId(null);
     },
-    [addNodeAtEvent, clearMenuTermDeleteError]
+    [addNodeAtEvent, clearGlossaryHighlights, clearMenuTermDeleteError]
   );
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: FlowNode) => {
       clearMenuTermDeleteError();
+      clearGlossaryHighlights();
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
       setOpenInspectorRibbonCellGlossary(null);
       setSelectedNodeId(node.id);
       setSelectedEdgeId(null);
     },
-    [clearMenuTermDeleteError]
+    [clearGlossaryHighlights, clearMenuTermDeleteError]
   );
 
   const onEdgeClick = useCallback(
     (_: React.MouseEvent, edge: FlowEdge) => {
       clearMenuTermDeleteError();
+      clearGlossaryHighlights();
       setOpenControlledLanguageFieldType(null);
       setOpenInspectorMenuGlossaryTermId(null);
       setOpenInspectorRibbonCellGlossary(null);
@@ -1903,7 +1919,7 @@ export default function Page() {
       setSelectedNodeId(null);
       setSelectedNodeIds([]);
     },
-    [clearMenuTermDeleteError]
+    [clearGlossaryHighlights, clearMenuTermDeleteError]
   );
 
   const onSelectionChange = useCallback(
@@ -2499,7 +2515,20 @@ export default function Page() {
     selectedNode.data.node_type !== "menu" &&
     selectedNode.data.node_type !== "frame";
 
-  const hasSelectedNodes = selectedNodeIds.length > 0 || selectedNode !== null;
+  const selectedInspectorNodeIds = useMemo(() => {
+    const selectedIds =
+      selectedNodeIds.length > 0
+        ? selectedNodeIds
+        : selectedNodeId
+          ? [selectedNodeId]
+          : [];
+
+    return Array.from(new Set(selectedIds));
+  }, [selectedNodeId, selectedNodeIds]);
+
+  const hasSelectedNodes = selectedInspectorNodeIds.length > 0;
+  const hasExactlyOneSelectedNode = selectedInspectorNodeIds.length === 1;
+  const hasMultipleSelectedNodes = selectedInspectorNodeIds.length > 1;
 
   const selectedNonFrameNodesForFrameCreation = useMemo(() => {
     const selectedIds =
@@ -3518,6 +3547,11 @@ export default function Page() {
     createFrameFromSelectionRef.current = createFrameFromSelection;
   }, [createFrameFromSelection]);
 
+  const glossaryHighlightedNodeIdSet = useMemo(
+    () => new Set(glossaryHighlightedNodeIds),
+    [glossaryHighlightedNodeIds]
+  );
+
   const nodeTypes = useMemo(
     () => ({
       flowcopyNode: (props: NodeProps<FlowNode>) => (
@@ -3525,6 +3559,7 @@ export default function Page() {
           {...props}
           onBeforeChange={() => captureUndoSnapshotRef.current()}
           menuTermGlossaryTerms={menuTermGlossaryTermsRef.current}
+          glossaryHighlightedNodeIds={glossaryHighlightedNodeIdSet}
           showNodeId={showNodeIdsOnCanvas}
           showDefaultNodeTitleOnCanvas={showDefaultNodeTitleOnCanvas}
           onMenuTermDeleteBlocked={showMenuTermDeleteBlockedMessage}
@@ -3535,6 +3570,7 @@ export default function Page() {
       ),
     }),
     [
+      glossaryHighlightedNodeIdSet,
       showDefaultNodeTitleOnCanvas,
       showNodeIdsOnCanvas,
       showMenuTermDeleteBlockedMessage,
@@ -3654,6 +3690,21 @@ export default function Page() {
     [nodes, controlledLanguageGlossary]
   );
 
+  const controlledLanguageNodeIdsByGlossaryKey = useMemo(
+    () => buildControlledLanguageNodeIdsByGlossaryKey(nodes),
+    [nodes]
+  );
+
+  useEffect(() => {
+    if (!activeGlossaryHighlightKey) {
+      return;
+    }
+
+    setGlossaryHighlightedNodeIds(
+      controlledLanguageNodeIdsByGlossaryKey.get(activeGlossaryHighlightKey) ?? []
+    );
+  }, [activeGlossaryHighlightKey, controlledLanguageNodeIdsByGlossaryKey]);
+
   const controlledLanguageTermsByField = useMemo(
     () => buildControlledLanguageTermsByField(controlledLanguageGlossary),
     [controlledLanguageGlossary]
@@ -3673,6 +3724,79 @@ export default function Page() {
       );
     },
     [queueUndoSnapshot]
+  );
+
+  const handleControlledLanguageOccurrencesClick = useCallback(
+    (row: ControlledLanguageAuditRow, rowKey: string) => {
+      if (row.occurrences === 0) {
+        return;
+      }
+
+      if (activeGlossaryHighlightKey === rowKey) {
+        clearGlossaryHighlights();
+        return;
+      }
+
+      setActiveGlossaryHighlightKey(rowKey);
+      setGlossaryHighlightedNodeIds(controlledLanguageNodeIdsByGlossaryKey.get(rowKey) ?? []);
+    },
+    [
+      activeGlossaryHighlightKey,
+      clearGlossaryHighlights,
+      controlledLanguageNodeIdsByGlossaryKey,
+    ]
+  );
+
+  const handleControlledLanguageReplaceAll = useCallback(
+    (row: ControlledLanguageAuditRow, rowKey: string) => {
+      if (activeGlossaryHighlightKey !== rowKey) {
+        return;
+      }
+
+      const highlightedIds = controlledLanguageNodeIdsByGlossaryKey.get(rowKey) ?? [];
+      if (highlightedIds.length === 0) {
+        return;
+      }
+
+      const replacementRaw = window.prompt(
+        `Replace all occurrences of "${row.term}" in highlighted nodes with:`
+      );
+
+      if (replacementRaw === null) {
+        return;
+      }
+
+      const replacement = replacementRaw;
+      const highlightedIdSet = new Set(highlightedIds);
+      let hasAnyChange = false;
+      const nextNodes = nodes.map((node) => {
+        if (!highlightedIdSet.has(node.id)) {
+          return node;
+        }
+
+        const replaced = replaceTermInNodeTextFields(node, row.term, replacement);
+        if (replaced.changed) {
+          hasAnyChange = true;
+        }
+
+        return replaced.node;
+      });
+
+      if (hasAnyChange) {
+        queueUndoSnapshot();
+        setNodes(nextNodes);
+      }
+
+      clearGlossaryHighlights();
+    },
+    [
+      activeGlossaryHighlightKey,
+      clearGlossaryHighlights,
+      controlledLanguageNodeIdsByGlossaryKey,
+      nodes,
+      queueUndoSnapshot,
+      setNodes,
+    ]
   );
 
   const setControlledLanguageRowInclude = useCallback(
@@ -6102,7 +6226,7 @@ export default function Page() {
           </button>
         )}
 
-        {selectedNode?.data.node_type === "menu" && (
+        {hasExactlyOneSelectedNode && selectedNode?.data.node_type === "menu" && (
           <>
             <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
               Menu node mode: edit Menu Terms below. These
@@ -6443,7 +6567,66 @@ export default function Page() {
                               color: "#0f172a",
                             }}
                           >
-                            <strong>{row.occurrences}</strong>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <button
+                                type="button"
+                                style={{
+                                  ...buttonStyle,
+                                  fontSize: 11,
+                                  padding: "2px 8px",
+                                  borderColor:
+                                    activeGlossaryHighlightKey === rowKey ? "#f59e0b" : "#d4d4d8",
+                                  background:
+                                    activeGlossaryHighlightKey === rowKey ? "#fef3c7" : "#fff",
+                                  color:
+                                    activeGlossaryHighlightKey === rowKey ? "#92400e" : "#0f172a",
+                                  fontWeight: 700,
+                                  cursor: row.occurrences === 0 ? "not-allowed" : "pointer",
+                                  opacity: row.occurrences === 0 ? 0.55 : 1,
+                                }}
+                                disabled={row.occurrences === 0}
+                                onClick={() =>
+                                  handleControlledLanguageOccurrencesClick(row, rowKey)
+                                }
+                                title={
+                                  row.occurrences === 0
+                                    ? "No nodes contain this term"
+                                    : activeGlossaryHighlightKey === rowKey
+                                      ? "Click to clear highlighted nodes"
+                                      : "Highlight nodes containing this term"
+                                }
+                              >
+                                {row.occurrences}
+                              </button>
+
+                              {activeGlossaryHighlightKey === rowKey && row.occurrences > 0 && (
+                                <button
+                                  type="button"
+                                  style={{
+                                    ...buttonStyle,
+                                    fontSize: 10,
+                                    padding: "2px 6px",
+                                    borderColor: "#f59e0b",
+                                    background: "#fff7ed",
+                                    color: "#9a3412",
+                                    fontWeight: 700,
+                                  }}
+                                  onClick={() =>
+                                    handleControlledLanguageReplaceAll(row, rowKey)
+                                  }
+                                  title="Replace this term across all highlighted nodes"
+                                >
+                                  Replace All
+                                </button>
+                              )}
+                            </div>
                             {row.occurrences === 0 && (
                               <div style={{ marginTop: 2, color: "#64748b" }}>
                                 Not Used
@@ -6689,7 +6872,11 @@ export default function Page() {
               Tip: press Delete / Backspace to remove this edge.
             </p>
           </section>
-        ) : !selectedNode ? (
+        ) : hasMultipleSelectedNodes ? (
+          <p style={{ fontSize: 13, color: "#71717a" }}>
+            Multiple nodes selected. Select a single node to edit its data.
+          </p>
+        ) : !hasExactlyOneSelectedNode || !selectedNode ? (
           <p style={{ fontSize: 13, color: "#71717a" }}>
             No selection. Click a node or edge on the canvas.
           </p>
