@@ -8097,13 +8097,16 @@ export default function Page() {
                   <strong>Connect nodes:</strong> drag from source handles to target handles to create edges.
                 </li>
                 <li>
-                  <strong>Edit node data:</strong> click a node, then use the Node Data Panel on the right.
+                  <strong>Edit node data:</strong> select exactly one node, then use the Node Data Panel on the right (multi-select must be narrowed first).
                 </li>
                 <li>
                   <strong>Frame a flow area:</strong> select 2+ non-frame nodes, then use Shift+F or “Frame selected nodes”.
                 </li>
                 <li>
                   <strong>Edit edges:</strong> click an edge to open Edge Inspector and adjust color/style/direction.
+                </li>
+                <li>
+                  <strong>Glossary occurrence highlight:</strong> in Controlled Language, click a term’s instance count to highlight all matching nodes on canvas; click again, choose another term, or click canvas to clear.
                 </li>
                 <li>
                   <strong>Undo recent changes:</strong> use Undo in the top actions bar (up to 3 snapshots).
@@ -8133,7 +8136,7 @@ export default function Page() {
                   <strong>Node Data Panel:</strong> edit node-type fields (Default / Menu / Ribbon / Frame).
                 </li>
                 <li>
-                  <strong>Controlled Language panel:</strong> manage glossary terms, include/exclude options, and import/export glossary.
+                  <strong>Controlled Language panel:</strong> manage glossary terms, include/exclude options, import/export glossary, and click occurrence counts to highlight matching canvas nodes.
                 </li>
                 <li>
                   <strong>Global Attribute Admin:</strong> manage option lists for Tone, Polarity, Reversibility, Concept, Action Type, and Card Style.
