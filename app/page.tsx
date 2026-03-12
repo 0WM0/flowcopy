@@ -164,6 +164,11 @@ import {
   buildUiJourneyConversationMarkdown,
   buildUiJourneyConversationHtml,
   buildUiJourneyConversationRtf,
+  buildUiJourneyConversationCsv,
+  buildUiJourneyConversationXml,
+  buildUiJourneyConversationJson,
+  buildUiJourneyConversationHtmlExport,
+  buildUiJourneyConversationRtfExport,
   buildDownloadFileName,
   escapeCsvCell,
 } from "./lib/export";
@@ -4131,26 +4136,49 @@ export default function Page() {
 
       const generatedAtLabel = new Date().toLocaleString();
 
-      const payload =
-        format === "txt"
-          ? buildUiJourneyConversationPlainText(
+      const payload = (() => {
+        switch (format) {
+          case "txt":
+            return buildUiJourneyConversationPlainText(
               uiJourneyConversationSnapshot,
               generatedAtLabel
-            )
-          : format === "md"
-            ? buildUiJourneyConversationMarkdown(
-                uiJourneyConversationSnapshot,
-                generatedAtLabel
-              )
-            : format === "html"
-              ? buildUiJourneyConversationHtml(
-                  uiJourneyConversationSnapshot,
-                  generatedAtLabel
-                )
-              : buildUiJourneyConversationRtf(
-                  uiJourneyConversationSnapshot,
-                  generatedAtLabel
-                );
+            );
+          case "md":
+            return buildUiJourneyConversationMarkdown(
+              uiJourneyConversationSnapshot,
+              generatedAtLabel
+            );
+          case "html":
+            return buildUiJourneyConversationHtmlExport(
+              uiJourneyConversationSnapshot,
+              generatedAtLabel
+            );
+          case "rtf":
+            return buildUiJourneyConversationRtfExport(
+              uiJourneyConversationSnapshot,
+              generatedAtLabel
+            );
+          case "csv":
+            return buildUiJourneyConversationCsv(
+              uiJourneyConversationSnapshot,
+              generatedAtLabel
+            );
+          case "xml":
+            return buildUiJourneyConversationXml(
+              uiJourneyConversationSnapshot,
+              generatedAtLabel
+            );
+          case "json":
+            return buildUiJourneyConversationJson(
+              uiJourneyConversationSnapshot,
+              generatedAtLabel
+            );
+          default: {
+            const exhaustiveFormat: never = format;
+            throw new Error(`Unsupported conversation export format: ${String(exhaustiveFormat)}`);
+          }
+        }
+      })();
 
       downloadTextFile(activeProject.id, format, payload);
 
@@ -8234,15 +8262,58 @@ export default function Page() {
               </p>
             ) : (
               <div style={{ display: "grid", gap: 10, maxHeight: 480, overflowY: "auto" }}>
-                {uiJourneyConversationSnapshot.map((entry) => {
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: "#64748b",
+                    opacity: 0.75,
+                    letterSpacing: 0.6,
+                    textTransform: "uppercase",
+                    textAlign: "center",
+                  }}
+                >
+                  Sequence Start
+                </div>
+
+                {uiJourneyConversationSnapshot.map((entry, entryIndex) => {
+                  const stepCounterLabel = `${entryIndex + 1} of ${uiJourneyConversationSnapshot.length}`;
                   const heading = `${entry.sequence ?? "-"} - ${entry.title || "Untitled"}`;
                   const isFrameEntry = entry.nodeType === "frame";
                   const isCenteredHeaderEntry =
                     entry.nodeType === "frame" || entry.nodeType === "ribbon";
                   const isOrphanEntry = entry.connectionMeta.isOrphan;
                   const headingColor = isOrphanEntry ? "#dc2626" : "#64748b";
-                  const contentColor = isOrphanEntry ? "#7f1d1d" : "#334155";
+                  const contentColor = isOrphanEntry ? "#7f1d1d" : "#0f172a";
                   const labelColor = isOrphanEntry ? "#b91c1c" : "#64748b";
+                  const conversationFieldLabelStyle: React.CSSProperties = {
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: labelColor,
+                    opacity: isOrphanEntry ? 0.82 : 0.68,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.7,
+                    lineHeight: 1.3,
+                  };
+                  const conversationFieldValueStyle: React.CSSProperties = {
+                    fontSize: 15,
+                    fontWeight: 500,
+                    color: contentColor,
+                    lineHeight: 1.45,
+                  };
+                  const hasNonEmptyConversationValue = (
+                    value: string | null | undefined
+                  ): value is string =>
+                    typeof value === "string" && value.trim().length > 0;
+                  const visibleFields = entry.fields.filter((field) =>
+                    hasNonEmptyConversationValue(field.value)
+                  );
+                  const hasBodyText = hasNonEmptyConversationValue(entry.bodyText);
+                  const hasNotes = hasNonEmptyConversationValue(entry.notes);
+                  const trimmedBodyText = hasBodyText ? entry.bodyText.trim() : "";
+                  const trimmedNotes = hasNotes ? entry.notes.trim() : "";
+                  const detailColumnCount =
+                    1 + (hasBodyText ? 1 : 0) + (hasNotes ? 1 : 0);
 
                   if (isCenteredHeaderEntry) {
                     return (
@@ -8258,6 +8329,17 @@ export default function Page() {
                           gap: 4,
                         }}
                       >
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: labelColor,
+                            opacity: 0.72,
+                            textAlign: "center",
+                          }}
+                        >
+                          {stepCounterLabel}
+                        </div>
+
                         <div style={{ display: "inline-flex", justifyContent: "center" }}>
                           <span
                             style={{
@@ -8287,17 +8369,26 @@ export default function Page() {
                           )}
                         </div>
 
-                        {entry.fields.length > 0 ? (
-                          entry.fields.map((field) => (
+                        {visibleFields.length > 0 ? (
+                          visibleFields.map((field) => (
                             <div
                               key={`${entry.nodeId}:${field.label}`}
                               style={{
-                                fontSize: 15,
-                                color: "#0f172a",
+                                display: "grid",
+                                gap: 2,
+                                justifyItems: "center",
                                 textAlign: "center",
                               }}
                             >
-                              <strong>{field.label}:</strong> {field.value}
+                              <div style={conversationFieldLabelStyle}>{field.label}</div>
+                              <div
+                                style={{
+                                  ...conversationFieldValueStyle,
+                                  textAlign: "center",
+                                }}
+                              >
+                                {field.value.trim()}
+                              </div>
                             </div>
                           ))
                         ) : (
@@ -8313,25 +8404,20 @@ export default function Page() {
                           </div>
                         )}
 
-                        {entry.notes && (
-                          <div style={{ marginTop: 4 }}>
+                        {hasNotes && (
+                          <div style={{ marginTop: 4, display: "grid", gap: 2, justifyItems: "center" }}>
                             <div
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                color: labelColor,
-                              }}
+                              style={conversationFieldLabelStyle}
                             >
                               Notes
                             </div>
                             <div
                               style={{
-                                fontSize: 14,
-                                color: contentColor,
+                                ...conversationFieldValueStyle,
                                 textAlign: "center",
                               }}
                             >
-                              {entry.notes}
+                              {trimmedNotes}
                             </div>
                           </div>
                         )}
@@ -8355,8 +8441,19 @@ export default function Page() {
                     >
                       <div
                         style={{
+                          fontSize: 10,
+                          color: labelColor,
+                          opacity: 0.72,
+                          textAlign: "right",
+                        }}
+                      >
+                        {stepCounterLabel}
+                      </div>
+
+                      <div
+                        style={{
                           display: "grid",
-                          gridTemplateColumns: "1fr 1fr 1fr",
+                          gridTemplateColumns: `repeat(${detailColumnCount}, minmax(0, 1fr))`,
                           gap: 12,
                         }}
                       >
@@ -8398,32 +8495,32 @@ export default function Page() {
                             )}
                           </div>
 
-                          {entry.fields.length > 0 ? (
-                            entry.fields.map((field) => (
+                          {visibleFields.length > 0 ? (
+                            visibleFields.map((field) => (
                               <div
                                 key={`${entry.nodeId}:${field.label}`}
                                 style={{
-                                  fontSize: 14,
+                                  display: "grid",
+                                  gap: 2,
                                   textAlign: "left",
                                 }}
                               >
-                                <strong
+                                <div
                                   style={{
-                                    fontSize: 14,
-                                    fontWeight: 700,
+                                    ...conversationFieldLabelStyle,
+                                    textAlign: "left",
                                   }}
                                 >
-                                  {field.label}:
-                                </strong>{" "}
-                                <span
+                                  {field.label}
+                                </div>
+                                <div
                                   style={{
-                                    fontSize: 14,
-                                    fontWeight: 400,
-                                    color: "#0f172a",
+                                    ...conversationFieldValueStyle,
+                                    textAlign: "left",
                                   }}
                                 >
-                                  {field.value}
-                                </span>
+                                  {field.value.trim()}
+                                </div>
                               </div>
                             ))
                           ) : (
@@ -8440,59 +8537,73 @@ export default function Page() {
                           )}
                         </div>
 
-                        <div style={{ display: "grid", alignContent: "start", gap: 2 }}>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: labelColor,
-                              marginBottom: 2,
-                              textAlign: "left",
-                            }}
-                          >
-                            Body Text
+                        {hasBodyText && (
+                          <div style={{ display: "grid", alignContent: "start", gap: 2 }}>
+                            <div
+                              style={{
+                                ...conversationFieldLabelStyle,
+                                marginBottom: 4,
+                                textAlign: "left",
+                              }}
+                            >
+                              Body Text
+                            </div>
+                            <div
+                              style={{
+                                ...conversationFieldValueStyle,
+                                fontSize: 14,
+                                textAlign: "left",
+                                whiteSpace: "pre-wrap",
+                                minHeight: 16,
+                              }}
+                            >
+                              {trimmedBodyText}
+                            </div>
                           </div>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: contentColor,
-                              textAlign: "left",
-                              whiteSpace: "pre-wrap",
-                              minHeight: 16,
-                            }}
-                          >
-                            {entry.bodyText}
-                          </div>
-                        </div>
+                        )}
 
-                        <div style={{ display: "grid", alignContent: "start", gap: 2 }}>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: labelColor,
-                              marginBottom: 2,
-                              textAlign: "left",
-                            }}
-                          >
-                            Notes
+                        {hasNotes && (
+                          <div style={{ display: "grid", alignContent: "start", gap: 2 }}>
+                            <div
+                              style={{
+                                ...conversationFieldLabelStyle,
+                                marginBottom: 4,
+                                textAlign: "left",
+                              }}
+                            >
+                              Notes
+                            </div>
+                            <div
+                              style={{
+                                ...conversationFieldValueStyle,
+                                fontSize: 14,
+                                textAlign: "left",
+                                whiteSpace: "pre-wrap",
+                                minHeight: 16,
+                              }}
+                            >
+                              {trimmedNotes}
+                            </div>
                           </div>
-                          <div
-                          style={{
-                            fontSize: 12,
-                            color: contentColor,
-                            textAlign: "left",
-                            whiteSpace: "pre-wrap",
-                            minHeight: 16,
-                          }}
-                        >
-                          {entry.notes}
-                        </div>
-                        </div>
+                        )}
                       </div>
                     </section>
                   );
                 })}
+
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: "#64748b",
+                    opacity: 0.75,
+                    letterSpacing: 0.6,
+                    textTransform: "uppercase",
+                    textAlign: "center",
+                  }}
+                >
+                  Sequence End
+                </div>
               </div>
             )}
           </div>

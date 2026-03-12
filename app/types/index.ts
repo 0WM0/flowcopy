@@ -280,7 +280,14 @@ export type UiJourneySnapshotPreset = {
   conversation: UiJourneyConversationEntry[];
 };
 
-export type UiJourneyConversationExportFormat = "txt" | "md" | "html" | "rtf";
+export type UiJourneyConversationExportFormat =
+  | "txt"
+  | "md"
+  | "html"
+  | "rtf"
+  | "csv"
+  | "xml"
+  | "json";
 export type ProjectTransferFormat = "csv" | "xml" | "json";
 export type DownloadTextExtension =
   | ProjectTransferFormat

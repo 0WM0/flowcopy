@@ -264,6 +264,9 @@ export const UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS: Record<
   md: "Markdown",
   html: "HTML",
   rtf: "RTF",
+  csv: "CSV",
+  xml: "XML",
+  json: "JSON",
 };
 
 export const UI_JOURNEY_CONVERSATION_EXPORT_FORMATS: UiJourneyConversationExportFormat[] = [
@@ -271,6 +274,9 @@ export const UI_JOURNEY_CONVERSATION_EXPORT_FORMATS: UiJourneyConversationExport
   "md",
   "html",
   "rtf",
+  "csv",
+  "xml",
+  "json",
 ];
 
 export const DOWNLOAD_TEXT_MIME_BY_EXTENSION: Record<
