@@ -4754,18 +4754,19 @@ export default function Page() {
             position: "absolute",
             top: 12,
             right: 26,
-            fontSize: 43,
-            lineHeight: 1,
-            fontWeight: 900,
-            letterSpacing: 0.3,
-            color: "#0f172a",
-            fontFamily:
-              '"Avenir Next", "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif',
             pointerEvents: "none",
             zIndex: 1,
           }}
         >
-          Termpath
+          <img
+            src="/termpath-logo.png"
+            alt="Termpath"
+            style={{
+              width: 360,
+              height: "auto",
+              display: "block",
+            }}
+          />
         </div>
 
         <div
