@@ -425,8 +425,49 @@ const REGISTRY_TRACKED_FIELDS = [
 
 type RegistryTrackedField = (typeof REGISTRY_TRACKED_FIELDS)[number];
 
+type MenuTermRegistryField = `menu_term:[${string}]`;
+type RibbonCellRegistryFieldName = "label" | "key_command" | "tool_tip";
+type RibbonCellRegistryField =
+  | `ribbon_cell:[${string}]:label`
+  | `ribbon_cell:[${string}]:key_command`
+  | `ribbon_cell:[${string}]:tool_tip`;
+type DynamicRegistryTrackedField =
+  | RegistryTrackedField
+  | MenuTermRegistryField
+  | RibbonCellRegistryField;
+
 const isRegistryTrackedField = (field: string): field is RegistryTrackedField =>
   REGISTRY_TRACKED_FIELDS.includes(field as RegistryTrackedField);
+
+const buildMenuTermRegistryField = (menuTermId: string): MenuTermRegistryField =>
+  `menu_term:[${menuTermId}]`;
+
+const buildRibbonCellRegistryField = (
+  cellId: string,
+  fieldName: RibbonCellRegistryFieldName
+): RibbonCellRegistryField => `ribbon_cell:[${cellId}]:${fieldName}`;
+
+const getRegistryTermTypeFromField = (field: DynamicRegistryTrackedField): string => {
+  if (field.startsWith("menu_term:[")) {
+    return "menu_term";
+  }
+
+  if (field.startsWith("ribbon_cell:[")) {
+    if (field.endsWith(":label")) {
+      return "cell_label";
+    }
+
+    if (field.endsWith(":key_command")) {
+      return "key_command";
+    }
+
+    if (field.endsWith(":tool_tip")) {
+      return "tool_tip";
+    }
+  }
+
+  return field;
+};
 
 const TERM_REGISTRY_TERM_TYPE_LABELS: Record<string, string> = {
   title: "Title",
@@ -3001,7 +3042,7 @@ export default function Page() {
   );
 
   const syncFieldToRegistry = useCallback(
-    (nodeId: string, field: RegistryTrackedField, value: string) => {
+    (nodeId: string, field: DynamicRegistryTrackedField, value: string) => {
       setTermRegistry((currentRegistry) => {
         const now = new Date().toISOString();
         const matchingEntries = currentRegistry.filter(
@@ -3052,7 +3093,7 @@ export default function Page() {
             value,
             friendlyId: null,
             friendlyIdLocked: false,
-            termType: field,
+            termType: getRegistryTermTypeFromField(field),
             assignedNodeId: nodeId,
             assignedField: field,
             deduplicationSuffix: null,
@@ -3097,9 +3138,16 @@ export default function Page() {
         return;
       }
 
+      const selectedNodeForRegistry = nodes.find(
+        (node) => node.id === effectiveSelectedNodeId
+      );
+      if (selectedNodeForRegistry?.data.node_type === "frame") {
+        return;
+      }
+
       syncFieldToRegistry(effectiveSelectedNodeId, field, value);
     },
-    [effectiveSelectedNodeId, syncFieldToRegistry]
+    [effectiveSelectedNodeId, nodes, syncFieldToRegistry]
   );
 
   const commitSelectedRegistryField = useCallback(
@@ -3107,6 +3155,36 @@ export default function Page() {
       syncSelectedRegistryFieldOnBlur(field, value);
     },
     [syncSelectedRegistryFieldOnBlur]
+  );
+
+  const commitSelectedMenuTermRegistryField = useCallback(
+    (menuTermId: string, value: string) => {
+      if (!effectiveSelectedNodeId || selectedNode?.data.node_type !== "menu") {
+        return;
+      }
+
+      syncFieldToRegistry(
+        effectiveSelectedNodeId,
+        buildMenuTermRegistryField(menuTermId),
+        value
+      );
+    },
+    [effectiveSelectedNodeId, selectedNode, syncFieldToRegistry]
+  );
+
+  const commitSelectedRibbonCellRegistryField = useCallback(
+    (cellId: string, fieldName: RibbonCellRegistryFieldName, value: string) => {
+      if (!effectiveSelectedNodeId || selectedNode?.data.node_type !== "ribbon") {
+        return;
+      }
+
+      syncFieldToRegistry(
+        effectiveSelectedNodeId,
+        buildRibbonCellRegistryField(cellId, fieldName),
+        value
+      );
+    },
+    [effectiveSelectedNodeId, selectedNode, syncFieldToRegistry]
   );
 
   const commitRegistryFriendlyId = useCallback(
@@ -3535,13 +3613,52 @@ export default function Page() {
         syncSequentialEdgesForMenuNode(currentEdges, nodeId, normalizedNextMenuConfig)
       );
 
+      const removedMenuTermIds = currentMenuConfig.terms
+        .map((menuTerm) => menuTerm.id)
+        .filter(
+          (menuTermId) =>
+            !normalizedNextMenuConfig.terms.some((menuTerm) => menuTerm.id === menuTermId)
+        );
+
+      if (removedMenuTermIds.length > 0) {
+        const removedMenuTermFieldSet = new Set(
+          removedMenuTermIds.map((menuTermId) => buildMenuTermRegistryField(menuTermId))
+        );
+
+        setTermRegistry((currentRegistry) => {
+          const now = new Date().toISOString();
+          let hasChanges = false;
+
+          const nextRegistry = currentRegistry.map((entry) => {
+            if (
+              entry.assignedNodeId !== nodeId ||
+              entry.assignedField === null ||
+              !removedMenuTermFieldSet.has(entry.assignedField as MenuTermRegistryField)
+            ) {
+              return entry;
+            }
+
+            hasChanges = true;
+
+            return {
+              ...entry,
+              assignedNodeId: null,
+              assignedField: null,
+              updatedAt: now,
+            };
+          });
+
+          return hasChanges ? nextRegistry : currentRegistry;
+        });
+      }
+
       setOpenInspectorMenuGlossaryTermId((current) =>
         current && normalizedNextMenuConfig.terms.some((term) => term.id === current)
           ? current
           : null
       );
     },
-    [nodes, queueUndoSnapshot, setEdges, setNodes]
+    [nodes, queueUndoSnapshot, setEdges, setNodes, setTermRegistry]
   );
 
   const selectedMenuNodeConfig = useMemo(() => {
@@ -7912,6 +8029,20 @@ export default function Page() {
                             onChange={(event) =>
                               updateSelectedMenuTermById(menuTerm.id, event.target.value)
                             }
+                            onBlur={(event) =>
+                              commitSelectedMenuTermRegistryField(
+                                menuTerm.id,
+                                event.currentTarget.value
+                              )
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter") {
+                                return;
+                              }
+
+                              event.preventDefault();
+                              event.currentTarget.blur();
+                            }}
                           />
                         </div>
 
@@ -8279,6 +8410,21 @@ export default function Page() {
                                   onChange={(event) =>
                                     updateRibbonCellField(cell.id, "label", event.target.value)
                                   }
+                                  onBlur={(event) =>
+                                    commitSelectedRibbonCellRegistryField(
+                                      cell.id,
+                                      "label",
+                                      event.currentTarget.value
+                                    )
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key !== "Enter") {
+                                      return;
+                                    }
+
+                                    event.preventDefault();
+                                    event.currentTarget.blur();
+                                  }}
                                 />
 
                                 {visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
@@ -8389,6 +8535,21 @@ export default function Page() {
                                       event.target.value
                                     )
                                   }
+                                  onBlur={(event) =>
+                                    commitSelectedRibbonCellRegistryField(
+                                      cell.id,
+                                      "key_command",
+                                      event.currentTarget.value
+                                    )
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key !== "Enter") {
+                                      return;
+                                    }
+
+                                    event.preventDefault();
+                                    event.currentTarget.blur();
+                                  }}
                                 />
 
                                 {visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
@@ -8462,6 +8623,21 @@ export default function Page() {
                                   onChange={(event) =>
                                     updateRibbonCellField(cell.id, "tool_tip", event.target.value)
                                   }
+                                  onBlur={(event) =>
+                                    commitSelectedRibbonCellRegistryField(
+                                      cell.id,
+                                      "tool_tip",
+                                      event.currentTarget.value
+                                    )
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key !== "Enter") {
+                                      return;
+                                    }
+
+                                    event.preventDefault();
+                                    event.currentTarget.blur();
+                                  }}
                                 />
                               </div>
                             </div>

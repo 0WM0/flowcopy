@@ -88,7 +88,7 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onBeforeChange: () => void;
   onCommitRegistryField: (
     nodeId: string,
-    field: RegistryTrackedField,
+    field: RegistryTrackedField | `menu_term:[${string}]` | `ribbon_cell:[${string}]:label` | `ribbon_cell:[${string}]:key_command` | `ribbon_cell:[${string}]:tool_tip`,
     value: string
   ) => void;
   menuTermGlossaryTerms: string[];
@@ -118,6 +118,17 @@ const isRegistryTrackedField = (
   field: EditableMicrocopyField
 ): field is RegistryTrackedField =>
   REGISTRY_TRACKED_FIELDS.includes(field as RegistryTrackedField);
+
+const buildMenuTermRegistryField = (menuTermId: string): `menu_term:[${string}]` =>
+  `menu_term:[${menuTermId}]`;
+
+const buildRibbonCellRegistryField = (
+  cellId: string,
+  field: "label" | "key_command" | "tool_tip"
+):
+  | `ribbon_cell:[${string}]:label`
+  | `ribbon_cell:[${string}]:key_command`
+  | `ribbon_cell:[${string}]:tool_tip` => `ribbon_cell:[${cellId}]:${field}`;
 
 function FlowCopyNode({
   id,
@@ -248,13 +259,35 @@ function FlowCopyNode({
 
   const commitRegistryField = useCallback(
     (field: EditableMicrocopyField, value: string) => {
-      if (!isRegistryTrackedField(field)) {
+      if (!isRegistryTrackedField(field) || isFrameNode) {
         return;
       }
 
       onCommitRegistryField(id, field, value);
     },
-    [id, onCommitRegistryField]
+    [id, isFrameNode, onCommitRegistryField]
+  );
+
+  const commitMenuTermRegistryField = useCallback(
+    (menuTermId: string, value: string) => {
+      if (!isMenuNode) {
+        return;
+      }
+
+      onCommitRegistryField(id, buildMenuTermRegistryField(menuTermId), value);
+    },
+    [id, isMenuNode, onCommitRegistryField]
+  );
+
+  const commitRibbonCellRegistryField = useCallback(
+    (cellId: string, field: "label" | "key_command" | "tool_tip", value: string) => {
+      if (!isRibbonNode) {
+        return;
+      }
+
+      onCommitRegistryField(id, buildRibbonCellRegistryField(cellId, field), value);
+    },
+    [id, isRibbonNode, onCommitRegistryField]
   );
 
   const replaceMenuConfig = useCallback(
@@ -629,7 +662,6 @@ function FlowCopyNode({
               onClick={stopNodeSelectionPropagation}
               onChange={(event) => updateField("title", event.target.value)}
               onBlur={(event) => {
-                commitRegistryField("title", event.currentTarget.value);
                 setIsEditingFrameTitle(false);
               }}
               onKeyDown={(event) => {
@@ -1012,6 +1044,21 @@ function FlowCopyNode({
                     event.target.value
                   )
                 }
+                onBlur={(event) =>
+                  commitRibbonCellRegistryField(
+                    editingRibbonCell.id,
+                    "label",
+                    event.currentTarget.value
+                  )
+                }
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }}
               />
             </label>
 
@@ -1045,6 +1092,21 @@ function FlowCopyNode({
                     event.target.value
                   )
                 }
+                onBlur={(event) =>
+                  commitRibbonCellRegistryField(
+                    editingRibbonCell.id,
+                    "key_command",
+                    event.currentTarget.value
+                  )
+                }
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }}
               />
             </label>
 
@@ -1079,6 +1141,21 @@ function FlowCopyNode({
                     event.target.value
                   )
                 }
+                onBlur={(event) =>
+                  commitRibbonCellRegistryField(
+                    editingRibbonCell.id,
+                    "tool_tip",
+                    event.currentTarget.value
+                  )
+                }
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }}
               />
             </label>
 
@@ -1387,6 +1464,17 @@ function FlowCopyNode({
                       onMouseDown={stopNodeSelectionPropagation}
                       onClick={stopNodeSelectionPropagation}
                       onChange={(event) => updateMenuTermById(menuTerm.id, event.target.value)}
+                      onBlur={(event) =>
+                        commitMenuTermRegistryField(menuTerm.id, event.currentTarget.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
                     />
 
                     <Handle

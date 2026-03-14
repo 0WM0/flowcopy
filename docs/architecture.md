@@ -38,6 +38,197 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session completed registry-sync parity for non-default editable content so Menu Terms and Ribbon cell fields now behave like existing default-node tracked fields.
+
+The user-visible outcome is consistent term-registry creation/update on **blur/Enter only** for:
+
+- Menu term text (`menu_config.terms[].term`)
+- Ribbon cell fields (`label`, `key_command`, `tool_tip`)
+
+with no per-keystroke registry writes.
+
+## 2) Core Data Model
+
+No persisted schema shape changed, but runtime registry field typing was expanded in `app/page.tsx` and `app/components/FlowCopyNode.tsx` to include dynamic tracked fields:
+
+- `menu_term:[<menuTermId>]`
+- `ribbon_cell:[<cellId>]:label`
+- `ribbon_cell:[<cellId>]:key_command`
+- `ribbon_cell:[<cellId>]:tool_tip`
+
+`syncFieldToRegistry(...)` now accepts these dynamic field keys and derives registry `termType` via field-pattern mapping.
+
+## 3) Persistence and Migration Strategy
+
+No migration/version/storage-key changes were required.
+
+Behavioral persistence updates were achieved through existing in-memory registry state mutations:
+
+- dynamic field assignments are written through current `termRegistry` update flows
+- menu-term removals now unassign matching registry links (`assignedNodeId`, `assignedField` -> `null`) instead of deleting entries
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic was changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Registry-sync additions are orthogonal to graph ordering.
+
+## 5) Node Rendering and Shape System
+
+No shape/geometry contract changes were introduced.
+
+Rendering-adjacent behavior changes were input-event commits only:
+
+- Menu term inputs on canvas + inspector now commit registry sync on blur/Enter
+- Ribbon cell popup/inspector field inputs now commit registry sync on blur/Enter
+
+Frame rendering remains unaffected.
+
+## 6) Editor Interaction Model
+
+Interaction commit semantics are now consistent across default/menu/ribbon tracked copy fields:
+
+1. User types value (`onChange` updates node state only).
+2. Registry sync occurs only when:
+   - input loses focus (`onBlur`), or
+   - user presses Enter (`onKeyDown` -> blur)
+3. Empty values continue using existing registry behavior (no created assignment entry).
+
+Frame-node exclusion is enforced in commit guards so frame fields are skipped for registry syncing.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added menu/ribbon dynamic registry field builders and typed unions.
+2. Added `commitSelectedMenuTermRegistryField(...)` and `commitSelectedRibbonCellRegistryField(...)` in inspector flows.
+3. Added `commitMenuTermRegistryField(...)` and `commitRibbonCellRegistryField(...)` in canvas node renderer flows.
+4. Added menu-term deletion unassign pass in `updateMenuNodeConfigById(...)` for removed term IDs.
+5. Added/kept frame skip guards to prevent frame content from registry sync.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operationally, this session standardized commit timing and assignment semantics without changing import/export contracts.
+
+## 9) Recommended Next Steps
+
+1. Add regression tests for blur/Enter-only registry sync on menu/ribbon fields.
+2. Add tests for menu-term deletion unassign behavior (ensuring entry retention with null assignment).
+3. Add focused tests for frame-node registry-skip guarantees.
+4. Add tests verifying dynamic `termType` mapping for ribbon label/key_command/tool_tip fields.
+
+##03-14-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session completed a targeted Controlled Language Panel refactor in `app/page.tsx`, aligning both CLP views with stricter editing rules:
+
+- **View 2 (Term Registry):** add/create flow at top, assignment-aware editing controls
+- **View 1 (Term Audit):** removed inline drafting and include toggles from the audit table
+
+The result is clearer separation between registry management and audit/occurrence review.
+
+## 2) Core Data Model
+
+No persisted schema contracts were changed.
+
+The refactor used existing runtime models and added/used registry draft UI state already in `Page`:
+
+- `registryDraftValue`
+- `registryDraftTermType`
+- `addRegistryEntry(...)`
+
+Term-type label mapping remained UI-layer only via `TERM_REGISTRY_TERM_TYPE_LABELS` and `getTermRegistryTermTypeLabel(...)`.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no localStorage key changes
+- no project payload shape changes
+- no import/export contract changes
+
+The new Add Term row creates unassigned entries using existing `TermRegistryEntry` fields (`assignedNodeId: null`, `assignedField: null`) and flows through the existing editor state/persistence path.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering changes were introduced.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Controlled Language panel edits remain orthogonal to graph ordering and sequence identity.
+
+## 5) Node Rendering and Shape System
+
+No canvas node/edge rendering contracts changed.
+
+UI rendering changes were scoped to CLP panel table/list content in `app/page.tsx`:
+
+- registry list now includes a top add row UI block
+- assigned registry rows render read-only term-type text
+- unassigned registry rows render term-type dropdown + delete action
+- audit table columns reduced to Field Type / Glossary Term / Occurrences
+
+## 6) Editor Interaction Model
+
+### View 2 (Term Registry)
+
+- Added top **Add Term** row inside `clpActiveView === "registry"`.
+- Add row supports value input, type dropdown (default Untyped), Add button, and Enter-to-add behavior.
+- Added entries are unassigned by default and clear draft inputs after successful add.
+- Friendly ID input + lock/unlock control remain available on all entries.
+- Assignment-aware control gating:
+  - unassigned entries: term-type `<select>` + delete `×`
+  - assigned entries: read-only term-type label via `getTermRegistryTermTypeLabel(...)`
+
+### View 1 (Audit)
+
+- Removed the top draft/add row (`Add glossary term`).
+- Removed the **Include** column header and per-row include checkbox cell.
+- Updated empty-state column span accordingly.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Registry add-row UX now exists at the top of the term list for direct unassigned term creation.
+2. Registry row actions are now assignment-sensitive (editable only when unassigned).
+3. Term type display now uses friendly labels (`Title`, `Body Text`, etc.) and `Untyped` for null.
+4. Audit table now behaves as read/edit-term + occurrence review only, without inline add/include controls.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operational note:
+
+- A local `next dev` run in this environment reported an existing lock/instance conflict (`.next/dev/lock`), unrelated to TypeScript correctness.
+
+## 9) Recommended Next Steps
+
+1. Add focused UI tests for registry assignment-gated controls (assigned vs unassigned row actions).
+2. Add regression tests for registry add-row creation semantics (null assignment fields, cleared draft state).
+3. Add CLP view tests confirming audit table column set remains Field Type / Glossary Term / Occurrences.
+4. Consider extracting CLP audit/registry rendering blocks from `app/page.tsx` into dedicated components.
+
+##03-14-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session delivered a targeted canvas-editing reliability fix for inline text inputs inside `FlowCopyNode`.
 
 The user-visible outcome is that clicking into editable node text fields no longer immediately loses focus due to node-selection bubbling behavior.
