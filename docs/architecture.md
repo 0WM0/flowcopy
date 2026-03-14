@@ -32,6 +32,103 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-14-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session added **Term Registry data plumbing** across the project state model, runtime editor state, and transfer round-trips.
+
+The change is additive and non-breaking for existing node content editing:
+
+- node fields remain plain strings
+- no node field types were changed
+- no UI behavior was added/changed for term registry management in this session
+
+## 2) Core Data Model
+
+`app/types/index.ts` now includes a new registry entry contract:
+
+- `TermRegistryEntry`
+  - internal ID (`id`)
+  - value (`value`)
+  - friendly key metadata (`friendlyId`, `friendlyIdLocked`)
+  - typing/assignment fields (`termType`, `assignedNodeId`, `assignedField`)
+  - internal dedupe marker (`deduplicationSuffix`)
+  - timestamps (`createdAt`, `updatedAt`)
+
+`PersistedCanvasState` was extended with:
+
+- `termRegistry: TermRegistryEntry[]`
+
+Flat export typing was also extended to include:
+
+- `project_term_registry_json`
+
+## 3) Persistence and Migration Strategy
+
+Persistence was updated with backward-compatible defaulting for existing projects:
+
+- new/blank canvas state initializes `termRegistry: []`
+- loaded canvas payloads without term registry default to `[]`
+- editor persistence/autosave paths now serialize current `termRegistry`
+
+No migration rewrite of existing node text into term registry entries was implemented (explicitly deferred).
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering/sequence logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Term registry is orthogonal metadata and does not alter graph sequencing.
+
+## 5) Node Rendering and Shape System
+
+No node rendering or shape-system changes were introduced.
+
+- no `FlowCopyNode` rendering contract changes for term registry
+- no UI controls were added for registry editing in this session
+
+## 6) Editor Interaction Model
+
+Runtime editor state now carries term registry through existing state lifecycles:
+
+- project load hydration
+- in-memory persistence updates
+- autosave payload generation
+- undo snapshot capture/restore
+- JSON project export/import path
+
+Snapshot behavior remained unchanged because UI Journey snapshots currently store selected path/conversation data, not full canvas-state payload replicas.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added `TermRegistryEntry` to `app/types/index.ts`.
+2. Added `termRegistry: TermRegistryEntry[]` to `PersistedCanvasState`.
+3. Wired `termRegistry` through editor runtime persistence paths in `app/page.tsx`.
+4. Extended flat transfer plumbing with `project_term_registry_json` in export/import flows.
+5. Updated round-trip contract test fixture/import-normalization paths to include `termRegistry`.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operationally, the term registry model now round-trips as project data while remaining UI-inert until a future registry-management feature pass.
+
+## 9) Recommended Next Steps
+
+1. Add focused tests for malformed/missing `project_term_registry_json` import fallback behavior.
+2. Add dedicated utility sanitization for `TermRegistryEntry[]` (currently array-presence fallback only).
+3. Introduce registry management UI in a future session (create/edit/assign/dedupe workflows).
+4. Add export policy enforcement for internal-only registry fields when developer-facing formats are introduced.
+
 ##03-13-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.

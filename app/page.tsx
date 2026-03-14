@@ -783,6 +783,12 @@ export default function Page() {
   >(null);
   const [isControlledLanguagePanelOpen, setIsControlledLanguagePanelOpen] =
     useState(false);
+  const [clpActiveView, setClpActiveView] = useState<"audit" | "registry">("audit");
+  const [registrySearchQuery, setRegistrySearchQuery] = useState<string>("");
+  const [registryFilterStatus, setRegistryFilterStatus] = useState<
+    "all" | "assigned" | "unassigned"
+  >("all");
+  const [registryFilterType, setRegistryFilterType] = useState<string>("all");
   const [controlledLanguageDraftRow, setControlledLanguageDraftRow] =
     useState<ControlledLanguageDraftRow>(createEmptyControlledLanguageDraftRow);
   const [openControlledLanguageFieldType, setOpenControlledLanguageFieldType] = useState<
@@ -3704,6 +3710,42 @@ export default function Page() {
     [nodes, controlledLanguageGlossary]
   );
 
+  const filteredRegistryEntries = useMemo(() => {
+    let entries = [...termRegistry];
+
+    if (registryFilterStatus === "assigned") {
+      entries = entries.filter((entry) => entry.assignedNodeId !== null);
+    } else if (registryFilterStatus === "unassigned") {
+      entries = entries.filter((entry) => entry.assignedNodeId === null);
+    }
+
+    if (registryFilterType !== "all") {
+      entries = entries.filter((entry) => entry.termType === registryFilterType);
+    }
+
+    if (registrySearchQuery.trim()) {
+      const query = registrySearchQuery.trim().toLowerCase();
+      entries = entries.filter(
+        (entry) =>
+          entry.value.toLowerCase().includes(query) ||
+          (entry.friendlyId && entry.friendlyId.toLowerCase().includes(query))
+      );
+    }
+
+    entries.sort((a, b) => {
+      const aAssigned = a.assignedNodeId !== null ? 1 : 0;
+      const bAssigned = b.assignedNodeId !== null ? 1 : 0;
+
+      if (aAssigned !== bAssigned) {
+        return aAssigned - bAssigned;
+      }
+
+      return a.value.localeCompare(b.value);
+    });
+
+    return entries;
+  }, [termRegistry, registryFilterStatus, registryFilterType, registrySearchQuery]);
+
   const controlledLanguageNodeIdsByGlossaryKey = useMemo(
     () => buildControlledLanguageNodeIdsByGlossaryKey(nodes),
     [nodes]
@@ -5934,7 +5976,15 @@ export default function Page() {
               type="button"
               style={getToggleButtonStyle(isControlledLanguagePanelOpen)}
               onClick={() =>
-                setIsControlledLanguagePanelOpen((open) => !open)
+                setIsControlledLanguagePanelOpen((open) => {
+                  if (open) {
+                    setRegistrySearchQuery("");
+                    setRegistryFilterStatus("all");
+                    setRegistryFilterType("all");
+                  }
+
+                  return !open;
+                })
               }
             >
               {isControlledLanguagePanelOpen ? "Hide" : "Show"} Controlled Language
@@ -6356,27 +6406,73 @@ export default function Page() {
               </div>
             </div>
 
-            <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
-              Audit terms by field type. Mark <strong>Include</strong> to expose a
-              term in glossary dropdowns beside editable text fields.
-            </p>
-
             <div
               style={{
-                overflowX: "auto",
-                overflowY: "auto",
-                maxHeight: CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX,
+                display: "flex",
+                gap: 0,
+                borderRadius: 6,
+                overflow: "hidden",
+                border: "1px solid #bfdbfe",
               }}
             >
-              <table
+              <button
+                type="button"
                 style={{
-                  borderCollapse: "collapse",
-                  width: "100%",
-                  minWidth: 560,
-                  border: "1px solid #dbeafe",
-                  background: "#fff",
+                  flex: 1,
+                  padding: "6px 12px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                  background: clpActiveView === "audit" ? "#1e3a8a" : "#eff6ff",
+                  color: clpActiveView === "audit" ? "#fff" : "#1e3a8a",
                 }}
+                onClick={() => setClpActiveView("audit")}
               >
+                Term Audit
+              </button>
+              <button
+                type="button"
+                style={{
+                  flex: 1,
+                  padding: "6px 12px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  border: "none",
+                  borderLeft: "1px solid #bfdbfe",
+                  cursor: "pointer",
+                  background: clpActiveView === "registry" ? "#1e3a8a" : "#eff6ff",
+                  color: clpActiveView === "registry" ? "#fff" : "#1e3a8a",
+                }}
+                onClick={() => setClpActiveView("registry")}
+              >
+                Term Registry
+              </button>
+            </div>
+
+            {clpActiveView === "audit" && (
+              <>
+                <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
+                  Audit terms by field type. Mark <strong>Include</strong> to expose a
+                  term in glossary dropdowns beside editable text fields.
+                </p>
+
+                <div
+                  style={{
+                    overflowX: "auto",
+                    overflowY: "auto",
+                    maxHeight: CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX,
+                  }}
+                >
+                  <table
+                    style={{
+                      borderCollapse: "collapse",
+                      width: "100%",
+                      minWidth: 560,
+                      border: "1px solid #dbeafe",
+                      background: "#fff",
+                    }}
+                  >
                 <thead>
                   <tr>
                     <th
@@ -6681,8 +6777,192 @@ export default function Page() {
                     })
                   )}
                 </tbody>
-              </table>
-            </div>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {clpActiveView === "registry" && (
+              <div style={{ display: "grid", gap: 8 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "6px 8px",
+                    background: "#eff6ff",
+                    borderRadius: 6,
+                    fontSize: 11,
+                    color: "#1e3a8a",
+                    fontWeight: 700,
+                  }}
+                >
+                  <span>
+                    {termRegistry.filter((entry) => entry.assignedNodeId !== null).length} of{" "}
+                    {termRegistry.length} terms assigned
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 6,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <input
+                    style={{
+                      flex: 1,
+                      minWidth: 120,
+                      padding: "4px 8px",
+                      fontSize: 11,
+                      border: "1px solid #d4d4d8",
+                      borderRadius: 4,
+                    }}
+                    placeholder="Search terms or IDs..."
+                    value={registrySearchQuery}
+                    onChange={(event) => setRegistrySearchQuery(event.target.value)}
+                  />
+                  <select
+                    style={{
+                      padding: "4px 8px",
+                      fontSize: 11,
+                      border: "1px solid #d4d4d8",
+                      borderRadius: 4,
+                    }}
+                    value={registryFilterStatus}
+                    onChange={(event) =>
+                      setRegistryFilterStatus(
+                        event.target.value as "all" | "assigned" | "unassigned"
+                      )
+                    }
+                  >
+                    <option value="all">All</option>
+                    <option value="assigned">Assigned</option>
+                    <option value="unassigned">Unassigned</option>
+                  </select>
+                  <select
+                    style={{
+                      padding: "4px 8px",
+                      fontSize: 11,
+                      border: "1px solid #d4d4d8",
+                      borderRadius: 4,
+                    }}
+                    value={registryFilterType}
+                    onChange={(event) => setRegistryFilterType(event.target.value)}
+                  >
+                    <option value="all">All Types</option>
+                    <option value="title">Title</option>
+                    <option value="body_text">Body Text</option>
+                    <option value="primary_cta">Primary CTA</option>
+                    <option value="secondary_cta">Secondary CTA</option>
+                    <option value="helper_text">Helper Text</option>
+                    <option value="error_text">Error Text</option>
+                    <option value="notes">Notes</option>
+                    <option value="menu_term">Menu Term</option>
+                    <option value="key_command">Key Command</option>
+                    <option value="tool_tip">Tool Tip</option>
+                    <option value="cell_label">Cell Label</option>
+                  </select>
+                </div>
+
+                <div
+                  style={{
+                    maxHeight: 400,
+                    overflowY: "auto",
+                    display: "grid",
+                    gap: 4,
+                  }}
+                >
+                  {filteredRegistryEntries.length === 0 ? (
+                    <div
+                      style={{
+                        padding: 12,
+                        fontSize: 11,
+                        color: "#64748b",
+                        textAlign: "center",
+                      }}
+                    >
+                      {termRegistry.length === 0
+                        ? "No terms in registry yet. Terms will appear here as you fill in node fields."
+                        : "No terms match the current filters."}
+                    </div>
+                  ) : (
+                    filteredRegistryEntries.map((entry) => (
+                      <div
+                        key={`registry-entry:${entry.id}`}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr auto",
+                          gap: 6,
+                          padding: "6px 8px",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 6,
+                          background: entry.assignedNodeId ? "#fff" : "#fffbeb",
+                          fontSize: 11,
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              color: "#0f172a",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={entry.value}
+                          >
+                            {entry.value || "(empty)"}
+                          </div>
+
+                          <div
+                            style={{
+                              fontFamily: "monospace",
+                              fontSize: 10,
+                              color: entry.friendlyId ? "#475569" : "#94a3b8",
+                              marginTop: 2,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={entry.friendlyId ?? undefined}
+                          >
+                            {entry.friendlyId
+                              ? (entry.friendlyIdLocked ? "🔒 " : "") + entry.friendlyId
+                              : "No ID"}
+                          </div>
+
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: entry.termType ? "#1e3a8a" : "#94a3b8",
+                              marginTop: 2,
+                            }}
+                          >
+                            {entry.termType ?? "Untyped"}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            fontSize: 10,
+                            color: entry.assignedNodeId ? "#047857" : "#b45309",
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {entry.assignedNodeId ? "Assigned" : "Unassigned"}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </section>
         )}
 
