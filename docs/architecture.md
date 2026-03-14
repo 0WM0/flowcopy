@@ -38,6 +38,112 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session added a two-view scaffold inside the existing Controlled Language Panel (CLP) without changing existing audit behavior.
+
+The CLP now supports:
+
+- **Term Audit** view (existing table, unchanged behavior)
+- **Term Registry** view (new read-only registry list with filters/search/progress)
+
+## 2) Core Data Model
+
+No persisted schema contracts were changed.
+
+The session introduced UI/runtime state in `app/page.tsx` for CLP view and registry filtering:
+
+- `clpActiveView: "audit" | "registry"`
+- `registrySearchQuery: string`
+- `registryFilterStatus: "all" | "assigned" | "unassigned"`
+- `registryFilterType: string`
+
+Derived registry view data was added via:
+
+- `filteredRegistryEntries` (`useMemo`) based on `termRegistry`
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no localStorage schema/key changes
+- no `PersistedCanvasState` changes
+- no import/export payload contract changes
+
+All updates were presentation/state-layer behavior over existing `termRegistry` runtime data.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+CLP view switching and registry filtering are orthogonal to graph ordering semantics.
+
+## 5) Node Rendering and Shape System
+
+No canvas node/edge rendering system changes were introduced.
+
+Changes were scoped to CLP panel rendering in `app/page.tsx`:
+
+- added segmented CLP view toggle UI
+- conditionally rendered existing audit table
+- added new registry list panel with read-only cards
+
+## 6) Editor Interaction Model
+
+CLP interaction behavior now includes:
+
+1. **View toggle**
+   - `Term Audit` shows existing audit content
+   - `Term Registry` shows progress + filters + read-only list
+
+2. **Registry filtering/search**
+   - status filter (`all/assigned/unassigned`)
+   - type filter (title/body/cta/helper/error/notes/menu/key/tool-tip/cell-label)
+   - search over `entry.value` and `entry.friendlyId`
+
+3. **Registry sort**
+   - unassigned first
+   - then alphabetical by value
+
+4. **Close reset behavior**
+   - when CLP panel is closed, registry search/status/type filters are reset to defaults
+
+Export/import buttons remain visible in both CLP views.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added CLP active-view state and registry filter states.
+2. Added `filteredRegistryEntries` memoized selector.
+3. Wrapped existing audit block in `clpActiveView === "audit"` conditional.
+4. Added full read-only `clpActiveView === "registry"` block with progress/filter/list UI.
+5. Updated CLP show/hide toggle handler to reset registry filter state on close.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operational note:
+
+- local dev-server starts during verification reported existing process/lock contention (`EADDRINUSE` on port 3000 and `.next/dev/lock` held by another `next dev` instance).
+
+## 9) Recommended Next Steps
+
+1. Add edit actions for registry entries (ID/lock/value/type) in a follow-up session.
+2. Add click-to-highlight and node navigation from registry entries.
+3. Add optional assignment actions for unassigned entries.
+4. Add focused tests for registry filtering/sorting/search behavior.
+
+##03-14-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session added **Term Registry data plumbing** across the project state model, runtime editor state, and transfer round-trips.
 
 The change is additive and non-breaking for existing node content editing:

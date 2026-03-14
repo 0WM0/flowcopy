@@ -413,6 +413,21 @@ const TABLE_SHOEHORNING_DISABLED_FIELDS = new Set<EditableMicrocopyField>([
   "error_text",
 ]);
 
+const REGISTRY_TRACKED_FIELDS = [
+  "title",
+  "body_text",
+  "primary_cta",
+  "secondary_cta",
+  "helper_text",
+  "error_text",
+  "notes",
+] as const;
+
+type RegistryTrackedField = (typeof REGISTRY_TRACKED_FIELDS)[number];
+
+const isRegistryTrackedField = (field: string): field is RegistryTrackedField =>
+  REGISTRY_TRACKED_FIELDS.includes(field as RegistryTrackedField);
+
 const createEmptyProjectData = (): Record<string, unknown> =>
   createEmptyCanvasState() as unknown as Record<string, unknown>;
 
@@ -2111,6 +2126,64 @@ export default function Page() {
     setOpenInspectorRibbonCellGlossary(null);
     clearMenuTermDeleteError();
 
+    setTermRegistry((currentRegistry) => {
+      let nextRegistry = currentRegistry;
+      let hasChanges = false;
+      const now = new Date().toISOString();
+
+      remappedPastedNodes.forEach((pastedNode) => {
+        REGISTRY_TRACKED_FIELDS.forEach((field) => {
+          const fieldValue = (pastedNode.data as Record<string, unknown>)[field];
+
+          if (typeof fieldValue !== "string" || fieldValue.trim() === "") {
+            return;
+          }
+
+          const existingIndex = nextRegistry.findIndex(
+            (entry) =>
+              entry.assignedNodeId === pastedNode.id && entry.assignedField === field
+          );
+
+          if (existingIndex !== -1) {
+            if (!hasChanges) {
+              nextRegistry = [...nextRegistry];
+              hasChanges = true;
+            }
+
+            nextRegistry[existingIndex] = {
+              ...nextRegistry[existingIndex],
+              value: fieldValue,
+              updatedAt: now,
+            };
+
+            return;
+          }
+
+          const newEntry: TermRegistryEntry = {
+            id: crypto.randomUUID(),
+            value: fieldValue,
+            friendlyId: null,
+            friendlyIdLocked: false,
+            termType: field,
+            assignedNodeId: pastedNode.id,
+            assignedField: field,
+            deduplicationSuffix: null,
+            createdAt: now,
+            updatedAt: now,
+          };
+
+          if (!hasChanges) {
+            nextRegistry = [...nextRegistry];
+            hasChanges = true;
+          }
+
+          nextRegistry.push(newEntry);
+        });
+      });
+
+      return hasChanges ? nextRegistry : currentRegistry;
+    });
+
     setTransferFeedback({
       type: "success",
       message:
@@ -2120,7 +2193,13 @@ export default function Page() {
     });
 
     return true;
-  }, [clearMenuTermDeleteError, queueUndoSnapshot, setEdges, setNodes]);
+  }, [
+    clearMenuTermDeleteError,
+    queueUndoSnapshot,
+    setEdges,
+    setNodes,
+    setTermRegistry,
+  ]);
 
   const handleDeleteSelection = useCallback(() => {
     if (selectedEdgeId) {
@@ -2156,6 +2235,29 @@ export default function Page() {
           !selectedNodeIdsToDeleteSet.has(edge.target)
       )
     );
+    setTermRegistry((currentRegistry) => {
+      const now = new Date().toISOString();
+      let hasUpdatedEntry = false;
+
+      const nextRegistry = currentRegistry.map((entry) => {
+        const assignedNodeId = entry.assignedNodeId;
+
+        if (!assignedNodeId || !selectedNodeIdsToDeleteSet.has(assignedNodeId)) {
+          return entry;
+        }
+
+        hasUpdatedEntry = true;
+
+        return {
+          ...entry,
+          assignedNodeId: null,
+          assignedField: null,
+          updatedAt: now,
+        };
+      });
+
+      return hasUpdatedEntry ? nextRegistry : currentRegistry;
+    });
     setSelectedNodeId(null);
     setSelectedNodeIds([]);
     setSelectedEdgeId(null);
@@ -2166,6 +2268,7 @@ export default function Page() {
     selectedNodeIds,
     setEdges,
     setNodes,
+    setTermRegistry,
   ]);
 
   useEffect(() => {
@@ -2856,6 +2959,108 @@ export default function Page() {
       );
     },
     [queueUndoSnapshot, selectedEdgeId, setEdges]
+  );
+
+  const syncFieldToRegistry = useCallback(
+    (nodeId: string, field: RegistryTrackedField, value: string) => {
+      setTermRegistry((currentRegistry) => {
+        const now = new Date().toISOString();
+        const matchingEntries = currentRegistry.filter(
+          (entry) => entry.assignedNodeId === nodeId && entry.assignedField === field
+        );
+        const existingEntry = matchingEntries[0] ?? null;
+        const duplicateEntries = matchingEntries.slice(1);
+
+        let hasChanges = false;
+        let nextRegistry = currentRegistry;
+
+        const ensureMutableRegistry = () => {
+          if (hasChanges) {
+            return;
+          }
+
+          nextRegistry = [...currentRegistry];
+          hasChanges = true;
+        };
+
+        if (duplicateEntries.length > 0) {
+          ensureMutableRegistry();
+          const duplicateEntryIdSet = new Set(duplicateEntries.map((entry) => entry.id));
+          nextRegistry = nextRegistry.filter((entry) => !duplicateEntryIdSet.has(entry.id));
+        }
+
+        if (value.trim() === "") {
+          if (!existingEntry) {
+            return hasChanges ? nextRegistry : currentRegistry;
+          }
+
+          ensureMutableRegistry();
+
+          const existingIndex = nextRegistry.findIndex(
+            (entry) => entry.id === existingEntry.id
+          );
+
+          if (existingIndex !== -1) {
+            nextRegistry.splice(existingIndex, 1);
+          }
+
+          return nextRegistry;
+        }
+
+        if (!existingEntry) {
+          const newEntry: TermRegistryEntry = {
+            id: crypto.randomUUID(),
+            value,
+            friendlyId: null,
+            friendlyIdLocked: false,
+            termType: field,
+            assignedNodeId: nodeId,
+            assignedField: field,
+            deduplicationSuffix: null,
+            createdAt: now,
+            updatedAt: now,
+          };
+
+          ensureMutableRegistry();
+          nextRegistry.push(newEntry);
+          return nextRegistry;
+        }
+
+        if (existingEntry.value === value) {
+          return hasChanges ? nextRegistry : currentRegistry;
+        }
+
+        ensureMutableRegistry();
+
+        const existingIndex = nextRegistry.findIndex(
+          (entry) => entry.id === existingEntry.id
+        );
+
+        if (existingIndex === -1) {
+          return nextRegistry;
+        }
+
+        nextRegistry[existingIndex] = {
+          ...nextRegistry[existingIndex],
+          value,
+          updatedAt: now,
+        };
+
+        return nextRegistry;
+      });
+    },
+    [setTermRegistry]
+  );
+
+  const syncSelectedRegistryFieldOnBlur = useCallback(
+    (field: RegistryTrackedField, value: string) => {
+      if (!effectiveSelectedNodeId) {
+        return;
+      }
+
+      syncFieldToRegistry(effectiveSelectedNodeId, field, value);
+    },
+    [effectiveSelectedNodeId, syncFieldToRegistry]
   );
 
   const updateSelectedField = useCallback(
@@ -3583,6 +3788,7 @@ export default function Page() {
           showNodeId={showNodeIdsOnCanvas}
           showDefaultNodeTitleOnCanvas={showDefaultNodeTitleOnCanvas}
           onMenuTermDeleteBlocked={showMenuTermDeleteBlockedMessage}
+          /* TODO: Add canvas node inline field blur-to-registry sync without syncing during typing. */
           onMenuNodeConfigChange={(nodeId, updater) =>
             updateMenuNodeConfigByIdRef.current(nodeId, updater)
           }
@@ -7245,6 +7451,9 @@ export default function Page() {
                     value={selectedNode.data.title}
                     placeholder="Add title"
                     onChange={(event) => updateSelectedField("title", event.target.value)}
+                    onBlur={(event) =>
+                      syncSelectedRegistryFieldOnBlur("title", event.target.value)
+                    }
                   />
                 </label>
 
@@ -7471,6 +7680,9 @@ export default function Page() {
                     value={selectedNode.data.title}
                     placeholder="Add title"
                     onChange={(event) => updateSelectedField("title", event.target.value)}
+                    onBlur={(event) =>
+                      syncSelectedRegistryFieldOnBlur("title", event.target.value)
+                    }
                   />
                 </label>
 
@@ -7540,6 +7752,9 @@ export default function Page() {
                     style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
                     value={selectedNode.data.notes}
                     onChange={(event) => updateSelectedField("notes", event.target.value)}
+                    onBlur={(event) =>
+                      syncSelectedRegistryFieldOnBlur("notes", event.target.value)
+                    }
                   />
                 </label>
               </>
@@ -7600,6 +7815,9 @@ export default function Page() {
                     style={inputStyle}
                     value={selectedNode.data.title}
                     onChange={(event) => updateSelectedField("title", event.target.value)}
+                    onBlur={(event) =>
+                      syncSelectedRegistryFieldOnBlur("title", event.target.value)
+                    }
                   />
                 </div>
 
@@ -7993,6 +8211,9 @@ export default function Page() {
                           onChange={(event) =>
                             updateSelectedField("body_text", event.target.value)
                           }
+                          onBlur={(event) =>
+                            syncSelectedRegistryFieldOnBlur("body_text", event.target.value)
+                          }
                         />
                       </label>
 
@@ -8051,6 +8272,9 @@ export default function Page() {
                               value={selectedNode.data[fieldType]}
                               onChange={(event) =>
                                 updateSelectedField(fieldType, event.target.value)
+                              }
+                              onBlur={(event) =>
+                                syncSelectedRegistryFieldOnBlur(fieldType, event.target.value)
                               }
                             />
 
@@ -8185,6 +8409,9 @@ export default function Page() {
                     style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
                     value={selectedNode.data.notes}
                     onChange={(event) => updateSelectedField("notes", event.target.value)}
+                    onBlur={(event) =>
+                      syncSelectedRegistryFieldOnBlur("notes", event.target.value)
+                    }
                   />
                 </label>
 
