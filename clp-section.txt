@@ -1,0 +1,801 @@
+                </div>
+              )}
+
+              <ol
+                style={{
+                  marginTop: 10,
+                  marginBottom: 0,
+                  paddingLeft: 18,
+                  fontSize: 12,
+                }}
+              >
+                {orderedNodes.map((node) => (
+                  <li key={`order:${node.id}`} style={{ marginBottom: 4 }}>
+                    <strong>#{ordering.sequenceByNodeId[node.id]}</strong>{" "}
+                    {node.data.title || "Untitled"}
+                    <div style={{ color: "#64748b", fontSize: 11 }}>id: {node.id}</div>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </section>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <h2 style={{ margin: 0 }}>Node Data Panel</h2>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              style={getToggleButtonStyle(isControlledLanguagePanelOpen)}
+              onClick={() =>
+                setIsControlledLanguagePanelOpen((open) => !open)
+              }
+            >
+              {isControlledLanguagePanelOpen ? "Hide" : "Show"} Controlled Language
+            </button>
+            <button
+              type="button"
+              style={getToggleButtonStyle(isAdminPanelOpen)}
+              onClick={() => setIsAdminPanelOpen((open) => !open)}
+            >
+              {isAdminPanelOpen ? "Hide" : "Show"} Admin
+            </button>
+          </div>
+        </div>
+
+        <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#52525b" }}>
+          Click a node to edit structured fields. Double-click empty canvas to add a
+          default node. Keyboard shortcuts: <strong>Tab</strong> adds Default, and
+          <strong> Shift+Tab</strong> adds Menu at the pointer position.
+          <strong> Shift+R</strong> adds Ribbon at the pointer position.
+          <strong> Shift+F</strong> frames selected nodes. <strong>Ctrl/Cmd+C</strong>
+          copies selected nodes (including frame members), and
+          <strong> Ctrl/Cmd+V</strong> pastes non-destructive duplicates. All changes autosave. Use
+          each field’s “Glossary” button to open a term picker.
+        </p>
+
+        <section
+          style={{
+            border: "1px solid #cbd5e1",
+            borderRadius: 8,
+            padding: 10,
+            display: "grid",
+            gap: 10,
+            background: "#ffffff",
+          }}
+        >
+
+        <button
+          type="button"
+          style={{
+            ...buttonStyle,
+            borderColor: "#93c5fd",
+            background: "#eff6ff",
+            color: "#1e3a8a",
+            fontWeight: 700,
+            opacity: canOpenUiJourneyConversation ? 1 : 0.5,
+            cursor: canOpenUiJourneyConversation ? "pointer" : "not-allowed",
+          }}
+          onClick={openUiJourneyConversation}
+          disabled={!canOpenUiJourneyConversation}
+          title={
+            canOpenUiJourneyConversation
+              ? "Build conversation from selected nodes"
+              : "Select at least one node or frame"
+          }
+        >
+          UI Journey Conversation
+        </button>
+
+        <section
+          style={{
+            border: "1px solid #c7d2fe",
+            borderRadius: 8,
+            padding: 8,
+            display: "grid",
+            gap: 8,
+            background: "#f8faff",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#3730a3", fontWeight: 700 }}>
+              Journey Snapshots
+            </div>
+            <button
+              type="button"
+              style={{
+                ...buttonStyle,
+                fontSize: 11,
+                padding: "2px 8px",
+                borderColor: "#a5b4fc",
+                color: "#3730a3",
+                background: "#eef2ff",
+              }}
+              onClick={() =>
+                setIsUiJourneySnapshotsPanelOpen((isOpen) => !isOpen)
+              }
+            >
+              {isUiJourneySnapshotsPanelOpen ? "Hide" : "Show"}
+            </button>
+          </div>
+
+          {isUiJourneySnapshotsPanelOpen && (
+            <>
+              <p style={{ margin: 0, fontSize: 11, color: "#4c1d95" }}>
+                Save the currently selected node path and conversation so you can
+                quickly recall and review the same journey later.
+              </p>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  gap: 6,
+                }}
+              >
+                <input
+                  style={inputStyle}
+                  value={uiJourneySnapshotDraftName}
+                  placeholder={`Snapshot ${uiJourneySnapshotPresets.length + 1}`}
+                  onChange={(event) =>
+                    setUiJourneySnapshotDraftName(event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      saveUiJourneySnapshotPreset();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  style={{
+                    ...buttonStyle,
+                    borderColor: "#818cf8",
+                    background: "#eef2ff",
+                    color: "#3730a3",
+                    fontWeight: 700,
+                    opacity: canSaveUiJourneySnapshotPreset ? 1 : 0.5,
+                    cursor: canSaveUiJourneySnapshotPreset
+                      ? "pointer"
+                      : "not-allowed",
+                  }}
+                  onClick={saveUiJourneySnapshotPreset}
+                  disabled={!canSaveUiJourneySnapshotPreset}
+                  title={
+                    canSaveUiJourneySnapshotPreset
+                      ? "Save selected path as snapshot"
+                      : "Select at least one node or frame first"
+                  }
+                >
+                  Save
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  fontSize: 11,
+                  color: "#4338ca",
+                }}
+              >
+                <span>
+                  Selected path: {uiJourneySnapshotCapture.nodeIds.length} node(s),{" "}
+                  {uiJourneySnapshotCapture.edgeIds.length} edge(s),{" "}
+                  {uiJourneySnapshotCapture.conversation.length} conversation row(s)
+                </span>
+                <button
+                  type="button"
+                  style={{
+                    ...buttonStyle,
+                    fontSize: 11,
+                    padding: "2px 8px",
+                    borderColor: "#cbd5e1",
+                    color: "#475569",
+                    background: "#fff",
+                    opacity:
+                      selectedUiJourneySnapshotPresetId ||
+                      recalledUiJourneyNodeIds.length > 0 ||
+                      recalledUiJourneyEdgeIds.length > 0
+                        ? 1
+                        : 0.5,
+                    cursor:
+                      selectedUiJourneySnapshotPresetId ||
+                      recalledUiJourneyNodeIds.length > 0 ||
+                      recalledUiJourneyEdgeIds.length > 0
+                        ? "pointer"
+                        : "not-allowed",
+                  }}
+                  onClick={clearRecalledUiJourneySnapshot}
+                  disabled={
+                    !selectedUiJourneySnapshotPresetId &&
+                    recalledUiJourneyNodeIds.length === 0 &&
+                    recalledUiJourneyEdgeIds.length === 0
+                  }
+                >
+                  Clear recalled path
+                </button>
+              </div>
+
+              {uiJourneySnapshotPresets.length === 0 ? (
+                <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
+                  No snapshots yet. Select a path and save one.
+                </p>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 6,
+                    maxHeight: 230,
+                    overflowY: "auto",
+                  }}
+                >
+                  {uiJourneySnapshotPresets.map((preset) => {
+                    const isSelected =
+                      selectedUiJourneySnapshotPresetId === preset.id;
+
+                    return (
+                      <div
+                        key={`ui-journey-snapshot:${preset.id}`}
+                        style={{
+                          border: `1px solid ${isSelected ? "#818cf8" : "#cbd5e1"}`,
+                          borderRadius: 8,
+                          background: isSelected ? "#eef2ff" : "#fff",
+                          padding: 8,
+                          display: "grid",
+                          gap: 6,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: 8,
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: "#312e81",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                              title={preset.name}
+                            >
+                              {preset.name}
+                            </div>
+                            <div style={{ fontSize: 10, color: "#4338ca", marginTop: 2 }}>
+                              {preset.nodeIds.length} node(s) • {preset.edgeIds.length} edge(s)
+                            </div>
+                            <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
+                              Updated {formatDateTime(preset.updatedAt)}
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              type="button"
+                              style={{
+                                ...buttonStyle,
+                                fontSize: 10,
+                                padding: "2px 8px",
+                                borderColor: "#818cf8",
+                                color: "#3730a3",
+                                background: "#eef2ff",
+                                fontWeight: 700,
+                              }}
+                              onClick={() => recallUiJourneySnapshotPreset(preset.id)}
+                            >
+                              Recall
+                            </button>
+                            <button
+                              type="button"
+                              style={{
+                                ...buttonStyle,
+                                fontSize: 10,
+                                padding: "2px 8px",
+                                borderColor: "#fca5a5",
+                                color: "#b91c1c",
+                                background: "#fff",
+                                fontWeight: 700,
+                              }}
+                              onClick={() => deleteUiJourneySnapshotPreset(preset.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </section>
+
+        {canCreateFrameFromSelection && (
+          <button
+            type="button"
+            style={{
+              ...buttonStyle,
+              borderColor: "#94a3b8",
+              background: "#f8fafc",
+              fontWeight: 700,
+            }}
+            onClick={() => createFrameFromSelection()}
+          >
+            Frame selected nodes ({selectedNonFrameNodesForFrameCreation.length})
+          </button>
+        )}
+
+        {hasExactlyOneSelectedNode && selectedNode?.data.node_type === "menu" && (
+          <>
+            <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
+              Menu node mode: edit Menu Terms below. These
+              terms use the Menu Term glossary.
+            </p>
+
+            {menuTermDeleteError && (
+              <p
+                style={{
+                  marginTop: 0,
+                  marginBottom: 0,
+                  fontSize: 11,
+                  color: "#b91c1c",
+                  background: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  borderRadius: 6,
+                  padding: "6px 8px",
+                }}
+              >
+                {menuTermDeleteError}
+              </p>
+            )}
+          </>
+        )}
+
+        {isControlledLanguagePanelOpen && (
+          <section
+            style={{
+              border: "1px solid #bfdbfe",
+              borderRadius: 8,
+              padding: 10,
+              display: "grid",
+              gap: 8,
+              background: "#f8fbff",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 14, color: "#1e3a8a" }}>
+                Controlled Language
+              </h3>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexWrap: "wrap",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <span style={{ fontSize: 11, color: "#1e3a8a", fontWeight: 700 }}>
+                  {controlledLanguageAuditRows.length} term row(s)
+                </span>
+                <button
+                  type="button"
+                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
+                  onClick={() => exportControlledLanguageGlossary("json")}
+                >
+                  Export JSON
+                </button>
+                <button
+                  type="button"
+                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
+                  onClick={() => exportControlledLanguageGlossary("csv")}
+                >
+                  Export CSV
+                </button>
+                <button
+                  type="button"
+                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
+                  onClick={triggerControlledLanguageJsonImportPicker}
+                >
+                  Import JSON
+                </button>
+                <button
+                  type="button"
+                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
+                  onClick={triggerControlledLanguageCsvImportPicker}
+                >
+                  Import CSV
+                </button>
+                <input
+                  ref={controlledLanguageJsonImportInputRef}
+                  type="file"
+                  accept=".json,application/json,text/json"
+                  style={{ display: "none" }}
+                  onChange={importControlledLanguageGlossaryFromJsonFile}
+                />
+                <input
+                  ref={controlledLanguageCsvImportInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  style={{ display: "none" }}
+                  onChange={importControlledLanguageGlossaryFromCsvFile}
+                />
+              </div>
+            </div>
+
+            <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
+              Audit terms by field type. Mark <strong>Include</strong> to expose a
+              term in glossary dropdowns beside editable text fields.
+            </p>
+
+            <div
+              style={{
+                overflowX: "auto",
+                overflowY: "auto",
+                maxHeight: CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX,
+              }}
+            >
+              <table
+                style={{
+                  borderCollapse: "collapse",
+                  width: "100%",
+                  minWidth: 560,
+                  border: "1px solid #dbeafe",
+                  background: "#fff",
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        fontSize: 11,
+                        textAlign: "left",
+                        background: "#eff6ff",
+                      }}
+                    >
+                      Field Type
+                    </th>
+                    <th
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        fontSize: 11,
+                        textAlign: "left",
+                        background: "#eff6ff",
+                      }}
+                    >
+                      Glossary Term
+                    </th>
+                    <th
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        fontSize: 11,
+                        textAlign: "left",
+                        background: "#eff6ff",
+                        width: 110,
+                      }}
+                    >
+                      Occurrences
+                    </th>
+                    <th
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        fontSize: 11,
+                        textAlign: "center",
+                        background: "#eff6ff",
+                        width: 110,
+                      }}
+                    >
+                      Include
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr style={{ background: "#f8fafc" }}>
+                    <td style={{ border: "1px solid #dbeafe", padding: 6 }}>
+                      <select
+                        style={{ ...inputStyle, fontSize: 11 }}
+                        value={controlledLanguageDraftRow.field_type}
+                        onChange={(event) => {
+                          const nextFieldType = event.target.value;
+                          if (!isControlledLanguageFieldType(nextFieldType)) {
+                            return;
+                          }
+
+                          setControlledLanguageDraftRow((current) => ({
+                            ...current,
+                            field_type: nextFieldType,
+                          }));
+                        }}
+                      >
+                        {CONTROLLED_LANGUAGE_FIELDS.map((fieldTypeOption) => (
+                          <option
+                            key={`controlled-language-draft-field-option:${fieldTypeOption}`}
+                            value={fieldTypeOption}
+                          >
+                            {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldTypeOption]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+
+                    <td style={{ border: "1px solid #dbeafe", padding: 6 }}>
+                      <input
+                        style={{ ...inputStyle, fontSize: 11 }}
+                        placeholder="Add glossary term"
+                        value={controlledLanguageDraftRow.term}
+                        onChange={(event) =>
+                          setControlledLanguageDraftRow((current) => ({
+                            ...current,
+                            term: event.target.value,
+                          }))
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addControlledLanguageDraftTerm();
+                          }
+                        }}
+                      />
+                    </td>
+
+                    <td
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        fontSize: 11,
+                        color: "#64748b",
+                      }}
+                    >
+                      <strong style={{ color: "#0f172a" }}>0</strong>
+                      <div style={{ marginTop: 2 }}>Not Used</div>
+                    </td>
+
+                    <td
+                      style={{
+                        border: "1px solid #dbeafe",
+                        padding: 6,
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={controlledLanguageDraftRow.include}
+                          onChange={(event) =>
+                            setControlledLanguageDraftRow((current) => ({
+                              ...current,
+                              include: event.target.checked,
+                            }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          style={{ ...buttonStyle, fontSize: 11, padding: "4px 8px" }}
+                          onClick={addControlledLanguageDraftTerm}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {controlledLanguageAuditRows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        style={{
+                          border: "1px solid #dbeafe",
+                          padding: 8,
+                          fontSize: 11,
+                          color: "#64748b",
+                        }}
+                      >
+                        No terms found in Primary CTA / Secondary CTA / Helper Text /
+                        Error Text / Menu Term yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    controlledLanguageAuditRows.map((row) => {
+                      const rowKey = buildControlledLanguageGlossaryKey(
+                        row.field_type,
+                        row.term
+                      );
+
+                      return (
+                        <tr key={`controlled-language-row:${rowKey}`}>
+                          <td style={{ border: "1px solid #e2e8f0", padding: 6 }}>
+                            <input
+                              style={{
+                                ...inputStyle,
+                                fontSize: 11,
+                                background: "#f8fafc",
+                                color: "#334155",
+                                cursor: "not-allowed",
+                              }}
+                              value={CONTROLLED_LANGUAGE_FIELD_LABELS[row.field_type]}
+                              readOnly
+                              aria-label="Field Type"
+                            >
+                            </input>
+                          </td>
+
+                          <td style={{ border: "1px solid #e2e8f0", padding: 6 }}>
+                            <input
+                              style={{ ...inputStyle, fontSize: 11 }}
+                              defaultValue={row.term}
+                              onBlur={(event) =>
+                                renameControlledLanguageRowTerm(
+                                  rowKey,
+                                  event.target.value
+                                )
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  event.currentTarget.blur();
+                                }
+                              }}
+                            />
+                          </td>
+
+                          <td
+                            style={{
+                              border: "1px solid #e2e8f0",
+                              padding: 6,
+                              fontSize: 11,
+                              color: "#0f172a",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <button
+                                type="button"
+                                style={{
+                                  ...buttonStyle,
+                                  fontSize: 11,
+                                  padding: "2px 8px",
+                                  borderColor:
+                                    activeGlossaryHighlightKey === rowKey ? "#f59e0b" : "#d4d4d8",
+                                  background:
+                                    activeGlossaryHighlightKey === rowKey ? "#fef3c7" : "#fff",
+                                  color:
+                                    activeGlossaryHighlightKey === rowKey ? "#92400e" : "#0f172a",
+                                  fontWeight: 700,
+                                  cursor: row.occurrences === 0 ? "not-allowed" : "pointer",
+                                  opacity: row.occurrences === 0 ? 0.55 : 1,
+                                }}
+                                disabled={row.occurrences === 0}
+                                onClick={() =>
+                                  handleControlledLanguageOccurrencesClick(row, rowKey)
+                                }
+                                title={
+                                  row.occurrences === 0
+                                    ? "No nodes contain this term"
+                                    : activeGlossaryHighlightKey === rowKey
+                                      ? "Click to clear highlighted nodes"
+                                      : "Highlight nodes containing this term"
+                                }
+                              >
+                                {row.occurrences}
+                              </button>
+
+                              {activeGlossaryHighlightKey === rowKey && row.occurrences > 0 && (
+                                <button
+                                  type="button"
+                                  style={{
+                                    ...buttonStyle,
+                                    fontSize: 10,
+                                    padding: "2px 6px",
+                                    borderColor: "#f59e0b",
+                                    background: "#fff7ed",
+                                    color: "#9a3412",
+                                    fontWeight: 700,
+                                  }}
+                                  onClick={() =>
+                                    handleControlledLanguageReplaceAll(row, rowKey)
+                                  }
+                                  title="Replace this term across all highlighted nodes"
+                                >
+                                  Replace All
+                                </button>
+                              )}
+                            </div>
+                            {row.occurrences === 0 && (
+                              <div style={{ marginTop: 2, color: "#64748b" }}>
+                                Not Used
+                              </div>
+                            )}
+                          </td>
+
+                          <td
+                            style={{
+                              border: "1px solid #e2e8f0",
+                              padding: 6,
+                              textAlign: "center",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={row.include}
+                              onChange={(event) =>
+                                setControlledLanguageRowInclude(
+                                  rowKey,
+                                  event.target.checked
+                                )
+                              }
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {isAdminPanelOpen && (
+          <section
+            style={{
+              border: "1px solid #d4d4d8",
+              borderRadius: 8,
+              padding: 10,
+              display: "grid",
+              gap: 10,
+            }}
+          >
+            <h3 style={{ margin: 0, fontSize: 14 }}>Global Attribute Admin</h3>
+
+            {GLOBAL_OPTION_FIELDS.map((field) => (

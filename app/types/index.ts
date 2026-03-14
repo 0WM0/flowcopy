@@ -128,6 +128,7 @@ export type PersistedCanvasState = {
   adminOptions: GlobalOptionConfig;
   controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
   uiJourneySnapshotPresets: UiJourneySnapshotPreset[];
+  termRegistry: TermRegistryEntry[];
 };
 
 export type ControlledLanguageGlossaryEntry = {
@@ -149,6 +150,59 @@ export type ControlledLanguageDraftRow = {
   field_type: ControlledLanguageFieldType;
   term: string;
   include: boolean;
+};
+
+export type TermRegistryEntry = {
+  /** Internal unique ID — UUID, auto-generated, never exported to developer-facing formats */
+  id: string;
+
+  /** The term string value, e.g. "Submit", "Cancel", "Your session has expired." */
+  value: string;
+
+  /**
+   * User-defined friendly ID mapping to the consuming product's string key.
+   * e.g. "checkout.confirm.primary_cta", "err-timeout-msg"
+   * null if not yet defined.
+   */
+  friendlyId: string | null;
+
+  /** Whether the friendly ID is locked against accidental editing */
+  friendlyIdLocked: boolean;
+
+  /**
+   * Term type — corresponds to the field type this term is used in.
+   * Uses the existing ControlledLanguageFieldType values:
+   * "primary_cta", "secondary_cta", "helper_text", "error_text",
+   * "menu_term", "key_command", "tool_tip", "cell_label"
+   * Also accepts "title", "body_text", "notes" for the non-controlled-language content fields.
+   * null if untyped (e.g., imported but not yet categorized).
+   */
+  termType: string | null;
+
+  /**
+   * Assignment: which node and field this term is placed in.
+   * Both null if unassigned (term exists in registry but not on canvas).
+   *
+   * For default node fields: assignedField is the field name, e.g. "primary_cta", "title", "body_text"
+   * For menu terms: assignedField is "menu_term:[menuTermId]"
+   * For ribbon cells: assignedField is "ribbon_cell:[cellId]:[fieldName]" where fieldName is "label", "key_command", or "tool_tip"
+   */
+  assignedNodeId: string | null;
+  assignedField: string | null;
+
+  /**
+   * Hidden 3-digit suffix for internal deduplication when the same friendlyId
+   * is intentionally assigned to multiple entries (shared components).
+   * NEVER exported. NEVER shown in UI. Auto-generated on duplicate confirmation.
+   * Format: "-001", "-002", etc. null if no duplicate exists.
+   */
+  deduplicationSuffix: string | null;
+
+  /** ISO timestamp of creation */
+  createdAt: string;
+
+  /** ISO timestamp of last modification */
+  updatedAt: string;
 };
 
 export type FlowOrderingResult = {
@@ -232,6 +286,7 @@ export type FlatExportColumn =
   | "ribbon_cells_json"
   | "project_admin_options_json"
   | "project_controlled_language_json"
+  | "project_term_registry_json"
   | "project_edges_json";
 
 export type FlatExportRow = Record<FlatExportColumn, string>;

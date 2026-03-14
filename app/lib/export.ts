@@ -7,6 +7,7 @@ import type {
   ProjectRecord,
   GlobalOptionConfig,
   ControlledLanguageGlossaryEntry,
+  TermRegistryEntry,
   FlatExportRow,
   UiJourneyConversationEntry,
   DownloadTextExtension,
@@ -836,6 +837,7 @@ export const createFlatExportRows = ({
   ordering,
   adminOptions,
   controlledLanguageGlossary,
+  termRegistry,
   edges,
 }: {
   session: AppStore["session"];
@@ -846,6 +848,7 @@ export const createFlatExportRows = ({
   ordering: FlowOrderingResult;
   adminOptions: GlobalOptionConfig;
   controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
+  termRegistry: TermRegistryEntry[];
   edges: FlowEdge[];
 }): FlatExportRow[] => {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -859,6 +862,7 @@ export const createFlatExportRows = ({
   const controlledLanguageJson = JSON.stringify(
     sanitizeControlledLanguageGlossary(controlledLanguageGlossary)
   );
+  const termRegistryJson = JSON.stringify(termRegistry);
 
   const buildRow = (node: FlowNode | null): FlatExportRow => {
     const sequence = node ? ordering.sequenceByNodeId[node.id] ?? null : null;
@@ -908,6 +912,7 @@ export const createFlatExportRows = ({
           : "",
       project_admin_options_json: adminOptionsJson,
       project_controlled_language_json: controlledLanguageJson,
+      project_term_registry_json: termRegistryJson,
       project_edges_json: edgesJson,
     };
   };

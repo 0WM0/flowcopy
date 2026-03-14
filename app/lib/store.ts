@@ -179,6 +179,7 @@ export const createEmptyCanvasState = (): PersistedCanvasState => ({
   adminOptions: cloneGlobalOptions(DEFAULT_GLOBAL_OPTIONS),
   controlledLanguageGlossary: [],
   uiJourneySnapshotPresets: [],
+  termRegistry: [],
 });
 
 export const readLegacyCanvasState = (): PersistedCanvasState | null => {
@@ -198,6 +199,7 @@ export const readLegacyCanvasState = (): PersistedCanvasState | null => {
       adminOptions?: unknown;
       controlledLanguageGlossary?: unknown;
       uiJourneySnapshotPresets?: unknown;
+      termRegistry?: unknown;
     };
 
     return {
@@ -210,6 +212,7 @@ export const readLegacyCanvasState = (): PersistedCanvasState | null => {
       uiJourneySnapshotPresets: sanitizeUiJourneySnapshotPresets(
         parsed.uiJourneySnapshotPresets
       ),
+      termRegistry: Array.isArray(parsed.termRegistry) ? parsed.termRegistry : [],
     };
   } catch (error) {
     console.error("Failed to parse legacy canvas state", error);
@@ -238,6 +241,7 @@ export const createProjectRecord = (
       uiJourneySnapshotPresets: sanitizeUiJourneySnapshotPresets(
         canvas.uiJourneySnapshotPresets
       ),
+      termRegistry: Array.isArray(canvas.termRegistry) ? canvas.termRegistry : [],
     },
   };
 };
@@ -298,6 +302,9 @@ export const sanitizeProjectRecord = (value: unknown): ProjectRecord | null => {
       uiJourneySnapshotPresets: sanitizeUiJourneySnapshotPresets(
         source.canvas?.uiJourneySnapshotPresets
       ),
+      termRegistry: Array.isArray(source.canvas?.termRegistry)
+        ? source.canvas.termRegistry
+        : [],
     },
   };
 };

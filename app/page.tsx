@@ -53,6 +53,7 @@ import type {
   ControlledLanguageAuditTermEntry,
   ControlledLanguageAuditRow,
   ControlledLanguageDraftRow,
+  TermRegistryEntry,
   FlowOrderingResult,
   ParallelGroupInfo,
   AppView,
@@ -461,6 +462,7 @@ type EditorSnapshot = {
   edges: FlowEdge[];
   adminOptions: GlobalOptionConfig;
   controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
+  termRegistry: TermRegistryEntry[];
   uiJourneySnapshotPresets: UiJourneySnapshotPreset[];
   uiJourneyConversationSnapshot: UiJourneyConversationEntry[];
   isUiJourneyConversationOpen: boolean;
@@ -772,6 +774,7 @@ export default function Page() {
   const [controlledLanguageGlossary, setControlledLanguageGlossary] = useState<
     ControlledLanguageGlossaryEntry[]
   >([]);
+  const [termRegistry, setTermRegistry] = useState<TermRegistryEntry[]>([]);
   const [glossaryHighlightedNodeIds, setGlossaryHighlightedNodeIds] = useState<string[]>(
     []
   );
@@ -1005,6 +1008,7 @@ export default function Page() {
       adminOptions: cloneGlobalOptions(adminOptions),
       controlledLanguageGlossary:
         sanitizeControlledLanguageGlossary(controlledLanguageGlossary),
+      termRegistry: [...termRegistry],
       uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(
         sanitizeUiJourneySnapshotPresets(uiJourneySnapshotPresets)
       ),
@@ -1017,6 +1021,7 @@ export default function Page() {
     store.session.activeAccountId,
     store.session.activeProjectId,
     store.session.view,
+    termRegistry,
     uiJourneySnapshotPresets,
   ]);
 
@@ -1054,6 +1059,9 @@ export default function Page() {
       setAdminOptions(normalizedAdminOptions);
       setControlledLanguageGlossary(
         sanitizeControlledLanguageGlossary(project.canvas.controlledLanguageGlossary)
+      );
+      setTermRegistry(
+        Array.isArray(project.canvas.termRegistry) ? project.canvas.termRegistry : []
       );
       setControlledLanguageDraftRow(createEmptyControlledLanguageDraftRow());
       setOpenControlledLanguageFieldType(null);
@@ -1102,6 +1110,7 @@ export default function Page() {
     const serializedControlledLanguageGlossary = sanitizeControlledLanguageGlossary(
       controlledLanguageGlossary
     );
+    const serializedTermRegistry = [...termRegistry];
     const serializedUiJourneySnapshotPresets = cloneUiJourneySnapshotPresets(
       sanitizeUiJourneySnapshotPresets(uiJourneySnapshotPresets)
     );
@@ -1134,6 +1143,7 @@ export default function Page() {
           edges: serializedEdges,
           adminOptions: serializedAdminOptions,
           controlledLanguageGlossary: serializedControlledLanguageGlossary,
+          termRegistry: serializedTermRegistry,
           uiJourneySnapshotPresets: serializedUiJourneySnapshotPresets,
         },
       };
@@ -1155,6 +1165,7 @@ export default function Page() {
     edges,
     nodes,
     store.session,
+    termRegistry,
     uiJourneySnapshotPresets,
     updateStore,
   ]);
@@ -1181,6 +1192,7 @@ export default function Page() {
       controlledLanguageGlossary: cloneControlledLanguageGlossary(
         controlledLanguageGlossary
       ),
+      termRegistry: [...termRegistry],
       uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(uiJourneySnapshotPresets),
       uiJourneyConversationSnapshot: cloneUiJourneyConversationEntries(
         uiJourneyConversationSnapshot
@@ -1206,6 +1218,7 @@ export default function Page() {
     recalledUiJourneyNodeIds,
     selectedUiJourneySnapshotPresetId,
     store.session.view,
+    termRegistry,
     uiJourneyConversationSnapshot,
     uiJourneySnapshotDraftName,
     uiJourneySnapshotPresets,
@@ -1240,6 +1253,7 @@ export default function Page() {
       setControlledLanguageGlossary(
         cloneControlledLanguageGlossary(previousSnapshot.controlledLanguageGlossary)
       );
+      setTermRegistry([...previousSnapshot.termRegistry]);
       setUiJourneySnapshotPresets(
         cloneUiJourneySnapshotPresets(previousSnapshot.uiJourneySnapshotPresets)
       );
@@ -4340,6 +4354,7 @@ export default function Page() {
             controlledLanguageGlossary: sanitizeControlledLanguageGlossary(
               controlledLanguageGlossary
             ),
+            termRegistry: [...termRegistry],
             uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(
               sanitizeUiJourneySnapshotPresets(uiJourneySnapshotPresets)
             ),
@@ -4387,6 +4402,7 @@ export default function Page() {
         ordering,
         adminOptions,
         controlledLanguageGlossary,
+        termRegistry,
         edges,
       });
 
@@ -4410,6 +4426,7 @@ export default function Page() {
       projectSequenceId,
       store.session,
       store.version,
+      termRegistry,
       uiJourneySnapshotPresets,
     ]
   );
@@ -4599,6 +4616,9 @@ export default function Page() {
           const parsedControlledLanguageRaw = safeJsonParse(
             firstRow.project_controlled_language_json ?? ""
           );
+          const parsedTermRegistryRaw = safeJsonParse(
+            firstRow.project_term_registry_json ?? ""
+          );
 
           const nextAdminOptions = syncAdminOptionsWithNodes(
             mergeAdminOptionConfigs(
@@ -4626,6 +4646,9 @@ export default function Page() {
           const importedGlossary = sanitizeControlledLanguageGlossary(
             parsedControlledLanguageRaw
           );
+          const importedTermRegistry = Array.isArray(parsedTermRegistryRaw)
+            ? parsedTermRegistryRaw
+            : [];
           const fallbackProjectName =
             importedProjectId === activeProject.id
               ? activeProject.name
@@ -4643,6 +4666,7 @@ export default function Page() {
               edges: cloneEdges(hydratedEdges),
               adminOptions: cloneGlobalOptions(nextAdminOptions),
               controlledLanguageGlossary: importedGlossary,
+              termRegistry: importedTermRegistry,
               uiJourneySnapshotPresets: [],
             },
           });

@@ -12,6 +12,7 @@ import type {
   GlobalOptionConfig,
   ProjectRecord,
   SerializableFlowNode,
+  TermRegistryEntry,
 } from "../../types";
 import {
   DEFAULT_GLOBAL_OPTIONS,
@@ -71,6 +72,7 @@ type CanonicalFixture = {
   edges: FlowEdge[];
   adminOptions: GlobalOptionConfig;
   controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
+  termRegistry: TermRegistryEntry[];
   ordering: ReturnType<typeof computeFlowOrdering>;
   projectSequenceId: string;
 };
@@ -115,6 +117,7 @@ type ProjectContractShape = {
   edges: EdgeContractShape[];
   sequenceByNodeId: Record<string, number>;
   glossary: ControlledLanguageGlossaryEntry[];
+  termRegistry: TermRegistryEntry[];
   adminOptions: GlobalOptionConfig;
   serializedNodes: SerializableFlowNode[];
 };
@@ -177,6 +180,33 @@ const buildCanonicalFixture = (): CanonicalFixture => {
       include: false,
     },
   ]);
+
+  const termRegistry: TermRegistryEntry[] = [
+    {
+      id: "term-reg-1",
+      value: "Continue",
+      friendlyId: "checkout.confirm.primary_cta",
+      friendlyIdLocked: true,
+      termType: "primary_cta",
+      assignedNodeId: defaultNodeId,
+      assignedField: "primary_cta",
+      deduplicationSuffix: null,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: "term-reg-2",
+      value: "Open dashboard",
+      friendlyId: "menu.open_dashboard",
+      friendlyIdLocked: false,
+      termType: "menu_term",
+      assignedNodeId: menuNodeId,
+      assignedField: `menu_term:${menuTermPrimaryId}`,
+      deduplicationSuffix: null,
+      createdAt,
+      updatedAt: createdAt,
+    },
+  ];
 
   const serializableNodes: SerializableFlowNode[] = [
     {
@@ -455,6 +485,7 @@ const buildCanonicalFixture = (): CanonicalFixture => {
       edges,
       adminOptions: cloneGlobalOptions(adminOptions),
       controlledLanguageGlossary,
+      termRegistry,
       uiJourneySnapshotPresets: [],
     },
   });
@@ -484,6 +515,7 @@ const buildCanonicalFixture = (): CanonicalFixture => {
     edges,
     adminOptions,
     controlledLanguageGlossary,
+    termRegistry,
     ordering,
     projectSequenceId,
   };
@@ -499,6 +531,7 @@ const exportFlatPayload = (fixture: CanonicalFixture, format: FlatFormat): strin
     ordering: fixture.ordering,
     adminOptions: fixture.adminOptions,
     controlledLanguageGlossary: fixture.controlledLanguageGlossary,
+    termRegistry: fixture.termRegistry,
     edges: fixture.edges,
   });
 
@@ -637,6 +670,9 @@ const importProjectFromFlatPayload = (
   const parsedControlledLanguageRaw = safeJsonParse(
     firstRow.project_controlled_language_json ?? ""
   );
+  const parsedTermRegistryRaw = safeJsonParse(
+    firstRow.project_term_registry_json ?? ""
+  );
 
   const nextAdminOptions = syncAdminOptionsWithNodes(
     mergeAdminOptionConfigs(
@@ -656,6 +692,9 @@ const importProjectFromFlatPayload = (
   ).parallelGroupByNodeId;
 
   const importedGlossary = sanitizeControlledLanguageGlossary(parsedControlledLanguageRaw);
+  const importedTermRegistry = Array.isArray(parsedTermRegistryRaw)
+    ? parsedTermRegistryRaw
+    : [];
   const fallbackProjectName = `Imported ${importedProjectId}`;
   const createdAtFallback = "2026-01-01T00:00:00.000Z";
 
@@ -669,6 +708,7 @@ const importProjectFromFlatPayload = (
       edges: hydratedEdges,
       adminOptions: cloneGlobalOptions(nextAdminOptions),
       controlledLanguageGlossary: importedGlossary,
+      termRegistry: importedTermRegistry,
       uiJourneySnapshotPresets: [],
     },
   });
@@ -810,6 +850,9 @@ const normalizeProjectForContract = (project: ProjectRecord): ProjectContractSha
     edges,
     sequenceByNodeId,
     glossary: sanitizeControlledLanguageGlossary(project.canvas.controlledLanguageGlossary),
+    termRegistry: Array.isArray(project.canvas.termRegistry)
+      ? project.canvas.termRegistry
+      : [],
     adminOptions: cloneGlobalOptions(adminOptions),
     serializedNodes,
   };

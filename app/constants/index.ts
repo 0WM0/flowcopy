@@ -53,6 +53,7 @@ export const FLAT_EXPORT_COLUMNS = [
   "ribbon_cells_json",
   "project_admin_options_json",
   "project_controlled_language_json",
+  "project_term_registry_json",
   "project_edges_json",
 ] as const satisfies readonly FlatExportColumn[];
 
