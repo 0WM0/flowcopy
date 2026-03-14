@@ -181,6 +181,13 @@ function FlowCopyNode({
     return ribbonConfig.cells.find((cell) => cell.id === editingCellId) ?? null;
   }, [editingCellId, isRibbonNode, ribbonConfig.cells]);
 
+  const stopNodeSelectionPropagation = useCallback(
+    (event: React.SyntheticEvent<HTMLElement>) => {
+      event.stopPropagation();
+    },
+    []
+  );
+
   useEffect(() => {
     updateNodeInternals(id);
   }, [
@@ -583,6 +590,9 @@ function FlowCopyNode({
               }}
               value={data.title}
               placeholder="Add title"
+              onPointerDown={stopNodeSelectionPropagation}
+              onMouseDown={stopNodeSelectionPropagation}
+              onClick={stopNodeSelectionPropagation}
               onChange={(event) => updateField("title", event.target.value)}
               onBlur={() => setIsEditingFrameTitle(false)}
               onKeyDown={(event) => {
@@ -955,6 +965,9 @@ function FlowCopyNode({
                   fontSize: 11,
                 }}
                 value={editingRibbonCell.label}
+                onPointerDown={stopNodeSelectionPropagation}
+                onMouseDown={stopNodeSelectionPropagation}
+                onClick={stopNodeSelectionPropagation}
                 onChange={(event) =>
                   updateRibbonCellField(
                     editingRibbonCell.id,
@@ -985,6 +998,9 @@ function FlowCopyNode({
                 }}
                 value={editingRibbonCell.key_command}
                 maxLength={RIBBON_CELL_MAX_KEY_COMMAND_LENGTH}
+                onPointerDown={stopNodeSelectionPropagation}
+                onMouseDown={stopNodeSelectionPropagation}
+                onClick={stopNodeSelectionPropagation}
                 onChange={(event) =>
                   updateRibbonCellField(
                     editingRibbonCell.id,
@@ -1016,6 +1032,9 @@ function FlowCopyNode({
                 }}
                 rows={2}
                 value={editingRibbonCell.tool_tip}
+                onPointerDown={stopNodeSelectionPropagation}
+                onMouseDown={stopNodeSelectionPropagation}
+                onClick={stopNodeSelectionPropagation}
                 onChange={(event) =>
                   updateRibbonCellField(
                     editingRibbonCell.id,
@@ -1137,6 +1156,9 @@ function FlowCopyNode({
               style={inputStyle}
               value={data.title}
               placeholder="Add title"
+              onPointerDown={stopNodeSelectionPropagation}
+              onMouseDown={stopNodeSelectionPropagation}
+              onClick={stopNodeSelectionPropagation}
               onChange={(event) => updateField("title", event.target.value)}
             />
           </div>
@@ -1150,6 +1172,9 @@ function FlowCopyNode({
                   style={inputStyle}
                   value={data.title}
                   placeholder="Add title"
+                  onPointerDown={stopNodeSelectionPropagation}
+                  onMouseDown={stopNodeSelectionPropagation}
+                  onClick={stopNodeSelectionPropagation}
                   onChange={(event) => updateField("title", event.target.value)}
                 />
               </div>
@@ -1164,6 +1189,9 @@ function FlowCopyNode({
                 style={inputStyle}
                 value={displayTermValue}
                 placeholder="Add term"
+                onPointerDown={stopNodeSelectionPropagation}
+                onMouseDown={stopNodeSelectionPropagation}
+                onClick={stopNodeSelectionPropagation}
                 onChange={(event) =>
                   updateField(displayTermFieldType, event.target.value)
                 }
@@ -1285,6 +1313,9 @@ function FlowCopyNode({
                       style={inputStyle}
                       value={menuTerm.term}
                       placeholder="Add term"
+                      onPointerDown={stopNodeSelectionPropagation}
+                      onMouseDown={stopNodeSelectionPropagation}
+                      onClick={stopNodeSelectionPropagation}
                       onChange={(event) => updateMenuTermById(menuTerm.id, event.target.value)}
                     />
 

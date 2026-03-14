@@ -38,6 +38,89 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session delivered a targeted canvas-editing reliability fix for inline text inputs inside `FlowCopyNode`.
+
+The user-visible outcome is that clicking into editable node text fields no longer immediately loses focus due to node-selection bubbling behavior.
+
+## 2) Core Data Model
+
+No data contracts or persisted schema were changed.
+
+The fix was interaction-layer only and did not modify:
+
+- node/edge type definitions
+- persisted canvas payload shape
+- term registry/data migration behavior
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no localStorage key changes
+- no project payload shape changes
+- no import/export contract changes
+
+This was an event-propagation guard fix scoped to node rendering.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed in this session.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Input-focus stabilization is orthogonal to sequence computation.
+
+## 5) Node Rendering and Shape System
+
+`app/components/FlowCopyNode.tsx` was updated to prevent selection-event bubbling from editable controls.
+
+Implementation details:
+
+- added shared handler: `stopNodeSelectionPropagation`
+- wired `onPointerDown`, `onMouseDown`, and `onClick` on editable `input`/`textarea` elements
+- applied across frame title edit input, default/menu text inputs, menu term inputs, and ribbon popup text fields
+
+No visual style, shape geometry, or handle-layout changes were introduced.
+
+## 6) Editor Interaction Model
+
+Editor interaction is now more stable for inline typing:
+
+- click/focus in editable fields remains in the field
+- events from text controls no longer bubble to node-level selection handlers
+- node re-selection no longer interrupts cursor focus immediately after click
+
+This directly resolves the “cursor appears briefly, then blur” behavior on canvas node inputs.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Implemented centralized event-propagation guard in `FlowCopyNode`.
+2. Applied guard consistently to all inline editable text controls in that component.
+3. Kept changes scoped to `FlowCopyNode.tsx` only (no package/CSS/config changes).
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operationally, this fix targets pre-existing input-focus loss and does not alter unrelated feature behavior.
+
+## 9) Recommended Next Steps
+
+1. Add a focused regression test for input focus retention on click within canvas nodes.
+2. Add interaction tests for node selection vs inline-edit controls to prevent bubbling regressions.
+3. Consider centralizing reusable “stop canvas selection propagation” handlers for future editable controls.
+
+##03-14-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session added a two-view scaffold inside the existing Controlled Language Panel (CLP) without changing existing audit behavior.
 
 The CLP now supports:
