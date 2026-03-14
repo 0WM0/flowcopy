@@ -86,6 +86,11 @@ function BodyTextPreview({ value }: { value: string }) {
 
 type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onBeforeChange: () => void;
+  onCommitRegistryField: (
+    nodeId: string,
+    field: RegistryTrackedField,
+    value: string
+  ) => void;
   menuTermGlossaryTerms: string[];
   glossaryHighlightedNodeIds: ReadonlySet<string>;
   showNodeId: boolean;
@@ -97,11 +102,29 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   ) => void;
 };
 
+const REGISTRY_TRACKED_FIELDS = [
+  "title",
+  "body_text",
+  "primary_cta",
+  "secondary_cta",
+  "helper_text",
+  "error_text",
+  "notes",
+] as const;
+
+type RegistryTrackedField = (typeof REGISTRY_TRACKED_FIELDS)[number];
+
+const isRegistryTrackedField = (
+  field: EditableMicrocopyField
+): field is RegistryTrackedField =>
+  REGISTRY_TRACKED_FIELDS.includes(field as RegistryTrackedField);
+
 function FlowCopyNode({
   id,
   data,
   selected,
   onBeforeChange,
+  onCommitRegistryField,
   menuTermGlossaryTerms,
   glossaryHighlightedNodeIds,
   showNodeId,
@@ -221,6 +244,17 @@ function FlowCopyNode({
       );
     },
     [id, onBeforeChange, setNodes]
+  );
+
+  const commitRegistryField = useCallback(
+    (field: EditableMicrocopyField, value: string) => {
+      if (!isRegistryTrackedField(field)) {
+        return;
+      }
+
+      onCommitRegistryField(id, field, value);
+    },
+    [id, onCommitRegistryField]
   );
 
   const replaceMenuConfig = useCallback(
@@ -594,7 +628,10 @@ function FlowCopyNode({
               onMouseDown={stopNodeSelectionPropagation}
               onClick={stopNodeSelectionPropagation}
               onChange={(event) => updateField("title", event.target.value)}
-              onBlur={() => setIsEditingFrameTitle(false)}
+              onBlur={(event) => {
+                commitRegistryField("title", event.currentTarget.value);
+                setIsEditingFrameTitle(false);
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
@@ -1160,6 +1197,17 @@ function FlowCopyNode({
               onMouseDown={stopNodeSelectionPropagation}
               onClick={stopNodeSelectionPropagation}
               onChange={(event) => updateField("title", event.target.value)}
+              onBlur={(event) =>
+                commitRegistryField("title", event.currentTarget.value)
+              }
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") {
+                  return;
+                }
+
+                event.preventDefault();
+                event.currentTarget.blur();
+              }}
             />
           </div>
         ) : (
@@ -1176,6 +1224,17 @@ function FlowCopyNode({
                   onMouseDown={stopNodeSelectionPropagation}
                   onClick={stopNodeSelectionPropagation}
                   onChange={(event) => updateField("title", event.target.value)}
+                  onBlur={(event) =>
+                    commitRegistryField("title", event.currentTarget.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }}
                 />
               </div>
             )}
@@ -1195,6 +1254,17 @@ function FlowCopyNode({
                 onChange={(event) =>
                   updateField(displayTermFieldType, event.target.value)
                 }
+                onBlur={(event) =>
+                  commitRegistryField(displayTermFieldType, event.currentTarget.value)
+                }
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }}
               />
             </div>
           </>

@@ -3063,6 +3063,13 @@ export default function Page() {
     [effectiveSelectedNodeId, syncFieldToRegistry]
   );
 
+  const commitSelectedRegistryField = useCallback(
+    (field: RegistryTrackedField, value: string) => {
+      syncSelectedRegistryFieldOnBlur(field, value);
+    },
+    [syncSelectedRegistryFieldOnBlur]
+  );
+
   const updateSelectedField = useCallback(
     <K extends EditableMicrocopyField>(
       field: K,
@@ -3783,12 +3790,12 @@ export default function Page() {
         <FlowCopyNode
           {...props}
           onBeforeChange={() => captureUndoSnapshotRef.current()}
+          onCommitRegistryField={syncFieldToRegistry}
           menuTermGlossaryTerms={menuTermGlossaryTermsRef.current}
           glossaryHighlightedNodeIds={glossaryHighlightedNodeIdSet}
           showNodeId={showNodeIdsOnCanvas}
           showDefaultNodeTitleOnCanvas={showDefaultNodeTitleOnCanvas}
           onMenuTermDeleteBlocked={showMenuTermDeleteBlockedMessage}
-          /* TODO: Add canvas node inline field blur-to-registry sync without syncing during typing. */
           onMenuNodeConfigChange={(nodeId, updater) =>
             updateMenuNodeConfigByIdRef.current(nodeId, updater)
           }
@@ -7452,8 +7459,16 @@ export default function Page() {
                     placeholder="Add title"
                     onChange={(event) => updateSelectedField("title", event.target.value)}
                     onBlur={(event) =>
-                      syncSelectedRegistryFieldOnBlur("title", event.target.value)
+                      commitSelectedRegistryField("title", event.target.value)
                     }
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                    }}
                   />
                 </label>
 
@@ -7681,8 +7696,16 @@ export default function Page() {
                     placeholder="Add title"
                     onChange={(event) => updateSelectedField("title", event.target.value)}
                     onBlur={(event) =>
-                      syncSelectedRegistryFieldOnBlur("title", event.target.value)
+                      commitSelectedRegistryField("title", event.target.value)
                     }
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                    }}
                   />
                 </label>
 
@@ -7753,8 +7776,16 @@ export default function Page() {
                     value={selectedNode.data.notes}
                     onChange={(event) => updateSelectedField("notes", event.target.value)}
                     onBlur={(event) =>
-                      syncSelectedRegistryFieldOnBlur("notes", event.target.value)
+                      commitSelectedRegistryField("notes", event.target.value)
                     }
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                    }}
                   />
                 </label>
               </>
@@ -7816,8 +7847,16 @@ export default function Page() {
                     value={selectedNode.data.title}
                     onChange={(event) => updateSelectedField("title", event.target.value)}
                     onBlur={(event) =>
-                      syncSelectedRegistryFieldOnBlur("title", event.target.value)
+                      commitSelectedRegistryField("title", event.target.value)
                     }
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                    }}
                   />
                 </div>
 
@@ -8212,8 +8251,16 @@ export default function Page() {
                             updateSelectedField("body_text", event.target.value)
                           }
                           onBlur={(event) =>
-                            syncSelectedRegistryFieldOnBlur("body_text", event.target.value)
+                            commitSelectedRegistryField("body_text", event.target.value)
                           }
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") {
+                              return;
+                            }
+
+                            event.preventDefault();
+                            event.currentTarget.blur();
+                          }}
                         />
                       </label>
 
@@ -8274,8 +8321,16 @@ export default function Page() {
                                 updateSelectedField(fieldType, event.target.value)
                               }
                               onBlur={(event) =>
-                                syncSelectedRegistryFieldOnBlur(fieldType, event.target.value)
+                                commitSelectedRegistryField(fieldType, event.target.value)
                               }
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter") {
+                                  return;
+                                }
+
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                              }}
                             />
 
                             {isDropdownOpen && (
@@ -8410,8 +8465,16 @@ export default function Page() {
                     value={selectedNode.data.notes}
                     onChange={(event) => updateSelectedField("notes", event.target.value)}
                     onBlur={(event) =>
-                      syncSelectedRegistryFieldOnBlur("notes", event.target.value)
+                      commitSelectedRegistryField("notes", event.target.value)
                     }
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                    }}
                   />
                 </label>
 
