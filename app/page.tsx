@@ -428,6 +428,43 @@ type RegistryTrackedField = (typeof REGISTRY_TRACKED_FIELDS)[number];
 const isRegistryTrackedField = (field: string): field is RegistryTrackedField =>
   REGISTRY_TRACKED_FIELDS.includes(field as RegistryTrackedField);
 
+const TERM_REGISTRY_TERM_TYPE_LABELS: Record<string, string> = {
+  title: "Title",
+  body_text: "Body Text",
+  primary_cta: "Primary CTA",
+  secondary_cta: "Secondary CTA",
+  helper_text: "Helper Text",
+  error_text: "Error Text",
+  notes: "Notes",
+  menu_term: "Menu Term",
+  key_command: "Key Command",
+  tool_tip: "Tool Tip",
+  cell_label: "Cell Label",
+};
+
+const TERM_REGISTRY_TERM_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "", label: "Untyped" },
+  { value: "title", label: "Title" },
+  { value: "body_text", label: "Body Text" },
+  { value: "primary_cta", label: "Primary CTA" },
+  { value: "secondary_cta", label: "Secondary CTA" },
+  { value: "helper_text", label: "Helper Text" },
+  { value: "error_text", label: "Error Text" },
+  { value: "notes", label: "Notes" },
+  { value: "menu_term", label: "Menu Term" },
+  { value: "key_command", label: "Key Command" },
+  { value: "tool_tip", label: "Tool Tip" },
+  { value: "cell_label", label: "Cell Label" },
+];
+
+const getTermRegistryTermTypeLabel = (termType: string | null): string => {
+  if (!termType) {
+    return "Untyped";
+  }
+
+  return TERM_REGISTRY_TERM_TYPE_LABELS[termType] ?? termType;
+};
+
 const createEmptyProjectData = (): Record<string, unknown> =>
   createEmptyCanvasState() as unknown as Record<string, unknown>;
 
@@ -804,6 +841,8 @@ export default function Page() {
     "all" | "assigned" | "unassigned"
   >("all");
   const [registryFilterType, setRegistryFilterType] = useState<string>("all");
+  const [registryDraftValue, setRegistryDraftValue] = useState("");
+  const [registryDraftTermType, setRegistryDraftTermType] = useState<string>("");
   const [controlledLanguageDraftRow, setControlledLanguageDraftRow] =
     useState<ControlledLanguageDraftRow>(createEmptyControlledLanguageDraftRow);
   const [openControlledLanguageFieldType, setOpenControlledLanguageFieldType] = useState<
@@ -3069,6 +3108,170 @@ export default function Page() {
     },
     [syncSelectedRegistryFieldOnBlur]
   );
+
+  const commitRegistryFriendlyId = useCallback(
+    (entryId: string, nextFriendlyIdRaw: string): boolean => {
+      const targetEntry = termRegistry.find((entry) => entry.id === entryId);
+      if (!targetEntry) {
+        return false;
+      }
+
+      const nextFriendlyIdValue = nextFriendlyIdRaw.trim();
+      const nextFriendlyId =
+        nextFriendlyIdValue.length > 0 ? nextFriendlyIdValue : null;
+
+      if (targetEntry.friendlyId === nextFriendlyId) {
+        return true;
+      }
+
+      if (nextFriendlyId) {
+        const duplicateEntry = termRegistry.find(
+          (entry) => entry.id !== entryId && entry.friendlyId === nextFriendlyId
+        );
+
+        if (duplicateEntry) {
+          const allowDuplicate = window.confirm(
+            `The ID ${nextFriendlyId} is already used by another term. Use it anyway?`
+          );
+
+          if (!allowDuplicate) {
+            return false;
+          }
+        }
+      }
+
+      queueUndoSnapshot();
+
+      const now = new Date().toISOString();
+      setTermRegistry((currentRegistry) =>
+        currentRegistry.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                friendlyId: nextFriendlyId,
+                updatedAt: now,
+              }
+            : entry
+        )
+      );
+
+      return true;
+    },
+    [queueUndoSnapshot, setTermRegistry, termRegistry]
+  );
+
+  const toggleRegistryEntryFriendlyIdLock = useCallback(
+    (entryId: string) => {
+      const targetEntry = termRegistry.find((entry) => entry.id === entryId);
+      if (!targetEntry) {
+        return;
+      }
+
+      queueUndoSnapshot();
+
+      const now = new Date().toISOString();
+      setTermRegistry((currentRegistry) =>
+        currentRegistry.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                friendlyIdLocked: !entry.friendlyIdLocked,
+                updatedAt: now,
+              }
+            : entry
+        )
+      );
+    },
+    [queueUndoSnapshot, setTermRegistry, termRegistry]
+  );
+
+  const updateRegistryEntryTermType = useCallback(
+    (entryId: string, nextTermTypeValue: string) => {
+      const targetEntry = termRegistry.find((entry) => entry.id === entryId);
+      if (!targetEntry) {
+        return;
+      }
+
+      const normalizedTermType = nextTermTypeValue.trim();
+      const nextTermType = normalizedTermType.length > 0 ? normalizedTermType : null;
+
+      if (targetEntry.termType === nextTermType) {
+        return;
+      }
+
+      queueUndoSnapshot();
+
+      const now = new Date().toISOString();
+      setTermRegistry((currentRegistry) =>
+        currentRegistry.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                termType: nextTermType,
+                updatedAt: now,
+              }
+            : entry
+        )
+      );
+    },
+    [queueUndoSnapshot, setTermRegistry, termRegistry]
+  );
+
+  const removeRegistryEntry = useCallback(
+    (entryId: string) => {
+      const targetEntry = termRegistry.find((entry) => entry.id === entryId);
+      if (!targetEntry) {
+        return;
+      }
+
+      const shouldRemove = window.confirm(
+        "Remove this term from the registry? The text in the node field will be kept but will no longer be tracked."
+      );
+
+      if (!shouldRemove) {
+        return;
+      }
+
+      queueUndoSnapshot();
+      setTermRegistry((currentRegistry) =>
+        currentRegistry.filter((entry) => entry.id !== entryId)
+      );
+    },
+    [queueUndoSnapshot, setTermRegistry, termRegistry]
+  );
+
+  const addRegistryEntry = useCallback(() => {
+    const nextValue = registryDraftValue.trim();
+    if (!nextValue) {
+      return;
+    }
+
+    const normalizedTermType = registryDraftTermType.trim();
+    const nextTermType = normalizedTermType.length > 0 ? normalizedTermType : null;
+
+    queueUndoSnapshot();
+
+    const now = new Date().toISOString();
+
+    setTermRegistry((currentRegistry) => [
+      ...currentRegistry,
+      {
+        id: crypto.randomUUID(),
+        value: nextValue,
+        friendlyId: null,
+        friendlyIdLocked: false,
+        termType: nextTermType,
+        assignedNodeId: null,
+        assignedField: null,
+        deduplicationSuffix: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    setRegistryDraftValue("");
+    setRegistryDraftTermType("");
+  }, [queueUndoSnapshot, registryDraftTermType, registryDraftValue, setTermRegistry]);
 
   const updateSelectedField = useCallback(
     <K extends EditableMicrocopyField>(
@@ -6666,8 +6869,7 @@ export default function Page() {
             {clpActiveView === "audit" && (
               <>
                 <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
-                  Audit terms by field type. Mark <strong>Include</strong> to expose a
-                  term in glossary dropdowns beside editable text fields.
+                  Audit terms by field type and see where each term is used.
                 </p>
 
                 <div
@@ -6722,121 +6924,14 @@ export default function Page() {
                     >
                       Occurrences
                     </th>
-                    <th
-                      style={{
-                        border: "1px solid #dbeafe",
-                        padding: 6,
-                        fontSize: 11,
-                        textAlign: "center",
-                        background: "#eff6ff",
-                        width: 110,
-                      }}
-                    >
-                      Include
-                    </th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  <tr style={{ background: "#f8fafc" }}>
-                    <td style={{ border: "1px solid #dbeafe", padding: 6 }}>
-                      <select
-                        style={{ ...inputStyle, fontSize: 11 }}
-                        value={controlledLanguageDraftRow.field_type}
-                        onChange={(event) => {
-                          const nextFieldType = event.target.value;
-                          if (!isControlledLanguageFieldType(nextFieldType)) {
-                            return;
-                          }
-
-                          setControlledLanguageDraftRow((current) => ({
-                            ...current,
-                            field_type: nextFieldType,
-                          }));
-                        }}
-                      >
-                        {CONTROLLED_LANGUAGE_FIELDS.map((fieldTypeOption) => (
-                          <option
-                            key={`controlled-language-draft-field-option:${fieldTypeOption}`}
-                            value={fieldTypeOption}
-                          >
-                            {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldTypeOption]}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-
-                    <td style={{ border: "1px solid #dbeafe", padding: 6 }}>
-                      <input
-                        style={{ ...inputStyle, fontSize: 11 }}
-                        placeholder="Add glossary term"
-                        value={controlledLanguageDraftRow.term}
-                        onChange={(event) =>
-                          setControlledLanguageDraftRow((current) => ({
-                            ...current,
-                            term: event.target.value,
-                          }))
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            addControlledLanguageDraftTerm();
-                          }
-                        }}
-                      />
-                    </td>
-
-                    <td
-                      style={{
-                        border: "1px solid #dbeafe",
-                        padding: 6,
-                        fontSize: 11,
-                        color: "#64748b",
-                      }}
-                    >
-                      <strong style={{ color: "#0f172a" }}>0</strong>
-                      <div style={{ marginTop: 2 }}>Not Used</div>
-                    </td>
-
-                    <td
-                      style={{
-                        border: "1px solid #dbeafe",
-                        padding: 6,
-                        textAlign: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={controlledLanguageDraftRow.include}
-                          onChange={(event) =>
-                            setControlledLanguageDraftRow((current) => ({
-                              ...current,
-                              include: event.target.checked,
-                            }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          style={{ ...buttonStyle, fontSize: 11, padding: "4px 8px" }}
-                          onClick={addControlledLanguageDraftTerm}
-                        >
-                          Add
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-
                   {controlledLanguageAuditRows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={4}
+                        colSpan={3}
                         style={{
                           border: "1px solid #dbeafe",
                           padding: 8,
@@ -6967,24 +7062,6 @@ export default function Page() {
                             )}
                           </td>
 
-                          <td
-                            style={{
-                              border: "1px solid #e2e8f0",
-                              padding: 6,
-                              textAlign: "center",
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={row.include}
-                              onChange={(event) =>
-                                setControlledLanguageRowInclude(
-                                  rowKey,
-                                  event.target.checked
-                                )
-                              }
-                            />
-                          </td>
                         </tr>
                       );
                     })
@@ -7088,6 +7165,78 @@ export default function Page() {
                     gap: 4,
                   }}
                 >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto auto",
+                      gap: 6,
+                      alignItems: "center",
+                      padding: "6px 8px",
+                      border: "1px solid #bfdbfe",
+                      borderRadius: 6,
+                      background: "#f8fbff",
+                    }}
+                  >
+                    <input
+                      style={{
+                        width: "100%",
+                        minWidth: 0,
+                        padding: "4px 8px",
+                        fontSize: 11,
+                        border: "1px solid #d4d4d8",
+                        borderRadius: 4,
+                      }}
+                      placeholder="Add term value"
+                      value={registryDraftValue}
+                      onChange={(event) => setRegistryDraftValue(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        addRegistryEntry();
+                      }}
+                    />
+
+                    <select
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: 11,
+                        border: "1px solid #d4d4d8",
+                        borderRadius: 4,
+                        background: "#fff",
+                      }}
+                      value={registryDraftTermType}
+                      onChange={(event) => setRegistryDraftTermType(event.target.value)}
+                    >
+                      {TERM_REGISTRY_TERM_TYPE_OPTIONS.map((termTypeOption) => (
+                        <option
+                          key={`registry-draft-term-type-option:${
+                            termTypeOption.value || "untyped"
+                          }`}
+                          value={termTypeOption.value}
+                        >
+                          {termTypeOption.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      style={{
+                        ...buttonStyle,
+                        fontSize: 11,
+                        padding: "4px 10px",
+                        fontWeight: 700,
+                      }}
+                      onClick={addRegistryEntry}
+                      disabled={registryDraftValue.trim().length === 0}
+                    >
+                      Add
+                    </button>
+                  </div>
+
                   {filteredRegistryEntries.length === 0 ? (
                     <div
                       style={{
@@ -7116,7 +7265,7 @@ export default function Page() {
                           fontSize: 11,
                         }}
                       >
-                        <div style={{ minWidth: 0 }}>
+                        <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
                           <div
                             style={{
                               fontWeight: 700,
@@ -7132,43 +7281,166 @@ export default function Page() {
 
                           <div
                             style={{
-                              fontFamily: "monospace",
-                              fontSize: 10,
-                              color: entry.friendlyId ? "#475569" : "#94a3b8",
-                              marginTop: 2,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
+                              display: "grid",
+                              gridTemplateColumns: "1fr auto",
+                              gap: 4,
+                              alignItems: "center",
                             }}
-                            title={entry.friendlyId ?? undefined}
                           >
-                            {entry.friendlyId
-                              ? (entry.friendlyIdLocked ? "🔒 " : "") + entry.friendlyId
-                              : "No ID"}
+                            <input
+                              key={`registry-friendly-id:${entry.id}:${entry.friendlyId ?? ""}:${
+                                entry.friendlyIdLocked ? "locked" : "unlocked"
+                              }`}
+                              style={{
+                                width: "100%",
+                                minWidth: 0,
+                                padding: "2px 6px",
+                                fontSize: 10,
+                                fontFamily: "monospace",
+                                border: "1px solid #d4d4d8",
+                                borderRadius: 4,
+                                background: entry.friendlyIdLocked ? "#f8fafc" : "#fff",
+                                color: entry.friendlyIdLocked ? "#64748b" : "#334155",
+                              }}
+                              defaultValue={entry.friendlyId ?? ""}
+                              placeholder="Add ID..."
+                              readOnly={entry.friendlyIdLocked}
+                              onBlur={(event) => {
+                                const didSave = commitRegistryFriendlyId(
+                                  entry.id,
+                                  event.currentTarget.value
+                                );
+
+                                if (!didSave) {
+                                  event.currentTarget.value = entry.friendlyId ?? "";
+                                  return;
+                                }
+
+                                event.currentTarget.value = event.currentTarget.value.trim();
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter") {
+                                  return;
+                                }
+
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                              }}
+                            />
+
+                            <button
+                              type="button"
+                              style={{
+                                ...buttonStyle,
+                                width: 22,
+                                minWidth: 22,
+                                height: 22,
+                                padding: 0,
+                                fontSize: 12,
+                                lineHeight: 1,
+                                borderRadius: 4,
+                              }}
+                              title={entry.friendlyIdLocked
+                                ? "Unlock friendly ID"
+                                : "Lock friendly ID"}
+                              aria-label={entry.friendlyIdLocked
+                                ? "Unlock friendly ID"
+                                : "Lock friendly ID"}
+                              onClick={() => toggleRegistryEntryFriendlyIdLock(entry.id)}
+                            >
+                              {entry.friendlyIdLocked ? "🔒" : "🔓"}
+                            </button>
                           </div>
 
-                          <div
-                            style={{
-                              fontSize: 10,
-                              color: entry.termType ? "#1e3a8a" : "#94a3b8",
-                              marginTop: 2,
-                            }}
-                          >
-                            {entry.termType ?? "Untyped"}
-                          </div>
+                          {entry.assignedNodeId === null ? (
+                            <select
+                              style={{
+                                width: "fit-content",
+                                maxWidth: "100%",
+                                padding: "2px 6px",
+                                fontSize: 10,
+                                border: "1px solid #d4d4d8",
+                                borderRadius: 4,
+                                background: "#fff",
+                                color: entry.termType ? "#1e3a8a" : "#64748b",
+                              }}
+                              value={entry.termType ?? ""}
+                              onChange={(event) =>
+                                updateRegistryEntryTermType(entry.id, event.target.value)
+                              }
+                            >
+                              {TERM_REGISTRY_TERM_TYPE_OPTIONS.map((termTypeOption) => (
+                                <option
+                                  key={`registry-term-type-option:${
+                                    termTypeOption.value || "untyped"
+                                  }`}
+                                  value={termTypeOption.value}
+                                >
+                                  {termTypeOption.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div
+                              style={{
+                                width: "fit-content",
+                                maxWidth: "100%",
+                                padding: "2px 6px",
+                                fontSize: 10,
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 4,
+                                background: "#f8fafc",
+                                color: entry.termType ? "#1e3a8a" : "#64748b",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {getTermRegistryTermTypeLabel(entry.termType)}
+                            </div>
+                          )}
                         </div>
 
                         <div
                           style={{
-                            display: "flex",
-                            alignItems: "center",
-                            fontSize: 10,
-                            color: entry.assignedNodeId ? "#047857" : "#b45309",
-                            fontWeight: 700,
-                            whiteSpace: "nowrap",
+                            display: "grid",
+                            justifyItems: "end",
+                            alignContent: "space-between",
+                            gap: 6,
                           }}
                         >
-                          {entry.assignedNodeId ? "Assigned" : "Unassigned"}
+                          {entry.assignedNodeId === null && (
+                            <button
+                              type="button"
+                              style={{
+                                ...buttonStyle,
+                                width: 20,
+                                minWidth: 20,
+                                height: 20,
+                                padding: 0,
+                                lineHeight: 1,
+                                fontSize: 13,
+                                borderRadius: 999,
+                                borderColor: "#fecaca",
+                                color: "#b91c1c",
+                                background: "#fff",
+                              }}
+                              title="Remove term from registry"
+                              aria-label="Remove term from registry"
+                              onClick={() => removeRegistryEntry(entry.id)}
+                            >
+                              ×
+                            </button>
+                          )}
+
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: entry.assignedNodeId ? "#047857" : "#b45309",
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {entry.assignedNodeId ? "Assigned" : "Unassigned"}
+                          </div>
                         </div>
                       </div>
                     ))
