@@ -316,25 +316,30 @@ function FlowCopyNode({
   }, []);
 
   const openRibbonCellEditor = useCallback(
-    (
-      cellElement: HTMLDivElement,
-      cellId: string,
-      pointerPosition?: { x: number; y: number }
-    ) => {
-      const containerBounds = ribbonContainerRef.current?.getBoundingClientRect();
-      const cellBounds = cellElement.getBoundingClientRect();
+    (cellElement: HTMLDivElement, cellId: string) => {
+      const containerElement = ribbonContainerRef.current;
 
-      if (containerBounds) {
-        if (pointerPosition) {
+      if (containerElement) {
+        let offsetX = 0;
+        let offsetY = 0;
+        let currentElement: HTMLElement | null = cellElement;
+
+        while (currentElement && currentElement !== containerElement) {
+          offsetX += currentElement.offsetLeft;
+          offsetY += currentElement.offsetTop;
+
+          const nextOffsetParent: Element | null = currentElement.offsetParent;
+          currentElement =
+            nextOffsetParent instanceof HTMLElement ? nextOffsetParent : null;
+        }
+
+        if (currentElement === containerElement) {
           setCellPopupPosition({
-            x: pointerPosition.x - containerBounds.left + 8,
-            y: pointerPosition.y - containerBounds.top + 10,
+            x: offsetX + 8,
+            y: offsetY + cellElement.offsetHeight + 6,
           });
         } else {
-          setCellPopupPosition({
-            x: cellBounds.left - containerBounds.left + 8,
-            y: cellBounds.bottom - containerBounds.top + 6,
-          });
+          setCellPopupPosition({ x: 8, y: 8 });
         }
       } else {
         setCellPopupPosition({ x: 8, y: 8 });
@@ -821,18 +826,20 @@ function FlowCopyNode({
                   <div
                     key={`ribbon-cell:${cell.id}`}
                     data-ribbon-cell-id={cell.id}
-                    className="nodrag"
+                    className="nodrag nopan"
                     role="button"
                     tabIndex={0}
-                    onClick={(event) =>
-                      openRibbonCellEditor(event.currentTarget, cell.id, {
-                        x: event.clientX,
-                        y: event.clientY,
-                      })
-                    }
+                    onPointerDown={(event) => {
+                      event.stopPropagation();
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openRibbonCellEditor(event.currentTarget, cell.id);
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
+                        event.stopPropagation();
                         openRibbonCellEditor(event.currentTarget, cell.id);
                       }
                     }}
@@ -908,7 +915,13 @@ function FlowCopyNode({
         {editingRibbonCell && (
           <div
             ref={ribbonPopupRef}
-            className="nodrag"
+            className="nodrag nopan"
+            onPointerDown={(event) => {
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
             style={{
               position: "absolute",
               left: cellPopupPosition.x,

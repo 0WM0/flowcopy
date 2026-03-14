@@ -32,6 +32,95 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-13-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session was a targeted ribbon-node interaction reliability fix.
+
+The ribbon cell click-to-edit popup now opens consistently when users click a ribbon cell in the canvas node, including under normal React Flow pan/zoom usage.
+
+## 2) Core Data Model
+
+No persisted schema or type-contract changes were introduced.
+
+Existing ribbon contracts remain unchanged:
+
+- `RibbonNodeCell` fields (`label`, `key_command`, `tool_tip`)
+- ribbon popup state model in renderer (`editingCellId`, `cellPopupPosition`)
+
+The fix was interaction/positioning logic only.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no localStorage key changes
+- no project payload shape changes
+- no migration-path updates
+
+Ribbon cell edits continue to persist through existing node-state update and autosave/persist flows.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering logic changed in this session.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+The popup fix is orthogonal to graph ordering and sequence identity.
+
+## 5) Node Rendering and Shape System
+
+`app/components/FlowCopyNode.tsx` ribbon rendering was updated in the cell + popup interaction path:
+
+- ribbon cells now use `className="nodrag nopan"`
+- popup container now uses `className="nodrag nopan"`
+- popup JSX remains present and unchanged in structure (Label, Key Command, Tool Tip, Done)
+
+Popup positioning was corrected to use cell-local offsets relative to the ribbon container instead of viewport-pointer coordinates, preventing misplaced/off-screen popups under transformed canvas conditions.
+
+## 6) Editor Interaction Model
+
+Ribbon cell interaction behavior is now stabilized:
+
+- click/keyboard activation opens popup for the targeted cell
+- open handlers stop propagation to avoid canvas-level interference
+- popup container stops pointer/click propagation
+- popup close paths remain:
+  - **Done** button
+  - `Escape`
+  - outside click
+
+This preserves expected authoring flow while preventing pan/selection handlers from hijacking popup interactions.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Reworked `openRibbonCellEditor(...)` position calculation to container-local offset math.
+2. Added `nopan` to ribbon cells and popup container alongside existing `nodrag` usage.
+3. Added event-propagation guards (`stopPropagation`) on ribbon cell and popup interaction points.
+4. Kept popup fields and close behavior intact per existing ribbon editing contract.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operational note:
+
+- one transient TypeScript annotation issue during implementation was corrected (`nextOffsetParent` type annotation) before final validation pass.
+
+## 9) Recommended Next Steps
+
+1. Add regression tests for ribbon popup opening at non-100% zoom and after canvas pan.
+2. Add interaction tests for popup open/close lifecycle (click cell, outside click, Escape, Done).
+3. Consider clamping popup position to node bounds for extreme small/large node layouts.
+
 ##03-12-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
