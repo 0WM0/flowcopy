@@ -884,6 +884,9 @@ export default function Page() {
   const [registryFilterType, setRegistryFilterType] = useState<string>("all");
   const [registryDraftValue, setRegistryDraftValue] = useState("");
   const [registryDraftTermType, setRegistryDraftTermType] = useState<string>("");
+  const [activeRegistryHighlightEntryId, setActiveRegistryHighlightEntryId] = useState<
+    string | null
+  >(null);
   const [controlledLanguageDraftRow, setControlledLanguageDraftRow] =
     useState<ControlledLanguageDraftRow>(createEmptyControlledLanguageDraftRow);
   const [openControlledLanguageFieldType, setOpenControlledLanguageFieldType] = useState<
@@ -1023,6 +1026,7 @@ export default function Page() {
   const clearGlossaryHighlights = useCallback(() => {
     setGlossaryHighlightedNodeIds([]);
     setActiveGlossaryHighlightKey(null);
+    setActiveRegistryHighlightEntryId(null);
   }, []);
 
   const showMenuTermDeleteBlockedMessage = useCallback(() => {
@@ -4294,6 +4298,30 @@ export default function Page() {
     );
   }, [activeGlossaryHighlightKey, controlledLanguageNodeIdsByGlossaryKey]);
 
+  useEffect(() => {
+    if (!activeRegistryHighlightEntryId) {
+      return;
+    }
+
+    const activeEntry = termRegistry.find(
+      (entry) => entry.id === activeRegistryHighlightEntryId
+    );
+
+    if (!activeEntry?.assignedNodeId) {
+      setActiveRegistryHighlightEntryId(null);
+      setGlossaryHighlightedNodeIds([]);
+      return;
+    }
+
+    const assignedNodeId = activeEntry.assignedNodeId;
+
+    setGlossaryHighlightedNodeIds((currentIds) =>
+      currentIds.length === 1 && currentIds[0] === assignedNodeId
+        ? currentIds
+        : [assignedNodeId]
+    );
+  }, [activeRegistryHighlightEntryId, termRegistry]);
+
   const controlledLanguageTermsByField = useMemo(
     () => buildControlledLanguageTermsByField(controlledLanguageGlossary),
     [controlledLanguageGlossary]
@@ -4326,6 +4354,7 @@ export default function Page() {
         return;
       }
 
+      setActiveRegistryHighlightEntryId(null);
       setActiveGlossaryHighlightKey(rowKey);
       setGlossaryHighlightedNodeIds(controlledLanguageNodeIdsByGlossaryKey.get(rowKey) ?? []);
     },
@@ -4334,6 +4363,24 @@ export default function Page() {
       clearGlossaryHighlights,
       controlledLanguageNodeIdsByGlossaryKey,
     ]
+  );
+
+  const handleRegistryEntryHighlightClick = useCallback(
+    (entry: TermRegistryEntry) => {
+      if (!entry.assignedNodeId) {
+        return;
+      }
+
+      if (activeRegistryHighlightEntryId === entry.id) {
+        clearGlossaryHighlights();
+        return;
+      }
+
+      setActiveGlossaryHighlightKey(null);
+      setActiveRegistryHighlightEntryId(entry.id);
+      setGlossaryHighlightedNodeIds([entry.assignedNodeId]);
+    },
+    [activeRegistryHighlightEntryId, clearGlossaryHighlights]
   );
 
   const handleControlledLanguageReplaceAll = useCallback(
@@ -7368,18 +7415,45 @@ export default function Page() {
                         : "No terms match the current filters."}
                     </div>
                   ) : (
-                    filteredRegistryEntries.map((entry) => (
+                    filteredRegistryEntries.map((entry) => {
+                      const isRegistryEntryHighlightActive =
+                        activeRegistryHighlightEntryId === entry.id &&
+                        entry.assignedNodeId !== null;
+
+                      return (
                       <div
                         key={`registry-entry:${entry.id}`}
+                        onClick={(event) => {
+                          if (!entry.assignedNodeId) {
+                            return;
+                          }
+
+                          const target = event.target as HTMLElement | null;
+                          if (target?.closest("button, input, select, textarea, a")) {
+                            return;
+                          }
+
+                          handleRegistryEntryHighlightClick(entry);
+                        }}
                         style={{
                           display: "grid",
                           gridTemplateColumns: "1fr auto",
                           gap: 6,
                           padding: "6px 8px",
-                          border: "1px solid #e2e8f0",
+                          border: isRegistryEntryHighlightActive
+                            ? "1px solid #f59e0b"
+                            : "1px solid #e2e8f0",
                           borderRadius: 6,
-                          background: entry.assignedNodeId ? "#fff" : "#fffbeb",
+                          background: isRegistryEntryHighlightActive
+                            ? "#fef3c7"
+                            : entry.assignedNodeId
+                              ? "#fff"
+                              : "#fffbeb",
+                          boxShadow: isRegistryEntryHighlightActive
+                            ? "0 0 0 1px rgba(245, 158, 11, 0.18) inset"
+                            : "none",
                           fontSize: 11,
+                          cursor: entry.assignedNodeId ? "pointer" : "default",
                         }}
                       >
                         <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
@@ -7524,6 +7598,23 @@ export default function Page() {
                             gap: 6,
                           }}
                         >
+                          {isRegistryEntryHighlightActive && (
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: "#92400e",
+                                fontWeight: 700,
+                                border: "1px solid #f59e0b",
+                                borderRadius: 999,
+                                padding: "1px 6px",
+                                background: "#fff7ed",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Highlighted
+                            </div>
+                          )}
+
                           {entry.assignedNodeId === null && (
                             <button
                               type="button"
@@ -7560,7 +7651,8 @@ export default function Page() {
                           </div>
                         </div>
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
