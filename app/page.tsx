@@ -371,12 +371,20 @@ const HELP_CONTEXT_SHORTCUTS: HelpShortcutDefinition[] = [
     description: "Add the typed option in Global Attribute Admin.",
   },
   {
+    keys: "Enter (Inspector text fields)",
+    description: "Commit the current field value (input blurs and value syncs).",
+  },
+  {
     keys: "Enter (Controlled Language draft term)",
     description: "Add a new glossary term row.",
   },
   {
     keys: "Enter (Controlled Language row term)",
     description: "Commit rename edits for an existing glossary term.",
+  },
+  {
+    keys: "Enter (Term Registry add term)",
+    description: "Add a new term from the Term Registry draft value input.",
   },
   {
     keys: "Enter (Menu right connections)",
@@ -9474,13 +9482,19 @@ export default function Page() {
                   <strong>Edit node data:</strong> select exactly one node, then use the Node Data Panel on the right (multi-select must be narrowed first).
                 </li>
                 <li>
+                  <strong>Assign copy via CLP picker:</strong> click the 📋 button beside supported fields (content, menu terms, ribbon cell label/key command/tool tip) to open a filtered registry picker, search terms, and assign in one click.
+                </li>
+                <li>
+                  <strong>Reusing assigned terms:</strong> if a picked term is already assigned elsewhere, confirm the prompt to duplicate it for the current node/field.
+                </li>
+                <li>
                   <strong>Frame a flow area:</strong> select 2+ non-frame nodes, then use Shift+F or “Frame selected nodes”.
                 </li>
                 <li>
                   <strong>Edit edges:</strong> click an edge to open Edge Inspector and adjust color/style/direction.
                 </li>
                 <li>
-                  <strong>Glossary occurrence highlight:</strong> in Controlled Language, click a term’s instance count to highlight all matching nodes on canvas; click again, choose another term, or click canvas to clear.
+                  <strong>Term highlighting:</strong> in Controlled Language, click a term occurrence count (Term Audit) or assigned registry entry to highlight matching node(s) on canvas.
                 </li>
                 <li>
                   <strong>Undo recent changes:</strong> use Undo in the top actions bar (up to 3 snapshots).
@@ -9507,10 +9521,10 @@ export default function Page() {
                   <strong>Project Sequence ID panel:</strong> sequence preview, ordered node list, and node-id visibility toggle.
                 </li>
                 <li>
-                  <strong>Node Data Panel:</strong> edit node-type fields (Default / Menu / Ribbon / Frame).
+                  <strong>Node Data Panel:</strong> edit node-type fields (Default / Menu / Ribbon / Frame) and use 📋 registry buttons to open field-specific CLP pickers.
                 </li>
                 <li>
-                  <strong>Controlled Language panel:</strong> manage glossary terms, include/exclude options, import/export glossary, and click occurrence counts to highlight matching canvas nodes.
+                  <strong>Controlled Language panel:</strong> use <em>Term Audit</em> for glossary term coverage/highlighting and <em>Term Registry</em> for term IDs, type/status filters, assignment tracking, and quick add/remove.
                 </li>
                 <li>
                   <strong>Global Attribute Admin:</strong> manage option lists for Tone, Polarity, Reversibility, Concept, Action Type, and Card Style.

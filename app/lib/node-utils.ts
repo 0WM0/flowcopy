@@ -895,7 +895,7 @@ export const getNodeShapeStyle = (
   const baseStyle: React.CSSProperties = {
     boxSizing: "border-box",
     width: 260,
-    minHeight: 120,
+    minHeight: 75,
     position: "relative",
     background: "#ffffff",
     border: `2px solid ${highlightColor ?? resolvedAccentColor}`,

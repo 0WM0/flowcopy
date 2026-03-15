@@ -148,9 +148,6 @@ function FlowCopyNode({
   const frameTitleInputRef = useRef<HTMLInputElement | null>(null);
   const ribbonContainerRef = useRef<HTMLDivElement | null>(null);
   const ribbonPopupRef = useRef<HTMLDivElement | null>(null);
-  const [openMenuGlossaryTermId, setOpenMenuGlossaryTermId] = useState<string | null>(
-    null
-  );
   const [isEditingFrameTitle, setIsEditingFrameTitle] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
   const [cellPopupPosition, setCellPopupPosition] = useState<{ x: number; y: number }>({
@@ -196,13 +193,6 @@ function FlowCopyNode({
     });
   }, [isRibbonNode, ribbonConfig.cells]);
   const frameShadeStyle = FRAME_SHADE_STYLES[frameConfig.shade];
-
-  const visibleMenuGlossaryTermId =
-    isMenuNode &&
-    openMenuGlossaryTermId &&
-    menuConfig.terms.some((term) => term.id === openMenuGlossaryTermId)
-      ? openMenuGlossaryTermId
-      : null;
 
   const displayTermFieldType = data.display_term_field;
   const displayTermFieldLabel = CONTROLLED_LANGUAGE_FIELD_LABELS[displayTermFieldType];
@@ -368,21 +358,8 @@ function FlowCopyNode({
         max_right_connections: nextMax,
         terms: filteredTerms,
       });
-      setOpenMenuGlossaryTermId((current) => (current === termId ? null : current));
     },
     [isMenuNode, menuConfig, onMenuTermDeleteBlocked, replaceMenuConfig]
-  );
-
-  const toggleMenuTermGlossary = useCallback((termId: string) => {
-    setOpenMenuGlossaryTermId((current) => (current === termId ? null : termId));
-  }, []);
-
-  const applyGlossaryTermToMenuTerm = useCallback(
-    (termId: string, glossaryTerm: string) => {
-      updateMenuTermById(termId, glossaryTerm);
-      setOpenMenuGlossaryTermId(null);
-    },
-    [updateMenuTermById]
   );
 
   const closeRibbonCellPopup = useCallback(() => {
@@ -745,7 +722,7 @@ function FlowCopyNode({
     });
 
     const totalCells = sortedRibbonCells.length;
-    const minNodeHeight = Math.max(70, totalCells > 0 ? 86 : 70);
+    const minNodeHeight = Math.max(50, totalCells > 0 ? 58 : 50);
 
     return (
       <div
@@ -764,7 +741,7 @@ function FlowCopyNode({
             : "0 1px 3px rgba(0,0,0,0.08)",
           minHeight: minNodeHeight,
           overflow: "visible",
-          paddingBottom: 12,
+          paddingBottom: 3,
         }}
       >
         <Handle
@@ -855,22 +832,22 @@ function FlowCopyNode({
           <div
             style={{
               background: "#e2e8f0",
-              borderBottom: "1px solid #cbd5e1",
+              borderBottom: "1px solid #94a3b8",
               borderRadius: "6px 6px 0 0",
-              padding: "6px 10px",
+              padding: "3px 8px",
               display: "flex",
               alignItems: "center",
-              gap: 8,
+              gap: 6,
             }}
           >
-            <span style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600 }}>
+            <span style={{ fontSize: 10, color: "#1d4ed8", fontWeight: 600 }}>
               #{data.sequence_index ?? "-"}
             </span>
             <span
               style={{
                 flex: 1,
                 minWidth: 0,
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 600,
                 color: "#334155",
                 whiteSpace: "nowrap",
@@ -887,7 +864,7 @@ function FlowCopyNode({
             style={{
               display: "grid",
               gap: 0,
-              padding: 8,
+              padding: 4,
             }}
           >
             <div
@@ -927,9 +904,9 @@ function FlowCopyNode({
                       overflow: "visible",
                       border: "1px solid #cbd5e1",
                       background: "#ffffff",
-                      padding: "4px 8px",
+                      padding: "3px 6px",
                       minWidth: 80,
-                      minHeight: 28,
+                      minHeight: 24,
                       display: "flex",
                       alignItems: "center",
                       cursor: "text",
@@ -938,7 +915,7 @@ function FlowCopyNode({
                   >
                     <span
                       style={{
-                        fontSize: 11,
+                        fontSize: 10,
                         color:
                           isShowingLabel || isShowingKeyCommand ? "#1e293b" : "#94a3b8",
                         fontFamily: isShowingKeyCommand
@@ -981,8 +958,10 @@ function FlowCopyNode({
           {showNodeId && (
             <div
               style={{
-                padding: "0 10px 8px",
-                fontSize: 10,
+                margin: "0 8px 0",
+                padding: "2px 0 2px",
+                borderTop: "1px solid #94a3b8",
+                fontSize: 9,
                 color: "#64748b",
               }}
             >
@@ -1179,13 +1158,37 @@ function FlowCopyNode({
     );
   }
 
+  const nodeBaseStyle = getNodeShapeStyle(
+    data.node_shape,
+    selected,
+    data.action_type_color,
+    {
+      uiJourneyHighlighted: Boolean(data.ui_journey_highlighted),
+      uiJourneyRecalled: Boolean(data.ui_journey_recalled),
+      glossaryHighlighted: isGlossaryHighlighted,
+    }
+  );
+  const compactNodeStyle: React.CSSProperties = {
+    ...nodeBaseStyle,
+    padding:
+      data.node_shape === "pill"
+        ? "13px 20px 8px 20px"
+        : data.node_shape === "diamond"
+          ? nodeBaseStyle.padding
+          : "6px 6px 4px 6px",
+  };
+  const baseContentStyle = getNodeContentStyle(data.node_shape);
+  const compactContentStyle: React.CSSProperties =
+    data.node_shape === "diamond"
+      ? {
+          ...baseContentStyle,
+          padding: "70px 72px",
+        }
+      : baseContentStyle;
+
   return (
     <div
-      style={getNodeShapeStyle(data.node_shape, selected, data.action_type_color, {
-        uiJourneyHighlighted: Boolean(data.ui_journey_highlighted),
-        uiJourneyRecalled: Boolean(data.ui_journey_recalled),
-        glossaryHighlighted: isGlossaryHighlighted,
-      })}
+      style={compactNodeStyle}
     >
       <Handle
         type="target"
@@ -1242,19 +1245,27 @@ function FlowCopyNode({
         </>
       )}
 
-      <div style={getNodeContentStyle(data.node_shape)}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-          <span style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600 }}>
+      <div style={compactContentStyle}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 6,
+            paddingBottom: 3,
+            borderBottom: "1px solid #94a3b8",
+          }}
+        >
+          <span style={{ fontSize: 10, color: "#1d4ed8", fontWeight: 600 }}>
             #{data.sequence_index ?? "-"}
           </span>
           <span
             style={{
-              fontSize: 11,
+              fontSize: 9,
               fontWeight: 600,
               color: data.action_type_color,
               border: `1px solid ${data.action_type_color}`,
-              borderRadius: 999,
-              padding: "2px 8px",
+              borderRadius: 2,
+              padding: "0px 4px",
               background: "#fff",
             }}
           >
@@ -1263,8 +1274,8 @@ function FlowCopyNode({
         </div>
 
         {isMenuNode ? (
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Title</div>
+          <div style={{ marginTop: 4 }}>
+            <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>Title</div>
             <input
               className="nodrag"
               style={inputStyle}
@@ -1290,8 +1301,8 @@ function FlowCopyNode({
         ) : (
           <>
             {showDefaultNodeTitleOnCanvas && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Title</div>
+              <div style={{ marginTop: 4 }}>
+                <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>Title</div>
                 <input
                   className="nodrag"
                   style={inputStyle}
@@ -1316,8 +1327,13 @@ function FlowCopyNode({
               </div>
             )}
 
-            <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>
+            <div
+              style={{
+                marginTop: 4,
+                paddingTop: 4,
+              }}
+            >
+              <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>
                 {displayTermFieldLabel}
               </div>
               <input
@@ -1350,13 +1366,14 @@ function FlowCopyNode({
         {isMenuNode && (
           <div
             style={{
-              marginTop: 8,
-              border: "1px solid #dbeafe",
+              marginTop: 4,
+              border: "1px solid #93c5fd",
               borderRadius: 8,
-              padding: 6,
+              padding: 4,
+              paddingBottom: 1,
               background: "#f8fbff",
               display: "grid",
-              gap: 6,
+              gap: 3,
             }}
           >
             <div
@@ -1364,10 +1381,10 @@ function FlowCopyNode({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                gap: 8,
+                gap: 6,
               }}
             >
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#1d4ed8" }}>
                 Menu Terms
               </div>
               <button
@@ -1375,12 +1392,12 @@ function FlowCopyNode({
                 className="nodrag"
                 style={{
                   ...buttonStyle,
-                  width: 20,
-                  height: 20,
-                  minWidth: 20,
+                  width: 18,
+                  height: 18,
+                  minWidth: 18,
                   padding: 0,
                   borderRadius: 999,
-                  fontSize: 14,
+                  fontSize: 12,
                   lineHeight: 1,
                   fontWeight: 700,
                   color: "#1d4ed8",
@@ -1398,11 +1415,11 @@ function FlowCopyNode({
               <div
                 key={`menu-term:${menuTerm.id}`}
                 style={{
-                  border: "1px solid #bfdbfe",
+                  border: "1px solid #93c5fd",
                   borderRadius: 6,
-                  padding: 5,
+                  padding: 3,
                   display: "grid",
-                  gap: 5,
+                  gap: 3,
                   background: "#fff",
                 }}
               >
@@ -1410,39 +1427,22 @@ function FlowCopyNode({
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 6,
+                    gap: 5,
                   }}
                 >
-                  <div style={{ fontSize: 10, color: "#334155", fontWeight: 700 }}>
+                  <div style={{ fontSize: 9, color: "#334155", fontWeight: 700 }}>
                     Term {index + 1}
                   </div>
-                  <button
-                    type="button"
-                    className="nodrag"
-                    style={{
-                      ...buttonStyle,
-                      fontSize: 10,
-                      padding: "2px 6px",
-                      background:
-                        visibleMenuGlossaryTermId === menuTerm.id ? "#dbeafe" : "#fff",
-                      borderColor:
-                        visibleMenuGlossaryTermId === menuTerm.id ? "#93c5fd" : "#d4d4d8",
-                    }}
-                    onClick={() => toggleMenuTermGlossary(menuTerm.id)}
-                  >
-                    Glossary ▾
-                  </button>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                   <button
                     type="button"
                     className="nodrag"
                     style={{
                       ...buttonStyle,
-                      fontSize: 10,
-                      padding: "2px 6px",
+                      fontSize: 9,
+                      padding: "1px 5px",
                       borderColor: "#fca5a5",
                       color: "#b91c1c",
                       flexShrink: 0,
@@ -1495,49 +1495,23 @@ function FlowCopyNode({
                   </div>
                 </div>
 
-                {visibleMenuGlossaryTermId === menuTerm.id && (
-                  <div
-                    style={{
-                      border: "1px solid #dbeafe",
-                      borderRadius: 6,
-                      background: "#f8fbff",
-                      padding: 6,
-                    }}
-                  >
-                    {menuTermGlossaryTerms.length === 0 ? (
-                      <div style={{ fontSize: 10, color: "#64748b" }}>
-                        No Menu Term options yet. Add one in a Menu node or include one in Controlled Language.
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {menuTermGlossaryTerms.map((glossaryTerm) => (
-                          <button
-                            key={`menu-node-glossary:${menuTerm.id}:${glossaryTerm}`}
-                            type="button"
-                            className="nodrag"
-                            style={{
-                              ...buttonStyle,
-                              fontSize: 10,
-                              padding: "2px 6px",
-                            }}
-                            onClick={() =>
-                              applyGlossaryTermToMenuTerm(menuTerm.id, glossaryTerm)
-                            }
-                          >
-                            {glossaryTerm}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             ))}
           </div>
         )}
 
         {showNodeId && (
-          <div style={{ marginTop: 8, fontSize: 10, color: "#71717a" }}>id: {id}</div>
+          <div
+            style={{
+              marginTop: 4,
+              paddingTop: 3,
+              borderTop: "1px solid #94a3b8",
+              fontSize: 9,
+              color: "#71717a",
+            }}
+          >
+            id: {id}
+          </div>
         )}
       </div>
 
