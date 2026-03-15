@@ -38,6 +38,96 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session added CLP View 2 registry-click highlighting so assigned registry entries can highlight their mapped canvas nodes using the existing glossary highlight pipeline.
+
+The behavior now mirrors glossary occurrence highlighting visually, while preserving active UI Journey/path recall state.
+
+## 2) Core Data Model
+
+No persisted schema was changed.
+
+Runtime UI state in `app/page.tsx` was extended with a dedicated registry-row active marker:
+
+- `activeRegistryHighlightEntryId: string | null`
+
+Canvas highlighting still uses the existing shared state:
+
+- `glossaryHighlightedNodeIds`
+- `setGlossaryHighlightedNodeIds(...)`
+
+## 3) Persistence and Migration Strategy
+
+Persistence/migration behavior was unchanged:
+
+- no localStorage key changes
+- no project payload shape changes
+- no import/export contract changes
+
+The feature is interaction-layer state only.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Registry highlighting is orthogonal to graph ordering and sequence identity.
+
+## 5) Node Rendering and Shape System
+
+Rendering updates were scoped to CLP View 2 row styling in `app/page.tsx`:
+
+- active highlighted registry row now uses amber/yellow visual treatment (border/background)
+- active row also shows a compact “Highlighted” badge
+
+No node/edge geometry or shape renderer contracts were changed.
+
+## 6) Editor Interaction Model
+
+Registry row click behavior now follows explicit toggle semantics:
+
+1. Clicking an assigned registry entry highlights its `assignedNodeId` via `setGlossaryHighlightedNodeIds([assignedNodeId])`.
+2. Clicking the same assigned entry again clears highlight state.
+3. Clicking an unassigned entry is a no-op.
+
+Interoperability behavior:
+
+- activating a registry highlight clears `activeGlossaryHighlightKey` (so modes don’t conflict visually)
+- path recall state is not touched (`recalledUiJourneyNodeIds`, `recalledUiJourneyEdgeIds`, `selectedUiJourneySnapshotPresetId` remain intact)
+
+## 7) Refactor Outcomes
+
+Concrete implementation outcomes from this session:
+
+1. Added `activeRegistryHighlightEntryId` state and toggle handler.
+2. Wired assigned-entry clicks to existing glossary highlight node-ID state.
+3. Added guard so unassigned entries do not trigger highlight actions.
+4. Added active registry-row amber highlight styling and indicator badge.
+5. Fixed TypeScript nullability narrowing for `assignedNodeId` before setting `glossaryHighlightedNodeIds`.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operational note:
+
+- an attempted `npm run dev` run reported existing Next dev lock contention (`.next/dev/lock`) from another running instance; unrelated to this feature’s TypeScript correctness.
+
+## 9) Recommended Next Steps
+
+1. Add regression tests for registry-row toggle behavior (on/off and unassigned no-op).
+2. Add UI tests asserting coexistence between path recall highlighting and registry/glossary term highlighting.
+3. Consider extracting CLP highlight-state coordination into a small helper to reduce coupling inside `app/page.tsx`.
+
+##03-14-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session completed registry-sync parity for non-default editable content so Menu Terms and Ribbon cell fields now behave like existing default-node tracked fields.
 
 The user-visible outcome is consistent term-registry creation/update on **blur/Enter only** for:

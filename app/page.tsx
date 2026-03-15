@@ -189,7 +189,6 @@ import {
   sanitizeControlledLanguageGlossary,
   cloneControlledLanguageGlossary,
   createEmptyControlledLanguageDraftRow,
-  buildControlledLanguageTermsByField,
   buildMenuTermSelectorTerms,
   buildControlledLanguageAuditRows,
   buildControlledLanguageNodeIdsByGlossaryKey,
@@ -469,6 +468,26 @@ const getRegistryTermTypeFromField = (field: DynamicRegistryTrackedField): strin
   return field;
 };
 
+const parseMenuTermRegistryField = (field: DynamicRegistryTrackedField): string | null => {
+  const match = /^menu_term:\[(.+)\]$/.exec(field);
+  return match ? match[1] : null;
+};
+
+const parseRibbonCellRegistryField = (
+  field: DynamicRegistryTrackedField
+): { cellId: string; fieldName: RibbonCellRegistryFieldName } | null => {
+  const match = /^ribbon_cell:\[(.+)\]:(label|key_command|tool_tip)$/.exec(field);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    cellId: match[1],
+    fieldName: match[2] as RibbonCellRegistryFieldName,
+  };
+};
+
 const TERM_REGISTRY_TERM_TYPE_LABELS: Record<string, string> = {
   title: "Title",
   body_text: "Body Text",
@@ -497,6 +516,32 @@ const TERM_REGISTRY_TERM_TYPE_OPTIONS: Array<{ value: string; label: string }> =
   { value: "tool_tip", label: "Tool Tip" },
   { value: "cell_label", label: "Cell Label" },
 ];
+
+const INSPECTOR_CONTENT_FIELD_LABELS: Record<RegistryTrackedField, string> = {
+  title: "Title",
+  body_text: "Body Text",
+  primary_cta: "Primary CTA",
+  secondary_cta: "Secondary CTA",
+  helper_text: "Helper Text",
+  error_text: "Error Text",
+  notes: "Notes",
+};
+
+const getInspectorRegistryButtonStyle = (
+  isActive: boolean
+): React.CSSProperties => ({
+  ...buttonStyle,
+  width: 22,
+  height: 22,
+  minWidth: 22,
+  padding: 0,
+  borderRadius: 4,
+  fontSize: 14,
+  lineHeight: 1,
+  borderColor: isActive ? "#93c5fd" : "#d4d4d8",
+  background: isActive ? "#dbeafe" : "#fff",
+  color: "#1e3a8a",
+});
 
 const getTermRegistryTermTypeLabel = (termType: string | null): string => {
   if (!termType) {
@@ -890,15 +935,10 @@ export default function Page() {
   const [controlledLanguageDraftRow, setControlledLanguageDraftRow] =
     useState<ControlledLanguageDraftRow>(createEmptyControlledLanguageDraftRow);
   const [openControlledLanguageFieldType, setOpenControlledLanguageFieldType] = useState<
-    NodeControlledLanguageFieldType | null
+    DynamicRegistryTrackedField | null
   >(null);
-  const [openInspectorMenuGlossaryTermId, setOpenInspectorMenuGlossaryTermId] = useState<
-    string | null
-  >(null);
-  const [openInspectorRibbonCellGlossary, setOpenInspectorRibbonCellGlossary] = useState<{
-    cellId: string;
-    field: "label" | "key_command";
-  } | null>(null);
+  const [inspectorRegistryPickerSearchQuery, setInspectorRegistryPickerSearchQuery] =
+    useState("");
   const [menuTermDeleteError, setMenuTermDeleteError] = useState<string | null>(null);
   const [pendingOptionInputs, setPendingOptionInputs] = useState<
     Record<GlobalOptionField, string>
@@ -1170,8 +1210,7 @@ export default function Page() {
       );
       setControlledLanguageDraftRow(createEmptyControlledLanguageDraftRow());
       setOpenControlledLanguageFieldType(null);
-      setOpenInspectorMenuGlossaryTermId(null);
-      setOpenInspectorRibbonCellGlossary(null);
+      setInspectorRegistryPickerSearchQuery("");
       setNodes(prunedHydratedNodes);
       setEdges(hydratedEdges);
       setUiJourneySnapshotPresets(normalizedUiJourneySnapshotPresets);
@@ -1998,15 +2037,13 @@ export default function Page() {
 
       if (event.detail === 2) {
         setOpenControlledLanguageFieldType(null);
-        setOpenInspectorMenuGlossaryTermId(null);
-        setOpenInspectorRibbonCellGlossary(null);
+        setInspectorRegistryPickerSearchQuery("");
         addNodeAtEvent(event);
         return;
       }
 
       setOpenControlledLanguageFieldType(null);
-      setOpenInspectorMenuGlossaryTermId(null);
-      setOpenInspectorRibbonCellGlossary(null);
+      setInspectorRegistryPickerSearchQuery("");
       setSelectedNodeId(null);
       setSelectedNodeIds([]);
       setSelectedEdgeId(null);
@@ -2019,8 +2056,7 @@ export default function Page() {
       clearMenuTermDeleteError();
       clearGlossaryHighlights();
       setOpenControlledLanguageFieldType(null);
-      setOpenInspectorMenuGlossaryTermId(null);
-      setOpenInspectorRibbonCellGlossary(null);
+      setInspectorRegistryPickerSearchQuery("");
       setSelectedNodeId(node.id);
       setSelectedEdgeId(null);
     },
@@ -2032,8 +2068,7 @@ export default function Page() {
       clearMenuTermDeleteError();
       clearGlossaryHighlights();
       setOpenControlledLanguageFieldType(null);
-      setOpenInspectorMenuGlossaryTermId(null);
-      setOpenInspectorRibbonCellGlossary(null);
+      setInspectorRegistryPickerSearchQuery("");
       setSelectedEdgeId(edge.id);
       setSelectedNodeId(null);
       setSelectedNodeIds([]);
@@ -2051,8 +2086,7 @@ export default function Page() {
       const nextSelectedNodeId = selectedNodes[0]?.id ?? null;
 
       setOpenControlledLanguageFieldType(null);
-      setOpenInspectorMenuGlossaryTermId(null);
-      setOpenInspectorRibbonCellGlossary(null);
+      setInspectorRegistryPickerSearchQuery("");
       setSelectedEdgeId(hasSelectedNodes ? null : nextSelectedEdgeId);
       setSelectedNodeId(nextSelectedNodeId);
       setSelectedNodeIds(nextSelectedNodeIds);
@@ -2206,8 +2240,7 @@ export default function Page() {
     setSelectedNodeIds(remappedPastedNodeIds);
     setSelectedEdgeId(null);
     setOpenControlledLanguageFieldType(null);
-    setOpenInspectorMenuGlossaryTermId(null);
-    setOpenInspectorRibbonCellGlossary(null);
+    setInspectorRegistryPickerSearchQuery("");
     clearMenuTermDeleteError();
 
     setTermRegistry((currentRegistry) => {
@@ -3552,8 +3585,7 @@ export default function Page() {
       }
 
       setOpenControlledLanguageFieldType(null);
-      setOpenInspectorMenuGlossaryTermId(null);
-      setOpenInspectorRibbonCellGlossary(null);
+      setInspectorRegistryPickerSearchQuery("");
     },
     [clearMenuTermDeleteError, nodes, queueUndoSnapshot, setEdges, setNodes]
   );
@@ -3656,11 +3688,20 @@ export default function Page() {
         });
       }
 
-      setOpenInspectorMenuGlossaryTermId((current) =>
-        current && normalizedNextMenuConfig.terms.some((term) => term.id === current)
+      setOpenControlledLanguageFieldType((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const menuTermId = parseMenuTermRegistryField(current);
+        if (!menuTermId) {
+          return current;
+        }
+
+        return normalizedNextMenuConfig.terms.some((term) => term.id === menuTermId)
           ? current
-          : null
-      );
+          : null;
+      });
     },
     [nodes, queueUndoSnapshot, setEdges, setNodes, setTermRegistry]
   );
@@ -3695,24 +3736,6 @@ export default function Page() {
 
     return normalizeRibbonNodeConfig(selectedNode.data.ribbon_config);
   }, [selectedNode]);
-
-  const visibleInspectorMenuGlossaryTermId =
-    selectedMenuNodeConfig &&
-    openInspectorMenuGlossaryTermId &&
-    selectedMenuNodeConfig.terms.some(
-      (term) => term.id === openInspectorMenuGlossaryTermId
-    )
-      ? openInspectorMenuGlossaryTermId
-      : null;
-
-  const visibleInspectorRibbonCellGlossary =
-    selectedRibbonNodeConfig &&
-    openInspectorRibbonCellGlossary &&
-    selectedRibbonNodeConfig.cells.some(
-      (cell) => cell.id === openInspectorRibbonCellGlossary.cellId
-    )
-      ? openInspectorRibbonCellGlossary
-      : null;
 
   const updateSelectedMenuMaxRightConnections = useCallback(
     (nextValue: number) => {
@@ -3836,11 +3859,20 @@ export default function Page() {
         syncSequentialEdgesForRibbonNode(targetNode.id, nextRibbonConfig, currentEdges)
       );
 
-      setOpenInspectorRibbonCellGlossary((current) =>
-        current && nextRibbonConfig.cells.some((cell) => cell.id === current.cellId)
+      setOpenControlledLanguageFieldType((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const ribbonField = parseRibbonCellRegistryField(current);
+        if (!ribbonField) {
+          return current;
+        }
+
+        return nextRibbonConfig.cells.some((cell) => cell.id === ribbonField.cellId)
           ? current
-          : null
-      );
+          : null;
+      });
     },
     [effectiveSelectedNodeId, nodes, queueUndoSnapshot, setEdges, setNodes]
   );
@@ -3990,9 +4022,14 @@ export default function Page() {
         };
       });
 
-      setOpenInspectorMenuGlossaryTermId((current) =>
-        current === termId ? null : current
-      );
+      setOpenControlledLanguageFieldType((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const menuTermId = parseMenuTermRegistryField(current);
+        return menuTermId === termId ? null : current;
+      });
     },
     [
       effectiveSelectedNodeId,
@@ -4002,38 +4039,267 @@ export default function Page() {
     ]
   );
 
-  const toggleInspectorMenuTermGlossary = useCallback((termId: string) => {
-    setOpenInspectorMenuGlossaryTermId((current) =>
-      current === termId ? null : termId
-    );
-  }, []);
-
-  const applyGlossaryTermToInspectorMenuTerm = useCallback(
-    (termId: string, glossaryTerm: string) => {
-      updateSelectedMenuTermById(termId, glossaryTerm);
-      setOpenInspectorMenuGlossaryTermId(null);
-    },
-    [updateSelectedMenuTermById]
-  );
-
-  const toggleInspectorRibbonCellGlossary = useCallback(
-    (cellId: string, field: "label" | "key_command") => {
-      setOpenInspectorRibbonCellGlossary((current) =>
-        current && current.cellId === cellId && current.field === field
-          ? null
-          : { cellId, field }
+  const toggleInspectorRegistryPickerForField = useCallback(
+    (field: DynamicRegistryTrackedField) => {
+      setOpenControlledLanguageFieldType((current) =>
+        current === field ? null : field
       );
+      setInspectorRegistryPickerSearchQuery("");
     },
     []
   );
 
-  const applyGlossaryTermToInspectorRibbonCell = useCallback(
-    (cellId: string, field: "label" | "key_command", glossaryTerm: string) => {
-      updateRibbonCellField(cellId, field, glossaryTerm);
-      setOpenInspectorRibbonCellGlossary(null);
+  const closeInspectorRegistryPicker = useCallback(() => {
+    setOpenControlledLanguageFieldType(null);
+    setInspectorRegistryPickerSearchQuery("");
+  }, []);
+
+  const assignRegistryEntryToInspectorField = useCallback(
+    (field: DynamicRegistryTrackedField, entry: TermRegistryEntry) => {
+      if (!effectiveSelectedNodeId) {
+        return;
+      }
+
+      const assignedToOtherField =
+        entry.assignedNodeId !== null &&
+        (entry.assignedNodeId !== effectiveSelectedNodeId ||
+          entry.assignedField !== field);
+
+      let createDuplicateEntry = false;
+
+      if (assignedToOtherField) {
+        const confirmed = window.confirm(
+          "This term is already assigned to another field. Assign it here as well?"
+        );
+
+        if (!confirmed) {
+          return;
+        }
+
+        createDuplicateEntry = true;
+      }
+
+      if (isRegistryTrackedField(field)) {
+        updateSelectedField(field, entry.value);
+      } else {
+        const menuTermId = parseMenuTermRegistryField(field);
+        const ribbonCellField = parseRibbonCellRegistryField(field);
+
+        if (menuTermId) {
+          updateSelectedMenuTermById(menuTermId, entry.value);
+        } else if (ribbonCellField) {
+          updateRibbonCellField(
+            ribbonCellField.cellId,
+            ribbonCellField.fieldName,
+            entry.value
+          );
+        }
+      }
+
+      const now = new Date().toISOString();
+      const targetTermType = getRegistryTermTypeFromField(field);
+
+      setTermRegistry((currentRegistry) => {
+        let hasChanges = false;
+
+        let nextRegistry = currentRegistry.map((registryEntry) => {
+          if (
+            registryEntry.assignedNodeId === effectiveSelectedNodeId &&
+            registryEntry.assignedField === field &&
+            (createDuplicateEntry || registryEntry.id !== entry.id)
+          ) {
+            hasChanges = true;
+            return {
+              ...registryEntry,
+              assignedNodeId: null,
+              assignedField: null,
+              updatedAt: now,
+            };
+          }
+
+          return registryEntry;
+        });
+
+        if (createDuplicateEntry) {
+          hasChanges = true;
+          nextRegistry = [
+            ...nextRegistry,
+            {
+              ...entry,
+              id: crypto.randomUUID(),
+              termType: targetTermType,
+              assignedNodeId: effectiveSelectedNodeId,
+              assignedField: field,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ];
+        } else {
+          const existingIndex = nextRegistry.findIndex(
+            (registryEntry) => registryEntry.id === entry.id
+          );
+
+          if (existingIndex !== -1) {
+            const existingEntry = nextRegistry[existingIndex];
+            if (
+              existingEntry.assignedNodeId !== effectiveSelectedNodeId ||
+              existingEntry.assignedField !== field ||
+              existingEntry.termType !== targetTermType
+            ) {
+              hasChanges = true;
+              nextRegistry = [...nextRegistry];
+              nextRegistry[existingIndex] = {
+                ...existingEntry,
+                termType: targetTermType,
+                assignedNodeId: effectiveSelectedNodeId,
+                assignedField: field,
+                updatedAt: now,
+              };
+            }
+          }
+        }
+
+        return hasChanges ? nextRegistry : currentRegistry;
+      });
+
+      closeInspectorRegistryPicker();
     },
-    [updateRibbonCellField]
+    [
+      closeInspectorRegistryPicker,
+      effectiveSelectedNodeId,
+      setTermRegistry,
+      updateRibbonCellField,
+      updateSelectedField,
+      updateSelectedMenuTermById,
+    ]
   );
+
+  const activeInspectorRegistryPickerField = useMemo<DynamicRegistryTrackedField | null>(() => {
+    if (!openControlledLanguageFieldType || !effectiveSelectedNodeId || !selectedNode) {
+      return null;
+    }
+
+    if (isRegistryTrackedField(openControlledLanguageFieldType)) {
+      return openControlledLanguageFieldType;
+    }
+
+    const menuTermId = parseMenuTermRegistryField(openControlledLanguageFieldType);
+    if (menuTermId) {
+      if (selectedNode.data.node_type !== "menu") {
+        return null;
+      }
+
+      return selectedMenuNodeConfig?.terms.some((term) => term.id === menuTermId)
+        ? openControlledLanguageFieldType
+        : null;
+    }
+
+    const ribbonCellField = parseRibbonCellRegistryField(openControlledLanguageFieldType);
+    if (ribbonCellField) {
+      if (selectedNode.data.node_type !== "ribbon") {
+        return null;
+      }
+
+      return selectedRibbonNodeConfig?.cells.some((cell) => cell.id === ribbonCellField.cellId)
+        ? openControlledLanguageFieldType
+        : null;
+    }
+
+    return null;
+  }, [
+    effectiveSelectedNodeId,
+    openControlledLanguageFieldType,
+    selectedMenuNodeConfig,
+    selectedNode,
+    selectedRibbonNodeConfig,
+  ]);
+
+  const inspectorRegistryPickerFieldLabel = useMemo(() => {
+    if (!activeInspectorRegistryPickerField) {
+      return "";
+    }
+
+    if (isRegistryTrackedField(activeInspectorRegistryPickerField)) {
+      return INSPECTOR_CONTENT_FIELD_LABELS[activeInspectorRegistryPickerField];
+    }
+
+    const menuTermId = parseMenuTermRegistryField(activeInspectorRegistryPickerField);
+    if (menuTermId) {
+      const menuTermIndex = selectedMenuNodeConfig?.terms.findIndex(
+        (term) => term.id === menuTermId
+      );
+      return typeof menuTermIndex === "number" && menuTermIndex >= 0
+        ? `Menu Term ${menuTermIndex + 1}`
+        : "Menu Term";
+    }
+
+    const ribbonCellField = parseRibbonCellRegistryField(activeInspectorRegistryPickerField);
+    if (ribbonCellField) {
+      const ribbonCell = selectedRibbonNodeConfig?.cells.find(
+        (cell) => cell.id === ribbonCellField.cellId
+      );
+      const cellLabel = ribbonCell ? `Cell ${ribbonCell.column + 1}` : "Cell";
+
+      const fieldLabel =
+        ribbonCellField.fieldName === "label"
+          ? "Label"
+          : ribbonCellField.fieldName === "key_command"
+            ? "Key Command"
+            : "Tool Tip";
+
+      return `${cellLabel} ${fieldLabel}`;
+    }
+
+    return activeInspectorRegistryPickerField;
+  }, [
+    activeInspectorRegistryPickerField,
+    selectedMenuNodeConfig,
+    selectedRibbonNodeConfig,
+  ]);
+
+  const inspectorRegistryPickerTargetTermType = useMemo(() => {
+    if (!activeInspectorRegistryPickerField) {
+      return null;
+    }
+
+    return getRegistryTermTypeFromField(activeInspectorRegistryPickerField);
+  }, [activeInspectorRegistryPickerField]);
+
+  const filteredInspectorRegistryEntries = useMemo(() => {
+    if (!inspectorRegistryPickerTargetTermType) {
+      return [];
+    }
+
+    const searchQuery = inspectorRegistryPickerSearchQuery.trim().toLowerCase();
+
+    return termRegistry
+      .filter((entry) => entry.termType === inspectorRegistryPickerTargetTermType)
+      .filter((entry) => {
+        if (!searchQuery) {
+          return true;
+        }
+
+        return (
+          entry.value.toLowerCase().includes(searchQuery) ||
+          (entry.friendlyId?.toLowerCase().includes(searchQuery) ?? false)
+        );
+      })
+      .sort((entryA, entryB) => entryA.value.localeCompare(entryB.value));
+  }, [
+    inspectorRegistryPickerSearchQuery,
+    inspectorRegistryPickerTargetTermType,
+    termRegistry,
+  ]);
+
+  useEffect(() => {
+    if (openControlledLanguageFieldType && !activeInspectorRegistryPickerField) {
+      closeInspectorRegistryPicker();
+    }
+  }, [
+    activeInspectorRegistryPickerField,
+    closeInspectorRegistryPicker,
+    openControlledLanguageFieldType,
+  ]);
 
   const createFrameFromSelection = useCallback(
     (selectedNodesForFrameCreation: FlowNode[] = selectedNonFrameNodesForFrameCreation) => {
@@ -4086,8 +4352,7 @@ export default function Page() {
     });
 
     setOpenControlledLanguageFieldType(null);
-    setOpenInspectorMenuGlossaryTermId(null);
-    setOpenInspectorRibbonCellGlossary(null);
+    setInspectorRegistryPickerSearchQuery("");
     setSelectedEdgeId(null);
     setSelectedNodeId(frameId);
     setSelectedNodeIds([frameId]);
@@ -4322,11 +4587,6 @@ export default function Page() {
     );
   }, [activeRegistryHighlightEntryId, termRegistry]);
 
-  const controlledLanguageTermsByField = useMemo(
-    () => buildControlledLanguageTermsByField(controlledLanguageGlossary),
-    [controlledLanguageGlossary]
-  );
-
   const updateControlledLanguageGlossaryEntries = useCallback(
     (
       updater: (
@@ -4531,28 +4791,6 @@ export default function Page() {
 
     setControlledLanguageDraftRow(createEmptyControlledLanguageDraftRow());
   }, [controlledLanguageDraftRow, updateControlledLanguageGlossaryEntries]);
-
-  const toggleControlledLanguageFieldDropdown = useCallback(
-    (fieldType: NodeControlledLanguageFieldType) => {
-      setOpenControlledLanguageFieldType((current) =>
-        current === fieldType ? null : fieldType
-      );
-    },
-    []
-  );
-
-  const applyControlledLanguageTermToField = useCallback(
-    (fieldType: NodeControlledLanguageFieldType, term: string) => {
-      const normalizedTerm = normalizeControlledLanguageTerm(term);
-      if (!normalizedTerm) {
-        return;
-      }
-
-      updateSelectedField(fieldType, normalizedTerm);
-      setOpenControlledLanguageFieldType(null);
-    },
-    [updateSelectedField]
-  );
 
   const handleEditorModeChange = useCallback(
     (editorMode: EditorSurfaceMode) => {
@@ -6587,7 +6825,7 @@ export default function Page() {
           <strong> Shift+F</strong> frames selected nodes. <strong>Ctrl/Cmd+C</strong>
           copies selected nodes (including frame members), and
           <strong> Ctrl/Cmd+V</strong> pastes non-destructive duplicates. All changes autosave. Use
-          each field’s “Glossary” button to open a term picker.
+          each field’s registry button (📋) to open the filtered CLP picker.
         </p>
 
         <section
@@ -7890,6 +8128,109 @@ export default function Page() {
               <strong>Y position:</strong> {Math.round(selectedNode.position.y)}
             </div>
 
+            {activeInspectorRegistryPickerField && (
+              <section
+                style={{
+                  border: "1px solid #bfdbfe",
+                  borderRadius: 8,
+                  padding: 8,
+                  display: "grid",
+                  gap: 8,
+                  background: "#f8fbff",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1e3a8a" }}>
+                    CLP Registry · {inspectorRegistryPickerFieldLabel}
+                  </div>
+
+                  <button
+                    type="button"
+                    style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
+                    onClick={closeInspectorRegistryPicker}
+                  >
+                    Back
+                  </button>
+                </div>
+
+                <div style={{ fontSize: 11, color: "#334155" }}>
+                  Showing {getTermRegistryTermTypeLabel(inspectorRegistryPickerTargetTermType)}
+                </div>
+
+                <input
+                  style={{ ...inputStyle, fontSize: 11 }}
+                  placeholder="Search value or friendly ID..."
+                  value={inspectorRegistryPickerSearchQuery}
+                  onChange={(event) =>
+                    setInspectorRegistryPickerSearchQuery(event.target.value)
+                  }
+                />
+
+                <div style={{ display: "grid", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+                  {filteredInspectorRegistryEntries.length === 0 ? (
+                    <div style={{ fontSize: 11, color: "#64748b" }}>
+                      No matching registry entries.
+                    </div>
+                  ) : (
+                    filteredInspectorRegistryEntries.map((entry) => {
+                      const isAssignedHere =
+                        entry.assignedNodeId === effectiveSelectedNodeId &&
+                        entry.assignedField === activeInspectorRegistryPickerField;
+
+                      const assignmentStatus = isAssignedHere
+                        ? "Assigned here"
+                        : entry.assignedNodeId
+                          ? `Assigned to ${entry.assignedNodeId}${
+                              entry.assignedField ? ` · ${entry.assignedField}` : ""
+                            }`
+                          : "Unassigned";
+
+                      return (
+                        <button
+                          key={`inspector-registry-entry:${entry.id}`}
+                          type="button"
+                          style={{
+                            ...buttonStyle,
+                            textAlign: "left",
+                            justifyContent: "flex-start",
+                            flexDirection: "column",
+                            alignItems: "flex-start",
+                            gap: 2,
+                            borderColor: isAssignedHere ? "#93c5fd" : "#d4d4d8",
+                            background: isAssignedHere ? "#dbeafe" : "#fff",
+                            padding: "6px 8px",
+                          }}
+                          onClick={() =>
+                            assignRegistryEntryToInspectorField(
+                              activeInspectorRegistryPickerField,
+                              entry
+                            )
+                          }
+                        >
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
+                            {entry.value}
+                          </span>
+                          <span style={{ fontSize: 10, color: "#475569" }}>
+                            ID: {entry.friendlyId || "—"}
+                          </span>
+                          <span style={{ fontSize: 10, color: "#1e3a8a" }}>
+                            {assignmentStatus}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+            )}
+
             <div>
               <div style={inspectorFieldLabelStyle}>Node type</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -7934,23 +8275,36 @@ export default function Page() {
               <>
                 <label>
                   <div style={inspectorFieldLabelStyle}>Title</div>
-                  <input
-                    style={inputStyle}
-                    value={selectedNode.data.title}
-                    placeholder="Add title"
-                    onChange={(event) => updateSelectedField("title", event.target.value)}
-                    onBlur={(event) =>
-                      commitSelectedRegistryField("title", event.target.value)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") {
-                        return;
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      style={inputStyle}
+                      value={selectedNode.data.title}
+                      placeholder="Add title"
+                      onChange={(event) => updateSelectedField("title", event.target.value)}
+                      onBlur={(event) =>
+                        commitSelectedRegistryField("title", event.target.value)
                       }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
 
-                      event.preventDefault();
-                      event.currentTarget.blur();
-                    }}
-                  />
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={getInspectorRegistryButtonStyle(
+                        activeInspectorRegistryPickerField === "title"
+                      )}
+                      title="Open CLP registry"
+                      aria-label="Open CLP registry"
+                      onClick={() => toggleInspectorRegistryPickerForField("title")}
+                    >
+                      📋
+                    </button>
+                  </div>
                 </label>
 
                 <label>
@@ -8056,8 +8410,9 @@ export default function Page() {
                   </div>
 
                   {(selectedMenuNodeConfig?.terms ?? []).map((menuTerm, index) => {
-                    const isGlossaryOpen =
-                      visibleInspectorMenuGlossaryTermId === menuTerm.id;
+                    const menuTermRegistryField = buildMenuTermRegistryField(menuTerm.id);
+                    const isRegistryPickerOpen =
+                      activeInspectorRegistryPickerField === menuTermRegistryField;
 
                     return (
                       <div
@@ -8082,19 +8437,6 @@ export default function Page() {
                           <div style={{ fontSize: 10, color: "#334155", fontWeight: 700 }}>
                             Term {index + 1}
                           </div>
-                          <button
-                            type="button"
-                            style={{
-                              ...buttonStyle,
-                              fontSize: 10,
-                              padding: "2px 6px",
-                              background: isGlossaryOpen ? "#dbeafe" : "#fff",
-                              borderColor: isGlossaryOpen ? "#93c5fd" : "#d4d4d8",
-                            }}
-                            onClick={() => toggleInspectorMenuTermGlossary(menuTerm.id)}
-                          >
-                            Glossary ▾
-                          </button>
                         </div>
 
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -8136,46 +8478,19 @@ export default function Page() {
                               event.currentTarget.blur();
                             }}
                           />
-                        </div>
 
-                        {isGlossaryOpen && (
-                          <div
-                            style={{
-                              border: "1px solid #dbeafe",
-                              borderRadius: 6,
-                              background: "#f8fbff",
-                              padding: 6,
-                            }}
+                          <button
+                            type="button"
+                            style={getInspectorRegistryButtonStyle(isRegistryPickerOpen)}
+                            title="Open CLP registry"
+                            aria-label="Open CLP registry"
+                            onClick={() =>
+                              toggleInspectorRegistryPickerForField(menuTermRegistryField)
+                            }
                           >
-                    {menuTermGlossaryTerms.length === 0 ? (
-                      <div style={{ fontSize: 10, color: "#64748b" }}>
-                        No Menu Term options yet. Add one in a Menu node or include one in Controlled Language.
-                      </div>
-                            ) : (
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                {menuTermGlossaryTerms.map((glossaryTerm) => (
-                                  <button
-                                    key={`inspector-menu-glossary:${menuTerm.id}:${glossaryTerm}`}
-                                    type="button"
-                                    style={{
-                                      ...buttonStyle,
-                                      fontSize: 10,
-                                      padding: "2px 6px",
-                                    }}
-                                    onClick={() =>
-                                      applyGlossaryTermToInspectorMenuTerm(
-                                        menuTerm.id,
-                                        glossaryTerm
-                                      )
-                                    }
-                                  >
-                                    {glossaryTerm}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                            📋
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -8185,23 +8500,36 @@ export default function Page() {
               <>
                 <label>
                   <div style={inspectorFieldLabelStyle}>Title</div>
-                  <input
-                    style={inputStyle}
-                    value={selectedNode.data.title}
-                    placeholder="Add title"
-                    onChange={(event) => updateSelectedField("title", event.target.value)}
-                    onBlur={(event) =>
-                      commitSelectedRegistryField("title", event.target.value)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") {
-                        return;
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      style={inputStyle}
+                      value={selectedNode.data.title}
+                      placeholder="Add title"
+                      onChange={(event) => updateSelectedField("title", event.target.value)}
+                      onBlur={(event) =>
+                        commitSelectedRegistryField("title", event.target.value)
                       }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
 
-                      event.preventDefault();
-                      event.currentTarget.blur();
-                    }}
-                  />
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={getInspectorRegistryButtonStyle(
+                        activeInspectorRegistryPickerField === "title"
+                      )}
+                      title="Open CLP registry"
+                      aria-label="Open CLP registry"
+                      onClick={() => toggleInspectorRegistryPickerForField("title")}
+                    >
+                      📋
+                    </button>
+                  </div>
                 </label>
 
                 <div
@@ -8266,22 +8594,35 @@ export default function Page() {
 
                 <label>
                   <div style={inspectorFieldLabelStyle}>Notes</div>
-                  <textarea
-                    style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
-                    value={selectedNode.data.notes}
-                    onChange={(event) => updateSelectedField("notes", event.target.value)}
-                    onBlur={(event) =>
-                      commitSelectedRegistryField("notes", event.target.value)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") {
-                        return;
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                    <textarea
+                      style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
+                      value={selectedNode.data.notes}
+                      onChange={(event) => updateSelectedField("notes", event.target.value)}
+                      onBlur={(event) =>
+                        commitSelectedRegistryField("notes", event.target.value)
                       }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
 
-                      event.preventDefault();
-                      event.currentTarget.blur();
-                    }}
-                  />
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={getInspectorRegistryButtonStyle(
+                        activeInspectorRegistryPickerField === "notes"
+                      )}
+                      title="Open CLP registry"
+                      aria-label="Open CLP registry"
+                      onClick={() => toggleInspectorRegistryPickerForField("notes")}
+                    >
+                      📋
+                    </button>
+                  </div>
                 </label>
               </>
             ) : (
@@ -8337,22 +8678,35 @@ export default function Page() {
                       </label>
                     )}
                   </div>
-                  <input
-                    style={inputStyle}
-                    value={selectedNode.data.title}
-                    onChange={(event) => updateSelectedField("title", event.target.value)}
-                    onBlur={(event) =>
-                      commitSelectedRegistryField("title", event.target.value)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") {
-                        return;
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      style={inputStyle}
+                      value={selectedNode.data.title}
+                      onChange={(event) => updateSelectedField("title", event.target.value)}
+                      onBlur={(event) =>
+                        commitSelectedRegistryField("title", event.target.value)
                       }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
 
-                      event.preventDefault();
-                      event.currentTarget.blur();
-                    }}
-                  />
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={getInspectorRegistryButtonStyle(
+                        activeInspectorRegistryPickerField === "title"
+                      )}
+                      title="Open CLP registry"
+                      aria-label="Open CLP registry"
+                      onClick={() => toggleInspectorRegistryPickerForField("title")}
+                    >
+                      📋
+                    </button>
+                  </div>
                 </div>
 
                 {selectedNode.data.node_type === "ribbon" && selectedRibbonNodeConfig && (
@@ -8472,26 +8826,19 @@ export default function Page() {
                                   </div>
                                   <button
                                     type="button"
-                                    style={{
-                                      ...buttonStyle,
-                                      fontSize: 10,
-                                      padding: "2px 6px",
-                                      background:
-                                        visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
-                                        visibleInspectorRibbonCellGlossary.field === "label"
-                                          ? "#dbeafe"
-                                          : "#fff",
-                                      borderColor:
-                                        visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
-                                        visibleInspectorRibbonCellGlossary.field === "label"
-                                          ? "#93c5fd"
-                                          : "#d4d4d8",
-                                    }}
+                                    style={getInspectorRegistryButtonStyle(
+                                      activeInspectorRegistryPickerField ===
+                                        buildRibbonCellRegistryField(cell.id, "label")
+                                    )}
+                                    title="Open CLP registry"
+                                    aria-label="Open CLP registry"
                                     onClick={() =>
-                                      toggleInspectorRibbonCellGlossary(cell.id, "label")
+                                      toggleInspectorRegistryPickerForField(
+                                        buildRibbonCellRegistryField(cell.id, "label")
+                                      )
                                     }
                                   >
-                                    Glossary ▾
+                                    📋
                                   </button>
                                 </div>
 
@@ -8518,56 +8865,6 @@ export default function Page() {
                                     event.currentTarget.blur();
                                   }}
                                 />
-
-                                {visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
-                                  visibleInspectorRibbonCellGlossary.field === "label" && (
-                                    <div
-                                      style={{
-                                        marginTop: 6,
-                                        border: "1px solid #dbeafe",
-                                        borderRadius: 6,
-                                        background: "#f8fbff",
-                                        padding: 6,
-                                      }}
-                                    >
-                                      {controlledLanguageTermsByField.cell_label.length === 0 ? (
-                                        <div style={{ fontSize: 10, color: "#64748b" }}>
-                                          No included glossary terms for Cell Label yet.
-                                        </div>
-                                      ) : (
-                                        <div
-                                          style={{
-                                            display: "flex",
-                                            flexWrap: "wrap",
-                                            gap: 6,
-                                          }}
-                                        >
-                                          {controlledLanguageTermsByField.cell_label.map(
-                                            (glossaryTerm) => (
-                                              <button
-                                                key={`inspector-ribbon-cell-label-glossary:${cell.id}:${glossaryTerm}`}
-                                                type="button"
-                                                style={{
-                                                  ...buttonStyle,
-                                                  fontSize: 10,
-                                                  padding: "2px 6px",
-                                                }}
-                                                onClick={() =>
-                                                  applyGlossaryTermToInspectorRibbonCell(
-                                                    cell.id,
-                                                    "label",
-                                                    glossaryTerm
-                                                  )
-                                                }
-                                              >
-                                                {glossaryTerm}
-                                              </button>
-                                            )
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
                               </div>
 
                               <div>
@@ -8585,29 +8882,19 @@ export default function Page() {
                                   </div>
                                   <button
                                     type="button"
-                                    style={{
-                                      ...buttonStyle,
-                                      fontSize: 10,
-                                      padding: "2px 6px",
-                                      background:
-                                        visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
-                                        visibleInspectorRibbonCellGlossary.field === "key_command"
-                                          ? "#dbeafe"
-                                          : "#fff",
-                                      borderColor:
-                                        visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
-                                        visibleInspectorRibbonCellGlossary.field === "key_command"
-                                          ? "#93c5fd"
-                                          : "#d4d4d8",
-                                    }}
+                                    style={getInspectorRegistryButtonStyle(
+                                      activeInspectorRegistryPickerField ===
+                                        buildRibbonCellRegistryField(cell.id, "key_command")
+                                    )}
+                                    title="Open CLP registry"
+                                    aria-label="Open CLP registry"
                                     onClick={() =>
-                                      toggleInspectorRibbonCellGlossary(
-                                        cell.id,
-                                        "key_command"
+                                      toggleInspectorRegistryPickerForField(
+                                        buildRibbonCellRegistryField(cell.id, "key_command")
                                       )
                                     }
                                   >
-                                    Glossary ▾
+                                    📋
                                   </button>
                                 </div>
 
@@ -8643,69 +8930,38 @@ export default function Page() {
                                     event.currentTarget.blur();
                                   }}
                                 />
-
-                                {visibleInspectorRibbonCellGlossary?.cellId === cell.id &&
-                                  visibleInspectorRibbonCellGlossary.field ===
-                                    "key_command" && (
-                                    <div
-                                      style={{
-                                        marginTop: 6,
-                                        border: "1px solid #dbeafe",
-                                        borderRadius: 6,
-                                        background: "#f8fbff",
-                                        padding: 6,
-                                      }}
-                                    >
-                                      {controlledLanguageTermsByField.key_command.length === 0 ? (
-                                        <div style={{ fontSize: 10, color: "#64748b" }}>
-                                          No included glossary terms for Key Command yet.
-                                        </div>
-                                      ) : (
-                                        <div
-                                          style={{
-                                            display: "flex",
-                                            flexWrap: "wrap",
-                                            gap: 6,
-                                          }}
-                                        >
-                                          {controlledLanguageTermsByField.key_command.map(
-                                            (glossaryTerm) => (
-                                              <button
-                                                key={`inspector-ribbon-key-command-glossary:${cell.id}:${glossaryTerm}`}
-                                                type="button"
-                                                style={{
-                                                  ...buttonStyle,
-                                                  fontSize: 10,
-                                                  padding: "2px 6px",
-                                                }}
-                                                onClick={() =>
-                                                  applyGlossaryTermToInspectorRibbonCell(
-                                                    cell.id,
-                                                    "key_command",
-                                                    glossaryTerm
-                                                  )
-                                                }
-                                              >
-                                                {glossaryTerm}
-                                              </button>
-                                            )
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
                               </div>
 
                               <div>
                                 <div
                                   style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: 8,
                                     fontSize: 11,
                                     color: "#334155",
                                     fontWeight: 700,
                                     marginBottom: 4,
                                   }}
                                 >
-                                  Tool Tip
+                                  <span>Tool Tip</span>
+                                  <button
+                                    type="button"
+                                    style={getInspectorRegistryButtonStyle(
+                                      activeInspectorRegistryPickerField ===
+                                        buildRibbonCellRegistryField(cell.id, "tool_tip")
+                                    )}
+                                    title="Open CLP registry"
+                                    aria-label="Open CLP registry"
+                                    onClick={() =>
+                                      toggleInspectorRegistryPickerForField(
+                                        buildRibbonCellRegistryField(cell.id, "tool_tip")
+                                      )
+                                    }
+                                  >
+                                    📋
+                                  </button>
                                 </div>
                                 <textarea
                                   style={{ ...inputStyle, fontSize: 11 }}
@@ -8784,24 +9040,39 @@ export default function Page() {
 
                       <label>
                         <div style={inspectorFieldLabelStyle}>Body text</div>
-                        <textarea
-                          style={{ ...inputStyle, minHeight: 68, resize: "vertical" }}
-                          value={selectedNode.data.body_text}
-                          onChange={(event) =>
-                            updateSelectedField("body_text", event.target.value)
-                          }
-                          onBlur={(event) =>
-                            commitSelectedRegistryField("body_text", event.target.value)
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key !== "Enter") {
-                              return;
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                          <textarea
+                            style={{ ...inputStyle, minHeight: 68, resize: "vertical" }}
+                            value={selectedNode.data.body_text}
+                            onChange={(event) =>
+                              updateSelectedField("body_text", event.target.value)
                             }
+                            onBlur={(event) =>
+                              commitSelectedRegistryField("body_text", event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter") {
+                                return;
+                              }
 
-                            event.preventDefault();
-                            event.currentTarget.blur();
-                          }}
-                        />
+                              event.preventDefault();
+                              event.currentTarget.blur();
+                            }}
+                          />
+                          <button
+                            type="button"
+                            style={getInspectorRegistryButtonStyle(
+                              activeInspectorRegistryPickerField === "body_text"
+                            )}
+                            title="Open CLP registry"
+                            aria-label="Open CLP registry"
+                            onClick={() =>
+                              toggleInspectorRegistryPickerForField("body_text")
+                            }
+                          >
+                            📋
+                          </button>
+                        </div>
                       </label>
 
                       <div>
@@ -8820,99 +9091,55 @@ export default function Page() {
                         </div>
                       </div>
 
-                      {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => {
-                        const isDropdownOpen = openControlledLanguageFieldType === fieldType;
-                        const includedTerms = controlledLanguageTermsByField[fieldType];
-
-                        return (
-                          <label key={`controlled-language-field:${fieldType}`}>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 8,
-                                marginBottom: 4,
-                              }}
-                            >
-                              <div style={inspectorFieldLabelStyle}>
-                                {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
-                              </div>
-                              <button
-                                type="button"
-                                style={{
-                                  ...buttonStyle,
-                                  fontSize: 10,
-                                  padding: "2px 6px",
-                                  background: isDropdownOpen ? "#dbeafe" : "#fff",
-                                  borderColor: isDropdownOpen ? "#93c5fd" : "#d4d4d8",
-                                }}
-                                title="Click to toggle glossary dropdown"
-                                onClick={() => toggleControlledLanguageFieldDropdown(fieldType)}
-                              >
-                                Glossary ▾
-                              </button>
+                      {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => (
+                        <label key={`controlled-language-field:${fieldType}`}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 8,
+                              marginBottom: 4,
+                            }}
+                          >
+                            <div style={inspectorFieldLabelStyle}>
+                              {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
                             </div>
-
-                            <input
-                              style={inputStyle}
-                              value={selectedNode.data[fieldType]}
-                              onChange={(event) =>
-                                updateSelectedField(fieldType, event.target.value)
+                            <button
+                              type="button"
+                              style={getInspectorRegistryButtonStyle(
+                                activeInspectorRegistryPickerField === fieldType
+                              )}
+                              title="Open CLP registry"
+                              aria-label="Open CLP registry"
+                              onClick={() =>
+                                toggleInspectorRegistryPickerForField(fieldType)
                               }
-                              onBlur={(event) =>
-                                commitSelectedRegistryField(fieldType, event.target.value)
+                            >
+                              📋
+                            </button>
+                          </div>
+
+                          <input
+                            style={inputStyle}
+                            value={selectedNode.data[fieldType]}
+                            onChange={(event) =>
+                              updateSelectedField(fieldType, event.target.value)
+                            }
+                            onBlur={(event) =>
+                              commitSelectedRegistryField(fieldType, event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter") {
+                                return;
                               }
-                              onKeyDown={(event) => {
-                                if (event.key !== "Enter") {
-                                  return;
-                                }
 
-                                event.preventDefault();
-                                event.currentTarget.blur();
-                              }}
-                            />
-
-                            {isDropdownOpen && (
-                              <div
-                                style={{
-                                  marginTop: 6,
-                                  border: "1px solid #dbeafe",
-                                  borderRadius: 6,
-                                  background: "#f8fbff",
-                                  padding: 6,
-                                }}
-                              >
-                                {includedTerms.length === 0 ? (
-                                  <div style={{ fontSize: 11, color: "#64748b" }}>
-                                    No included glossary terms for this field type yet.
-                                  </div>
-                                ) : (
-                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                    {includedTerms.map((term) => (
-                                      <button
-                                        key={`controlled-language-option:${fieldType}:${term}`}
-                                        type="button"
-                                        style={{
-                                          ...buttonStyle,
-                                          padding: "3px 8px",
-                                          fontSize: 11,
-                                          background: "#fff",
-                                        }}
-                                        onClick={() =>
-                                          applyControlledLanguageTermToField(fieldType, term)
-                                        }
-                                      >
-                                        {term}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </label>
-                        );
-                      })}
+                              event.preventDefault();
+                              event.currentTarget.blur();
+                            }}
+                          />
+                        </label>
+                      ))}
                     </>
                   )}
               </>
@@ -9000,22 +9227,35 @@ export default function Page() {
 
                 <label>
                   <div style={inspectorFieldLabelStyle}>Notes</div>
-                  <textarea
-                    style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
-                    value={selectedNode.data.notes}
-                    onChange={(event) => updateSelectedField("notes", event.target.value)}
-                    onBlur={(event) =>
-                      commitSelectedRegistryField("notes", event.target.value)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") {
-                        return;
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                    <textarea
+                      style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
+                      value={selectedNode.data.notes}
+                      onChange={(event) => updateSelectedField("notes", event.target.value)}
+                      onBlur={(event) =>
+                        commitSelectedRegistryField("notes", event.target.value)
                       }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
 
-                      event.preventDefault();
-                      event.currentTarget.blur();
-                    }}
-                  />
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={getInspectorRegistryButtonStyle(
+                        activeInspectorRegistryPickerField === "notes"
+                      )}
+                      title="Open CLP registry"
+                      aria-label="Open CLP registry"
+                      onClick={() => toggleInspectorRegistryPickerForField("notes")}
+                    >
+                      📋
+                    </button>
+                  </div>
                 </label>
 
                 <hr style={{ border: 0, borderTop: "1px solid #e4e4e7" }} />
