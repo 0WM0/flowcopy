@@ -951,6 +951,9 @@ export default function Page() {
   const [pendingOptionInputs, setPendingOptionInputs] = useState<
     Record<GlobalOptionField, string>
   >(createEmptyPendingOptionInputs);
+  const [activeSidePanelTab, setActiveSidePanelTab] = useState<
+    "edit" | "journey" | "admin"
+  >("edit");
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isProjectSequencePanelOpen, setIsProjectSequencePanelOpen] = useState(false);
   const [isUiJourneyConversationOpen, setIsUiJourneyConversationOpen] = useState(false);
@@ -6789,40 +6792,67 @@ export default function Page() {
           )}
         </section>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <h2 style={{ margin: 0 }}>Node Data Panel</h2>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button
-              type="button"
-              style={getToggleButtonStyle(isControlledLanguagePanelOpen)}
-              onClick={() =>
-                setIsControlledLanguagePanelOpen((open) => {
-                  if (open) {
-                    setRegistrySearchQuery("");
-                    setRegistryFilterStatus("all");
-                    setRegistryFilterType("all");
-                  }
-
-                  return !open;
-                })
-              }
-            >
-              {isControlledLanguagePanelOpen ? "Hide" : "Show"} Controlled Language
-            </button>
-            <button
-              type="button"
-              style={getToggleButtonStyle(isAdminPanelOpen)}
-              onClick={() => setIsAdminPanelOpen((open) => !open)}
-            >
-              {isAdminPanelOpen ? "Hide" : "Show"} Admin
-            </button>
-          </div>
+        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e2e8f0" }}>
+          <button
+            type="button"
+            style={{
+              border: "none",
+              borderRadius: 0,
+              background: "transparent",
+              padding: "8px 12px",
+              fontSize: 13,
+              cursor: "pointer",
+              fontWeight: activeSidePanelTab === "edit" ? 700 : 400,
+              color: activeSidePanelTab === "edit" ? "#1d4ed8" : "#64748b",
+              borderBottom:
+                activeSidePanelTab === "edit"
+                  ? "2px solid #1d4ed8"
+                  : "2px solid transparent",
+            }}
+            onClick={() => setActiveSidePanelTab("edit")}
+          >
+            Edit + Govern
+          </button>
+          <button
+            type="button"
+            style={{
+              border: "none",
+              borderRadius: 0,
+              background: "transparent",
+              padding: "8px 12px",
+              fontSize: 13,
+              cursor: "pointer",
+              fontWeight: activeSidePanelTab === "journey" ? 700 : 400,
+              color: activeSidePanelTab === "journey" ? "#1d4ed8" : "#64748b",
+              borderBottom:
+                activeSidePanelTab === "journey"
+                  ? "2px solid #1d4ed8"
+                  : "2px solid transparent",
+            }}
+            onClick={() => setActiveSidePanelTab("journey")}
+          >
+            Journey
+          </button>
+          <button
+            type="button"
+            style={{
+              border: "none",
+              borderRadius: 0,
+              background: "transparent",
+              padding: "8px 12px",
+              fontSize: 13,
+              cursor: "pointer",
+              fontWeight: activeSidePanelTab === "admin" ? 700 : 400,
+              color: activeSidePanelTab === "admin" ? "#1d4ed8" : "#64748b",
+              borderBottom:
+                activeSidePanelTab === "admin"
+                  ? "2px solid #1d4ed8"
+                  : "2px solid transparent",
+            }}
+            onClick={() => setActiveSidePanelTab("admin")}
+          >
+            Admin
+          </button>
         </div>
 
         <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#52525b" }}>
