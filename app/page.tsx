@@ -6855,6 +6855,9 @@ export default function Page() {
           </button>
         </div>
 
+        {activeSidePanelTab === "edit" && (
+          <>
+
         <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#52525b" }}>
           Click a node to edit structured fields. Double-click empty canvas to add a
           default node. Keyboard shortcuts: <strong>Tab</strong> adds Default, and
@@ -7933,6 +7936,11 @@ export default function Page() {
               </div>
             )}
           </section>
+
+          </section>
+
+          </>
+        )}
 
         {activeSidePanelTab === "admin" && (
           <section
@@ -9376,7 +9384,6 @@ export default function Page() {
             )}
           </div>
         )}
-        </section>
       </aside>
 
       {isHelpModalOpen && (
