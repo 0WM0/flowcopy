@@ -6879,271 +6879,6 @@ export default function Page() {
             background: "#ffffff",
           }}
         >
-
-        <button
-          type="button"
-          style={{
-            ...buttonStyle,
-            borderColor: "#93c5fd",
-            background: "#eff6ff",
-            color: "#1e3a8a",
-            fontWeight: 700,
-            opacity: canOpenUiJourneyConversation ? 1 : 0.5,
-            cursor: canOpenUiJourneyConversation ? "pointer" : "not-allowed",
-          }}
-          onClick={openUiJourneyConversation}
-          disabled={!canOpenUiJourneyConversation}
-          title={
-            canOpenUiJourneyConversation
-              ? "Build conversation from selected nodes"
-              : "Select at least one node or frame"
-          }
-        >
-          UI Journey Conversation
-        </button>
-
-        <section
-          style={{
-            border: "1px solid #c7d2fe",
-            borderRadius: 8,
-            padding: 8,
-            display: "grid",
-            gap: 8,
-            background: "#f8faff",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 8,
-            }}
-          >
-            <div style={{ fontSize: 12, color: "#3730a3", fontWeight: 700 }}>
-              Journey Snapshots
-            </div>
-            <button
-              type="button"
-              style={{
-                ...buttonStyle,
-                fontSize: 11,
-                padding: "2px 8px",
-                borderColor: "#a5b4fc",
-                color: "#3730a3",
-                background: "#eef2ff",
-              }}
-              onClick={() =>
-                setIsUiJourneySnapshotsPanelOpen((isOpen) => !isOpen)
-              }
-            >
-              {isUiJourneySnapshotsPanelOpen ? "Hide" : "Show"}
-            </button>
-          </div>
-
-          {isUiJourneySnapshotsPanelOpen && (
-            <>
-              <p style={{ margin: 0, fontSize: 11, color: "#4c1d95" }}>
-                Save the currently selected node path and conversation so you can
-                quickly recall and review the same journey later.
-              </p>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto",
-                  gap: 6,
-                }}
-              >
-                <input
-                  style={inputStyle}
-                  value={uiJourneySnapshotDraftName}
-                  placeholder={`Snapshot ${uiJourneySnapshotPresets.length + 1}`}
-                  onChange={(event) =>
-                    setUiJourneySnapshotDraftName(event.target.value)
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      saveUiJourneySnapshotPreset();
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  style={{
-                    ...buttonStyle,
-                    borderColor: "#818cf8",
-                    background: "#eef2ff",
-                    color: "#3730a3",
-                    fontWeight: 700,
-                    opacity: canSaveUiJourneySnapshotPreset ? 1 : 0.5,
-                    cursor: canSaveUiJourneySnapshotPreset
-                      ? "pointer"
-                      : "not-allowed",
-                  }}
-                  onClick={saveUiJourneySnapshotPreset}
-                  disabled={!canSaveUiJourneySnapshotPreset}
-                  title={
-                    canSaveUiJourneySnapshotPreset
-                      ? "Save selected path as snapshot"
-                      : "Select at least one node or frame first"
-                  }
-                >
-                  Save
-                </button>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  fontSize: 11,
-                  color: "#4338ca",
-                }}
-              >
-                <span>
-                  Selected path: {uiJourneySnapshotCapture.nodeIds.length} node(s),{" "}
-                  {uiJourneySnapshotCapture.edgeIds.length} edge(s),{" "}
-                  {uiJourneySnapshotCapture.conversation.length} conversation row(s)
-                </span>
-                <button
-                  type="button"
-                  style={{
-                    ...buttonStyle,
-                    fontSize: 11,
-                    padding: "2px 8px",
-                    borderColor: "#cbd5e1",
-                    color: "#475569",
-                    background: "#fff",
-                    opacity:
-                      selectedUiJourneySnapshotPresetId ||
-                      recalledUiJourneyNodeIds.length > 0 ||
-                      recalledUiJourneyEdgeIds.length > 0
-                        ? 1
-                        : 0.5,
-                    cursor:
-                      selectedUiJourneySnapshotPresetId ||
-                      recalledUiJourneyNodeIds.length > 0 ||
-                      recalledUiJourneyEdgeIds.length > 0
-                        ? "pointer"
-                        : "not-allowed",
-                  }}
-                  onClick={clearRecalledUiJourneySnapshot}
-                  disabled={
-                    !selectedUiJourneySnapshotPresetId &&
-                    recalledUiJourneyNodeIds.length === 0 &&
-                    recalledUiJourneyEdgeIds.length === 0
-                  }
-                >
-                  Clear recalled path
-                </button>
-              </div>
-
-              {uiJourneySnapshotPresets.length === 0 ? (
-                <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
-                  No snapshots yet. Select a path and save one.
-                </p>
-              ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 6,
-                    maxHeight: 230,
-                    overflowY: "auto",
-                  }}
-                >
-                  {uiJourneySnapshotPresets.map((preset) => {
-                    const isSelected =
-                      selectedUiJourneySnapshotPresetId === preset.id;
-
-                    return (
-                      <div
-                        key={`ui-journey-snapshot:${preset.id}`}
-                        style={{
-                          border: `1px solid ${isSelected ? "#818cf8" : "#cbd5e1"}`,
-                          borderRadius: 8,
-                          background: isSelected ? "#eef2ff" : "#fff",
-                          padding: 8,
-                          display: "grid",
-                          gap: 6,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            justifyContent: "space-between",
-                            gap: 8,
-                          }}
-                        >
-                          <div style={{ minWidth: 0 }}>
-                            <div
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 700,
-                                color: "#312e81",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                              title={preset.name}
-                            >
-                              {preset.name}
-                            </div>
-                            <div style={{ fontSize: 10, color: "#4338ca", marginTop: 2 }}>
-                              {preset.nodeIds.length} node(s) • {preset.edgeIds.length} edge(s)
-                            </div>
-                            <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
-                              Updated {formatDateTime(preset.updatedAt)}
-                            </div>
-                          </div>
-
-                          <div style={{ display: "flex", gap: 6 }}>
-                            <button
-                              type="button"
-                              style={{
-                                ...buttonStyle,
-                                fontSize: 10,
-                                padding: "2px 8px",
-                                borderColor: "#818cf8",
-                                color: "#3730a3",
-                                background: "#eef2ff",
-                                fontWeight: 700,
-                              }}
-                              onClick={() => recallUiJourneySnapshotPreset(preset.id)}
-                            >
-                              Recall
-                            </button>
-                            <button
-                              type="button"
-                              style={{
-                                ...buttonStyle,
-                                fontSize: 10,
-                                padding: "2px 8px",
-                                borderColor: "#fca5a5",
-                                color: "#b91c1c",
-                                background: "#fff",
-                                fontWeight: 700,
-                              }}
-                              onClick={() => deleteUiJourneySnapshotPreset(preset.id)}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          )}
-        </section>
-
         {canCreateFrameFromSelection && (
           <button
             type="button"
@@ -7939,6 +7674,274 @@ export default function Page() {
 
           </section>
 
+          </>
+        )}
+
+        {activeSidePanelTab === "journey" && (
+          <>
+            <button
+              type="button"
+              style={{
+                ...buttonStyle,
+                borderColor: "#93c5fd",
+                background: "#eff6ff",
+                color: "#1e3a8a",
+                fontWeight: 700,
+                opacity: canOpenUiJourneyConversation ? 1 : 0.5,
+                cursor: canOpenUiJourneyConversation ? "pointer" : "not-allowed",
+              }}
+              onClick={openUiJourneyConversation}
+              disabled={!canOpenUiJourneyConversation}
+              title={
+                canOpenUiJourneyConversation
+                  ? "Build conversation from selected nodes"
+                  : "Select at least one node or frame"
+              }
+            >
+              UI Journey Conversation
+            </button>
+
+            <section
+              style={{
+                border: "1px solid #c7d2fe",
+                borderRadius: 8,
+                padding: 8,
+                display: "grid",
+                gap: 8,
+                background: "#f8faff",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
+                <div style={{ fontSize: 12, color: "#3730a3", fontWeight: 700 }}>
+                  Journey Snapshots
+                </div>
+                <button
+                  type="button"
+                  style={{
+                    ...buttonStyle,
+                    fontSize: 11,
+                    padding: "2px 8px",
+                    borderColor: "#a5b4fc",
+                    color: "#3730a3",
+                    background: "#eef2ff",
+                  }}
+                  onClick={() =>
+                    setIsUiJourneySnapshotsPanelOpen((isOpen) => !isOpen)
+                  }
+                >
+                  {isUiJourneySnapshotsPanelOpen ? "Hide" : "Show"}
+                </button>
+              </div>
+
+              {isUiJourneySnapshotsPanelOpen && (
+                <>
+                  <p style={{ margin: 0, fontSize: 11, color: "#4c1d95" }}>
+                    Save the currently selected node path and conversation so you can
+                    quickly recall and review the same journey later.
+                  </p>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      gap: 6,
+                    }}
+                  >
+                    <input
+                      style={inputStyle}
+                      value={uiJourneySnapshotDraftName}
+                      placeholder={`Snapshot ${uiJourneySnapshotPresets.length + 1}`}
+                      onChange={(event) =>
+                        setUiJourneySnapshotDraftName(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          saveUiJourneySnapshotPreset();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={{
+                        ...buttonStyle,
+                        borderColor: "#818cf8",
+                        background: "#eef2ff",
+                        color: "#3730a3",
+                        fontWeight: 700,
+                        opacity: canSaveUiJourneySnapshotPreset ? 1 : 0.5,
+                        cursor: canSaveUiJourneySnapshotPreset
+                          ? "pointer"
+                          : "not-allowed",
+                      }}
+                      onClick={saveUiJourneySnapshotPreset}
+                      disabled={!canSaveUiJourneySnapshotPreset}
+                      title={
+                        canSaveUiJourneySnapshotPreset
+                          ? "Save selected path as snapshot"
+                          : "Select at least one node or frame first"
+                      }
+                    >
+                      Save
+                    </button>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      fontSize: 11,
+                      color: "#4338ca",
+                    }}
+                  >
+                    <span>
+                      Selected path: {uiJourneySnapshotCapture.nodeIds.length} node(s),{" "}
+                      {uiJourneySnapshotCapture.edgeIds.length} edge(s),{" "}
+                      {uiJourneySnapshotCapture.conversation.length} conversation row(s)
+                    </span>
+                    <button
+                      type="button"
+                      style={{
+                        ...buttonStyle,
+                        fontSize: 11,
+                        padding: "2px 8px",
+                        borderColor: "#cbd5e1",
+                        color: "#475569",
+                        background: "#fff",
+                        opacity:
+                          selectedUiJourneySnapshotPresetId ||
+                          recalledUiJourneyNodeIds.length > 0 ||
+                          recalledUiJourneyEdgeIds.length > 0
+                            ? 1
+                            : 0.5,
+                        cursor:
+                          selectedUiJourneySnapshotPresetId ||
+                          recalledUiJourneyNodeIds.length > 0 ||
+                          recalledUiJourneyEdgeIds.length > 0
+                            ? "pointer"
+                            : "not-allowed",
+                      }}
+                      onClick={clearRecalledUiJourneySnapshot}
+                      disabled={
+                        !selectedUiJourneySnapshotPresetId &&
+                        recalledUiJourneyNodeIds.length === 0 &&
+                        recalledUiJourneyEdgeIds.length === 0
+                      }
+                    >
+                      Clear recalled path
+                    </button>
+                  </div>
+
+                  {uiJourneySnapshotPresets.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
+                      No snapshots yet. Select a path and save one.
+                    </p>
+                  ) : (
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: 6,
+                        maxHeight: 230,
+                        overflowY: "auto",
+                      }}
+                    >
+                      {uiJourneySnapshotPresets.map((preset) => {
+                        const isSelected =
+                          selectedUiJourneySnapshotPresetId === preset.id;
+
+                        return (
+                          <div
+                            key={`ui-journey-snapshot:${preset.id}`}
+                            style={{
+                              border: `1px solid ${isSelected ? "#818cf8" : "#cbd5e1"}`,
+                              borderRadius: 8,
+                              background: isSelected ? "#eef2ff" : "#fff",
+                              padding: 8,
+                              display: "grid",
+                              gap: 6,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "flex-start",
+                                justifyContent: "space-between",
+                                gap: 8,
+                              }}
+                            >
+                              <div style={{ minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    color: "#312e81",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                  title={preset.name}
+                                >
+                                  {preset.name}
+                                </div>
+                                <div style={{ fontSize: 10, color: "#4338ca", marginTop: 2 }}>
+                                  {preset.nodeIds.length} node(s) • {preset.edgeIds.length} edge(s)
+                                </div>
+                                <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
+                                  Updated {formatDateTime(preset.updatedAt)}
+                                </div>
+                              </div>
+
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <button
+                                  type="button"
+                                  style={{
+                                    ...buttonStyle,
+                                    fontSize: 10,
+                                    padding: "2px 8px",
+                                    borderColor: "#818cf8",
+                                    color: "#3730a3",
+                                    background: "#eef2ff",
+                                    fontWeight: 700,
+                                  }}
+                                  onClick={() => recallUiJourneySnapshotPreset(preset.id)}
+                                >
+                                  Recall
+                                </button>
+                                <button
+                                  type="button"
+                                  style={{
+                                    ...buttonStyle,
+                                    fontSize: 10,
+                                    padding: "2px 8px",
+                                    borderColor: "#fca5a5",
+                                    color: "#b91c1c",
+                                    background: "#fff",
+                                    fontWeight: 700,
+                                  }}
+                                  onClick={() => deleteUiJourneySnapshotPreset(preset.id)}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
           </>
         )}
 
