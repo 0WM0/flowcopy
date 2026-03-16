@@ -7182,8 +7182,7 @@ export default function Page() {
           </>
         )}
 
-        {isControlledLanguagePanelOpen && (
-          <section
+        <section
             style={{
               border: "1px solid #bfdbfe",
               borderRadius: 8,
@@ -7934,9 +7933,8 @@ export default function Page() {
               </div>
             )}
           </section>
-        )}
 
-        {isAdminPanelOpen && (
+        {activeSidePanelTab === "admin" && (
           <section
             style={{
               border: "1px solid #d4d4d8",
