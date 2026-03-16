@@ -32,6 +32,125 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-16-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session delivered a side-panel information architecture pass and a CLP-to-inspector editing flow upgrade.
+
+The editor side panel now uses explicit tabs to separate concerns:
+
+- **Edit** (node/field editing + CLP)
+- **Journey** (UI Journey conversation + snapshot workflows)
+- **Admin** (global option management)
+
+In the same session line, inspector field assignment UX moved from per-field glossary term pills/dropdowns to a unified Term Registry picker model (📋 button per supported field), and canvas node cards were visually tightened for denser authoring.
+
+## 2) Core Data Model
+
+No persisted schema contracts were changed.
+
+Runtime/UI state in `app/page.tsx` was expanded/refined for the new interaction model:
+
+- `activeSidePanelTab: "edit" | "journey" | "admin"`
+- `openControlledLanguageFieldType: DynamicRegistryTrackedField | null`
+- `inspectorRegistryPickerSearchQuery: string`
+
+Registry target resolution and labeling were normalized via helper paths for dynamic fields:
+
+- `parseMenuTermRegistryField(...)`
+- `parseRibbonCellRegistryField(...)`
+- `activeInspectorRegistryPickerField` (derived)
+
+## 3) Persistence and Migration Strategy
+
+Persistence/migration behavior was unchanged:
+
+- no localStorage key changes
+- no project payload shape changes
+- no import/export contract changes
+
+All tabbing and registry-picker updates are interaction-layer/state-layer behavior over existing persisted project data.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering/sequence logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Panel tabbing, registry assignment UX, and node visual-density adjustments are orthogonal to graph sequencing.
+
+## 5) Node Rendering and Shape System
+
+Rendering updates were applied in two places:
+
+1. **`app/page.tsx` side panel rendering**
+   - introduced top tab bar (`Edit`, `Journey`, `Admin`)
+   - wrapped edit content under `activeSidePanelTab === "edit"`
+   - moved journey controls/snapshot UI under `activeSidePanelTab === "journey"`
+   - scoped admin controls under `activeSidePanelTab === "admin"`
+
+2. **`app/components/FlowCopyNode.tsx` node-card density pass**
+   - reduced menu/ribbon/default interior spacing and control footprint for leaner cards
+   - retained existing node-type shape contracts and handle semantics
+   - removed canvas glossary button surface from node cards, reinforcing inspector-side registry assignment flow
+
+Additionally, fallback visual sizing in `app/lib/node-utils.ts` remains compatible with denser node styling (no contract change).
+
+## 6) Editor Interaction Model
+
+### Side panel behavior
+
+- user can switch among `Edit`, `Journey`, and `Admin` tabs without leaving canvas mode
+- CLP and node editing stay in `Edit`
+- journey conversation/snapshot actions now live in dedicated `Journey`
+- admin option controls remain isolated in `Admin`
+
+### Inspector field assignment behavior
+
+- supported inspector fields now open a Term Registry picker via a compact 📋 button
+- picker supports search (`inspectorRegistryPickerSearchQuery`) and term-type filtering based on target field
+- assignment can target:
+  - default content fields (`title`, `body_text`, CTA/helper/error, `notes`)
+  - menu terms (`menu_term:[id]`)
+  - ribbon cell fields (`ribbon_cell:[id]:label|key_command|tool_tip`)
+
+This replaced prior per-field glossary-pill mechanics with one consistent registry-backed assignment workflow.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added side-panel tab state and tab-button UI in `app/page.tsx`.
+2. Split panel rendering into explicit `edit/journey/admin` conditional sections.
+3. Moved journey snapshot/conversation controls into the `Journey` tab.
+4. Reworked inspector field term insertion to use a unified registry picker with dynamic field parsing.
+5. Replaced glossary-pill style field actions with compact registry-picker buttons.
+6. Tightened node-card spacing/styles and removed canvas glossary button affordances in `FlowCopyNode`.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operational notes:
+
+- session implementation spanned commit line including:
+  - `7da50b0` (registry picker refactor)
+  - `23c8e09` (leaner nodes, remove canvas glossary buttons)
+  - `4637987` / `edcb72b` / `5a0597b` / `1a0bbbc` (side-panel tab architecture and journey-tab placement)
+
+## 9) Recommended Next Steps
+
+1. Add focused UI tests for side-panel tab gating (`Edit`/`Journey`/`Admin`) and content isolation.
+2. Add inspector registry-picker tests for dynamic field targeting (default/menu/ribbon).
+3. Add regression tests ensuring journey snapshot actions are reachable only through the `Journey` tab.
+4. Consider extracting side-panel tab sections into dedicated components to reduce `app/page.tsx` coupling.
+
 ##03-14-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.

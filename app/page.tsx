@@ -927,8 +927,6 @@ export default function Page() {
   const [activeGlossaryHighlightKey, setActiveGlossaryHighlightKey] = useState<
     string | null
   >(null);
-  const [isControlledLanguagePanelOpen, setIsControlledLanguagePanelOpen] =
-    useState(false);
   const [clpActiveView, setClpActiveView] = useState<"audit" | "registry">("audit");
   const [registrySearchQuery, setRegistrySearchQuery] = useState<string>("");
   const [registryFilterStatus, setRegistryFilterStatus] = useState<
@@ -954,7 +952,6 @@ export default function Page() {
   const [activeSidePanelTab, setActiveSidePanelTab] = useState<
     "edit" | "journey" | "admin"
   >("edit");
-  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isProjectSequencePanelOpen, setIsProjectSequencePanelOpen] = useState(false);
   const [isUiJourneyConversationOpen, setIsUiJourneyConversationOpen] = useState(false);
   const [uiJourneyConversationSnapshot, setUiJourneyConversationSnapshot] = useState<
@@ -969,7 +966,6 @@ export default function Page() {
   const [recalledUiJourneyNodeIds, setRecalledUiJourneyNodeIds] = useState<string[]>([]);
   const [recalledUiJourneyEdgeIds, setRecalledUiJourneyEdgeIds] = useState<string[]>([]);
   const [uiJourneySnapshotDraftName, setUiJourneySnapshotDraftName] = useState("");
-  const [isUiJourneySnapshotsPanelOpen, setIsUiJourneySnapshotsPanelOpen] = useState(true);
   const [showNodeIdsOnCanvas, setShowNodeIdsOnCanvas] = useState(false);
   const [showDefaultNodeTitleOnCanvas, setShowDefaultNodeTitleOnCanvas] =
     useState(false);
@@ -7722,26 +7718,9 @@ export default function Page() {
                 <div style={{ fontSize: 12, color: "#3730a3", fontWeight: 700 }}>
                   Journey Snapshots
                 </div>
-                <button
-                  type="button"
-                  style={{
-                    ...buttonStyle,
-                    fontSize: 11,
-                    padding: "2px 8px",
-                    borderColor: "#a5b4fc",
-                    color: "#3730a3",
-                    background: "#eef2ff",
-                  }}
-                  onClick={() =>
-                    setIsUiJourneySnapshotsPanelOpen((isOpen) => !isOpen)
-                  }
-                >
-                  {isUiJourneySnapshotsPanelOpen ? "Hide" : "Show"}
-                </button>
               </div>
 
-              {isUiJourneySnapshotsPanelOpen && (
-                <>
+              <>
                   <p style={{ margin: 0, fontSize: 11, color: "#4c1d95" }}>
                     Save the currently selected node path and conversation so you can
                     quickly recall and review the same journey later.
@@ -7939,8 +7918,7 @@ export default function Page() {
                       })}
                     </div>
                   )}
-                </>
-              )}
+              </>
             </section>
           </>
         )}
