@@ -7463,15 +7463,15 @@ export default function Page() {
                               assignRegistryEntryToInspectorField(clpRegistryFieldFilter, entry)
                             }
                           >
-                            <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
                               {entry.value}
-                            </span>
-                            <span style={{ fontSize: 10, color: "#475569" }}>
+                            </div>
+                            <div style={{ fontSize: 10, color: "#64748b" }}>
                               Key: {entry.friendlyId || "No key"}
-                            </span>
-                            <span style={{ fontSize: 10, color: "#1e3a8a" }}>
+                            </div>
+                            <div style={{ fontSize: 10, color: "#64748b" }}>
                               {assignmentStatus}
-                            </span>
+                            </div>
                           </button>
                         );
                       })
@@ -7618,6 +7618,7 @@ export default function Page() {
                         <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
                           <div
                             style={{
+                              fontSize: 12,
                               fontWeight: 700,
                               color: "#0f172a",
                               overflow: "hidden",
