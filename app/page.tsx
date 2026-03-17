@@ -9973,39 +9973,71 @@ export default function Page() {
               <div
                 style={{
                   padding: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 0,
                   maxHeight: "min(72vh, 640px)",
                   overflowY: "auto",
                 }}
               >
                 <div
                   style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: "#64748b",
-                    opacity: 0.75,
-                    letterSpacing: 0.6,
-                    textTransform: "uppercase",
-                    textAlign: "center",
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "stretch",
                   }}
                 >
-                  Sequence Start
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      flexShrink: 0,
+                      width: 28,
+                      paddingTop: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: "#2B6CB0",
+                        marginLeft: 10,
+                        flexShrink: 0,
+                      }}
+                    />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0, paddingTop: 6 }}>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: "#5A7FA3",
+                        letterSpacing: 0.6,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Sequence Start
+                    </div>
+                  </div>
                 </div>
 
                 {uiJourneyConversationSnapshot.map((entry, entryIndex) => {
-                  const stepCounterLabel = `${entryIndex + 1} of ${uiJourneyConversationSnapshot.length}`;
-                  const heading = `${entry.sequence ?? "-"} - ${entry.title || "Untitled"}`;
+                  const centeredHeading = entry.title || "Untitled";
+                  const regularHeading = entry.title || "Untitled";
                   const isFrameEntry = entry.nodeType === "frame";
                   const isCenteredHeaderEntry =
                     entry.nodeType === "frame" || entry.nodeType === "ribbon";
                   const isOrphanEntry = entry.connectionMeta.isOrphan;
-                  const headingColor = isOrphanEntry ? "#dc2626" : "#64748b";
-                  const contentColor = isOrphanEntry ? "#7f1d1d" : "#0f172a";
-                  const labelColor = isOrphanEntry ? "#b91c1c" : "#64748b";
+                  const headingColor = isOrphanEntry ? "#dc2626" : "#2B6CB0";
+                  const contentColor = isOrphanEntry ? "#7f1d1d" : "#1A365D";
+                  const labelColor = isOrphanEntry ? "#b91c1c" : "#5A7FA3";
                   const conversationFieldLabelStyle: React.CSSProperties = {
                     fontSize: 10,
                     fontWeight: 600,
                     color: labelColor,
-                    opacity: isOrphanEntry ? 0.82 : 0.68,
+                    opacity: isOrphanEntry ? 0.82 : 1,
                     textTransform: "uppercase",
                     letterSpacing: 0.7,
                     lineHeight: 1.3,
@@ -10015,6 +10047,17 @@ export default function Page() {
                     fontWeight: 500,
                     color: contentColor,
                     lineHeight: 1.45,
+                  };
+                  const regularFieldLabelStyle: React.CSSProperties = {
+                    fontSize: 11,
+                    color: "#5A7FA3",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                  };
+                  const regularFieldValueStyle: React.CSSProperties = {
+                    fontSize: 14,
+                    color: "#1A365D",
+                    fontWeight: 600,
                   };
                   const hasNonEmptyConversationValue = (
                     value: string | null | undefined
@@ -10027,34 +10070,70 @@ export default function Page() {
                   const hasNotes = hasNonEmptyConversationValue(entry.notes);
                   const trimmedBodyText = hasBodyText ? entry.bodyText.trim() : "";
                   const trimmedNotes = hasNotes ? entry.notes.trim() : "";
-                  const detailColumnCount =
-                    1 + (hasBodyText ? 1 : 0) + (hasNotes ? 1 : 0);
 
                   if (isCenteredHeaderEntry) {
                     return (
-                      <section
+                      <div
                         key={`ui-journey-conversation:${entry.entryId}`}
-                        style={{
-                          border: isOrphanEntry ? "1px solid #fecaca" : "1px solid #dbeafe",
-                          borderRadius: 10,
-                          background: isOrphanEntry ? "#fef2f2" : "#f8fafc",
-                          padding: "10px 12px",
-                          textAlign: "center",
-                          display: "grid",
-                          gap: 4,
-                        }}
+                        style={{ display: "flex", gap: 16, alignItems: "stretch" }}
                       >
                         <div
                           style={{
-                            fontSize: 10,
-                            color: labelColor,
-                            opacity: 0.72,
-                            textAlign: "center",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: 0,
+                            alignSelf: "stretch",
+                            flexShrink: 0,
+                            width: 28,
+                            paddingTop: 0,
                           }}
                         >
-                          {stepCounterLabel}
+                          <div
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: "50%",
+                              marginTop: 2,
+                              background: "#2B6CB0",
+                              color: "#fff",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {entryIndex + 1}
+                          </div>
+                          {entryIndex < uiJourneyConversationSnapshot.length - 1 && (
+                            <div
+                              style={{
+                                width: 2,
+                                flex: 1,
+                                background: "#2B6CB0",
+                                margin: "0 auto",
+                                minHeight: 8,
+                              }}
+                            />
+                          )}
                         </div>
-
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <section
+                            style={{
+                              border: isOrphanEntry
+                                ? "1px solid #fecaca"
+                                : "1px solid rgba(43,108,176,0.15)",
+                              borderRadius: 10,
+                              background: isOrphanEntry ? "#fef2f2" : "#f8fafc",
+                              padding: "10px 12px",
+                              textAlign: "center",
+                              display: "grid",
+                              gap: 4,
+                              width: "100%",
+                            }}
+                          >
                         <div style={{ display: "inline-flex", justifyContent: "center" }}>
                           <span
                             style={{
@@ -10063,7 +10142,7 @@ export default function Page() {
                               color: headingColor,
                             }}
                           >
-                            {heading}
+                            {centeredHeading}
                           </span>
                           {isOrphanEntry && (
                             <span
@@ -10136,140 +10215,152 @@ export default function Page() {
                             </div>
                           </div>
                         )}
-                      </section>
+                          </section>
+                        </div>
+                      </div>
                     );
                   }
 
                   return (
-                    <section
+                    <div
                       key={`ui-journey-conversation:${entry.entryId}`}
-                      style={{
-                        border: isOrphanEntry ? "1px solid #fecaca" : "1px solid #dbeafe",
-                        borderRadius: 10,
-                        background: isOrphanEntry
-                          ? "#fef2f2"
-                          : isCenteredHeaderEntry
-                            ? "#f8fafc"
-                            : "#ffffff",
-                        padding: "10px 12px",
-                      }}
+                      style={{ display: "flex", gap: 16, alignItems: "stretch" }}
                     >
                       <div
                         style={{
-                          fontSize: 10,
-                          color: labelColor,
-                          opacity: 0.72,
-                          textAlign: "right",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: 0,
+                          alignSelf: "stretch",
+                          flexShrink: 0,
+                          width: 28,
+                          paddingTop: 0,
                         }}
                       >
-                        {stepCounterLabel}
+                        <div
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: "50%",
+                            marginTop: 2,
+                            background: "#2B6CB0",
+                            color: "#fff",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {entryIndex + 1}
+                        </div>
+                        {entryIndex < uiJourneyConversationSnapshot.length - 1 && (
+                          <div
+                            style={{
+                              width: 2,
+                              flex: 1,
+                              background: "#2B6CB0",
+                              margin: "0 auto",
+                              minHeight: 8,
+                            }}
+                          />
+                        )}
                       </div>
-
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: "#1A365D",
+                            marginTop: 8,
+                            marginBottom: 4,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <span>{regularHeading}</span>
+                          {isOrphanEntry && (
+                            <span
+                              style={{
+                                fontSize: 9,
+                                fontWeight: 700,
+                                color: "#b91c1c",
+                                border: "1px solid #fecaca",
+                                borderRadius: 999,
+                                background: "#fee2e2",
+                                padding: "1px 6px",
+                                lineHeight: 1.35,
+                              }}
+                            >
+                              (Orphaned)
+                            </span>
+                          )}
+                        </div>
+                        <section
+                          style={{
+                            border: isOrphanEntry
+                              ? "1px solid #fecaca"
+                              : "1px solid rgba(43,108,176,0.15)",
+                            borderRadius: 10,
+                            background: isOrphanEntry ? "#fef2f2" : "#ffffff",
+                            padding: "10px 12px",
+                            width: "100%",
+                          }}
+                        >
                       <div
                         style={{
                           display: "grid",
-                          gridTemplateColumns: `repeat(${detailColumnCount}, minmax(0, 1fr))`,
-                          gap: 12,
+                          gap: 6,
                         }}
                       >
-                        <div style={{ display: "grid", gap: 4 }}>
+                        {visibleFields.length > 0 ? (
+                          visibleFields.map((field) => (
+                            <div
+                              key={`${entry.nodeId}:${field.label}`}
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "110px 1fr",
+                                gap: 4,
+                                alignItems: "baseline",
+                              }}
+                            >
+                              <div style={regularFieldLabelStyle}>{field.label}</div>
+                              <div style={regularFieldValueStyle}>{field.value.trim()}</div>
+                            </div>
+                          ))
+                        ) : (
                           <div
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "flex-start",
-                              flexWrap: "wrap",
-                              gap: 6,
+                              fontSize: 12,
+                              color: isOrphanEntry ? "#b91c1c" : "#94a3b8",
                               textAlign: "left",
+                              fontStyle: "italic",
                             }}
                           >
-                            <span
-                              style={{
-                                fontWeight: 600,
-                                fontSize: 11,
-                                color: headingColor,
-                              }}
-                            >
-                              {heading}
-                            </span>
-                            {isOrphanEntry && (
-                              <span
-                                style={{
-                                  fontSize: 9,
-                                  fontWeight: 700,
-                                  color: "#b91c1c",
-                                  border: "1px solid #fecaca",
-                                  borderRadius: 999,
-                                  background: "#fee2e2",
-                                  padding: "1px 6px",
-                                  lineHeight: 1.35,
-                                }}
-                              >
-                                (Orphaned)
-                              </span>
-                            )}
+                            No copy fields provided.
                           </div>
-
-                          {visibleFields.length > 0 ? (
-                            visibleFields.map((field) => (
-                              <div
-                                key={`${entry.nodeId}:${field.label}`}
-                                style={{
-                                  display: "grid",
-                                  gap: 2,
-                                  textAlign: "left",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    ...conversationFieldLabelStyle,
-                                    textAlign: "left",
-                                  }}
-                                >
-                                  {field.label}
-                                </div>
-                                <div
-                                  style={{
-                                    ...conversationFieldValueStyle,
-                                    textAlign: "left",
-                                  }}
-                                >
-                                  {field.value.trim()}
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div
-                              style={{
-                                fontSize: 12,
-                                color: isOrphanEntry ? "#b91c1c" : "#94a3b8",
-                                textAlign: "left",
-                                fontStyle: "italic",
-                              }}
-                            >
-                              No copy fields provided.
-                            </div>
-                          )}
-                        </div>
+                        )}
 
                         {hasBodyText && (
-                          <div style={{ display: "grid", alignContent: "start", gap: 2 }}>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "110px 1fr",
+                              gap: 4,
+                              alignItems: "baseline",
+                            }}
+                          >
+                            <div style={regularFieldLabelStyle}>Body</div>
                             <div
                               style={{
-                                ...conversationFieldLabelStyle,
-                                marginBottom: 4,
-                                textAlign: "left",
-                              }}
-                            >
-                              Body Text
-                            </div>
-                            <div
-                              style={{
-                                ...conversationFieldValueStyle,
+                                ...regularFieldValueStyle,
                                 fontSize: 14,
                                 textAlign: "left",
                                 whiteSpace: "pre-wrap",
-                                minHeight: 16,
                               }}
                             >
                               {trimmedBodyText}
@@ -10278,46 +10369,77 @@ export default function Page() {
                         )}
 
                         {hasNotes && (
-                          <div style={{ display: "grid", alignContent: "start", gap: 2 }}>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "110px 1fr",
+                              gap: 4,
+                              alignItems: "baseline",
+                            }}
+                          >
+                            <div style={regularFieldLabelStyle}>Notes</div>
                             <div
                               style={{
-                                ...conversationFieldLabelStyle,
-                                marginBottom: 4,
-                                textAlign: "left",
-                              }}
-                            >
-                              Notes
-                            </div>
-                            <div
-                              style={{
-                                ...conversationFieldValueStyle,
+                                ...regularFieldValueStyle,
                                 fontSize: 14,
                                 textAlign: "left",
                                 whiteSpace: "pre-wrap",
-                                minHeight: 16,
                               }}
                             >
                               {trimmedNotes}
                             </div>
                           </div>
                         )}
+                        </div>
+                        </section>
                       </div>
-                    </section>
+                    </div>
                   );
                 })}
 
                 <div
                   style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: "#64748b",
-                    opacity: 0.75,
-                    letterSpacing: 0.6,
-                    textTransform: "uppercase",
-                    textAlign: "center",
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "stretch",
                   }}
                 >
-                  Sequence End
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      flexShrink: 0,
+                      width: 28,
+                      paddingTop: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 1,
+                        border: "2px solid #2B6CB0",
+                        marginLeft: 10,
+                        boxSizing: "border-box",
+                        background: "transparent",
+                        flexShrink: 0,
+                      }}
+                    />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0, paddingTop: 6 }}>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: "#5A7FA3",
+                        letterSpacing: 0.6,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Sequence End
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
