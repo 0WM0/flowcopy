@@ -2634,6 +2634,20 @@ export default function Page() {
   const canSaveUiJourneySnapshotPreset =
     uiJourneySnapshotCapture.nodeIds.length > 0;
 
+  const uiJourneyConversationPathName = useMemo(() => {
+    if (selectedUiJourneySnapshotPresetId) {
+      const selectedPreset = uiJourneySnapshotPresets.find(
+        (preset) => preset.id === selectedUiJourneySnapshotPresetId
+      );
+
+      if (selectedPreset?.name.trim()) {
+        return selectedPreset.name.trim();
+      }
+    }
+
+    return "Current Selection";
+  }, [selectedUiJourneySnapshotPresetId, uiJourneySnapshotPresets]);
+
   const uiJourneyHighlightedNodeIdSet = useMemo(
     () => new Set(uiJourneySnapshotCapture.nodeIds),
     [uiJourneySnapshotCapture.nodeIds]
@@ -7162,12 +7176,13 @@ export default function Page() {
                               style={{
                                 ...inputStyle,
                                 fontSize: 11,
-                                background: "#f8fafc",
+                                border: "1px solid transparent",
+                                background: "transparent",
                                 color: "#334155",
-                                cursor: "not-allowed",
+                                cursor: "default",
                               }}
                               value={CONTROLLED_LANGUAGE_FIELD_LABELS[row.field_type]}
-                              readOnly
+                              readOnly={true}
                               aria-label="Field Type"
                             >
                             </input>
@@ -7175,20 +7190,16 @@ export default function Page() {
 
                           <td style={{ border: "1px solid #e2e8f0", padding: 6 }}>
                             <input
-                              style={{ ...inputStyle, fontSize: 11 }}
-                              defaultValue={row.term}
-                              onBlur={(event) =>
-                                renameControlledLanguageRowTerm(
-                                  rowKey,
-                                  event.target.value
-                                )
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  event.currentTarget.blur();
-                                }
+                              style={{
+                                ...inputStyle,
+                                fontSize: 11,
+                                border: "1px solid transparent",
+                                background: "transparent",
+                                cursor: "default",
                               }}
+                              value={row.term}
+                              readOnly={true}
+                              aria-label="Glossary Term"
                             />
                           </td>
 
@@ -9842,7 +9853,7 @@ export default function Page() {
             position: "fixed",
             inset: 0,
             zIndex: 2000,
-            background: "rgba(15, 23, 42, 0.5)",
+            background: "rgba(15, 23, 42, 0.46)",
             display: "grid",
             placeItems: "center",
             padding: 16,
@@ -9851,29 +9862,66 @@ export default function Page() {
           <div
             onClick={(event) => event.stopPropagation()}
             style={{
-              width: "min(860px, 96vw)",
-              maxHeight: "90vh",
-              overflowY: "auto",
-              border: "1px solid #cbd5e1",
-              borderRadius: 12,
-              background: "#ffffff",
-              boxShadow: "0 22px 45px rgba(15, 23, 42, 0.22)",
-              padding: 14,
+              width: "min(1040px, 96vw)",
+              maxHeight: "92vh",
+              overflow: "hidden",
+              border: "1px solid rgba(43, 108, 176, 0.22)",
+              borderRadius: 14,
+              backgroundColor: "#F0F4F8",
+              backgroundImage:
+                "linear-gradient(rgba(43, 108, 176, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(43, 108, 176, 0.08) 1px, transparent 1px)",
+              backgroundSize: "20px 20px",
+              boxShadow: "0 24px 48px rgba(15, 23, 42, 0.22)",
               display: "grid",
-              gap: 12,
+              gridTemplateRows: "auto minmax(0, 1fr)",
             }}
           >
             <div
               style={{
                 display: "flex",
-                alignItems: "center",
+                alignItems: "flex-start",
                 justifyContent: "space-between",
-                gap: 10,
+                gap: 12,
+                flexWrap: "wrap",
+                padding: "14px 16px",
+                borderBottom: "1px solid rgba(43, 108, 176, 0.2)",
+                background: "rgba(255, 255, 255, 0.78)",
               }}
             >
-              <h3 style={{ margin: 0, fontSize: 18, color: "#0f172a" }}>
-                UI Journey Conversation
-              </h3>
+              <div style={{ display: "grid", gap: 6 }}>
+                <h3 style={{ margin: 0, fontSize: 18, color: "#1A365D" }}>
+                  UI Journey Conversation
+                </h3>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: 0.7,
+                      textTransform: "uppercase",
+                      color: "#5A7FA3",
+                    }}
+                  >
+                    Saved Path
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1A365D" }}>
+                    {uiJourneyConversationPathName}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#2B6CB0",
+                      border: "1px solid rgba(43, 108, 176, 0.25)",
+                      background: "#ffffff",
+                      borderRadius: 999,
+                      padding: "2px 10px",
+                    }}
+                  >
+                    {uiJourneyConversationSnapshot.length} step(s)
+                  </span>
+                </div>
+              </div>
 
               <div
                 style={{
@@ -9890,9 +9938,9 @@ export default function Page() {
                     type="button"
                     style={{
                       ...buttonStyle,
-                      borderColor: "#bfdbfe",
-                      background: "#eff6ff",
-                      color: "#1e3a8a",
+                      borderColor: "rgba(43, 108, 176, 0.25)",
+                      background: "#ffffff",
+                      color: "#2B6CB0",
                       fontWeight: 700,
                     }}
                     onClick={() => exportUiJourneyConversation(format)}
@@ -9906,7 +9954,8 @@ export default function Page() {
                   style={{
                     ...buttonStyle,
                     borderColor: "#94a3b8",
-                    color: "#0f172a",
+                    background: "#ffffff",
+                    color: "#1A365D",
                     fontWeight: 700,
                   }}
                   onClick={closeUiJourneyConversation}
@@ -9917,11 +9966,17 @@ export default function Page() {
             </div>
 
             {uiJourneyConversationSnapshot.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
+              <p style={{ margin: 0, padding: "16px", fontSize: 13, color: "#5A7FA3" }}>
                 No nodes found in the current selection.
               </p>
             ) : (
-              <div style={{ display: "grid", gap: 10, maxHeight: 480, overflowY: "auto" }}>
+              <div
+                style={{
+                  padding: "16px",
+                  maxHeight: "min(72vh, 640px)",
+                  overflowY: "auto",
+                }}
+              >
                 <div
                   style={{
                     fontSize: 10,
