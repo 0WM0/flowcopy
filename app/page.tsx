@@ -8323,6 +8323,27 @@ export default function Page() {
           </p>
         ) : (
           <div style={{ display: "grid", gap: 10 }}>
+            <div
+              style={{
+                borderTop: "2px solid #cbd5e1",
+                marginTop: 4,
+                marginBottom: 4,
+                paddingTop: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.8,
+                }}
+              >
+                NODE IDENTITY
+              </div>
+            </div>
+
             <div style={{ fontSize: 12, color: "#52525b" }}>
               <strong>Node ID:</strong> {selectedNode.id}
               <br />
@@ -8370,6 +8391,27 @@ export default function Page() {
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            <div
+              style={{
+                borderTop: "2px solid #cbd5e1",
+                marginTop: 4,
+                marginBottom: 4,
+                paddingTop: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.8,
+                }}
+              >
+                NODE CONTENT
               </div>
             </div>
 
@@ -9247,6 +9289,27 @@ export default function Page() {
               </>
             )}
 
+            <div
+              style={{
+                borderTop: "2px solid #cbd5e1",
+                marginTop: 4,
+                marginBottom: 4,
+                paddingTop: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.8,
+                }}
+              >
+                TAGGING
+              </div>
+            </div>
+
             {selectedNode.data.node_type !== "frame" && (
               <>
                 <label>
@@ -9360,7 +9423,26 @@ export default function Page() {
                   </div>
                 </label>
 
-                <hr style={{ border: 0, borderTop: "1px solid #e4e4e7" }} />
+                <div
+                  style={{
+                    borderTop: "2px solid #cbd5e1",
+                    marginTop: 4,
+                    marginBottom: 4,
+                    paddingTop: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                      letterSpacing: 0.8,
+                    }}
+                  >
+                    ACTION TYPE
+                  </div>
+                </div>
 
                 <label>
                   <div style={inspectorFieldLabelStyle}>Action type name</div>

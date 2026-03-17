@@ -32,6 +32,115 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-17-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session unified CLP assignment flows and refreshed UI Journey Conversation readability.
+
+Three user-facing changes landed together:
+
+- CLP View 2 now absorbs the inspector field-assignment picker flow (instead of a separate picker surface)
+- Term Audit rows were tightened to read-only for core identity fields
+- UI Journey Conversation received a visual redesign (throughline rail, cards, and updated color system)
+
+## 2) Core Data Model
+
+No persisted schema contracts changed.
+
+Runtime/UI state and component contracts were updated:
+
+- `clpRegistryFieldFilter: DynamicRegistryTrackedField | null` in `app/page.tsx`
+- derived filtered assignment list via `filteredInspectorRegistryEntries`
+- `FlowCopyNode` now accepts `onRegistryPickerOpen(...)` so canvas field controls can open CLP assignment context directly
+
+No `PersistedCanvasState`, term-registry schema, or import/export payload shape changes were introduced.
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior remained unchanged:
+
+- no localStorage key changes
+- no project payload/migration changes
+- no import/export contract changes
+
+All updates were interaction/rendering-layer behavior over existing term registry and conversation data.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering/sequence logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+CLP picker consolidation and conversation visual updates are orthogonal to graph sequencing.
+
+## 5) Node Rendering and Shape System
+
+Rendering updates were concentrated in `app/page.tsx` and `app/components/FlowCopyNode.tsx`:
+
+1. **CLP View 2 integration pass**
+   - inline filter banner (`Filtering: ...`) for active assignment target
+   - filtered registry entry list rendered in-panel when assignment context is active
+   - spacing/typography polish for registry row text density
+
+2. **Canvas-to-CLP registry affordances**
+   - `FlowCopyNode` adds compact “Open CLP registry” button styling/handlers on supported canvas edit controls
+   - these controls route to `onRegistryPickerOpen(...)`
+
+3. **Conversation modal visual refresh**
+   - throughline rail and connector-dot treatment
+   - card/tile layout refinements and stronger hierarchy
+   - updated palette values (e.g., `#2B6CB0`, `#1A365D`) with orphan styling retained
+
+4. **Term Audit presentation hardening**
+   - Field Type and Glossary Term now render as read-only inputs in audit rows
+
+## 6) Editor Interaction Model
+
+CLP assignment behavior is now consolidated:
+
+- field targeting uses `clpRegistryFieldFilter`
+- search box context switches between global registry search and active field-filter search
+- selecting a filtered entry assigns directly to the active inspector/canvas target field
+- closing filter context clears targeted assignment mode
+
+Term Audit interaction now emphasizes review over mutation for identity columns:
+
+- Field Type and Glossary Term are not directly editable in the audit row UI
+
+UI Journey Conversation interaction semantics remain the same (open/export/close), but scanning readability is improved via the new throughline/card composition.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Merged inspector registry picker workflow into CLP View 2 using `clpRegistryFieldFilter`-driven rendering.
+2. Added canvas-to-CLP assignment entry points in `FlowCopyNode` through `onRegistryPickerOpen(...)`.
+3. Polished CLP registry row spacing/typography for denser and clearer value/key display.
+4. Made Term Audit field-type and glossary-term cells read-only.
+5. Refined UI Journey Conversation with throughline rail, connector markers, updated card layout, and refreshed color hierarchy.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operational notes:
+
+- implementation line covered commits: `bd5f4a9`, `074d3b5`, `cb15f85`, `47d9be4`, `9641b05`
+- no migration/backfill steps were required for this session
+
+## 9) Recommended Next Steps
+
+1. Add focused tests for CLP merged-picker assignment flow (filter open/assign/clear).
+2. Add regression tests confirming Term Audit read-only constraints remain enforced.
+3. Add visual regression/snapshot coverage for conversation throughline + orphan card styling.
+4. Consider extracting conversation modal presentational primitives to reduce `app/page.tsx` rendering complexity.
+
 ##03-16-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
