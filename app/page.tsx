@@ -4058,6 +4058,16 @@ export default function Page() {
     []
   );
 
+  const openRegistryPickerForNodeField = useCallback(
+    (nodeId: string, field: DynamicRegistryTrackedField) => {
+      setSelectedEdgeId(null);
+      setSelectedNodeId(nodeId);
+      setSelectedNodeIds([nodeId]);
+      toggleInspectorRegistryPickerForField(field);
+    },
+    [toggleInspectorRegistryPickerForField]
+  );
+
   const closeInspectorRegistryPicker = useCallback(() => {
     setOpenControlledLanguageFieldType(null);
     setClpRegistryFieldFilter(null);
@@ -4394,6 +4404,7 @@ export default function Page() {
           {...props}
           onBeforeChange={() => captureUndoSnapshotRef.current()}
           onCommitRegistryField={syncFieldToRegistry}
+          onRegistryPickerOpen={openRegistryPickerForNodeField}
           menuTermGlossaryTerms={menuTermGlossaryTermsRef.current}
           glossaryHighlightedNodeIds={glossaryHighlightedNodeIdSet}
           showNodeId={showNodeIdsOnCanvas}
@@ -4407,6 +4418,7 @@ export default function Page() {
     }),
     [
       glossaryHighlightedNodeIdSet,
+      openRegistryPickerForNodeField,
       showDefaultNodeTitleOnCanvas,
       showNodeIdsOnCanvas,
       showMenuTermDeleteBlockedMessage,
@@ -7620,7 +7632,7 @@ export default function Page() {
                           <div
                             style={{
                               fontSize: 10,
-                              color: "#1e3a8a",
+                              color: "#64748b",
                               whiteSpace: "nowrap",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
@@ -7628,6 +7640,19 @@ export default function Page() {
                             title={`Key: ${entry.friendlyId || "No key"}`}
                           >
                             Key: {entry.friendlyId || "No key"}
+                          </div>
+
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: "#64748b",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                            title={assignmentStatus}
+                          >
+                            {assignmentStatus}
                           </div>
 
                           <div
@@ -7799,16 +7824,6 @@ export default function Page() {
                             </button>
                           )}
 
-                          <div
-                            style={{
-                              fontSize: 10,
-                              color: entry.assignedNodeId ? "#047857" : "#b45309",
-                              fontWeight: 700,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {assignmentStatus}
-                          </div>
                         </div>
                       </div>
                       );

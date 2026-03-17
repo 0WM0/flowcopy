@@ -91,6 +91,15 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
     field: RegistryTrackedField | `menu_term:[${string}]` | `ribbon_cell:[${string}]:label` | `ribbon_cell:[${string}]:key_command` | `ribbon_cell:[${string}]:tool_tip`,
     value: string
   ) => void;
+  onRegistryPickerOpen: (
+    nodeId: string,
+    field:
+      | RegistryTrackedField
+      | `menu_term:[${string}]`
+      | `ribbon_cell:[${string}]:label`
+      | `ribbon_cell:[${string}]:key_command`
+      | `ribbon_cell:[${string}]:tool_tip`
+  ) => void;
   menuTermGlossaryTerms: string[];
   glossaryHighlightedNodeIds: ReadonlySet<string>;
   showNodeId: boolean;
@@ -130,12 +139,28 @@ const buildRibbonCellRegistryField = (
   | `ribbon_cell:[${string}]:key_command`
   | `ribbon_cell:[${string}]:tool_tip` => `ribbon_cell:[${cellId}]:${field}`;
 
+const getCanvasRegistryButtonStyle = (): React.CSSProperties => ({
+  ...buttonStyle,
+  width: 16,
+  height: 16,
+  minWidth: 16,
+  padding: 0,
+  borderRadius: 4,
+  fontSize: 11,
+  lineHeight: 1,
+  borderColor: "#d4d4d8",
+  background: "#fff",
+  color: "#1e3a8a",
+  flexShrink: 0,
+});
+
 function FlowCopyNode({
   id,
   data,
   selected,
   onBeforeChange,
   onCommitRegistryField,
+  onRegistryPickerOpen,
   menuTermGlossaryTerms,
   glossaryHighlightedNodeIds,
   showNodeId,
@@ -1052,41 +1077,63 @@ function FlowCopyNode({
               >
                 Key Command
               </div>
-              <input
-                className="nodrag"
-                style={{
-                  ...inputStyle,
-                  fontSize: 11,
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                }}
-                value={editingRibbonCell.key_command}
-                maxLength={RIBBON_CELL_MAX_KEY_COMMAND_LENGTH}
-                onPointerDown={stopNodeSelectionPropagation}
-                onMouseDown={stopNodeSelectionPropagation}
-                onClick={stopNodeSelectionPropagation}
-                onChange={(event) =>
-                  updateRibbonCellField(
-                    editingRibbonCell.id,
-                    "key_command",
-                    event.target.value
-                  )
-                }
-                onBlur={(event) =>
-                  commitRibbonCellRegistryField(
-                    editingRibbonCell.id,
-                    "key_command",
-                    event.currentTarget.value
-                  )
-                }
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") {
-                    return;
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input
+                  className="nodrag"
+                  style={{
+                    ...inputStyle,
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 11,
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                  }}
+                  value={editingRibbonCell.key_command}
+                  maxLength={RIBBON_CELL_MAX_KEY_COMMAND_LENGTH}
+                  onPointerDown={stopNodeSelectionPropagation}
+                  onMouseDown={stopNodeSelectionPropagation}
+                  onClick={stopNodeSelectionPropagation}
+                  onChange={(event) =>
+                    updateRibbonCellField(
+                      editingRibbonCell.id,
+                      "key_command",
+                      event.target.value
+                    )
                   }
+                  onBlur={(event) =>
+                    commitRibbonCellRegistryField(
+                      editingRibbonCell.id,
+                      "key_command",
+                      event.currentTarget.value
+                    )
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                      return;
+                    }
 
-                  event.preventDefault();
-                  event.currentTarget.blur();
-                }}
-              />
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }}
+                />
+                <button
+                  type="button"
+                  className="nodrag"
+                  style={getCanvasRegistryButtonStyle()}
+                  title="Open CLP registry"
+                  aria-label="Open CLP registry"
+                  onPointerDown={stopNodeSelectionPropagation}
+                  onMouseDown={stopNodeSelectionPropagation}
+                  onClick={(event) => {
+                    stopNodeSelectionPropagation(event);
+                    onRegistryPickerOpen(
+                      id,
+                      buildRibbonCellRegistryField(editingRibbonCell.id, "key_command")
+                    );
+                  }}
+                >
+                  📋
+                </button>
+              </div>
             </label>
 
             <label>
@@ -1100,42 +1147,64 @@ function FlowCopyNode({
               >
                 Tool Tip
               </div>
-              <textarea
-                className="nodrag"
-                style={{
-                  ...inputStyle,
-                  fontSize: 11,
-                  resize: "vertical",
-                  minHeight: 44,
-                }}
-                rows={2}
-                value={editingRibbonCell.tool_tip}
-                onPointerDown={stopNodeSelectionPropagation}
-                onMouseDown={stopNodeSelectionPropagation}
-                onClick={stopNodeSelectionPropagation}
-                onChange={(event) =>
-                  updateRibbonCellField(
-                    editingRibbonCell.id,
-                    "tool_tip",
-                    event.target.value
-                  )
-                }
-                onBlur={(event) =>
-                  commitRibbonCellRegistryField(
-                    editingRibbonCell.id,
-                    "tool_tip",
-                    event.currentTarget.value
-                  )
-                }
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") {
-                    return;
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                <textarea
+                  className="nodrag"
+                  style={{
+                    ...inputStyle,
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 11,
+                    resize: "vertical",
+                    minHeight: 44,
+                  }}
+                  rows={2}
+                  value={editingRibbonCell.tool_tip}
+                  onPointerDown={stopNodeSelectionPropagation}
+                  onMouseDown={stopNodeSelectionPropagation}
+                  onClick={stopNodeSelectionPropagation}
+                  onChange={(event) =>
+                    updateRibbonCellField(
+                      editingRibbonCell.id,
+                      "tool_tip",
+                      event.target.value
+                    )
                   }
+                  onBlur={(event) =>
+                    commitRibbonCellRegistryField(
+                      editingRibbonCell.id,
+                      "tool_tip",
+                      event.currentTarget.value
+                    )
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                      return;
+                    }
 
-                  event.preventDefault();
-                  event.currentTarget.blur();
-                }}
-              />
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }}
+                />
+                <button
+                  type="button"
+                  className="nodrag"
+                  style={getCanvasRegistryButtonStyle()}
+                  title="Open CLP registry"
+                  aria-label="Open CLP registry"
+                  onPointerDown={stopNodeSelectionPropagation}
+                  onMouseDown={stopNodeSelectionPropagation}
+                  onClick={(event) => {
+                    stopNodeSelectionPropagation(event);
+                    onRegistryPickerOpen(
+                      id,
+                      buildRibbonCellRegistryField(editingRibbonCell.id, "tool_tip")
+                    );
+                  }}
+                >
+                  📋
+                </button>
+              </div>
             </label>
 
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -1336,29 +1405,50 @@ function FlowCopyNode({
               <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>
                 {displayTermFieldLabel}
               </div>
-              <input
-                className="nodrag"
-                style={inputStyle}
-                value={displayTermValue}
-                placeholder="Add term"
-                onPointerDown={stopNodeSelectionPropagation}
-                onMouseDown={stopNodeSelectionPropagation}
-                onClick={stopNodeSelectionPropagation}
-                onChange={(event) =>
-                  updateField(displayTermFieldType, event.target.value)
-                }
-                onBlur={(event) =>
-                  commitRegistryField(displayTermFieldType, event.currentTarget.value)
-                }
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") {
-                    return;
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <input
+                  className="nodrag"
+                  style={{
+                    ...inputStyle,
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                  value={displayTermValue}
+                  placeholder="Add term"
+                  onPointerDown={stopNodeSelectionPropagation}
+                  onMouseDown={stopNodeSelectionPropagation}
+                  onClick={stopNodeSelectionPropagation}
+                  onChange={(event) =>
+                    updateField(displayTermFieldType, event.target.value)
                   }
+                  onBlur={(event) =>
+                    commitRegistryField(displayTermFieldType, event.currentTarget.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                      return;
+                    }
 
-                  event.preventDefault();
-                  event.currentTarget.blur();
-                }}
-              />
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }}
+                />
+                <button
+                  type="button"
+                  className="nodrag"
+                  style={getCanvasRegistryButtonStyle()}
+                  title="Open CLP registry"
+                  aria-label="Open CLP registry"
+                  onPointerDown={stopNodeSelectionPropagation}
+                  onMouseDown={stopNodeSelectionPropagation}
+                  onClick={(event) => {
+                    stopNodeSelectionPropagation(event);
+                    onRegistryPickerOpen(id, displayTermFieldType);
+                  }}
+                >
+                  📋
+                </button>
+              </div>
             </div>
           </>
         )}
@@ -1454,28 +1544,50 @@ function FlowCopyNode({
                   </button>
 
                   <div style={{ position: "relative", paddingRight: 14, flex: 1 }}>
-                    <input
-                      className="nodrag"
-                      data-menu-term-input="true"
-                      style={inputStyle}
-                      value={menuTerm.term}
-                      placeholder="Add term"
-                      onPointerDown={stopNodeSelectionPropagation}
-                      onMouseDown={stopNodeSelectionPropagation}
-                      onClick={stopNodeSelectionPropagation}
-                      onChange={(event) => updateMenuTermById(menuTerm.id, event.target.value)}
-                      onBlur={(event) =>
-                        commitMenuTermRegistryField(menuTerm.id, event.currentTarget.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") {
-                          return;
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <input
+                        className="nodrag"
+                        data-menu-term-input="true"
+                        style={{
+                          ...inputStyle,
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                        value={menuTerm.term}
+                        placeholder="Add term"
+                        onPointerDown={stopNodeSelectionPropagation}
+                        onMouseDown={stopNodeSelectionPropagation}
+                        onClick={stopNodeSelectionPropagation}
+                        onChange={(event) => updateMenuTermById(menuTerm.id, event.target.value)}
+                        onBlur={(event) =>
+                          commitMenuTermRegistryField(menuTerm.id, event.currentTarget.value)
                         }
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter") {
+                            return;
+                          }
 
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                      }}
-                    />
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        className="nodrag"
+                        style={getCanvasRegistryButtonStyle()}
+                        title="Open CLP registry"
+                        aria-label="Open CLP registry"
+                        onPointerDown={stopNodeSelectionPropagation}
+                        onMouseDown={stopNodeSelectionPropagation}
+                        onClick={(event) => {
+                          stopNodeSelectionPropagation(event);
+                          onRegistryPickerOpen(id, buildMenuTermRegistryField(menuTerm.id));
+                        }}
+                      >
+                        📋
+                      </button>
+                    </div>
 
                     <Handle
                       type="source"
