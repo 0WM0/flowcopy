@@ -38,6 +38,93 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session was a focused side-panel usability pass to make resizing more discoverable and to allow materially wider panel widths for dense editing workflows.
+
+The editor now has:
+
+- a more visible drag handle on the panel edge
+- a wider practical maximum width ceiling (including runtime viewport-aware clamping)
+
+## 2) Core Data Model
+
+No persisted project schema or node/edge data contracts were changed.
+
+The session adjusted panel-layout constants and runtime width clamping behavior only:
+
+- `SIDE_PANEL_MAX_WIDTH` increased to `1440`
+- runtime clamp now uses viewport-proportional max (`75%` of viewport), still bounded by min/max constants
+
+## 3) Persistence and Migration Strategy
+
+Persistence/migration strategy remained unchanged.
+
+- localStorage key for panel width is unchanged (`flowcopy.editor.canvasSidePanelWidth`)
+- project/store migration contracts were not modified
+
+Only the allowed width range and clamp logic changed, so previously stored widths are still read and normalized safely.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering/sequence logic changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Panel-width and resize-handle updates are orthogonal to graph sequencing.
+
+## 5) Node Rendering and Shape System
+
+Canvas node/edge rendering contracts were unchanged.
+
+UI rendering updates were side-panel structural/styling only:
+
+- side resize handle width increased from `8` to `12`
+- handle offset adjusted from `left: -4` to `left: -6`
+- handle now shows persistent background (`#e2e8f0`) and drag-state accent (`#bfdbfe`)
+- added centered visual indicator line (`2px x 40px`, `#94a3b8`)
+
+## 6) Editor Interaction Model
+
+Side-panel resize behavior now combines discoverability and wider limits:
+
+- same pointer drag interaction model (separator + pointer handlers)
+- improved affordance from always-visible handle background/indicator
+- effective max width now computed at runtime as:
+  - `min(SIDE_PANEL_MAX_WIDTH, round(window.innerWidth * 0.75))`
+  - then clamped with `SIDE_PANEL_MIN_WIDTH`
+
+This makes the panel substantially wider on larger screens while still bounded.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Increased side-panel hard max constant from previous value to `1440`.
+2. Updated runtime clamp logic in `clampSidePanelWidth(...)` to use 75% viewport cap.
+3. Improved resize-handle visibility with larger hit area and centered indicator.
+4. Preserved existing resize persistence and drag behavior while widening practical range.
+
+## 8) Validation and Operational Notes
+
+Validation completed successfully:
+
+- `npx tsc --noEmit` ✅
+
+Operationally, users may need to drag the handle farther right once after deploy to realize the new maximum if a narrower width was already persisted.
+
+## 9) Recommended Next Steps
+
+1. Add a “Reset panel width” action for quick recovery to default.
+2. Add lightweight UI hint/tooltip on the resize handle for first-time discoverability.
+3. Add unit coverage for `clampSidePanelWidth(...)` across viewport/min/max edge cases.
+4. Consider making the viewport ratio (`0.75`) a named constant for easier tuning.
+
+##03-16-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session delivered a side-panel information architecture pass and a CLP-to-inspector editing flow upgrade.
 
 The editor side panel now uses explicit tabs to separate concerns:

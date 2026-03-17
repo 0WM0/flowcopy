@@ -943,6 +943,8 @@ export default function Page() {
   const [openControlledLanguageFieldType, setOpenControlledLanguageFieldType] = useState<
     DynamicRegistryTrackedField | null
   >(null);
+  const [clpRegistryFieldFilter, setClpRegistryFieldFilter] =
+    useState<DynamicRegistryTrackedField | null>(null);
   const [inspectorRegistryPickerSearchQuery, setInspectorRegistryPickerSearchQuery] =
     useState("");
   const [menuTermDeleteError, setMenuTermDeleteError] = useState<string | null>(null);
@@ -4048,9 +4050,9 @@ export default function Page() {
 
   const toggleInspectorRegistryPickerForField = useCallback(
     (field: DynamicRegistryTrackedField) => {
-      setOpenControlledLanguageFieldType((current) =>
-        current === field ? null : field
-      );
+      setClpActiveView("registry");
+      setOpenControlledLanguageFieldType(field);
+      setClpRegistryFieldFilter(field);
       setInspectorRegistryPickerSearchQuery("");
     },
     []
@@ -4058,6 +4060,7 @@ export default function Page() {
 
   const closeInspectorRegistryPicker = useCallback(() => {
     setOpenControlledLanguageFieldType(null);
+    setClpRegistryFieldFilter(null);
     setInspectorRegistryPickerSearchQuery("");
   }, []);
 
@@ -4169,10 +4172,8 @@ export default function Page() {
         return hasChanges ? nextRegistry : currentRegistry;
       });
 
-      closeInspectorRegistryPicker();
     },
     [
-      closeInspectorRegistryPicker,
       effectiveSelectedNodeId,
       setTermRegistry,
       updateRibbonCellField,
@@ -4222,15 +4223,15 @@ export default function Page() {
   ]);
 
   const inspectorRegistryPickerFieldLabel = useMemo(() => {
-    if (!activeInspectorRegistryPickerField) {
+    if (!clpRegistryFieldFilter) {
       return "";
     }
 
-    if (isRegistryTrackedField(activeInspectorRegistryPickerField)) {
-      return INSPECTOR_CONTENT_FIELD_LABELS[activeInspectorRegistryPickerField];
+    if (isRegistryTrackedField(clpRegistryFieldFilter)) {
+      return INSPECTOR_CONTENT_FIELD_LABELS[clpRegistryFieldFilter];
     }
 
-    const menuTermId = parseMenuTermRegistryField(activeInspectorRegistryPickerField);
+    const menuTermId = parseMenuTermRegistryField(clpRegistryFieldFilter);
     if (menuTermId) {
       const menuTermIndex = selectedMenuNodeConfig?.terms.findIndex(
         (term) => term.id === menuTermId
@@ -4240,7 +4241,7 @@ export default function Page() {
         : "Menu Term";
     }
 
-    const ribbonCellField = parseRibbonCellRegistryField(activeInspectorRegistryPickerField);
+    const ribbonCellField = parseRibbonCellRegistryField(clpRegistryFieldFilter);
     if (ribbonCellField) {
       const ribbonCell = selectedRibbonNodeConfig?.cells.find(
         (cell) => cell.id === ribbonCellField.cellId
@@ -4257,20 +4258,20 @@ export default function Page() {
       return `${cellLabel} ${fieldLabel}`;
     }
 
-    return activeInspectorRegistryPickerField;
+    return clpRegistryFieldFilter;
   }, [
-    activeInspectorRegistryPickerField,
+    clpRegistryFieldFilter,
     selectedMenuNodeConfig,
     selectedRibbonNodeConfig,
   ]);
 
   const inspectorRegistryPickerTargetTermType = useMemo(() => {
-    if (!activeInspectorRegistryPickerField) {
+    if (!clpRegistryFieldFilter) {
       return null;
     }
 
-    return getRegistryTermTypeFromField(activeInspectorRegistryPickerField);
-  }, [activeInspectorRegistryPickerField]);
+    return getRegistryTermTypeFromField(clpRegistryFieldFilter);
+  }, [clpRegistryFieldFilter]);
 
   const filteredInspectorRegistryEntries = useMemo(() => {
     if (!inspectorRegistryPickerTargetTermType) {
@@ -4297,6 +4298,12 @@ export default function Page() {
     inspectorRegistryPickerTargetTermType,
     termRegistry,
   ]);
+
+  useEffect(() => {
+    if (!openControlledLanguageFieldType && clpRegistryFieldFilter) {
+      setClpRegistryFieldFilter(null);
+    }
+  }, [clpRegistryFieldFilter, openControlledLanguageFieldType]);
 
   useEffect(() => {
     if (openControlledLanguageFieldType && !activeInspectorRegistryPickerField) {
@@ -7279,6 +7286,32 @@ export default function Page() {
                   </span>
                 </div>
 
+                {clpRegistryFieldFilter && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      padding: "6px 8px",
+                      border: "1px solid #bfdbfe",
+                      borderRadius: 6,
+                      background: "#f8fbff",
+                    }}
+                  >
+                    <div style={{ fontSize: 11, color: "#1e3a8a", fontWeight: 700 }}>
+                      Filtering: {inspectorRegistryPickerFieldLabel}
+                    </div>
+                    <button
+                      type="button"
+                      style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
+                      onClick={closeInspectorRegistryPicker}
+                    >
+                      Clear filter
+                    </button>
+                  </div>
+                )}
+
                 <div
                   style={{
                     display: "flex",
@@ -7296,51 +7329,70 @@ export default function Page() {
                       border: "1px solid #d4d4d8",
                       borderRadius: 4,
                     }}
-                    placeholder="Search terms or IDs..."
-                    value={registrySearchQuery}
-                    onChange={(event) => setRegistrySearchQuery(event.target.value)}
-                  />
-                  <select
-                    style={{
-                      padding: "4px 8px",
-                      fontSize: 11,
-                      border: "1px solid #d4d4d8",
-                      borderRadius: 4,
-                    }}
-                    value={registryFilterStatus}
-                    onChange={(event) =>
-                      setRegistryFilterStatus(
-                        event.target.value as "all" | "assigned" | "unassigned"
-                      )
+                    placeholder={
+                      clpRegistryFieldFilter
+                        ? "Search value or friendly ID..."
+                        : "Search terms or IDs..."
                     }
-                  >
-                    <option value="all">All</option>
-                    <option value="assigned">Assigned</option>
-                    <option value="unassigned">Unassigned</option>
-                  </select>
-                  <select
-                    style={{
-                      padding: "4px 8px",
-                      fontSize: 11,
-                      border: "1px solid #d4d4d8",
-                      borderRadius: 4,
+                    value={
+                      clpRegistryFieldFilter
+                        ? inspectorRegistryPickerSearchQuery
+                        : registrySearchQuery
+                    }
+                    onChange={(event) => {
+                      if (clpRegistryFieldFilter) {
+                        setInspectorRegistryPickerSearchQuery(event.target.value);
+                        return;
+                      }
+
+                      setRegistrySearchQuery(event.target.value);
                     }}
-                    value={registryFilterType}
-                    onChange={(event) => setRegistryFilterType(event.target.value)}
-                  >
-                    <option value="all">All Types</option>
-                    <option value="title">Title</option>
-                    <option value="body_text">Body Text</option>
-                    <option value="primary_cta">Primary CTA</option>
-                    <option value="secondary_cta">Secondary CTA</option>
-                    <option value="helper_text">Helper Text</option>
-                    <option value="error_text">Error Text</option>
-                    <option value="notes">Notes</option>
-                    <option value="menu_term">Menu Term</option>
-                    <option value="key_command">Key Command</option>
-                    <option value="tool_tip">Tool Tip</option>
-                    <option value="cell_label">Cell Label</option>
-                  </select>
+                  />
+                  {!clpRegistryFieldFilter && (
+                    <>
+                      <select
+                        style={{
+                          padding: "4px 8px",
+                          fontSize: 11,
+                          border: "1px solid #d4d4d8",
+                          borderRadius: 4,
+                        }}
+                        value={registryFilterStatus}
+                        onChange={(event) =>
+                          setRegistryFilterStatus(
+                            event.target.value as "all" | "assigned" | "unassigned"
+                          )
+                        }
+                      >
+                        <option value="all">All</option>
+                        <option value="assigned">Assigned</option>
+                        <option value="unassigned">Unassigned</option>
+                      </select>
+                      <select
+                        style={{
+                          padding: "4px 8px",
+                          fontSize: 11,
+                          border: "1px solid #d4d4d8",
+                          borderRadius: 4,
+                        }}
+                        value={registryFilterType}
+                        onChange={(event) => setRegistryFilterType(event.target.value)}
+                      >
+                        <option value="all">All Types</option>
+                        <option value="title">Title</option>
+                        <option value="body_text">Body Text</option>
+                        <option value="primary_cta">Primary CTA</option>
+                        <option value="secondary_cta">Secondary CTA</option>
+                        <option value="helper_text">Helper Text</option>
+                        <option value="error_text">Error Text</option>
+                        <option value="notes">Notes</option>
+                        <option value="menu_term">Menu Term</option>
+                        <option value="key_command">Key Command</option>
+                        <option value="tool_tip">Tool Tip</option>
+                        <option value="cell_label">Cell Label</option>
+                      </select>
+                    </>
+                  )}
                 </div>
 
                 <div
@@ -7351,6 +7403,69 @@ export default function Page() {
                     gap: 4,
                   }}
                 >
+                  {clpRegistryFieldFilter ? (
+                    filteredInspectorRegistryEntries.length === 0 ? (
+                      <div
+                        style={{
+                          padding: 12,
+                          fontSize: 11,
+                          color: "#64748b",
+                          textAlign: "center",
+                        }}
+                      >
+                        No matching registry entries.
+                      </div>
+                    ) : (
+                      filteredInspectorRegistryEntries.map((entry) => {
+                        const isAssignedHere =
+                          entry.assignedNodeId === effectiveSelectedNodeId &&
+                          entry.assignedField === clpRegistryFieldFilter;
+
+                        const assignedNode = entry.assignedNodeId
+                          ? nodes.find((node) => node.id === entry.assignedNodeId)
+                          : null;
+                        const nodeTitle = assignedNode?.data?.title;
+                        const trimmedNodeTitle = typeof nodeTitle === "string" ? nodeTitle.trim() : "";
+                        const assignmentStatus = entry.assignedNodeId
+                          ? trimmedNodeTitle
+                            ? `Assigned to: ${trimmedNodeTitle}`
+                            : "Assigned"
+                          : "Unassigned";
+
+                        return (
+                          <button
+                            key={`clp-filtered-registry-entry:${entry.id}`}
+                            type="button"
+                            style={{
+                              ...buttonStyle,
+                              textAlign: "left",
+                              justifyContent: "flex-start",
+                              flexDirection: "column",
+                              alignItems: "flex-start",
+                              gap: 2,
+                              borderColor: isAssignedHere ? "#93c5fd" : "#d4d4d8",
+                              background: isAssignedHere ? "#dbeafe" : "#fff",
+                              padding: "6px 8px",
+                            }}
+                            onClick={() =>
+                              assignRegistryEntryToInspectorField(clpRegistryFieldFilter, entry)
+                            }
+                          >
+                            <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
+                              {entry.value}
+                            </span>
+                            <span style={{ fontSize: 10, color: "#475569" }}>
+                              Key: {entry.friendlyId || "No key"}
+                            </span>
+                            <span style={{ fontSize: 10, color: "#1e3a8a" }}>
+                              {assignmentStatus}
+                            </span>
+                          </button>
+                        );
+                      })
+                    )
+                  ) : (
+                    <>
                   <div
                     style={{
                       display: "grid",
@@ -7441,6 +7556,16 @@ export default function Page() {
                       const isRegistryEntryHighlightActive =
                         activeRegistryHighlightEntryId === entry.id &&
                         entry.assignedNodeId !== null;
+                      const assignedNode = entry.assignedNodeId
+                        ? nodes.find((node) => node.id === entry.assignedNodeId)
+                        : null;
+                      const nodeTitle = assignedNode?.data?.title;
+                      const trimmedNodeTitle = typeof nodeTitle === "string" ? nodeTitle.trim() : "";
+                      const assignmentStatus = entry.assignedNodeId
+                        ? trimmedNodeTitle
+                          ? `Assigned to: ${trimmedNodeTitle}`
+                          : "Assigned"
+                        : "Unassigned";
 
                       return (
                       <div
@@ -7490,6 +7615,19 @@ export default function Page() {
                             title={entry.value}
                           >
                             {entry.value || "(empty)"}
+                          </div>
+
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: "#1e3a8a",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                            title={`Key: ${entry.friendlyId || "No key"}`}
+                          >
+                            Key: {entry.friendlyId || "No key"}
                           </div>
 
                           <div
@@ -7669,12 +7807,14 @@ export default function Page() {
                               whiteSpace: "nowrap",
                             }}
                           >
-                            {entry.assignedNodeId ? "Assigned" : "Unassigned"}
+                            {assignmentStatus}
                           </div>
                         </div>
                       </div>
                       );
                     })
+                  )}
+                    </>
                   )}
                 </div>
               </div>
@@ -8165,109 +8305,6 @@ export default function Page() {
               <br />
               <strong>Y position:</strong> {Math.round(selectedNode.position.y)}
             </div>
-
-            {activeInspectorRegistryPickerField && (
-              <section
-                style={{
-                  border: "1px solid #bfdbfe",
-                  borderRadius: 8,
-                  padding: 8,
-                  display: "grid",
-                  gap: 8,
-                  background: "#f8fbff",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1e3a8a" }}>
-                    CLP Registry · {inspectorRegistryPickerFieldLabel}
-                  </div>
-
-                  <button
-                    type="button"
-                    style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
-                    onClick={closeInspectorRegistryPicker}
-                  >
-                    Back
-                  </button>
-                </div>
-
-                <div style={{ fontSize: 11, color: "#334155" }}>
-                  Showing {getTermRegistryTermTypeLabel(inspectorRegistryPickerTargetTermType)}
-                </div>
-
-                <input
-                  style={{ ...inputStyle, fontSize: 11 }}
-                  placeholder="Search value or friendly ID..."
-                  value={inspectorRegistryPickerSearchQuery}
-                  onChange={(event) =>
-                    setInspectorRegistryPickerSearchQuery(event.target.value)
-                  }
-                />
-
-                <div style={{ display: "grid", gap: 6, maxHeight: 260, overflowY: "auto" }}>
-                  {filteredInspectorRegistryEntries.length === 0 ? (
-                    <div style={{ fontSize: 11, color: "#64748b" }}>
-                      No matching registry entries.
-                    </div>
-                  ) : (
-                    filteredInspectorRegistryEntries.map((entry) => {
-                      const isAssignedHere =
-                        entry.assignedNodeId === effectiveSelectedNodeId &&
-                        entry.assignedField === activeInspectorRegistryPickerField;
-
-                      const assignmentStatus = isAssignedHere
-                        ? "Assigned here"
-                        : entry.assignedNodeId
-                          ? `Assigned to ${entry.assignedNodeId}${
-                              entry.assignedField ? ` · ${entry.assignedField}` : ""
-                            }`
-                          : "Unassigned";
-
-                      return (
-                        <button
-                          key={`inspector-registry-entry:${entry.id}`}
-                          type="button"
-                          style={{
-                            ...buttonStyle,
-                            textAlign: "left",
-                            justifyContent: "flex-start",
-                            flexDirection: "column",
-                            alignItems: "flex-start",
-                            gap: 2,
-                            borderColor: isAssignedHere ? "#93c5fd" : "#d4d4d8",
-                            background: isAssignedHere ? "#dbeafe" : "#fff",
-                            padding: "6px 8px",
-                          }}
-                          onClick={() =>
-                            assignRegistryEntryToInspectorField(
-                              activeInspectorRegistryPickerField,
-                              entry
-                            )
-                          }
-                        >
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
-                            {entry.value}
-                          </span>
-                          <span style={{ fontSize: 10, color: "#475569" }}>
-                            ID: {entry.friendlyId || "—"}
-                          </span>
-                          <span style={{ fontSize: 10, color: "#1e3a8a" }}>
-                            {assignmentStatus}
-                          </span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </section>
-            )}
 
             <div>
               <div style={inspectorFieldLabelStyle}>Node type</div>
