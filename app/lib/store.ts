@@ -24,8 +24,19 @@ import { sanitizeEdgesForStorage } from "./edge-utils";
 import { cleanedOptions, sanitizeSerializableFlowNodes } from "./node-utils";
 import { sanitizeUiJourneySnapshotPresets } from "./ui-journey";
 
-export const clampSidePanelWidth = (value: number): number =>
-  Math.min(SIDE_PANEL_MAX_WIDTH, Math.max(SIDE_PANEL_MIN_WIDTH, Math.round(value)));
+export const clampSidePanelWidth = (value: number): number => {
+  const runtimePanelMaxWidth =
+    typeof window === "undefined"
+      ? SIDE_PANEL_MAX_WIDTH
+      : Math.round(window.innerWidth * 0.75);
+
+  const effectiveMaxWidth = Math.max(
+    SIDE_PANEL_MIN_WIDTH,
+    Math.min(SIDE_PANEL_MAX_WIDTH, runtimePanelMaxWidth)
+  );
+
+  return Math.min(effectiveMaxWidth, Math.max(SIDE_PANEL_MIN_WIDTH, Math.round(value)));
+};
 
 export const readInitialSidePanelWidth = (): number => {
   if (typeof window === "undefined") {

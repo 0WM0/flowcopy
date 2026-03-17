@@ -6537,14 +6537,27 @@ export default function Page() {
           style={{
             position: "absolute",
             top: 0,
-            left: -4,
-            width: 8,
+            left: -6,
+            width: 12,
             height: "100%",
             cursor: "col-resize",
             zIndex: 20,
-            background: isResizingSidePanel ? "#bfdbfe" : "transparent",
+            background: isResizingSidePanel ? "#bfdbfe" : "#e2e8f0",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
           }}
-        />
+        >
+          <div
+            aria-hidden
+            style={{
+              width: 2,
+              height: 40,
+              borderRadius: 1,
+              background: "#94a3b8",
+            }}
+          />
+        </div>
         <section
           style={{
             border: "1px solid #d4d4d8",
