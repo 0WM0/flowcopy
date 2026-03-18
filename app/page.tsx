@@ -121,7 +121,6 @@ import {
   CONTROLLED_LANGUAGE_ROW_HEIGHT_PX,
   CONTROLLED_LANGUAGE_TABLE_HEADER_HEIGHT_PX,
   CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX,
-  UI_JOURNEY_CONVERSATION_EXPORT_FORMATS,
   UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS,
   DOWNLOAD_TEXT_MIME_BY_EXTENSION,
   TABLE_TEXTAREA_FIELDS,
@@ -295,6 +294,263 @@ import { useAutoSave } from "./hooks/useAutoSave";
 type ImportFeedback = {
   type: "success" | "error" | "info";
   message: string;
+};
+
+type TransferModalContext = "clp" | "conversation" | "project";
+type TransferModalMode = "export" | "import";
+type TransferModalState = {
+  mode: TransferModalMode;
+  context: TransferModalContext;
+};
+
+type TransferExportFormat = "csv" | "json";
+
+type ClpExportFieldKey =
+  | "termValue"
+  | "referenceKey"
+  | "nodeType"
+  | "sequenceNumber"
+  | "assignmentStatus";
+
+const TRANSFER_MODAL_CONTEXT_LABELS: Record<TransferModalContext, string> = {
+  clp: "Term Registry",
+  conversation: "Conversation",
+  project: "Project",
+};
+
+const CLP_EXPORT_FIELD_OPTIONS: Array<{ key: ClpExportFieldKey; label: string }> = [
+  { key: "termValue", label: "Term value" },
+  { key: "referenceKey", label: "Reference key" },
+  { key: "nodeType", label: "Node type" },
+  { key: "sequenceNumber", label: "Sequence number" },
+  { key: "assignmentStatus", label: "Assignment status" },
+];
+
+const createDefaultClpExportFieldSelection = (): Record<ClpExportFieldKey, boolean> => ({
+  termValue: true,
+  referenceKey: true,
+  nodeType: true,
+  sequenceNumber: true,
+  assignmentStatus: true,
+});
+
+const TRANSFER_PAIR_BUTTON_STYLE: React.CSSProperties = {
+  ...buttonStyle,
+  fontSize: 11,
+  lineHeight: 1,
+  padding: "2px 8px",
+  minHeight: 24,
+};
+
+type TransferModalProps = {
+  state: TransferModalState | null;
+  exportFormat: TransferExportFormat;
+  clpExportFieldSelection: Record<ClpExportFieldKey, boolean>;
+  onExportFormatChange: (nextFormat: TransferExportFormat) => void;
+  onClpExportFieldSelectionChange: (field: ClpExportFieldKey, checked: boolean) => void;
+  onClose: () => void;
+  onExport: () => void;
+};
+
+const TransferModal = ({
+  state,
+  exportFormat,
+  clpExportFieldSelection,
+  onExportFormatChange,
+  onClpExportFieldSelectionChange,
+  onClose,
+  onExport,
+}: TransferModalProps) => {
+  if (!state) {
+    return null;
+  }
+
+  const isExportMode = state.mode === "export";
+  const contextLabel = TRANSFER_MODAL_CONTEXT_LABELS[state.context];
+  const modalTitle = `${isExportMode ? "Export" : "Import"} ${contextLabel}`;
+  const formatInputName = `transfer-format:${state.mode}:${state.context}`;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={modalTitle}
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2150,
+        background: "rgba(15, 23, 42, 0.56)",
+        display: "grid",
+        placeItems: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          width: "min(560px, 94vw)",
+          maxHeight: "88vh",
+          overflowY: "auto",
+          border: "1px solid #cbd5e1",
+          borderRadius: 12,
+          background: "#ffffff",
+          boxShadow: "0 22px 45px rgba(15, 23, 42, 0.24)",
+          padding: 14,
+          display: "grid",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 18, color: "#0f172a" }}>{modalTitle}</h3>
+          <button type="button" style={TRANSFER_PAIR_BUTTON_STYLE} onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        {isExportMode ? (
+          <>
+            <section
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: 8,
+                background: "#f8fafc",
+                padding: 10,
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>Format</div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    color: "#334155",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name={formatInputName}
+                    value="csv"
+                    checked={exportFormat === "csv"}
+                    onChange={() => onExportFormatChange("csv")}
+                  />
+                  CSV
+                </label>
+
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    color: "#334155",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name={formatInputName}
+                    value="json"
+                    checked={exportFormat === "json"}
+                    onChange={() => onExportFormatChange("json")}
+                  />
+                  JSON
+                </label>
+              </div>
+            </section>
+
+            {state.context === "clp" && (
+              <section
+                style={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 8,
+                  background: "#ffffff",
+                  padding: 10,
+                  display: "grid",
+                  gap: 8,
+                }}
+              >
+                <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>Fields</div>
+
+                {CLP_EXPORT_FIELD_OPTIONS.map((fieldOption) => (
+                  <label
+                    key={`clp-export-field:${fieldOption.key}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 12,
+                      color: "#334155",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={clpExportFieldSelection[fieldOption.key]}
+                      onChange={(event) =>
+                        onClpExportFieldSelectionChange(fieldOption.key, event.target.checked)
+                      }
+                    />
+                    {fieldOption.label}
+                  </label>
+                ))}
+              </section>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button type="button" style={TRANSFER_PAIR_BUTTON_STYLE} onClick={onClose}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={{
+                  ...TRANSFER_PAIR_BUTTON_STYLE,
+                  borderColor: "#1d4ed8",
+                  background: "#1d4ed8",
+                  color: "#fff",
+                  fontWeight: 700,
+                }}
+                onClick={onExport}
+              >
+                Export
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                color: "#475569",
+                border: "1px dashed #cbd5e1",
+                borderRadius: 8,
+                background: "#f8fafc",
+                padding: "10px 12px",
+              }}
+            >
+              Column mapping coming soon
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button type="button" style={TRANSFER_PAIR_BUTTON_STYLE} onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 };
 
 type CanvasClipboardSnapshot = {
@@ -972,6 +1228,14 @@ export default function Page() {
   const [showDefaultNodeTitleOnCanvas, setShowDefaultNodeTitleOnCanvas] =
     useState(false);
   const [undoStack, setUndoStack] = useState<EditorSnapshot[]>([]);
+  const [transferModalState, setTransferModalState] = useState<TransferModalState | null>(
+    null
+  );
+  const [transferExportFormat, setTransferExportFormat] =
+    useState<TransferExportFormat>("csv");
+  const [clpExportFieldSelection, setClpExportFieldSelection] = useState<
+    Record<ClpExportFieldKey, boolean>
+  >(createDefaultClpExportFieldSelection);
   const [transferFeedback, setTransferFeedback] = useState<ImportFeedback | null>(null);
   const [autoSaveChangeCounter, setAutoSaveChangeCounter] = useState(0);
   const [sidePanelWidth, setSidePanelWidth] = useState<number>(readInitialSidePanelWidth);
@@ -2948,6 +3212,35 @@ export default function Page() {
   const closeUiJourneyConversation = useCallback(() => {
     setIsUiJourneyConversationOpen(false);
   }, []);
+
+  const openTransferModal = useCallback(
+    (mode: TransferModalMode, context: TransferModalContext) => {
+      setTransferModalState({ mode, context });
+
+      if (mode === "export") {
+        setTransferExportFormat("csv");
+
+        if (context === "clp") {
+          setClpExportFieldSelection(createDefaultClpExportFieldSelection());
+        }
+      }
+    },
+    []
+  );
+
+  const closeTransferModal = useCallback(() => {
+    setTransferModalState(null);
+  }, []);
+
+  const handleClpExportFieldSelectionChange = useCallback(
+    (field: ClpExportFieldKey, checked: boolean) => {
+      setClpExportFieldSelection((currentSelection) => ({
+        ...currentSelection,
+        [field]: checked,
+      }));
+    },
+    []
+  );
 
   const saveUiJourneySnapshotPreset = useCallback(() => {
     if (!canSaveUiJourneySnapshotPreset) {
@@ -5006,49 +5299,105 @@ export default function Page() {
   );
 
   const exportControlledLanguageGlossary = useCallback(
-    (format: "json" | "csv") => {
+    (
+      format: "json" | "csv",
+      fieldSelection: Record<ClpExportFieldKey, boolean> =
+        createDefaultClpExportFieldSelection()
+    ): boolean => {
       if (!activeProject) {
-        return;
+        return false;
       }
 
-      const glossaryEntries = controlledLanguageAuditRows.map((row) => ({
-        fieldType: row.field_type,
-        term: row.term,
-        include: row.include,
-      }));
+      const selectedFieldKeys = CLP_EXPORT_FIELD_OPTIONS.filter(
+        ({ key }) => fieldSelection[key]
+      ).map(({ key }) => key);
+
+      if (selectedFieldKeys.length === 0) {
+        setTransferFeedback({
+          type: "error",
+          message: "Select at least one Term Registry field to export.",
+        });
+        return false;
+      }
+
+      const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+
+      const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entry) => {
+        const assignedNode = entry.assignedNodeId
+          ? nodeById.get(entry.assignedNodeId) ?? null
+          : null;
+        const nodeTitle = assignedNode?.data?.title;
+        const trimmedNodeTitle = typeof nodeTitle === "string" ? nodeTitle.trim() : "";
+        const assignmentStatus = entry.assignedNodeId
+          ? trimmedNodeTitle
+            ? `Assigned to: ${trimmedNodeTitle}`
+            : "Assigned"
+          : "Unassigned";
+        const sequenceNumberValue =
+          entry.assignedNodeId && ordering.sequenceByNodeId[entry.assignedNodeId] !== undefined
+            ? String(ordering.sequenceByNodeId[entry.assignedNodeId])
+            : "";
+
+        return {
+          termValue: entry.value,
+          referenceKey: entry.friendlyId ?? "",
+          nodeType: assignedNode?.data?.node_type ?? "",
+          sequenceNumber: sequenceNumberValue,
+          assignmentStatus,
+        };
+      });
 
       const projectName = activeProject.name.trim() || activeProject.id;
+      const fileName = `${projectName}-term-registry.${format}`;
 
       if (format === "json") {
-        const payload = JSON.stringify(glossaryEntries, null, 2);
+        const payloadRows = registryRows.map((row) => {
+          const filteredRow: Partial<Record<ClpExportFieldKey, string>> = {};
 
-        downloadTextFile(
-          activeProject.id,
-          "json",
-          payload,
-          `${projectName}-glossary.json`
-        );
-        return;
+          selectedFieldKeys.forEach((key) => {
+            filteredRow[key] = row[key];
+          });
+
+          return filteredRow;
+        });
+
+        const payload = JSON.stringify(payloadRows, null, 2);
+
+        downloadTextFile(activeProject.id, "json", payload, fileName);
+
+        setTransferFeedback({
+          type: "success",
+          message: `Exported ${payloadRows.length} term registry row(s) as JSON.`,
+        });
+        return true;
       }
 
-      const header = ["Field Type", "Term", "Include"].join(",");
-      const rows = glossaryEntries.map((entry) =>
-        [
-          escapeCsvCell(entry.fieldType),
-          escapeCsvCell(entry.term),
-          escapeCsvCell(String(entry.include)),
-        ].join(",")
+      const selectedFieldLabels = selectedFieldKeys.map(
+        (key) =>
+          CLP_EXPORT_FIELD_OPTIONS.find((fieldOption) => fieldOption.key === key)?.label ?? key
+      );
+
+      const header = selectedFieldLabels.map((label) => escapeCsvCell(label)).join(",");
+      const rows = registryRows.map((row) =>
+        selectedFieldKeys.map((key) => escapeCsvCell(row[key])).join(",")
       );
       const payload = [header, ...rows].join("\n");
 
-      downloadTextFile(
-        activeProject.id,
-        "csv",
-        payload,
-        `${projectName}-glossary.csv`
-      );
+      downloadTextFile(activeProject.id, "csv", payload, fileName);
+
+      setTransferFeedback({
+        type: "success",
+        message: `Exported ${registryRows.length} term registry row(s) as CSV.`,
+      });
+      return true;
     },
-    [activeProject, controlledLanguageAuditRows, downloadTextFile]
+    [
+      activeProject,
+      downloadTextFile,
+      nodes,
+      ordering.sequenceByNodeId,
+      termRegistry,
+    ]
   );
 
   const triggerControlledLanguageJsonImportPicker = useCallback(() => {
@@ -5167,9 +5516,9 @@ export default function Page() {
   );
 
   const exportUiJourneyConversation = useCallback(
-    (format: UiJourneyConversationExportFormat) => {
+    (format: UiJourneyConversationExportFormat): boolean => {
       if (!activeProject) {
-        return;
+        return false;
       }
 
       const generatedAtLabel = new Date().toLocaleString();
@@ -5224,14 +5573,15 @@ export default function Page() {
         type: "success",
         message: `Exported UI Journey Conversation as ${UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS[format]}.`,
       });
+      return true;
     },
     [activeProject, downloadTextFile, uiJourneyConversationSnapshot]
   );
 
   const exportProjectData = useCallback(
-    (extension: ProjectTransferFormat) => {
+    (extension: ProjectTransferFormat): boolean => {
       if (!activeAccount || !activeProject) {
-        return;
+        return false;
       }
 
       if (extension === "json") {
@@ -5266,7 +5616,7 @@ export default function Page() {
             type: "error",
             message: "Unable to build project JSON export.",
           });
-          return;
+          return false;
         }
 
         const envelope: FullProjectExportEnvelope = {
@@ -5290,7 +5640,7 @@ export default function Page() {
           type: "success",
           message: `Exported project ${activeProject.id} as JSON full schema.`,
         });
-        return;
+        return true;
       }
 
       const rows = createFlatExportRows({
@@ -5313,6 +5663,7 @@ export default function Page() {
         type: "success",
         message: `Exported ${rows.length} row(s) to ${extension.toUpperCase()}.`,
       });
+      return true;
     },
     [
       activeAccount,
@@ -5330,6 +5681,47 @@ export default function Page() {
       uiJourneySnapshotPresets,
     ]
   );
+
+  const handleTransferModalExport = useCallback(() => {
+    if (!transferModalState || transferModalState.mode !== "export") {
+      return;
+    }
+
+    let didExport = false;
+
+    switch (transferModalState.context) {
+      case "project": {
+        didExport = exportProjectData(transferExportFormat);
+        break;
+      }
+      case "clp": {
+        didExport = exportControlledLanguageGlossary(
+          transferExportFormat,
+          clpExportFieldSelection
+        );
+        break;
+      }
+      case "conversation": {
+        didExport = exportUiJourneyConversation(transferExportFormat);
+        break;
+      }
+      default: {
+        const exhaustiveContext: never = transferModalState.context;
+        throw new Error(`Unsupported transfer modal export context: ${String(exhaustiveContext)}`);
+      }
+    }
+
+    if (didExport) {
+      setTransferModalState(null);
+    }
+  }, [
+    clpExportFieldSelection,
+    exportControlledLanguageGlossary,
+    exportProjectData,
+    exportUiJourneyConversation,
+    transferExportFormat,
+    transferModalState,
+  ]);
 
   const triggerImportPicker = useCallback(() => {
     importFileInputRef.current?.click();
@@ -5716,6 +6108,24 @@ export default function Page() {
       window.removeEventListener("keydown", handleEscape);
     };
   }, [isUiJourneyConversationOpen]);
+
+  useEffect(() => {
+    if (!transferModalState) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTransferModalState(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [transferModalState]);
 
   useEffect(() => {
     if (!isFeedbackModalOpen) {
@@ -6168,17 +6578,19 @@ export default function Page() {
             >
               Table View
             </button>
-            <button type="button" style={buttonStyle} onClick={() => exportProjectData("csv")}>
-              Export CSV
+            <button
+              type="button"
+              style={TRANSFER_PAIR_BUTTON_STYLE}
+              onClick={() => openTransferModal("export", "project")}
+            >
+              Export
             </button>
-            <button type="button" style={buttonStyle} onClick={() => exportProjectData("xml")}>
-              Export XML
-            </button>
-            <button type="button" style={buttonStyle} onClick={() => exportProjectData("json")}>
-              Export JSON
-            </button>
-            <button type="button" style={buttonStyle} onClick={triggerImportPicker}>
-              Import CSV/XML/JSON
+            <button
+              type="button"
+              style={TRANSFER_PAIR_BUTTON_STYLE}
+              onClick={() => openTransferModal("import", "project")}
+            >
+              Import
             </button>
             <input
               ref={importFileInputRef}
@@ -6503,6 +6915,16 @@ export default function Page() {
             </tbody>
           </table>
         </div>
+
+        <TransferModal
+          state={transferModalState}
+          exportFormat={transferExportFormat}
+          clpExportFieldSelection={clpExportFieldSelection}
+          onExportFormatChange={setTransferExportFormat}
+          onClpExportFieldSelectionChange={handleClpExportFieldSelectionChange}
+          onClose={closeTransferModal}
+          onExport={handleTransferModalExport}
+        />
       </main>
     );
   }
@@ -6618,17 +7040,19 @@ export default function Page() {
             >
               Table View
             </button>
-            <button type="button" style={buttonStyle} onClick={() => exportProjectData("csv")}>
-              Export CSV
+            <button
+              type="button"
+              style={TRANSFER_PAIR_BUTTON_STYLE}
+              onClick={() => openTransferModal("export", "project")}
+            >
+              Export
             </button>
-            <button type="button" style={buttonStyle} onClick={() => exportProjectData("xml")}>
-              Export XML
-            </button>
-            <button type="button" style={buttonStyle} onClick={() => exportProjectData("json")}>
-              Export JSON
-            </button>
-            <button type="button" style={buttonStyle} onClick={triggerImportPicker}>
-              Import CSV/XML/JSON
+            <button
+              type="button"
+              style={TRANSFER_PAIR_BUTTON_STYLE}
+              onClick={() => openTransferModal("import", "project")}
+            >
+              Import
             </button>
             <button
               type="button"
@@ -6998,31 +7422,17 @@ export default function Page() {
                 </span>
                 <button
                   type="button"
-                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
-                  onClick={() => exportControlledLanguageGlossary("json")}
+                  style={TRANSFER_PAIR_BUTTON_STYLE}
+                  onClick={() => openTransferModal("export", "clp")}
                 >
-                  Export JSON
+                  Export
                 </button>
                 <button
                   type="button"
-                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
-                  onClick={() => exportControlledLanguageGlossary("csv")}
+                  style={TRANSFER_PAIR_BUTTON_STYLE}
+                  onClick={() => openTransferModal("import", "clp")}
                 >
-                  Export CSV
-                </button>
-                <button
-                  type="button"
-                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
-                  onClick={triggerControlledLanguageJsonImportPicker}
-                >
-                  Import JSON
-                </button>
-                <button
-                  type="button"
-                  style={{ ...buttonStyle, fontSize: 11, padding: "2px 8px" }}
-                  onClick={triggerControlledLanguageCsvImportPicker}
-                >
-                  Import CSV
+                  Import
                 </button>
                 <input
                   ref={controlledLanguageJsonImportInputRef}
@@ -9690,7 +10100,7 @@ export default function Page() {
               </h4>
               <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 12 }}>
                 <li>
-                  <strong>Top actions:</strong> Back, Canvas/Table view toggle, Export CSV/XML/JSON, Import, Undo, Send Feedback, Get Help.
+                  <strong>Top actions:</strong> Back, Canvas/Table view toggle, Export, Import, Undo, Send Feedback, Get Help.
                 </li>
                 <li>
                   <strong>Project Sequence ID panel:</strong> sequence preview, ordered node list, and node-id visibility toggle.
@@ -10014,22 +10424,33 @@ export default function Page() {
                   gap: 6,
                 }}
               >
-                {UI_JOURNEY_CONVERSATION_EXPORT_FORMATS.map((format) => (
-                  <button
-                    key={`ui-journey-conversation-export:${format}`}
-                    type="button"
-                    style={{
-                      ...buttonStyle,
-                      borderColor: "rgba(43, 108, 176, 0.25)",
-                      background: "#ffffff",
-                      color: "#2B6CB0",
-                      fontWeight: 700,
-                    }}
-                    onClick={() => exportUiJourneyConversation(format)}
-                  >
-                    Export {UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS[format]}
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  style={{
+                    ...TRANSFER_PAIR_BUTTON_STYLE,
+                    borderColor: "rgba(43, 108, 176, 0.25)",
+                    background: "#ffffff",
+                    color: "#2B6CB0",
+                    fontWeight: 700,
+                  }}
+                  onClick={() => openTransferModal("export", "conversation")}
+                >
+                  Export
+                </button>
+
+                <button
+                  type="button"
+                  style={{
+                    ...TRANSFER_PAIR_BUTTON_STYLE,
+                    borderColor: "rgba(43, 108, 176, 0.25)",
+                    background: "#ffffff",
+                    color: "#2B6CB0",
+                    fontWeight: 700,
+                  }}
+                  onClick={() => openTransferModal("import", "conversation")}
+                >
+                  Import
+                </button>
 
                 <button
                   type="button"
@@ -10528,6 +10949,16 @@ export default function Page() {
           </div>
         </div>
       )}
+
+      <TransferModal
+        state={transferModalState}
+        exportFormat={transferExportFormat}
+        clpExportFieldSelection={clpExportFieldSelection}
+        onExportFormatChange={setTransferExportFormat}
+        onClpExportFieldSelectionChange={handleClpExportFieldSelectionChange}
+        onClose={closeTransferModal}
+        onExport={handleTransferModalExport}
+      />
     </div>
   );
 }

@@ -1343,30 +1343,34 @@ function FlowCopyNode({
         </div>
 
         {isMenuNode ? (
-          <div style={{ marginTop: 4 }}>
-            <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>Title</div>
-            <input
-              className="nodrag"
-              style={inputStyle}
-              value={data.title}
-              placeholder="Add title"
-              onPointerDown={stopNodeSelectionPropagation}
-              onMouseDown={stopNodeSelectionPropagation}
-              onClick={stopNodeSelectionPropagation}
-              onChange={(event) => updateField("title", event.target.value)}
-              onBlur={(event) =>
-                commitRegistryField("title", event.currentTarget.value)
-              }
-              onKeyDown={(event) => {
-                if (event.key !== "Enter") {
-                  return;
-                }
+          <>
+            {showDefaultNodeTitleOnCanvas && (
+              <div style={{ marginTop: 4 }}>
+                <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>Title</div>
+                <input
+                  className="nodrag"
+                  style={inputStyle}
+                  value={data.title}
+                  placeholder="Add title"
+                  onPointerDown={stopNodeSelectionPropagation}
+                  onMouseDown={stopNodeSelectionPropagation}
+                  onClick={stopNodeSelectionPropagation}
+                  onChange={(event) => updateField("title", event.target.value)}
+                  onBlur={(event) =>
+                    commitRegistryField("title", event.currentTarget.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                      return;
+                    }
 
-                event.preventDefault();
-                event.currentTarget.blur();
-              }}
-            />
-          </div>
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }}
+                />
+              </div>
+            )}
+          </>
         ) : (
           <>
             {showDefaultNodeTitleOnCanvas && (

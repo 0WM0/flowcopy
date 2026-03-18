@@ -70,11 +70,10 @@ export const NODE_SHAPE_OPTIONS = [
   "diamond",
 ];
 
-export const NODE_TYPE_OPTIONS = ["default", "menu", "frame", "ribbon"];
+export const NODE_TYPE_OPTIONS = ["default", "menu", "ribbon"];
 export const NODE_TYPE_LABELS: Record<(typeof NODE_TYPE_OPTIONS)[number], string> = {
   default: "Default",
   menu: "Menu",
-  frame: "Frame",
   ribbon: "Ribbon",
 };
 export const FRAME_SHADE_OPTIONS: FrameShade[] = ["light", "medium", "dark"];
