@@ -312,6 +312,16 @@ type ClpExportFieldKey =
   | "sequenceNumber"
   | "assignmentStatus";
 
+type ClpImportColumnMapping = Record<ClpExportFieldKey, string | null>;
+
+type ClpImportMode = "add" | "replace";
+
+type ClpImportSubmission = {
+  rows: Array<Record<string, unknown>>;
+  columnMapping: ClpImportColumnMapping;
+  importMode: ClpImportMode;
+};
+
 const TRANSFER_MODAL_CONTEXT_LABELS: Record<TransferModalContext, string> = {
   clp: "Term Registry",
   conversation: "Conversation",
@@ -326,6 +336,18 @@ const CLP_EXPORT_FIELD_OPTIONS: Array<{ key: ClpExportFieldKey; label: string }>
   { key: "assignmentStatus", label: "Assignment status" },
 ];
 
+const CLP_IMPORT_FIELD_OPTIONS: Array<{
+  key: ClpExportFieldKey;
+  label: string;
+  required: boolean;
+}> = [
+  { key: "termValue", label: "Term Value", required: true },
+  { key: "referenceKey", label: "Reference Key", required: false },
+  { key: "nodeType", label: "Node Type", required: false },
+  { key: "sequenceNumber", label: "Sequence Number", required: false },
+  { key: "assignmentStatus", label: "Assignment Status", required: false },
+];
+
 const createDefaultClpExportFieldSelection = (): Record<ClpExportFieldKey, boolean> => ({
   termValue: true,
   referenceKey: true,
@@ -333,6 +355,53 @@ const createDefaultClpExportFieldSelection = (): Record<ClpExportFieldKey, boole
   sequenceNumber: true,
   assignmentStatus: true,
 });
+
+const createEmptyClpImportColumnMapping = (): ClpImportColumnMapping => ({
+  termValue: null,
+  referenceKey: null,
+  nodeType: null,
+  sequenceNumber: null,
+  assignmentStatus: null,
+});
+
+const createDefaultClpImportColumnMapping = (
+  columnHeaders: string[]
+): ClpImportColumnMapping => {
+  const nextMapping = createEmptyClpImportColumnMapping();
+
+  CLP_IMPORT_FIELD_OPTIONS.forEach((fieldOption) => {
+    const matchingHeader = columnHeaders.find(
+      (columnHeader) =>
+        columnHeader.trim().toLowerCase() === fieldOption.label.toLowerCase()
+    );
+
+    if (matchingHeader) {
+      nextMapping[fieldOption.key] = matchingHeader;
+    }
+  });
+
+  return nextMapping;
+};
+
+const formatClpImportPreviewValue = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return "—";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
 
 const TRANSFER_PAIR_BUTTON_STYLE: React.CSSProperties = {
   ...buttonStyle,
@@ -350,6 +419,7 @@ type TransferModalProps = {
   onClpExportFieldSelectionChange: (field: ClpExportFieldKey, checked: boolean) => void;
   onClose: () => void;
   onExport: () => void;
+  onClpImport: (payload: ClpImportSubmission) => void;
 };
 
 const TransferModal = ({
@@ -360,7 +430,164 @@ const TransferModal = ({
   onClpExportFieldSelectionChange,
   onClose,
   onExport,
+  onClpImport,
 }: TransferModalProps) => {
+  const [clpImportFileName, setClpImportFileName] = useState<string | null>(null);
+  const [clpImportRows, setClpImportRows] = useState<Array<Record<string, unknown>>>([]);
+  const [clpImportColumnHeaders, setClpImportColumnHeaders] = useState<string[]>([]);
+  const [clpImportColumnMapping, setClpImportColumnMapping] =
+    useState<ClpImportColumnMapping>(createEmptyClpImportColumnMapping);
+  const [clpImportError, setClpImportError] = useState<string | null>(null);
+  const [clpImportMode, setClpImportMode] = useState<ClpImportMode>("add");
+
+  useEffect(() => {
+    if (!state || state.mode !== "import" || state.context !== "clp") {
+      setClpImportFileName(null);
+      setClpImportRows([]);
+      setClpImportColumnHeaders([]);
+      setClpImportColumnMapping(createEmptyClpImportColumnMapping());
+      setClpImportError(null);
+      setClpImportMode("add");
+    }
+  }, [state]);
+
+  const clpImportPreviewRows = useMemo(() => clpImportRows.slice(0, 3), [clpImportRows]);
+  const isClpTermValueMapped = clpImportColumnMapping.termValue !== null;
+
+  const handleClpImportFileUpload = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.currentTarget.value = "";
+
+      if (!file) {
+        return;
+      }
+
+      try {
+        const fileText = await file.text();
+        const fileExtension = file.name.split(".").pop()?.toLowerCase();
+
+        if (fileExtension === "csv") {
+          const parsedCsv = parseCsvText(fileText);
+          const normalizedHeaders = parsedCsv.headers
+            .map((header) => header.trim())
+            .filter((header) => header.length > 0);
+
+          if (normalizedHeaders.length === 0) {
+            throw new Error("CSV file must include a header row.");
+          }
+
+          const normalizedRows = parsedCsv.rows.map((row) => {
+            const normalizedRow: Record<string, unknown> = {};
+
+            parsedCsv.headers.forEach((header) => {
+              const normalizedHeader = header.trim();
+              if (normalizedHeader.length === 0) {
+                return;
+              }
+
+              normalizedRow[normalizedHeader] = row[header];
+            });
+
+            return normalizedRow;
+          });
+
+          setClpImportFileName(file.name);
+          setClpImportColumnHeaders(normalizedHeaders);
+          setClpImportRows(normalizedRows);
+          setClpImportColumnMapping(createDefaultClpImportColumnMapping(normalizedHeaders));
+          setClpImportError(null);
+          return;
+        }
+
+        if (fileExtension === "json") {
+          const parsedJson = safeJsonParse(fileText);
+
+          if (!Array.isArray(parsedJson)) {
+            throw new Error("JSON file must contain an array of objects.");
+          }
+
+          const firstItem = parsedJson[0];
+
+          if (!firstItem || typeof firstItem !== "object" || Array.isArray(firstItem)) {
+            throw new Error("JSON file must contain at least one object entry.");
+          }
+
+          const jsonColumnHeaders = Object.keys(firstItem as Record<string, unknown>);
+
+          if (jsonColumnHeaders.length === 0) {
+            throw new Error("JSON objects must contain at least one key.");
+          }
+
+          const normalizedRows = parsedJson.map((item) => {
+            if (!item || typeof item !== "object" || Array.isArray(item)) {
+              return {};
+            }
+
+            return item as Record<string, unknown>;
+          });
+
+          setClpImportFileName(file.name);
+          setClpImportColumnHeaders(jsonColumnHeaders);
+          setClpImportRows(normalizedRows);
+          setClpImportColumnMapping(createDefaultClpImportColumnMapping(jsonColumnHeaders));
+          setClpImportError(null);
+          return;
+        }
+
+        throw new Error("Unsupported file type. Please upload a .csv or .json file.");
+      } catch (error) {
+        setClpImportFileName(null);
+        setClpImportRows([]);
+        setClpImportColumnHeaders([]);
+        setClpImportColumnMapping(createEmptyClpImportColumnMapping());
+        setClpImportError(
+          error instanceof Error ? error.message : "Failed to parse import file."
+        );
+      }
+    },
+    []
+  );
+
+  const handleClpImportMappingChange = useCallback(
+    (field: ClpExportFieldKey, nextColumnHeader: string) => {
+      setClpImportColumnMapping((currentMapping) => ({
+        ...currentMapping,
+        [field]: nextColumnHeader.length > 0 ? nextColumnHeader : null,
+      }));
+    },
+    []
+  );
+
+  const handleClearClpImportFile = useCallback(() => {
+    setClpImportFileName(null);
+    setClpImportRows([]);
+    setClpImportColumnHeaders([]);
+    setClpImportColumnMapping(createEmptyClpImportColumnMapping());
+    setClpImportError(null);
+  }, []);
+
+  const canSubmitClpImport =
+    isClpTermValueMapped && clpImportRows.length > 0 && clpImportError === null;
+
+  const handleClpImportSubmit = useCallback(() => {
+    if (!canSubmitClpImport) {
+      return;
+    }
+
+    onClpImport({
+      rows: clpImportRows,
+      columnMapping: clpImportColumnMapping,
+      importMode: clpImportMode,
+    });
+  }, [
+    canSubmitClpImport,
+    clpImportColumnMapping,
+    clpImportMode,
+    clpImportRows,
+    onClpImport,
+  ]);
+
   if (!state) {
     return null;
   }
@@ -522,6 +749,319 @@ const TransferModal = ({
                 onClick={onExport}
               >
                 Export
+              </button>
+            </div>
+          </>
+        ) : state.context === "clp" ? (
+          <>
+            <section
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: 8,
+                background: "#f8fafc",
+                padding: 10,
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>Upload file</div>
+              {clpImportFileName ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 6,
+                    background: "#ffffff",
+                    padding: "6px 8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#0f172a",
+                      minWidth: 0,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={`${clpImportFileName} — ${clpImportRows.length} ${
+                      clpImportRows.length === 1 ? "row" : "rows"
+                    }`}
+                  >
+                    <strong>{clpImportFileName}</strong> — {clpImportRows.length} {clpImportRows.length === 1 ? "row" : "rows"}
+                  </div>
+
+                  <button
+                    type="button"
+                    style={{
+                      ...buttonStyle,
+                      fontSize: 10,
+                      lineHeight: 1,
+                      padding: "2px 8px",
+                      minHeight: 22,
+                      borderColor: "#cbd5e1",
+                      color: "#334155",
+                      background: "#f8fafc",
+                      flexShrink: 0,
+                    }}
+                    onClick={handleClearClpImportFile}
+                  >
+                    Change file
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, color: "#475569" }}>
+                    Accepted formats: <strong>.csv</strong> or <strong>.json</strong>
+                  </div>
+                  <input
+                    type="file"
+                    accept=".csv,.json,text/csv,application/json,text/json"
+                    onChange={handleClpImportFileUpload}
+                    style={{ ...inputStyle, padding: 6 }}
+                  />
+                </>
+              )}
+
+              {clpImportError && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "#991b1b",
+                    border: "1px solid #fecaca",
+                    borderRadius: 6,
+                    background: "#fef2f2",
+                    padding: "6px 8px",
+                  }}
+                >
+                  {clpImportError}
+                </div>
+              )}
+            </section>
+
+            <section
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: 8,
+                background: "#ffffff",
+                padding: 10,
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>
+                Column mapping
+              </div>
+
+              {CLP_IMPORT_FIELD_OPTIONS.map((fieldOption) => {
+                const selectedColumnHeader = clpImportColumnMapping[fieldOption.key] ?? "";
+
+                return (
+                  <label
+                    key={`clp-import-column-mapping:${fieldOption.key}`}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1.1fr",
+                      alignItems: "center",
+                      gap: 10,
+                      fontSize: 12,
+                      color: "#334155",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontWeight: fieldOption.required ? 700 : 500,
+                        color: fieldOption.required ? "#991b1b" : "#334155",
+                      }}
+                    >
+                      {fieldOption.label}
+                      {fieldOption.required && (
+                        <span style={{ marginLeft: 6, fontSize: 10 }}>(required)</span>
+                      )}
+                    </span>
+
+                    <select
+                      style={inputStyle}
+                      value={selectedColumnHeader}
+                      disabled={clpImportColumnHeaders.length === 0}
+                      onChange={(event) =>
+                        handleClpImportMappingChange(fieldOption.key, event.target.value)
+                      }
+                    >
+                      <option value="">— None —</option>
+                      {clpImportColumnHeaders.map((columnHeader, index) => (
+                        <option
+                          key={`clp-import-column-option:${index}:${columnHeader}`}
+                          value={columnHeader}
+                        >
+                          {columnHeader}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                );
+              })}
+            </section>
+
+            <section
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: 8,
+                background: "#ffffff",
+                padding: 10,
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>Preview</div>
+
+              {clpImportPreviewRows.length === 0 ? (
+                <div style={{ fontSize: 12, color: "#64748b" }}>
+                  Upload a file to preview the first 3 entries.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: 8 }}>
+                  {clpImportPreviewRows.map((previewRow, rowIndex) => (
+                    <div
+                      key={`clp-import-preview-row:${rowIndex}`}
+                      style={{
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 6,
+                        padding: "8px 10px",
+                        background: "#f8fafc",
+                        display: "grid",
+                        gap: 4,
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: "#475569", fontWeight: 700 }}>
+                        Entry {rowIndex + 1}
+                      </div>
+
+                      {CLP_IMPORT_FIELD_OPTIONS.map((fieldOption) => {
+                        const mappedColumnHeader = clpImportColumnMapping[fieldOption.key];
+                        const mappedValue = mappedColumnHeader
+                          ? previewRow[mappedColumnHeader]
+                          : null;
+
+                        return (
+                          <div
+                            key={`clp-import-preview-field:${rowIndex}:${fieldOption.key}`}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "150px 1fr",
+                              gap: 8,
+                              fontSize: 12,
+                            }}
+                          >
+                            <span style={{ color: "#334155", fontWeight: 600 }}>
+                              {fieldOption.label}
+                            </span>
+                            <span style={{ color: "#0f172a" }}>
+                              {mappedColumnHeader
+                                ? formatClpImportPreviewValue(mappedValue)
+                                : "—"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: 8,
+                background: "#ffffff",
+                padding: 10,
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>
+                Import mode
+              </div>
+
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    color: "#334155",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="clp-import-mode"
+                    value="add"
+                    checked={clpImportMode === "add"}
+                    onChange={() => setClpImportMode("add")}
+                  />
+                  Add to existing
+                </label>
+
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    color: "#334155",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="clp-import-mode"
+                    value="replace"
+                    checked={clpImportMode === "replace"}
+                    onChange={() => setClpImportMode("replace")}
+                  />
+                  Replace all
+                </label>
+              </div>
+
+              {clpImportMode === "replace" && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "#991b1b",
+                    border: "1px solid #fecaca",
+                    borderRadius: 6,
+                    background: "#fef2f2",
+                    padding: "6px 8px",
+                  }}
+                >
+                  This will remove all existing registry entries and disconnect any terms
+                  currently assigned to canvas nodes.
+                </div>
+              )}
+            </section>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button type="button" style={TRANSFER_PAIR_BUTTON_STYLE} onClick={onClose}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!canSubmitClpImport}
+                style={{
+                  ...TRANSFER_PAIR_BUTTON_STYLE,
+                  borderColor: canSubmitClpImport ? "#1d4ed8" : "#cbd5e1",
+                  background: canSubmitClpImport ? "#1d4ed8" : "#e2e8f0",
+                  color: canSubmitClpImport ? "#fff" : "#64748b",
+                  fontWeight: 700,
+                  cursor: canSubmitClpImport ? "pointer" : "not-allowed",
+                }}
+                onClick={handleClpImportSubmit}
+              >
+                Import
               </button>
             </div>
           </>
@@ -5400,6 +5940,196 @@ export default function Page() {
     ]
   );
 
+  const handleTransferModalClpImport = useCallback(
+    ({ rows, columnMapping, importMode }: ClpImportSubmission) => {
+      const termValueColumn = columnMapping.termValue;
+
+      if (!termValueColumn) {
+        setTransferFeedback({
+          type: "error",
+          message: "Map a Term Value column before importing.",
+        });
+        return;
+      }
+
+      const toImportText = (rawValue: unknown): string => {
+        if (rawValue === null || rawValue === undefined) {
+          return "";
+        }
+
+        if (typeof rawValue === "string") {
+          return rawValue;
+        }
+
+        if (typeof rawValue === "number" || typeof rawValue === "boolean") {
+          return String(rawValue);
+        }
+
+        try {
+          return JSON.stringify(rawValue);
+        } catch {
+          return String(rawValue);
+        }
+      };
+
+      const isReplaceMode = importMode === "replace";
+      const registrySeedEntries = isReplaceMode ? [] : termRegistry;
+
+      const existingTermValueSet = new Set(
+        registrySeedEntries
+          .map((entry) => entry.value.trim().toLowerCase())
+          .filter((value) => value.length > 0)
+      );
+
+      const existingFriendlyIds = registrySeedEntries
+        .map((entry) => (typeof entry.friendlyId === "string" ? entry.friendlyId.trim() : ""))
+        .filter((friendlyId) => friendlyId.length > 0);
+      const existingFriendlyIdSet = new Set(existingFriendlyIds);
+
+      const hasDotTermPattern = existingFriendlyIds.some((friendlyId) =>
+        friendlyId.startsWith("term.")
+      );
+      const hasHyphenTermPattern = existingFriendlyIds.some((friendlyId) =>
+        friendlyId.startsWith("term-")
+      );
+      const hasUnderscoreTermPattern = existingFriendlyIds.some((friendlyId) =>
+        friendlyId.startsWith("term_")
+      );
+
+      const keyPrefix = hasDotTermPattern
+        ? "term."
+        : hasHyphenTermPattern
+          ? "term-"
+          : hasUnderscoreTermPattern
+            ? "term_"
+            : "term.";
+      const keyDelimiter = keyPrefix.endsWith(".")
+        ? "."
+        : keyPrefix.endsWith("-")
+          ? "-"
+          : "_";
+
+      const createAutoFriendlyId = (termValue: string): string => {
+        const normalizedSlug = termValue
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/_+/g, "_")
+          .replace(/^_+|_+$/g, "");
+
+        const baseFriendlyId = `${keyPrefix}${normalizedSlug || "value"}`;
+
+        if (!existingFriendlyIdSet.has(baseFriendlyId)) {
+          existingFriendlyIdSet.add(baseFriendlyId);
+          return baseFriendlyId;
+        }
+
+        let suffix = 2;
+        let nextFriendlyId = `${baseFriendlyId}${keyDelimiter}${suffix}`;
+
+        while (existingFriendlyIdSet.has(nextFriendlyId)) {
+          suffix += 1;
+          nextFriendlyId = `${baseFriendlyId}${keyDelimiter}${suffix}`;
+        }
+
+        existingFriendlyIdSet.add(nextFriendlyId);
+        return nextFriendlyId;
+      };
+
+      const validUnassignedStatuses = new Set(["unassigned", "not assigned"]);
+
+      const now = new Date().toISOString();
+      const importedEntries: TermRegistryEntry[] = [];
+      let skippedDuplicateCount = 0;
+
+      rows.forEach((row) => {
+        const nextTermValue = toImportText(row[termValueColumn]).trim();
+        if (nextTermValue.length === 0) {
+          return;
+        }
+
+        const duplicateKey = nextTermValue.toLowerCase();
+
+        if (existingTermValueSet.has(duplicateKey)) {
+          skippedDuplicateCount += 1;
+          return;
+        }
+
+        existingTermValueSet.add(duplicateKey);
+
+        const mappedReferenceKeyValue = columnMapping.referenceKey
+          ? toImportText(row[columnMapping.referenceKey]).trim()
+          : "";
+
+        const mappedNodeTypeValue = columnMapping.nodeType
+          ? toImportText(row[columnMapping.nodeType]).trim()
+          : "";
+
+        const mappedAssignmentStatusValue = columnMapping.assignmentStatus
+          ? toImportText(row[columnMapping.assignmentStatus]).trim().toLowerCase()
+          : "";
+
+        const hasExplicitValidUnassignedStatus = validUnassignedStatuses.has(
+          mappedAssignmentStatusValue
+        );
+
+        importedEntries.push({
+          id: crypto.randomUUID(),
+          value: nextTermValue,
+          friendlyId: columnMapping.referenceKey
+            ? mappedReferenceKeyValue || null
+            : createAutoFriendlyId(nextTermValue),
+          friendlyIdLocked: false,
+          termType: mappedNodeTypeValue.length > 0 ? mappedNodeTypeValue : null,
+          assignedNodeId: hasExplicitValidUnassignedStatus ? null : null,
+          assignedField: null,
+          deduplicationSuffix: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+
+      const shouldReplaceRegistry = isReplaceMode;
+      const shouldMutateRegistry = shouldReplaceRegistry
+        ? termRegistry.length > 0 || importedEntries.length > 0
+        : importedEntries.length > 0;
+
+      if (shouldMutateRegistry) {
+        queueUndoSnapshot();
+        setTermRegistry((currentRegistry) =>
+          shouldReplaceRegistry
+            ? importedEntries
+            : [...currentRegistry, ...importedEntries]
+        );
+
+        if (shouldReplaceRegistry) {
+          clearGlossaryHighlights();
+        }
+      }
+
+      setClpActiveView("registry");
+      closeTransferModal();
+
+      const importedCount = importedEntries.length;
+      const importedLabel = importedCount === 1 ? "term" : "terms";
+      const duplicateLabel = skippedDuplicateCount === 1 ? "duplicate" : "duplicates";
+
+      setTransferFeedback({
+        type: importedCount > 0 || shouldReplaceRegistry ? "success" : "info",
+        message: shouldReplaceRegistry
+          ? skippedDuplicateCount > 0
+            ? `Replaced registry: imported ${importedCount} ${importedLabel} (${skippedDuplicateCount} ${duplicateLabel} skipped).`
+            : `Replaced registry: imported ${importedCount} ${importedLabel}.`
+          : skippedDuplicateCount > 0
+            ? `Imported ${importedCount} ${importedLabel} (${skippedDuplicateCount} ${duplicateLabel} skipped).`
+            : importedCount > 0
+              ? `Imported ${importedCount} ${importedLabel}.`
+              : "No terms were imported.",
+      });
+    },
+    [clearGlossaryHighlights, closeTransferModal, queueUndoSnapshot, termRegistry]
+  );
+
   const triggerControlledLanguageJsonImportPicker = useCallback(() => {
     controlledLanguageJsonImportInputRef.current?.click();
   }, []);
@@ -6924,6 +7654,7 @@ export default function Page() {
           onClpExportFieldSelectionChange={handleClpExportFieldSelectionChange}
           onClose={closeTransferModal}
           onExport={handleTransferModalExport}
+          onClpImport={handleTransferModalClpImport}
         />
       </main>
     );
@@ -7418,7 +8149,7 @@ export default function Page() {
                 }}
               >
                 <span style={{ fontSize: 11, color: "#1e3a8a", fontWeight: 700 }}>
-                  {controlledLanguageAuditRows.length} term row(s)
+                  {termRegistry.length} term row(s)
                 </span>
                 <button
                   type="button"
@@ -7999,6 +8730,8 @@ export default function Page() {
                           ? `Assigned to: ${trimmedNodeTitle}`
                           : "Assigned"
                         : "Unassigned";
+                      const hasFriendlyId = (entry.friendlyId ?? "").trim().length > 0;
+                      const showEditableFriendlyId = !entry.friendlyIdLocked || !hasFriendlyId;
 
                       return (
                       <div
@@ -8053,78 +8786,78 @@ export default function Page() {
 
                           <div
                             style={{
-                              fontSize: 10,
-                              color: "#64748b",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                            title={`Key: ${entry.friendlyId || "No key"}`}
-                          >
-                            Key: {entry.friendlyId || "No key"}
-                          </div>
-
-                          <div
-                            style={{
-                              fontSize: 10,
-                              color: "#64748b",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                            title={assignmentStatus}
-                          >
-                            {assignmentStatus}
-                          </div>
-
-                          <div
-                            style={{
                               display: "grid",
-                              gridTemplateColumns: "1fr auto",
+                              gridTemplateColumns: "auto 1fr auto",
                               gap: 4,
                               alignItems: "center",
                             }}
                           >
-                            <input
-                              key={`registry-friendly-id:${entry.id}:${entry.friendlyId ?? ""}:${
-                                entry.friendlyIdLocked ? "locked" : "unlocked"
-                              }`}
+                            <div
                               style={{
-                                width: "100%",
-                                minWidth: 0,
-                                padding: "2px 6px",
                                 fontSize: 10,
-                                fontFamily: "monospace",
-                                border: "1px solid #d4d4d8",
-                                borderRadius: 4,
-                                background: entry.friendlyIdLocked ? "#f8fafc" : "#fff",
-                                color: entry.friendlyIdLocked ? "#64748b" : "#334155",
+                                color: "#64748b",
+                                fontWeight: 600,
+                                whiteSpace: "nowrap",
                               }}
-                              defaultValue={entry.friendlyId ?? ""}
-                              placeholder="Add ID..."
-                              readOnly={entry.friendlyIdLocked}
-                              onBlur={(event) => {
-                                const didSave = commitRegistryFriendlyId(
-                                  entry.id,
-                                  event.currentTarget.value
-                                );
+                            >
+                              Key:
+                            </div>
 
-                                if (!didSave) {
-                                  event.currentTarget.value = entry.friendlyId ?? "";
-                                  return;
-                                }
+                            {showEditableFriendlyId ? (
+                              <input
+                                key={`registry-friendly-id:${entry.id}:${entry.friendlyId ?? ""}:${
+                                  entry.friendlyIdLocked ? "locked" : "unlocked"
+                                }`}
+                                style={{
+                                  width: "100%",
+                                  minWidth: 0,
+                                  padding: "2px 6px",
+                                  fontSize: 10,
+                                  fontFamily: "monospace",
+                                  border: "1px solid #d4d4d8",
+                                  borderRadius: 4,
+                                  background: "#fff",
+                                  color: "#334155",
+                                }}
+                                defaultValue={entry.friendlyId ?? ""}
+                                placeholder="Add ID..."
+                                readOnly={false}
+                                onBlur={(event) => {
+                                  const didSave = commitRegistryFriendlyId(
+                                    entry.id,
+                                    event.currentTarget.value
+                                  );
 
-                                event.currentTarget.value = event.currentTarget.value.trim();
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key !== "Enter") {
-                                  return;
-                                }
+                                  if (!didSave) {
+                                    event.currentTarget.value = entry.friendlyId ?? "";
+                                    return;
+                                  }
 
-                                event.preventDefault();
-                                event.currentTarget.blur();
-                              }}
-                            />
+                                  event.currentTarget.value = event.currentTarget.value.trim();
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key !== "Enter") {
+                                    return;
+                                  }
+
+                                  event.preventDefault();
+                                  event.currentTarget.blur();
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  fontSize: 10,
+                                  color: "#64748b",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                                title={entry.friendlyId ?? ""}
+                              >
+                                {entry.friendlyId}
+                              </div>
+                            )}
 
                             <button
                               type="button"
@@ -8150,51 +8883,73 @@ export default function Page() {
                             </button>
                           </div>
 
-                          {entry.assignedNodeId === null ? (
-                            <select
-                              style={{
-                                width: "fit-content",
-                                maxWidth: "100%",
-                                padding: "2px 6px",
-                                fontSize: 10,
-                                border: "1px solid #d4d4d8",
-                                borderRadius: 4,
-                                background: "#fff",
-                                color: entry.termType ? "#1e3a8a" : "#64748b",
-                              }}
-                              value={entry.termType ?? ""}
-                              onChange={(event) =>
-                                updateRegistryEntryTermType(entry.id, event.target.value)
-                              }
-                            >
-                              {TERM_REGISTRY_TERM_TYPE_OPTIONS.map((termTypeOption) => (
-                                <option
-                                  key={`registry-term-type-option:${
-                                    termTypeOption.value || "untyped"
-                                  }`}
-                                  value={termTypeOption.value}
-                                >
-                                  {termTypeOption.label}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr auto",
+                              gap: 4,
+                              alignItems: "center",
+                            }}
+                          >
                             <div
                               style={{
-                                width: "fit-content",
-                                maxWidth: "100%",
-                                padding: "2px 6px",
                                 fontSize: 10,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 4,
-                                background: "#f8fafc",
-                                color: entry.termType ? "#1e3a8a" : "#64748b",
-                                fontWeight: 600,
+                                color: "#64748b",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
                               }}
+                              title={assignmentStatus}
                             >
-                              {getTermRegistryTermTypeLabel(entry.termType)}
+                              {assignmentStatus}
                             </div>
-                          )}
+
+                            {entry.assignedNodeId === null ? (
+                              <select
+                                style={{
+                                  width: "fit-content",
+                                  maxWidth: "100%",
+                                  padding: "2px 6px",
+                                  fontSize: 10,
+                                  border: "1px solid #d4d4d8",
+                                  borderRadius: 4,
+                                  background: "#fff",
+                                  color: entry.termType ? "#1e3a8a" : "#64748b",
+                                }}
+                                value={entry.termType ?? ""}
+                                onChange={(event) =>
+                                  updateRegistryEntryTermType(entry.id, event.target.value)
+                                }
+                              >
+                                {TERM_REGISTRY_TERM_TYPE_OPTIONS.map((termTypeOption) => (
+                                  <option
+                                    key={`registry-term-type-option:${
+                                      termTypeOption.value || "untyped"
+                                    }`}
+                                    value={termTypeOption.value}
+                                  >
+                                    {termTypeOption.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div
+                                style={{
+                                  width: "fit-content",
+                                  maxWidth: "100%",
+                                  padding: "2px 6px",
+                                  fontSize: 10,
+                                  border: "1px solid #e2e8f0",
+                                  borderRadius: 4,
+                                  background: "#f8fafc",
+                                  color: entry.termType ? "#1e3a8a" : "#64748b",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {getTermRegistryTermTypeLabel(entry.termType)}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         <div
@@ -10958,6 +11713,7 @@ export default function Page() {
         onClpExportFieldSelectionChange={handleClpExportFieldSelectionChange}
         onClose={closeTransferModal}
         onExport={handleTransferModalExport}
+        onClpImport={handleTransferModalClpImport}
       />
     </div>
   );
