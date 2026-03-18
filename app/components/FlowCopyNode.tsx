@@ -219,9 +219,17 @@ function FlowCopyNode({
   }, [isRibbonNode, ribbonConfig.cells]);
   const frameShadeStyle = FRAME_SHADE_STYLES[frameConfig.shade];
 
-  const displayTermFieldType = data.display_term_field;
-  const displayTermFieldLabel = CONTROLLED_LANGUAGE_FIELD_LABELS[displayTermFieldType];
-  const displayTermValue = data[displayTermFieldType];
+  const visibleDisplayTermFieldTypes = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          Array.isArray(data.display_term_fields)
+            ? data.display_term_fields
+            : [data.display_term_field]
+        )
+      ),
+    [data.display_term_field, data.display_term_fields]
+  );
   const editingRibbonCell = useMemo(() => {
     if (!isRibbonNode || !editingCellId) {
       return null;
@@ -245,6 +253,7 @@ function FlowCopyNode({
     menuConfig.terms.length,
     ribbonConfig.columns,
     ribbonConfig.cells.length,
+    visibleDisplayTermFieldTypes.length,
     updateNodeInternals,
   ]);
 
@@ -1400,60 +1409,63 @@ function FlowCopyNode({
               </div>
             )}
 
-            <div
-              style={{
-                marginTop: 4,
-                paddingTop: 4,
-              }}
-            >
-              <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>
-                {displayTermFieldLabel}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <input
-                  className="nodrag"
-                  style={{
-                    ...inputStyle,
-                    flex: 1,
-                    minWidth: 0,
-                  }}
-                  value={displayTermValue}
-                  placeholder="Add term"
-                  onPointerDown={stopNodeSelectionPropagation}
-                  onMouseDown={stopNodeSelectionPropagation}
-                  onClick={stopNodeSelectionPropagation}
-                  onChange={(event) =>
-                    updateField(displayTermFieldType, event.target.value)
-                  }
-                  onBlur={(event) =>
-                    commitRegistryField(displayTermFieldType, event.currentTarget.value)
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter") {
-                      return;
+            {visibleDisplayTermFieldTypes.map((displayTermFieldType) => (
+              <div
+                key={`display-term:${displayTermFieldType}`}
+                style={{
+                  marginTop: 4,
+                  paddingTop: 4,
+                }}
+              >
+                <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>
+                  {CONTROLLED_LANGUAGE_FIELD_LABELS[displayTermFieldType]}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <input
+                    className="nodrag"
+                    style={{
+                      ...inputStyle,
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                    value={data[displayTermFieldType]}
+                    placeholder="Add term"
+                    onPointerDown={stopNodeSelectionPropagation}
+                    onMouseDown={stopNodeSelectionPropagation}
+                    onClick={stopNodeSelectionPropagation}
+                    onChange={(event) =>
+                      updateField(displayTermFieldType, event.target.value)
                     }
+                    onBlur={(event) =>
+                      commitRegistryField(displayTermFieldType, event.currentTarget.value)
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") {
+                        return;
+                      }
 
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                  }}
-                />
-                <button
-                  type="button"
-                  className="nodrag"
-                  style={getCanvasRegistryButtonStyle()}
-                  title="Open CLP registry"
-                  aria-label="Open CLP registry"
-                  onPointerDown={stopNodeSelectionPropagation}
-                  onMouseDown={stopNodeSelectionPropagation}
-                  onClick={(event) => {
-                    stopNodeSelectionPropagation(event);
-                    onRegistryPickerOpen(id, displayTermFieldType);
-                  }}
-                >
-                  📋
-                </button>
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="nodrag"
+                    style={getCanvasRegistryButtonStyle()}
+                    title="Open CLP registry"
+                    aria-label="Open CLP registry"
+                    onPointerDown={stopNodeSelectionPropagation}
+                    onMouseDown={stopNodeSelectionPropagation}
+                    onClick={(event) => {
+                      stopNodeSelectionPropagation(event);
+                      onRegistryPickerOpen(id, displayTermFieldType);
+                    }}
+                  >
+                    📋
+                  </button>
+                </div>
               </div>
-            </div>
+            ))}
           </>
         )}
 

@@ -4265,7 +4265,7 @@ export default function Page() {
   );
 
   const updateSelectedDisplayTermField = useCallback(
-    (nextField: NodeControlledLanguageFieldType) => {
+    (nextField: NodeControlledLanguageFieldType, isVisible: boolean) => {
       if (!effectiveSelectedNodeId) {
         return;
       }
@@ -4273,17 +4273,39 @@ export default function Page() {
       queueUndoSnapshot();
 
       setNodes((currentNodes) =>
-        currentNodes.map((node) =>
-          node.id === effectiveSelectedNodeId
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  display_term_field: nextField,
-                },
-              }
-            : node
-        )
+        currentNodes.map((node) => {
+          if (node.id !== effectiveSelectedNodeId) {
+            return node;
+          }
+
+          const normalizedVisibleFields = Array.isArray(node.data.display_term_fields)
+            ? Array.from(
+                new Set(
+                  node.data.display_term_fields.filter(
+                    (field): field is NodeControlledLanguageFieldType =>
+                      isNodeControlledLanguageFieldType(field)
+                  )
+                )
+              )
+            : [node.data.display_term_field];
+
+          const nextVisibleFields = isVisible
+            ? Array.from(new Set([...normalizedVisibleFields, nextField]))
+            : normalizedVisibleFields.filter((field) => field !== nextField);
+
+          const nextDisplayTermField = nextVisibleFields.includes(node.data.display_term_field)
+            ? node.data.display_term_field
+            : nextVisibleFields[0] ?? node.data.display_term_field;
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              display_term_field: nextDisplayTermField,
+              display_term_fields: nextVisibleFields,
+            },
+          };
+        })
       );
     },
     [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
@@ -6588,6 +6610,12 @@ export default function Page() {
                 }
               })();
 
+              const importedDisplayTermField = isNodeControlledLanguageFieldType(
+                row.display_term_field
+              )
+                ? row.display_term_field
+                : "primary_cta";
+
               return {
                 id: nodeId,
                 position: {
@@ -6601,11 +6629,8 @@ export default function Page() {
                   secondary_cta: row.secondary_cta ?? "",
                   helper_text: row.helper_text ?? "",
                   error_text: row.error_text ?? "",
-                  display_term_field: isNodeControlledLanguageFieldType(
-                    row.display_term_field
-                  )
-                    ? row.display_term_field
-                    : "primary_cta",
+                  display_term_field: importedDisplayTermField,
+                  display_term_fields: [importedDisplayTermField],
                   tone: row.tone ?? "",
                   polarity: row.polarity ?? "",
                   reversibility: row.reversibility ?? "",
@@ -10333,14 +10358,17 @@ export default function Page() {
                           >
                             <input
                               type="checkbox"
-                              checked={selectedNode.data.display_term_field === fieldType}
-                              onChange={(event) => {
-                                if (!event.target.checked) {
-                                  return;
-                                }
-
-                                updateSelectedDisplayTermField(fieldType);
-                              }}
+                              checked={(
+                                selectedNode.data.display_term_fields ?? [
+                                  selectedNode.data.display_term_field,
+                                ]
+                              ).includes(fieldType)}
+                              onChange={(event) =>
+                                updateSelectedDisplayTermField(
+                                  fieldType,
+                                  event.target.checked
+                                )
+                              }
                             />
                             {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
                           </label>

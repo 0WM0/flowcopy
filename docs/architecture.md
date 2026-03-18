@@ -32,6 +32,130 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-18-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session consolidated transfer workflows and tightened editor panel ergonomics.
+
+Three major user-facing changes landed together:
+
+- export/import actions for **Project**, **Term Registry (CLP)**, and **Conversation** now run through one shared modal system
+- CLP import gained a full parser/mapping workflow (CSV/JSON upload, column mapping, preview, and add/replace modes)
+- inspector organization was refined (explicit section dividers and Node Identity grouping), while node-type controls were tightened to avoid unsafe frame conversion paths
+
+## 2) Core Data Model
+
+No persisted project schema contracts changed.
+
+Runtime/editor contracts added in `app/page.tsx`:
+
+- `TransferModalContext = "clp" | "conversation" | "project"`
+- `TransferModalMode = "export" | "import"`
+- `TransferModalState`
+- `ClpImportColumnMapping`
+- `ClpImportMode = "add" | "replace"`
+- `ClpImportSubmission`
+
+CLP import field contracts were formalized via `CLP_IMPORT_FIELD_OPTIONS` and related mapping helpers.
+
+Node-type runtime policy was tightened through constants:
+
+- `NODE_TYPE_OPTIONS` in `app/constants/index.ts` now exposes `default | menu | ribbon` (frame remains a supported node type in the broader model, but is no longer offered as a direct type-switch target)
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior remained unchanged:
+
+- no localStorage key changes
+- no project payload/migration version changes
+- no import/export envelope schema-version changes
+
+Implementation updates were workflow-level over existing data contracts:
+
+- CLP import now parses uploaded CSV/JSON into normalized row objects
+- mapped columns are projected into existing term-registry entry flows
+- import mode controls whether incoming CLP data is merged (`add`) or starts from an empty registry seed (`replace`)
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering algorithm changes were made.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Project sequence behavior was made more discoverable in panel layout (sequence-focused paneling moved into the reorganized side-panel flow), but sequence computation itself did not change.
+
+## 5) Node Rendering and Shape System
+
+Rendering and inspector presentation updates were concentrated in `app/page.tsx` and `app/components/FlowCopyNode.tsx`:
+
+1. **Shared transfer modal surface**
+   - context-aware modal title/behavior (`Project`, `Term Registry`, `Conversation`)
+   - shared open/close/export interactions
+
+2. **Menu node title visibility parity**
+   - menu node title input now follows `showDefaultNodeTitleOnCanvas` toggle behavior (same conditional title visibility pattern as default-node title display control)
+
+3. **Inspector readability pass**
+   - introduced section dividers/headings:
+     - `NODE IDENTITY`
+     - `NODE CONTENT`
+     - `TAGGING`
+     - `ACTION TYPE`
+
+4. **Frame type-switch guardrail**
+   - frame conversion was removed from the direct node-type option button set; frame creation remains workflow-driven (selection framing path)
+
+## 6) Editor Interaction Model
+
+Transfer actions now follow a single interaction pattern:
+
+- `openTransferModal(mode, context)` launches context-specific transfer UX
+- `Escape` closes active transfer modal
+- export actions resolve through `handleTransferModalExport(...)` by active context
+
+CLP import interaction now includes a complete staged flow:
+
+1. Upload `.csv` or `.json`.
+2. Normalize headers/rows and auto-map known columns.
+3. Manually adjust required/optional column mapping (Term Value required).
+4. Review preview rows.
+5. Choose import mode:
+   - **Add**: append/merge into existing registry
+   - **Replace**: rebuild registry from imported rows
+6. Submit import and return to CLP registry view with feedback.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Introduced a unified TransferModal architecture for project/CLP/conversation export-import entry points.
+2. Added CLP file-import parser + column-mapping pipeline for CSV and JSON inputs.
+3. Added CLP add/replace import semantics with explicit replace warning UX.
+4. Reorganized inspector panel content with explicit semantic section headers.
+5. Hardened node-type controls by removing frame from direct type-switch options.
+6. Synced menu title-on-canvas visibility behavior with existing title visibility toggle semantics.
+
+## 8) Validation and Operational Notes
+
+Operational verification for this update line was completed by reviewing implementation deltas in:
+
+- `1793771` (panel reorg + transfer modal integration + frame type option fix + sequence panel placement)
+- `4abdf25` (CLP import parser, column mapping, add/replace mode, registry density improvements)
+- `4cd6699` (inspector Node Identity/content sectioning and related cleanup)
+
+No migration/backfill steps were required.
+
+## 9) Recommended Next Steps
+
+1. Add focused tests for CLP import mapping requirements (required term column, optional field mapping, malformed file handling).
+2. Add integration tests for transfer modal context routing (project vs CLP vs conversation actions).
+3. Add regression tests for node-type option guardrails (frame unavailable in direct type-switch controls).
+4. Extract `TransferModal` and CLP import parsing helpers from `app/page.tsx` into dedicated modules to reduce orchestration-file complexity.
+
 ##03-17-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.

@@ -685,46 +685,66 @@ export const getDefaultActionTypeName = (options: string[]): string =>
 export const createDefaultNodeData = (
   globalOptions: GlobalOptionConfig,
   overrides: Partial<PersistableMicrocopyNodeData> = {}
-): MicrocopyNodeData => ({
-  title: overrides.title ?? "",
-  body_text: overrides.body_text ?? "",
-  primary_cta: overrides.primary_cta ?? "",
-  secondary_cta: overrides.secondary_cta ?? "",
-  helper_text: overrides.helper_text ?? "",
-  error_text: overrides.error_text ?? "",
-  display_term_field: isNodeControlledLanguageFieldType(overrides.display_term_field)
+): MicrocopyNodeData => {
+  const displayTermField = isNodeControlledLanguageFieldType(
+    overrides.display_term_field
+  )
     ? overrides.display_term_field
-    : "primary_cta",
-  tone: overrides.tone ?? firstOptionOrFallback(globalOptions.tone, "neutral"),
-  polarity: overrides.polarity ?? firstOptionOrFallback(globalOptions.polarity, "neutral"),
-  reversibility:
-    overrides.reversibility ??
-    firstOptionOrFallback(globalOptions.reversibility, "reversible"),
-  concept: overrides.concept ?? firstOptionOrFallback(globalOptions.concept, ""),
-  notes: overrides.notes ?? "",
-  action_type_name:
-    overrides.action_type_name ??
-    getDefaultActionTypeName(globalOptions.action_type_name),
-  action_type_color:
-    overrides.action_type_color ??
-    firstOptionOrFallback(globalOptions.action_type_color, "#4f46e5"),
-  card_style: overrides.card_style ?? firstOptionOrFallback(globalOptions.card_style, "default"),
-  node_shape: isNodeShape(overrides.node_shape) ? overrides.node_shape : "rectangle",
-  node_type: isNodeType(overrides.node_type) ? overrides.node_type : "default",
-  menu_config: normalizeMenuNodeConfig(
-    overrides.menu_config,
-    overrides.primary_cta ?? "Continue",
-    1
-  ),
-  frame_config: normalizeFrameNodeConfig(overrides.frame_config),
-  ribbon_config: null,
-  parallel_group_id:
-    typeof overrides.parallel_group_id === "string" &&
-    overrides.parallel_group_id.trim().length > 0
-      ? overrides.parallel_group_id.trim()
-      : null,
-  sequence_index: null,
-});
+    : "primary_cta";
+
+  const displayTermFields = Array.isArray(overrides.display_term_fields)
+    ? Array.from(
+        new Set(
+          overrides.display_term_fields.filter((value): value is typeof displayTermField =>
+            isNodeControlledLanguageFieldType(value)
+          )
+        )
+      )
+    : [];
+
+  return {
+    title: overrides.title ?? "",
+    body_text: overrides.body_text ?? "",
+    primary_cta: overrides.primary_cta ?? "",
+    secondary_cta: overrides.secondary_cta ?? "",
+    helper_text: overrides.helper_text ?? "",
+    error_text: overrides.error_text ?? "",
+    display_term_field: displayTermField,
+    display_term_fields:
+      displayTermFields.length > 0 ? displayTermFields : [displayTermField],
+    tone: overrides.tone ?? firstOptionOrFallback(globalOptions.tone, "neutral"),
+    polarity:
+      overrides.polarity ?? firstOptionOrFallback(globalOptions.polarity, "neutral"),
+    reversibility:
+      overrides.reversibility ??
+      firstOptionOrFallback(globalOptions.reversibility, "reversible"),
+    concept: overrides.concept ?? firstOptionOrFallback(globalOptions.concept, ""),
+    notes: overrides.notes ?? "",
+    action_type_name:
+      overrides.action_type_name ??
+      getDefaultActionTypeName(globalOptions.action_type_name),
+    action_type_color:
+      overrides.action_type_color ??
+      firstOptionOrFallback(globalOptions.action_type_color, "#4f46e5"),
+    card_style:
+      overrides.card_style ?? firstOptionOrFallback(globalOptions.card_style, "default"),
+    node_shape: isNodeShape(overrides.node_shape) ? overrides.node_shape : "rectangle",
+    node_type: isNodeType(overrides.node_type) ? overrides.node_type : "default",
+    menu_config: normalizeMenuNodeConfig(
+      overrides.menu_config,
+      overrides.primary_cta ?? "Continue",
+      1
+    ),
+    frame_config: normalizeFrameNodeConfig(overrides.frame_config),
+    ribbon_config: null,
+    parallel_group_id:
+      typeof overrides.parallel_group_id === "string" &&
+      overrides.parallel_group_id.trim().length > 0
+        ? overrides.parallel_group_id.trim()
+        : null,
+    sequence_index: null,
+  };
+};
 
 export const normalizeNode = (
   node: SerializableFlowNode,
@@ -990,6 +1010,7 @@ export const serializeNodesForStorage = (
       helper_text: node.data.helper_text,
       error_text: node.data.error_text,
       display_term_field: node.data.display_term_field,
+      display_term_fields: node.data.display_term_fields,
       tone: node.data.tone,
       polarity: node.data.polarity,
       reversibility: node.data.reversibility,
