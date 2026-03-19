@@ -38,6 +38,93 @@ This document captures the architecture and refactors for this session.
 
 ## 1) High-Level Product Shape
 
+This session fixed a regression introduced by Phase 3 text-edit history changes: typing in canvas node inputs could immediately drop focus/selection on first keystroke.
+
+The core product outcome is that text editing in node fields remains stable while preserving debounced history behavior.
+
+## 2) Core Data Model
+
+No persisted schema/type contracts were changed.
+
+This update was interaction/history orchestration only in `app/page.tsx`:
+
+- first-keystroke capture path for `FlowCopyNode` edits
+- text-edit burst lifecycle (`startTextEditHistoryBurst` / `flushTextEditHistoryBurst`)
+- callback wiring for `onBeforeChange` and `onTextEditBlur`
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no storage key changes
+- no project payload changes
+- no migration-path updates
+
+History snapshots continue to be in-memory undo/redo state, with no storage-format changes.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+The fix is orthogonal to graph topology and sequence identity.
+
+## 5) Node Rendering and Shape System
+
+No node/edge visual contracts were changed.
+
+`FlowCopyNode` rendering behavior remains the same; the fix was in parent callback behavior to avoid unintended re-render/remount side effects during first-keystroke input.
+
+## 6) Editor Interaction Model
+
+Interaction behavior was tightened so first-keystroke history capture is ref-only and non-disruptive:
+
+- `handleFlowCopyNodeBeforeChange` now only calls `startTextEditHistoryBurstRef.current()`.
+- It no longer triggers `captureUndoSnapshotRef.current()` on first keystroke.
+- `pushToHistory(...)` remains limited to debounce flush / explicit blur flush paths.
+- `onTextEditBlur` remains a stable callback path that flushes pending text-edit bursts.
+
+This preserves typing focus while keeping burst-level undo semantics.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Removed first-keystroke undo snapshot capture from `handleFlowCopyNodeBeforeChange`.
+2. Kept pre-edit snapshot behavior in refs only (no state update on keystroke start).
+3. Preserved debounced text history and blur flush behavior (Phase 3 functionality retained).
+4. Kept callback wiring stable for FlowCopyNode text-edit handlers.
+
+## 8) Validation and Operational Notes
+
+Validation run:
+
+- `npm run lint`
+
+Result:
+
+- lint reports pre-existing project errors/warnings unrelated to this focused fix
+- no additional migration/build wiring was required for this patch
+
+Operational note:
+
+- local `next dev` in this environment reported an existing `.next/dev/lock` (another dev instance already running)
+
+## 9) Recommended Next Steps
+
+1. Add a focused regression test for first-keystroke input focus retention in canvas node fields.
+2. Add tests verifying text-burst undo granularity (single undo for continuous typing burst).
+3. Add explicit tests that discrete action undo/redo wiring remains unaffected by text-burst logic.
+4. Consider extracting text-history burst orchestration into a dedicated helper/hook to reduce future regressions.
+
+##03-19-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
 This session focused on stabilizing keyboard history behavior by fixing **redo (`Ctrl/Cmd+Shift+Z`)** in the editor.
 
 User-visible outcome:

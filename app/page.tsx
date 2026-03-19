@@ -3418,7 +3418,7 @@ export default function Page() {
         return;
       }
 
-      captureUndoSnapshotRef.current();
+      pushToHistory();
 
       setNodes((currentNodes) =>
         currentNodes.map((node) => {
@@ -3492,7 +3492,7 @@ export default function Page() {
       setRegistryDragPreview(null);
       activeRegistryDragPayloadRef.current = null;
     },
-    [setNodes, setTermRegistry]
+    [pushToHistory, setNodes, setTermRegistry]
   );
 
   const resolveDroppedRegistryTerm = useCallback(
@@ -3526,7 +3526,7 @@ export default function Page() {
       field: RibbonCellRegistryField,
       pendingTerm: PendingRibbonRegistryTerm
     ) => {
-      captureUndoSnapshotRef.current();
+      pushToHistory();
 
       setTermRegistry((currentRegistry) => {
         const draggedEntryIndex = currentRegistry.findIndex(
@@ -3584,7 +3584,7 @@ export default function Page() {
       setRegistryDragPreview(null);
       activeRegistryDragPayloadRef.current = null;
     },
-    [setTermRegistry]
+    [pushToHistory, setTermRegistry]
   );
 
   const handleCanvasPointerMove = useCallback(
@@ -4978,7 +4978,8 @@ export default function Page() {
         }
       }
 
-      queueUndoSnapshot();
+      startTextEditHistoryBurst();
+      flushTextEditHistoryBurst();
 
       const now = new Date().toISOString();
       setTermRegistry((currentRegistry) =>
@@ -4995,7 +4996,138 @@ export default function Page() {
 
       return true;
     },
-    [queueUndoSnapshot, setTermRegistry, termRegistry]
+    [
+      flushTextEditHistoryBurst,
+      setTermRegistry,
+      startTextEditHistoryBurst,
+      termRegistry,
+    ]
+  );
+
+  const commitRegistryEntryValue = useCallback(
+    (entryId: string, nextValueRaw: string): boolean => {
+      const targetEntry = termRegistry.find((entry) => entry.id === entryId);
+      if (!targetEntry) {
+        return false;
+      }
+
+      const nextValue = nextValueRaw.trim();
+      if (nextValue.length === 0) {
+        return false;
+      }
+
+      if (targetEntry.value === nextValue) {
+        return true;
+      }
+
+      startTextEditHistoryBurst();
+      flushTextEditHistoryBurst();
+
+      const now = new Date().toISOString();
+
+      setTermRegistry((currentRegistry) =>
+        currentRegistry.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                value: nextValue,
+                updatedAt: now,
+              }
+            : entry
+        )
+      );
+
+      if (!targetEntry.assignedNodeId || !targetEntry.assignedField) {
+        return true;
+      }
+
+      const assignedNodeId = targetEntry.assignedNodeId;
+      const assignedField = targetEntry.assignedField;
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== assignedNodeId) {
+            return node;
+          }
+
+          if (isRegistryTrackedField(assignedField)) {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                [assignedField]: nextValue,
+              },
+            };
+          }
+
+          const dynamicAssignedField = assignedField as DynamicRegistryTrackedField;
+          const assignedMenuTermId = parseMenuTermRegistryField(dynamicAssignedField);
+
+          if (assignedMenuTermId && node.data.node_type === "menu") {
+            const normalizedMenuConfig = normalizeMenuNodeConfig(
+              node.data.menu_config,
+              node.data.primary_cta,
+              Math.max(
+                MENU_NODE_RIGHT_CONNECTIONS_MIN,
+                node.data.menu_config.max_right_connections
+              )
+            );
+
+            const nextMenuConfig = normalizedMenuConfig.terms.map(
+              (menuTerm) =>
+                menuTerm.id === assignedMenuTermId
+                  ? {
+                      ...menuTerm,
+                      term: nextValue,
+                    }
+                  : menuTerm
+            );
+
+            return {
+              ...node,
+              data: applyMenuConfigToNodeData(node.data, {
+                ...normalizedMenuConfig,
+                terms: nextMenuConfig,
+              }),
+            };
+          }
+
+          const assignedRibbonCellField = parseRibbonCellRegistryField(dynamicAssignedField);
+          if (assignedRibbonCellField && node.data.node_type === "ribbon") {
+            const normalizedRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
+
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                ribbon_config: {
+                  ...normalizedRibbonConfig,
+                  cells: normalizedRibbonConfig.cells.map((cell) =>
+                    cell.id === assignedRibbonCellField.cellId
+                      ? {
+                          ...cell,
+                          [assignedRibbonCellField.fieldName]: nextValue,
+                        }
+                      : cell
+                  ),
+                },
+              },
+            };
+          }
+
+          return node;
+        })
+      );
+
+      return true;
+    },
+    [
+      flushTextEditHistoryBurst,
+      setNodes,
+      setTermRegistry,
+      startTextEditHistoryBurst,
+      termRegistry,
+    ]
   );
 
   const toggleRegistryEntryFriendlyIdLock = useCallback(
@@ -5005,7 +5137,7 @@ export default function Page() {
         return;
       }
 
-      queueUndoSnapshot();
+      pushToHistory();
 
       const now = new Date().toISOString();
       setTermRegistry((currentRegistry) =>
@@ -5020,7 +5152,7 @@ export default function Page() {
         )
       );
     },
-    [queueUndoSnapshot, setTermRegistry, termRegistry]
+    [pushToHistory, setTermRegistry, termRegistry]
   );
 
   const updateRegistryEntryTermType = useCallback(
@@ -5070,12 +5202,12 @@ export default function Page() {
         return;
       }
 
-      queueUndoSnapshot();
+      pushToHistory();
       setTermRegistry((currentRegistry) =>
         currentRegistry.filter((entry) => entry.id !== entryId)
       );
     },
-    [queueUndoSnapshot, setTermRegistry, termRegistry]
+    [pushToHistory, setTermRegistry, termRegistry]
   );
 
   const addRegistryEntry = useCallback(() => {
@@ -5087,7 +5219,7 @@ export default function Page() {
     const normalizedTermType = registryDraftTermType.trim();
     const nextTermType = normalizedTermType.length > 0 ? normalizedTermType : null;
 
-    queueUndoSnapshot();
+    pushToHistory();
 
     const now = new Date().toISOString();
 
@@ -5109,7 +5241,12 @@ export default function Page() {
 
     setRegistryDraftValue("");
     setRegistryDraftTermType("");
-  }, [queueUndoSnapshot, registryDraftTermType, registryDraftValue, setTermRegistry]);
+  }, [
+    pushToHistory,
+    registryDraftTermType,
+    registryDraftValue,
+    setTermRegistry,
+  ]);
 
   const updateSelectedField = useCallback(
     <K extends EditableMicrocopyField>(
@@ -5872,6 +6009,8 @@ export default function Page() {
       const now = new Date().toISOString();
       const targetTermType = getRegistryTermTypeFromField(field);
 
+      pushToHistory();
+
       setTermRegistry((currentRegistry) => {
         let hasChanges = false;
 
@@ -5938,6 +6077,7 @@ export default function Page() {
     },
     [
       effectiveSelectedNodeId,
+      pushToHistory,
       setTermRegistry,
       updateRibbonCellField,
       updateSelectedField,
@@ -7026,7 +7166,7 @@ export default function Page() {
         : importedEntries.length > 0;
 
       if (shouldMutateRegistry) {
-        queueUndoSnapshot();
+        pushToHistory();
         setTermRegistry((currentRegistry) =>
           shouldReplaceRegistry
             ? importedEntries
@@ -7058,7 +7198,12 @@ export default function Page() {
               : "No terms were imported.",
       });
     },
-    [clearGlossaryHighlights, closeTransferModal, queueUndoSnapshot, termRegistry]
+    [
+      clearGlossaryHighlights,
+      closeTransferModal,
+      pushToHistory,
+      termRegistry,
+    ]
   );
 
   const triggerControlledLanguageJsonImportPicker = useCallback(() => {
@@ -9724,19 +9869,40 @@ export default function Page() {
                         }}
                       >
                         <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
-                          <div
+                          <input
+                            key={`registry-value:${entry.id}:${entry.value}`}
                             style={{
+                              ...inputStyle,
                               fontSize: 12,
                               fontWeight: 700,
-                              color: "#0f172a",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
+                              border: "1px solid #d4d4d8",
+                              padding: "2px 6px",
+                              minHeight: 24,
                             }}
+                            defaultValue={entry.value}
                             title={entry.value}
-                          >
-                            {entry.value || "(empty)"}
-                          </div>
+                            onBlur={(event) => {
+                              const didSave = commitRegistryEntryValue(
+                                entry.id,
+                                event.currentTarget.value
+                              );
+
+                              if (!didSave) {
+                                event.currentTarget.value = entry.value;
+                                return;
+                              }
+
+                              event.currentTarget.value = event.currentTarget.value.trim();
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter") {
+                                return;
+                              }
+
+                              event.preventDefault();
+                              event.currentTarget.blur();
+                            }}
+                          />
 
                           <div
                             style={{
