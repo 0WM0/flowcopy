@@ -3031,6 +3031,115 @@ export default function Page() {
     [addNodeAtClientPosition, setTermRegistry]
   );
 
+  const canDropRegistryEntryOnNodeField = useCallback(
+    (dataTransfer: DataTransfer | null) => {
+      const payload =
+        parseTermRegistryDragPayload(dataTransfer) ??
+        activeRegistryDragPayloadRef.current;
+
+      if (!payload) {
+        return false;
+      }
+
+      setIsCanvasRegistryDropActive((isActive) => (isActive ? false : isActive));
+
+      return true;
+    },
+    []
+  );
+
+  const handleDropRegistryEntryOnNodeField = useCallback(
+    (
+      nodeId: string,
+      field: RegistryTrackedField,
+      dataTransfer: DataTransfer | null
+    ) => {
+      const payload =
+        parseTermRegistryDragPayload(dataTransfer) ??
+        activeRegistryDragPayloadRef.current;
+
+      if (!payload) {
+        activeRegistryDragPayloadRef.current = null;
+        return;
+      }
+
+      captureUndoSnapshotRef.current();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== nodeId || node.data.node_type !== "default") {
+            return node;
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              [field]: payload.termValue,
+            },
+          };
+        })
+      );
+
+      setTermRegistry((currentRegistry) => {
+        const draggedEntryIndex = currentRegistry.findIndex(
+          (entry) => entry.id === payload.entryId
+        );
+
+        if (draggedEntryIndex === -1) {
+          return currentRegistry;
+        }
+
+        const now = new Date().toISOString();
+        let hasChanges = false;
+
+        const nextRegistry = currentRegistry.map((entry, entryIndex) => {
+          if (
+            entryIndex !== draggedEntryIndex &&
+            entry.assignedNodeId === nodeId &&
+            entry.assignedField === field
+          ) {
+            hasChanges = true;
+            return {
+              ...entry,
+              assignedNodeId: null,
+              assignedField: null,
+              updatedAt: now,
+            };
+          }
+
+          return entry;
+        });
+
+        const draggedEntry = nextRegistry[draggedEntryIndex];
+        const nextTermType = getRegistryTermTypeFromField(field);
+
+        if (
+          draggedEntry.assignedNodeId !== nodeId ||
+          draggedEntry.assignedField !== field ||
+          draggedEntry.termType !== nextTermType
+        ) {
+          hasChanges = true;
+          nextRegistry[draggedEntryIndex] = {
+            ...draggedEntry,
+            termType: nextTermType,
+            assignedNodeId: nodeId,
+            assignedField: field,
+            updatedAt: now,
+          };
+        }
+
+        return hasChanges ? nextRegistry : currentRegistry;
+      });
+
+      setIsCanvasRegistryDropActive(false);
+      setIsRegistryDragActive(false);
+      setRegistryDragPreview(null);
+      activeRegistryDragPayloadRef.current = null;
+    },
+    [setNodes, setTermRegistry]
+  );
+
   const handleCanvasPointerMove = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       isCanvasPointerInsideRef.current = true;
@@ -5513,31 +5622,47 @@ export default function Page() {
     [glossaryHighlightedNodeIds]
   );
 
+  const handleFlowCopyNodeBeforeChange = useCallback(() => {
+    captureUndoSnapshotRef.current();
+  }, []);
+
+  const handleFlowCopyNodeMenuConfigChange = useCallback(
+    (nodeId: string, updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig) => {
+      updateMenuNodeConfigByIdRef.current(nodeId, updater);
+    },
+    []
+  );
+
   const nodeTypes = useMemo(
     () => ({
       flowcopyNode: (props: NodeProps<FlowNode>) => (
         <FlowCopyNode
           {...props}
-          onBeforeChange={() => captureUndoSnapshotRef.current()}
+          onBeforeChange={handleFlowCopyNodeBeforeChange}
           onCommitRegistryField={syncFieldToRegistry}
           onRegistryPickerOpen={openRegistryPickerForNodeField}
+          onCanDropRegistryEntry={canDropRegistryEntryOnNodeField}
+          onDropRegistryEntryOnField={handleDropRegistryEntryOnNodeField}
           menuTermGlossaryTerms={menuTermGlossaryTermsRef.current}
           glossaryHighlightedNodeIds={glossaryHighlightedNodeIdSet}
           showNodeId={showNodeIdsOnCanvas}
           showDefaultNodeTitleOnCanvas={showDefaultNodeTitleOnCanvas}
           onMenuTermDeleteBlocked={showMenuTermDeleteBlockedMessage}
-          onMenuNodeConfigChange={(nodeId, updater) =>
-            updateMenuNodeConfigByIdRef.current(nodeId, updater)
-          }
+          onMenuNodeConfigChange={handleFlowCopyNodeMenuConfigChange}
         />
       ),
     }),
     [
       glossaryHighlightedNodeIdSet,
+      canDropRegistryEntryOnNodeField,
+      handleFlowCopyNodeBeforeChange,
+      handleFlowCopyNodeMenuConfigChange,
+      handleDropRegistryEntryOnNodeField,
       openRegistryPickerForNodeField,
       showDefaultNodeTitleOnCanvas,
       showNodeIdsOnCanvas,
       showMenuTermDeleteBlockedMessage,
+      syncFieldToRegistry,
     ]
   );
 

@@ -109,6 +109,12 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
     nodeId: string,
     updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig
   ) => void;
+  onCanDropRegistryEntry: (dataTransfer: DataTransfer | null) => boolean;
+  onDropRegistryEntryOnField: (
+    nodeId: string,
+    field: RegistryTrackedField,
+    dataTransfer: DataTransfer | null
+  ) => void;
 };
 
 const REGISTRY_TRACKED_FIELDS = [
@@ -154,7 +160,7 @@ const getCanvasRegistryButtonStyle = (): React.CSSProperties => ({
   flexShrink: 0,
 });
 
-function FlowCopyNode({
+const FlowCopyNode = React.memo(function FlowCopyNode({
   id,
   data,
   selected,
@@ -167,6 +173,8 @@ function FlowCopyNode({
   showDefaultNodeTitleOnCanvas,
   onMenuTermDeleteBlocked,
   onMenuNodeConfigChange,
+  onCanDropRegistryEntry,
+  onDropRegistryEntryOnField,
 }: FlowCopyNodeProps) {
   const { setNodes } = useReactFlow<FlowNode, FlowEdge>();
   const updateNodeInternals = useUpdateNodeInternals();
@@ -175,6 +183,8 @@ function FlowCopyNode({
   const ribbonPopupRef = useRef<HTMLDivElement | null>(null);
   const [isEditingFrameTitle, setIsEditingFrameTitle] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
+  const [activeRegistryDropField, setActiveRegistryDropField] =
+    useState<RegistryTrackedField | null>(null);
   const [cellPopupPosition, setCellPopupPosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
@@ -243,6 +253,108 @@ function FlowCopyNode({
       event.stopPropagation();
     },
     []
+  );
+
+  const handleDefaultRegistryFieldDragOver = useCallback(
+    (
+      event: React.DragEvent<HTMLInputElement | HTMLTextAreaElement>,
+      field: RegistryTrackedField
+    ) => {
+      if (data.node_type !== "default") {
+        return;
+      }
+
+      const canDropRegistryEntry = onCanDropRegistryEntry(event.dataTransfer);
+      if (!canDropRegistryEntry) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+
+      setActiveRegistryDropField((currentField) =>
+        currentField === field ? currentField : field
+      );
+    },
+    [data.node_type, onCanDropRegistryEntry]
+  );
+
+  const handleDefaultRegistryFieldDragLeave = useCallback(
+    (
+      event: React.DragEvent<HTMLInputElement | HTMLTextAreaElement>,
+      field: RegistryTrackedField
+    ) => {
+      const relatedTarget = event.relatedTarget;
+
+      if (
+        relatedTarget instanceof Node &&
+        event.currentTarget.contains(relatedTarget)
+      ) {
+        return;
+      }
+
+      setActiveRegistryDropField((currentField) =>
+        currentField === field ? null : currentField
+      );
+    },
+    []
+  );
+
+  const handleDefaultRegistryFieldDrop = useCallback(
+    (
+      event: React.DragEvent<HTMLInputElement | HTMLTextAreaElement>,
+      field: RegistryTrackedField
+    ) => {
+      if (data.node_type !== "default") {
+        return;
+      }
+
+      const canDropRegistryEntry = onCanDropRegistryEntry(event.dataTransfer);
+      if (!canDropRegistryEntry) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      onDropRegistryEntryOnField(id, field, event.dataTransfer);
+      setActiveRegistryDropField(null);
+    },
+    [data.node_type, id, onCanDropRegistryEntry, onDropRegistryEntryOnField]
+  );
+
+  const getDefaultRegistryFieldInputStyle = useCallback(
+    (
+      field: RegistryTrackedField,
+      baseStyle: React.CSSProperties
+    ): React.CSSProperties => {
+      if (activeRegistryDropField !== field) {
+        return baseStyle;
+      }
+
+      const {
+        border: _borderShorthand,
+        borderTop: _borderTopShorthand,
+        borderRight: _borderRightShorthand,
+        borderBottom: _borderBottomShorthand,
+        borderLeft: _borderLeftShorthand,
+        borderColor: _borderColor,
+        borderStyle: _borderStyle,
+        borderWidth: _borderWidth,
+        ...styleWithoutBorderShorthand
+      } = baseStyle;
+
+      return {
+        ...styleWithoutBorderShorthand,
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: "#60a5fa",
+        background: "#eff6ff",
+        boxShadow: "0 0 0 1px rgba(37, 99, 235, 0.28)",
+      };
+    },
+    [activeRegistryDropField]
   );
 
   useEffect(() => {
@@ -1387,12 +1499,19 @@ function FlowCopyNode({
                 <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>Title</div>
                 <input
                   className="nodrag"
-                  style={inputStyle}
+                  style={getDefaultRegistryFieldInputStyle("title", inputStyle)}
                   value={data.title}
                   placeholder="Add title"
                   onPointerDown={stopNodeSelectionPropagation}
                   onMouseDown={stopNodeSelectionPropagation}
                   onClick={stopNodeSelectionPropagation}
+                  onDragOver={(event) =>
+                    handleDefaultRegistryFieldDragOver(event, "title")
+                  }
+                  onDragLeave={(event) =>
+                    handleDefaultRegistryFieldDragLeave(event, "title")
+                  }
+                  onDrop={(event) => handleDefaultRegistryFieldDrop(event, "title")}
                   onChange={(event) => updateField("title", event.target.value)}
                   onBlur={(event) =>
                     commitRegistryField("title", event.currentTarget.value)
@@ -1423,16 +1542,25 @@ function FlowCopyNode({
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                   <input
                     className="nodrag"
-                    style={{
+                    style={getDefaultRegistryFieldInputStyle(displayTermFieldType, {
                       ...inputStyle,
                       flex: 1,
                       minWidth: 0,
-                    }}
+                    })}
                     value={data[displayTermFieldType]}
                     placeholder="Add term"
                     onPointerDown={stopNodeSelectionPropagation}
                     onMouseDown={stopNodeSelectionPropagation}
                     onClick={stopNodeSelectionPropagation}
+                    onDragOver={(event) =>
+                      handleDefaultRegistryFieldDragOver(event, displayTermFieldType)
+                    }
+                    onDragLeave={(event) =>
+                      handleDefaultRegistryFieldDragLeave(event, displayTermFieldType)
+                    }
+                    onDrop={(event) =>
+                      handleDefaultRegistryFieldDrop(event, displayTermFieldType)
+                    }
                     onChange={(event) =>
                       updateField(displayTermFieldType, event.target.value)
                     }
@@ -1685,7 +1813,7 @@ function FlowCopyNode({
       />
     </div>
   );
-}
+});
 
 export type { FlowCopyNodeProps };
 export { FlowCopyNode, BodyTextPreview };
