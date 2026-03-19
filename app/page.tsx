@@ -1239,6 +1239,64 @@ type DynamicRegistryTrackedField =
   | MenuTermRegistryField
   | RibbonCellRegistryField;
 
+const TERM_REGISTRY_DRAG_DATA_KEY = "application/x-flowcopy-term-registry-entry";
+
+type TermRegistryDragPayload = {
+  entryId: string;
+  termValue: string;
+  referenceKey: string | null;
+  nodeType: NodeType | null;
+};
+
+type TermRegistryDragPreview = {
+  termValue: string;
+  clientX: number;
+  clientY: number;
+};
+
+const parseTermRegistryDragPayload = (
+  dataTransfer: DataTransfer | null
+): TermRegistryDragPayload | null => {
+  if (!dataTransfer) {
+    return null;
+  }
+
+  const payloadRaw = dataTransfer.getData(TERM_REGISTRY_DRAG_DATA_KEY);
+  if (!payloadRaw) {
+    return null;
+  }
+
+  try {
+    const parsedPayload = JSON.parse(payloadRaw) as Partial<TermRegistryDragPayload>;
+
+    if (
+      typeof parsedPayload.entryId !== "string" ||
+      typeof parsedPayload.termValue !== "string"
+    ) {
+      return null;
+    }
+
+    const referenceKey =
+      typeof parsedPayload.referenceKey === "string"
+        ? parsedPayload.referenceKey
+        : null;
+
+    const nodeType =
+      typeof parsedPayload.nodeType === "string" && isNodeType(parsedPayload.nodeType)
+        ? parsedPayload.nodeType
+        : null;
+
+    return {
+      entryId: parsedPayload.entryId,
+      termValue: parsedPayload.termValue,
+      referenceKey,
+      nodeType,
+    };
+  } catch {
+    return null;
+  }
+};
+
 const isRegistryTrackedField = (field: string): field is RegistryTrackedField =>
   REGISTRY_TRACKED_FIELDS.includes(field as RegistryTrackedField);
 
@@ -1734,6 +1792,10 @@ export default function Page() {
   const [activeRegistryHighlightEntryId, setActiveRegistryHighlightEntryId] = useState<
     string | null
   >(null);
+  const [registryDragPreview, setRegistryDragPreview] =
+    useState<TermRegistryDragPreview | null>(null);
+  const [isRegistryDragActive, setIsRegistryDragActive] = useState(false);
+  const [isCanvasRegistryDropActive, setIsCanvasRegistryDropActive] = useState(false);
   const [controlledLanguageDraftRow, setControlledLanguageDraftRow] =
     useState<ControlledLanguageDraftRow>(createEmptyControlledLanguageDraftRow);
   const [openControlledLanguageFieldType, setOpenControlledLanguageFieldType] = useState<
@@ -1818,6 +1880,7 @@ export default function Page() {
   const sidePanelResizeStartXRef = useRef(0);
   const sidePanelResizeStartWidthRef = useRef(SIDE_PANEL_MIN_WIDTH);
   const canvasClipboardRef = useRef<CanvasClipboardSnapshot | null>(null);
+  const activeRegistryDragPayloadRef = useRef<TermRegistryDragPayload | null>(null);
   const pasteInvocationCountRef = useRef(0);
 
   const updateStore = useCallback((updater: (prev: AppStore) => AppStore) => {
@@ -2721,17 +2784,22 @@ export default function Page() {
   const addNodeAtClientPosition = useCallback(
     (
       clientPosition: { x: number; y: number },
-      nodeType: "default" | "menu" | "ribbon" = "default"
+      nodeType: "default" | "menu" | "ribbon" = "default",
+      options?: {
+        primaryTextValue?: string;
+        onNodeCreated?: (nodeId: string) => void;
+      }
     ) => {
       const rf = rfRef.current;
       if (!rf) {
-        return;
+        return null;
       }
 
       queueUndoSnapshot();
 
       const position = rf.screenToFlowPosition(clientPosition);
       const id = createNodeId();
+      const normalizedPrimaryText = options?.primaryTextValue?.trim() ?? "";
 
       const nodeToCreate: SerializableFlowNode =
         nodeType === "menu"
@@ -2740,7 +2808,7 @@ export default function Page() {
               position,
               data: {
                 node_type: "menu",
-                primary_cta: "Continue",
+                primary_cta: normalizedPrimaryText || "Continue",
               },
             }
           : nodeType === "ribbon"
@@ -2750,11 +2818,17 @@ export default function Page() {
                 data: {
                   node_type: "ribbon",
                   ribbon_config: normalizeRibbonNodeConfig(null),
+                  ...(normalizedPrimaryText.length > 0
+                    ? { primary_cta: normalizedPrimaryText }
+                    : {}),
                 },
               }
           : {
               id,
               position,
+              ...(normalizedPrimaryText.length > 0
+                ? { data: { primary_cta: normalizedPrimaryText } }
+                : {}),
             };
 
       setNodes((nds) => [
@@ -2764,6 +2838,8 @@ export default function Page() {
       setSelectedNodeId(id);
       setSelectedNodeIds([id]);
       setSelectedEdgeId(null);
+      options?.onNodeCreated?.(id);
+      return id;
     },
     [adminOptions, queueUndoSnapshot, setNodes]
   );
@@ -2782,6 +2858,177 @@ export default function Page() {
       );
     },
     [addNodeAtClientPosition]
+  );
+
+  const handleRegistryEntryDragStart = useCallback(
+    (event: React.DragEvent<HTMLElement>, entry: TermRegistryEntry) => {
+      const payload: TermRegistryDragPayload = {
+        entryId: entry.id,
+        termValue: entry.value,
+        referenceKey: entry.friendlyId,
+        nodeType:
+          typeof entry.termType === "string" && isNodeType(entry.termType)
+            ? entry.termType
+            : null,
+      };
+
+      event.dataTransfer.setData(TERM_REGISTRY_DRAG_DATA_KEY, JSON.stringify(payload));
+      event.dataTransfer.setData("text/plain", entry.value);
+      event.dataTransfer.effectAllowed = "copy";
+      activeRegistryDragPayloadRef.current = payload;
+
+      setIsRegistryDragActive(true);
+      setIsCanvasRegistryDropActive(false);
+      setRegistryDragPreview({
+        termValue: entry.value.trim().length > 0 ? entry.value : "Untitled term",
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+    },
+    []
+  );
+
+  const handleRegistryEntryDrag = useCallback(
+    (event: React.DragEvent<HTMLElement>) => {
+      if (!isRegistryDragActive) {
+        return;
+      }
+
+      if (event.clientX <= 0 && event.clientY <= 0) {
+        return;
+      }
+
+      setRegistryDragPreview((currentPreview) =>
+        currentPreview
+          ? {
+              ...currentPreview,
+              clientX: event.clientX,
+              clientY: event.clientY,
+            }
+          : currentPreview
+      );
+    },
+    [isRegistryDragActive]
+  );
+
+  const handleRegistryEntryDragEnd = useCallback(() => {
+    activeRegistryDragPayloadRef.current = null;
+    setIsRegistryDragActive(false);
+    setIsCanvasRegistryDropActive(false);
+    setRegistryDragPreview(null);
+  }, []);
+
+  const handleCanvasRegistryDragOver = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      const payload =
+        parseTermRegistryDragPayload(event.dataTransfer) ??
+        activeRegistryDragPayloadRef.current;
+      if (!payload) {
+        return;
+      }
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+
+      console.log("[CLP Drag] dragover payload", payload);
+
+      if (!isCanvasRegistryDropActive) {
+        setIsCanvasRegistryDropActive(true);
+      }
+    },
+    [isCanvasRegistryDropActive]
+  );
+
+  const handleCanvasRegistryDragLeave = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      const nextTarget = event.relatedTarget;
+
+      if (
+        nextTarget instanceof Node &&
+        canvasContainerRef.current?.contains(nextTarget)
+      ) {
+        return;
+      }
+
+      setIsCanvasRegistryDropActive(false);
+    },
+    []
+  );
+
+  const handleCanvasRegistryDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+
+      const payload =
+        parseTermRegistryDragPayload(event.dataTransfer) ??
+        activeRegistryDragPayloadRef.current;
+
+      console.log("[CLP Drag] drop payload", payload, {
+        dragTypes: Array.from(event.dataTransfer.types ?? []),
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+
+      if (!payload) {
+        activeRegistryDragPayloadRef.current = null;
+        return;
+      }
+
+      setIsCanvasRegistryDropActive(false);
+      setIsRegistryDragActive(false);
+      setRegistryDragPreview(null);
+      activeRegistryDragPayloadRef.current = null;
+
+      const dropTargetElement = event.target as HTMLElement | null;
+      const didDropOnExistingNode = Boolean(
+        dropTargetElement?.closest(".react-flow__node")
+      );
+
+      if (didDropOnExistingNode) {
+        console.log("[CLP Drag] drop ignored (over existing node)");
+        return;
+      }
+
+      const droppedNodeType: "default" | "menu" | "ribbon" =
+        payload.nodeType === "menu" || payload.nodeType === "ribbon"
+          ? payload.nodeType
+          : "default";
+
+      console.log("[CLP Drag] creating node", {
+        droppedNodeType,
+        primaryTextValue: payload.termValue,
+      });
+
+      const createdNodeId = addNodeAtClientPosition(
+        {
+          x: event.clientX,
+          y: event.clientY,
+        },
+        droppedNodeType,
+        {
+          primaryTextValue: payload.termValue,
+          onNodeCreated: (createdNodeId) => {
+            const now = new Date().toISOString();
+
+            setTermRegistry((currentRegistry) =>
+              currentRegistry.map((entry) =>
+                entry.id === payload.entryId
+                  ? {
+                      ...entry,
+                      assignedNodeId: createdNodeId,
+                      assignedField: "primary_cta",
+                      updatedAt: now,
+                    }
+                  : entry
+              )
+            );
+          },
+        }
+      );
+
+      console.log("[CLP Drag] node creation result", { createdNodeId });
+    },
+    [addNodeAtClientPosition, setTermRegistry]
   );
 
   const handleCanvasPointerMove = useCallback(
@@ -7701,7 +7948,17 @@ export default function Page() {
         onPointerLeave={handleCanvasPointerLeave}
         onPointerDown={handleCanvasPointerDown}
         onPointerUp={handleCanvasPointerUp}
-        style={{ borderRight: "1px solid #e4e4e7" }}
+        onDragOver={handleCanvasRegistryDragOver}
+        onDragLeave={handleCanvasRegistryDragLeave}
+        onDrop={handleCanvasRegistryDrop}
+        style={{
+          borderRight: "1px solid #e4e4e7",
+          transition: "box-shadow 120ms ease, background-color 120ms ease",
+          background: isCanvasRegistryDropActive ? "rgba(191, 219, 254, 0.18)" : undefined,
+          boxShadow: isCanvasRegistryDropActive
+            ? "inset 0 0 0 2px rgba(37, 99, 235, 0.42)"
+            : "none",
+        }}
       >
         <ReactFlow<FlowNode, FlowEdge>
           nodes={nodesWithSequence}
@@ -8625,6 +8882,10 @@ export default function Page() {
                           <button
                             key={`clp-filtered-registry-entry:${entry.id}`}
                             type="button"
+                            draggable
+                            onDragStart={(event) => handleRegistryEntryDragStart(event, entry)}
+                            onDrag={handleRegistryEntryDrag}
+                            onDragEnd={handleRegistryEntryDragEnd}
                             style={{
                               ...buttonStyle,
                               textAlign: "left",
@@ -8761,6 +9022,10 @@ export default function Page() {
                       return (
                       <div
                         key={`registry-entry:${entry.id}`}
+                        draggable
+                        onDragStart={(event) => handleRegistryEntryDragStart(event, entry)}
+                        onDrag={handleRegistryEntryDrag}
+                        onDragEnd={handleRegistryEntryDragEnd}
                         onClick={(event) => {
                           if (!entry.assignedNodeId) {
                             return;
@@ -10718,6 +10983,32 @@ export default function Page() {
           </div>
         )}
       </aside>
+
+      {registryDragPreview && isRegistryDragActive && (
+        <div
+          style={{
+            position: "fixed",
+            left: registryDragPreview.clientX + 14,
+            top: registryDragPreview.clientY + 14,
+            zIndex: 2200,
+            pointerEvents: "none",
+            maxWidth: 280,
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid rgba(148, 163, 184, 0.8)",
+            background: "rgba(15, 23, 42, 0.78)",
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 700,
+            boxShadow: "0 8px 20px rgba(15, 23, 42, 0.25)",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {registryDragPreview.termValue}
+        </div>
+      )}
 
       {isHelpModalOpen && (
         <div
