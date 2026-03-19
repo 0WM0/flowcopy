@@ -1480,6 +1480,17 @@ type EditorSnapshot = {
 };
 
 const HISTORY_STACK_MAX_DEPTH = 30;
+const TEXT_EDIT_HISTORY_DEBOUNCE_MS = 800;
+
+const TEXT_HISTORY_TRACKED_FIELDS = new Set<EditableMicrocopyField>([
+  "title",
+  "body_text",
+  "primary_cta",
+  "secondary_cta",
+  "helper_text",
+  "error_text",
+  "notes",
+]);
 
 type HistorySnapshot = EditorSnapshot & {
   selectedNodeId: string | null;
@@ -1882,13 +1893,16 @@ export default function Page() {
   const undoCaptureTimeoutRef = useRef<number | null>(null);
   const menuTermDeleteErrorTimeoutRef = useRef<number | null>(null);
   const captureUndoSnapshotRef = useRef<() => void>(() => undefined);
+  const startTextEditHistoryBurstRef = useRef<() => void>(() => undefined);
+  const flushTextEditHistoryBurstRef = useRef<() => void>(() => undefined);
   const createFrameFromSelectionRef = useRef<
     (selectedNodesForFrameCreation?: FlowNode[]) => void
   >(() => undefined);
   const updateMenuNodeConfigByIdRef = useRef<
     (
       nodeId: string,
-      updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig
+      updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig,
+      historyCaptureMode?: "discrete" | "text"
     ) => void
   >(() => undefined);
   const menuTermGlossaryTermsRef = useRef<string[]>([]);
@@ -1903,6 +1917,8 @@ export default function Page() {
   const nodeMoveHistoryCapturedOnStartRef = useRef(false);
   const deletionHistoryCapturedThisBatchRef = useRef(false);
   const deletionHistoryResetTimeoutRef = useRef<number | null>(null);
+  const textEditHistoryBeforeSnapshotRef = useRef<HistorySnapshot | null>(null);
+  const textEditHistoryDebounceTimeoutRef = useRef<number | null>(null);
 
   const updateStore = useCallback((updater: (prev: AppStore) => AppStore) => {
     setStore((prev) => {
@@ -1937,6 +1953,10 @@ export default function Page() {
 
       if (deletionHistoryResetTimeoutRef.current !== null) {
         window.clearTimeout(deletionHistoryResetTimeoutRef.current);
+      }
+
+      if (textEditHistoryDebounceTimeoutRef.current !== null) {
+        window.clearTimeout(textEditHistoryDebounceTimeoutRef.current);
       }
     },
     []
@@ -2193,6 +2213,47 @@ export default function Page() {
     commitHistorySnapshot(snapshotOverride ?? createHistorySnapshot());
   }, [commitHistorySnapshot, createHistorySnapshot, store.session.view]);
 
+  const flushTextEditHistoryBurst = useCallback(() => {
+    if (textEditHistoryDebounceTimeoutRef.current !== null) {
+      window.clearTimeout(textEditHistoryDebounceTimeoutRef.current);
+      textEditHistoryDebounceTimeoutRef.current = null;
+    }
+
+    const snapshotBeforeTextEditBurst = textEditHistoryBeforeSnapshotRef.current;
+    if (!snapshotBeforeTextEditBurst) {
+      return;
+    }
+
+    textEditHistoryBeforeSnapshotRef.current = null;
+    pushToHistory(snapshotBeforeTextEditBurst);
+  }, [pushToHistory]);
+
+  const startTextEditHistoryBurst = useCallback(() => {
+    if (store.session.view !== "editor") {
+      return;
+    }
+
+    if (textEditHistoryBeforeSnapshotRef.current === null) {
+      textEditHistoryBeforeSnapshotRef.current = createHistorySnapshot();
+    }
+
+    if (textEditHistoryDebounceTimeoutRef.current !== null) {
+      window.clearTimeout(textEditHistoryDebounceTimeoutRef.current);
+    }
+
+    textEditHistoryDebounceTimeoutRef.current = window.setTimeout(() => {
+      textEditHistoryDebounceTimeoutRef.current = null;
+
+      const snapshotBeforeTextEditBurst = textEditHistoryBeforeSnapshotRef.current;
+      if (!snapshotBeforeTextEditBurst) {
+        return;
+      }
+
+      textEditHistoryBeforeSnapshotRef.current = null;
+      pushToHistory(snapshotBeforeTextEditBurst);
+    }, TEXT_EDIT_HISTORY_DEBOUNCE_MS);
+  }, [createHistorySnapshot, pushToHistory, store.session.view]);
+
   const captureDeletionHistoryOncePerBatch = useCallback(() => {
     if (deletionHistoryCapturedThisBatchRef.current) {
       return;
@@ -2216,6 +2277,8 @@ export default function Page() {
       return;
     }
 
+    flushTextEditHistoryBurst();
+
     if (undoCaptureTimeoutRef.current !== null) {
       window.clearTimeout(undoCaptureTimeoutRef.current);
       undoCaptureTimeoutRef.current = null;
@@ -2238,6 +2301,7 @@ export default function Page() {
   }, [
     applyHistorySnapshot,
     createHistorySnapshot,
+    flushTextEditHistoryBurst,
     markProjectDirty,
     store.session.view,
   ]);
@@ -2246,6 +2310,8 @@ export default function Page() {
     if (store.session.view !== "editor") {
       return;
     }
+
+    flushTextEditHistoryBurst();
 
     if (undoCaptureTimeoutRef.current !== null) {
       window.clearTimeout(undoCaptureTimeoutRef.current);
@@ -2269,6 +2335,7 @@ export default function Page() {
   }, [
     applyHistorySnapshot,
     createHistorySnapshot,
+    flushTextEditHistoryBurst,
     markProjectDirty,
     store.session.view,
   ]);
@@ -2487,6 +2554,14 @@ export default function Page() {
   useEffect(() => {
     captureUndoSnapshotRef.current = queueUndoSnapshot;
   }, [queueUndoSnapshot]);
+
+  useEffect(() => {
+    startTextEditHistoryBurstRef.current = startTextEditHistoryBurst;
+  }, [startTextEditHistoryBurst]);
+
+  useEffect(() => {
+    flushTextEditHistoryBurstRef.current = flushTextEditHistoryBurst;
+  }, [flushTextEditHistoryBurst]);
 
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0) {
@@ -4822,13 +4897,16 @@ export default function Page() {
 
   const commitSelectedRegistryField = useCallback(
     (field: RegistryTrackedField, value: string) => {
+      flushTextEditHistoryBurst();
       syncSelectedRegistryFieldOnBlur(field, value);
     },
-    [syncSelectedRegistryFieldOnBlur]
+    [flushTextEditHistoryBurst, syncSelectedRegistryFieldOnBlur]
   );
 
   const commitSelectedMenuTermRegistryField = useCallback(
     (menuTermId: string, value: string) => {
+      flushTextEditHistoryBurst();
+
       if (!effectiveSelectedNodeId || selectedNode?.data.node_type !== "menu") {
         return;
       }
@@ -4839,11 +4917,18 @@ export default function Page() {
         value
       );
     },
-    [effectiveSelectedNodeId, selectedNode, syncFieldToRegistry]
+    [
+      effectiveSelectedNodeId,
+      flushTextEditHistoryBurst,
+      selectedNode,
+      syncFieldToRegistry,
+    ]
   );
 
   const commitSelectedRibbonCellRegistryField = useCallback(
     (cellId: string, fieldName: RibbonCellRegistryFieldName, value: string) => {
+      flushTextEditHistoryBurst();
+
       if (!effectiveSelectedNodeId || selectedNode?.data.node_type !== "ribbon") {
         return;
       }
@@ -4854,7 +4939,12 @@ export default function Page() {
         value
       );
     },
-    [effectiveSelectedNodeId, selectedNode, syncFieldToRegistry]
+    [
+      effectiveSelectedNodeId,
+      flushTextEditHistoryBurst,
+      selectedNode,
+      syncFieldToRegistry,
+    ]
   );
 
   const commitRegistryFriendlyId = useCallback(
@@ -5028,6 +5118,10 @@ export default function Page() {
     ) => {
       if (!effectiveSelectedNodeId) return;
 
+      if (TEXT_HISTORY_TRACKED_FIELDS.has(field)) {
+        startTextEditHistoryBurst();
+      }
+
       queueUndoSnapshot();
 
       setNodes((nds) =>
@@ -5038,7 +5132,7 @@ export default function Page() {
         )
       );
     },
-    [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
+    [effectiveSelectedNodeId, queueUndoSnapshot, setNodes, startTextEditHistoryBurst]
   );
 
   const updateSelectedDisplayTermField = useCallback(
@@ -5259,7 +5353,8 @@ export default function Page() {
   const updateMenuNodeConfigById = useCallback(
     (
       nodeId: string,
-      updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig
+      updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig,
+      historyCaptureMode: "discrete" | "text" = "discrete"
     ) => {
       const targetNode = nodes.find((node) => node.id === nodeId);
       if (!targetNode || targetNode.data.node_type !== "menu") {
@@ -5285,7 +5380,11 @@ export default function Page() {
         )
       );
 
-      queueUndoSnapshot();
+      if (historyCaptureMode === "text") {
+        startTextEditHistoryBurst();
+      } else {
+        queueUndoSnapshot();
+      }
 
       setNodes((currentNodes) =>
         currentNodes.map((node) => {
@@ -5358,7 +5457,7 @@ export default function Page() {
           : null;
       });
     },
-    [nodes, queueUndoSnapshot, setEdges, setNodes, setTermRegistry]
+    [nodes, queueUndoSnapshot, setEdges, setNodes, setTermRegistry, startTextEditHistoryBurst]
   );
 
   const selectedMenuNodeConfig = useMemo(() => {
@@ -5564,6 +5663,7 @@ export default function Page() {
         ),
       });
 
+      startTextEditHistoryBurst();
       queueUndoSnapshot();
 
       setNodes((currentNodes) =>
@@ -5580,7 +5680,14 @@ export default function Page() {
         )
       );
     },
-    [effectiveSelectedNodeId, nodes, queueUndoSnapshot, selectedNode, setNodes]
+    [
+      effectiveSelectedNodeId,
+      nodes,
+      queueUndoSnapshot,
+      selectedNode,
+      setNodes,
+      startTextEditHistoryBurst,
+    ]
   );
 
   const commitSelectedMenuRightConnectionsInput = useCallback((rawValue: string) => {
@@ -5632,7 +5739,7 @@ export default function Page() {
               }
             : menuTerm
         ),
-      }));
+      }), "text");
     },
     [effectiveSelectedNodeId, selectedMenuNodeConfig, updateMenuNodeConfigById]
   );
@@ -6039,12 +6146,20 @@ export default function Page() {
   );
 
   const handleFlowCopyNodeBeforeChange = useCallback(() => {
-    captureUndoSnapshotRef.current();
+    startTextEditHistoryBurstRef.current();
+  }, []);
+
+  const handleFlowCopyNodeTextEditBlur = useCallback(() => {
+    flushTextEditHistoryBurstRef.current();
   }, []);
 
   const handleFlowCopyNodeMenuConfigChange = useCallback(
-    (nodeId: string, updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig) => {
-      updateMenuNodeConfigByIdRef.current(nodeId, updater);
+    (
+      nodeId: string,
+      updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig,
+      historyCaptureMode: "discrete" | "text" = "discrete"
+    ) => {
+      updateMenuNodeConfigByIdRef.current(nodeId, updater, historyCaptureMode);
     },
     []
   );
@@ -6055,6 +6170,7 @@ export default function Page() {
         <FlowCopyNode
           {...props}
           onBeforeChange={handleFlowCopyNodeBeforeChange}
+          onTextEditBlur={handleFlowCopyNodeTextEditBlur}
           onCommitRegistryField={syncFieldToRegistry}
           onRegistryPickerOpen={openRegistryPickerForNodeField}
           onCanDropRegistryEntry={canDropRegistryEntryOnNodeField}
@@ -6075,6 +6191,7 @@ export default function Page() {
       canDropRegistryEntryOnNodeField,
       handleAssignPendingRibbonTermToField,
       handleFlowCopyNodeBeforeChange,
+      handleFlowCopyNodeTextEditBlur,
       handleFlowCopyNodeMenuConfigChange,
       handleDropRegistryEntryOnNodeField,
       openRegistryPickerForNodeField,

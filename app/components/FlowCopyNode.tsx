@@ -86,6 +86,7 @@ function BodyTextPreview({ value }: { value: string }) {
 
 type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onBeforeChange: () => void;
+  onTextEditBlur: () => void;
   onCommitRegistryField: (
     nodeId: string,
     field: RegistryTrackedField | `menu_term:[${string}]` | `ribbon_cell:[${string}]:label` | `ribbon_cell:[${string}]:key_command` | `ribbon_cell:[${string}]:tool_tip`,
@@ -107,7 +108,8 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onMenuTermDeleteBlocked: () => void;
   onMenuNodeConfigChange: (
     nodeId: string,
-    updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig
+    updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig,
+    historyCaptureMode?: "discrete" | "text"
   ) => void;
   onCanDropRegistryEntry: (dataTransfer: DataTransfer | null) => boolean;
   onDropRegistryEntryOnField: (
@@ -188,6 +190,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   data,
   selected,
   onBeforeChange,
+  onTextEditBlur,
   onCommitRegistryField,
   onRegistryPickerOpen,
   menuTermGlossaryTerms,
@@ -424,44 +427,53 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
   const commitRegistryField = useCallback(
     (field: EditableMicrocopyField, value: string) => {
+      onTextEditBlur();
+
       if (!isRegistryTrackedField(field) || isFrameNode) {
         return;
       }
 
       onCommitRegistryField(id, field, value);
     },
-    [id, isFrameNode, onCommitRegistryField]
+    [id, isFrameNode, onCommitRegistryField, onTextEditBlur]
   );
 
   const commitMenuTermRegistryField = useCallback(
     (menuTermId: string, value: string) => {
+      onTextEditBlur();
+
       if (!isMenuNode) {
         return;
       }
 
       onCommitRegistryField(id, buildMenuTermRegistryField(menuTermId), value);
     },
-    [id, isMenuNode, onCommitRegistryField]
+    [id, isMenuNode, onCommitRegistryField, onTextEditBlur]
   );
 
   const commitRibbonCellRegistryField = useCallback(
     (cellId: string, field: "label" | "key_command" | "tool_tip", value: string) => {
+      onTextEditBlur();
+
       if (!isRibbonNode) {
         return;
       }
 
       onCommitRegistryField(id, buildRibbonCellRegistryField(cellId, field), value);
     },
-    [id, isRibbonNode, onCommitRegistryField]
+    [id, isRibbonNode, onCommitRegistryField, onTextEditBlur]
   );
 
   const replaceMenuConfig = useCallback(
-    (nextMenuConfig: MenuNodeConfig) => {
+    (
+      nextMenuConfig: MenuNodeConfig,
+      historyCaptureMode: "discrete" | "text" = "discrete"
+    ) => {
       if (!isMenuNode) {
         return;
       }
 
-      onMenuNodeConfigChange(id, () => nextMenuConfig);
+      onMenuNodeConfigChange(id, () => nextMenuConfig, historyCaptureMode);
     },
     [id, isMenuNode, onMenuNodeConfigChange]
   );
@@ -495,7 +507,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       replaceMenuConfig({
         ...menuConfig,
         terms: nextTerms,
-      });
+      }, "text");
     },
     [isMenuNode, menuConfig, replaceMenuConfig]
   );
@@ -919,6 +931,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               onClick={stopNodeSelectionPropagation}
               onChange={(event) => updateField("title", event.target.value)}
               onBlur={(event) => {
+                onTextEditBlur();
                 setIsEditingFrameTitle(false);
               }}
               onKeyDown={(event) => {
