@@ -194,13 +194,13 @@ export const GLOBAL_OPTION_LABELS: Record<GlobalOptionField, string> = {
 };
 
 export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionConfig = {
-  tone: ["neutral", "friendly", "formal", "urgent"],
-  polarity: ["neutral", "positive", "destructive"],
-  reversibility: ["reversible", "irreversible"],
-  concept: ["Entry point", "Confirmation", "Error handling"],
+  tone: ["Neutral", "Friendly", "Formal", "Urgent"],
+  polarity: ["Neutral", "Positive", "Destructive"],
+  reversibility: ["Reversible", "Irreversible"],
+  concept: ["Entry Point", "Confirmation", "Error Handling"],
   action_type_name: ["Submit Data", "Acknowledge", "Navigate"],
   action_type_color: ["#4f46e5", "#047857", "#dc2626"],
-  card_style: ["default", "subtle", "warning", "success"],
+  card_style: ["Default", "Subtle", "Warning", "Success"],
 };
 
 export const CONTROLLED_LANGUAGE_FIELDS: ControlledLanguageFieldType[] = [

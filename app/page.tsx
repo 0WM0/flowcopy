@@ -290,6 +290,7 @@ import {
   type ProjectRecord as DbProjectRecord,
 } from "./lib/db";
 import { useAutoSave } from "./hooks/useAutoSave";
+import { createClient } from "@/lib/supabase/client";
 
 
 type ImportFeedback = {
@@ -1783,12 +1784,15 @@ type HistorySnapshot = EditorSnapshot & {
 
 
 export default function Page() {
+  const supabase = useMemo(() => createClient(), []);
+
   const [store, setStore] = useState<AppStore>(createEmptyStore);
   const [newProjectName, setNewProjectName] = useState("");
   const [dashboardActionError, setDashboardActionError] = useState<string | null>(null);
   const [dashboardActionProjectId, setDashboardActionProjectId] = useState<string | null>(null);
   const [dashboardProjects, setDashboardProjects] = useState<DbProjectListItem[]>([]);
   const [isDashboardProjectsLoading, setIsDashboardProjectsLoading] = useState(false);
+  const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(null);
 
   const [nodes, setNodes] = useNodesState<FlowNode>([]);
   const [edges, setEdges] = useEdgesState<FlowEdge>([]);
@@ -1940,6 +1944,35 @@ export default function Page() {
     hasLoadedStoreRef.current = true;
     setStore(readAppStore());
   }, []);
+
+  useEffect(() => {
+    let isSubscribed = true;
+
+    const loadAuthenticatedUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!isSubscribed) {
+        return;
+      }
+
+      setAuthenticatedUserEmail(user?.email ?? null);
+    };
+
+    void loadAuthenticatedUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthenticatedUserEmail(session?.user?.email ?? null);
+    });
+
+    return () => {
+      isSubscribed = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(
     () => () => {
@@ -8114,7 +8147,7 @@ export default function Page() {
                   color: "#64748b",
                 }}
               >
-                User Account Code
+                User Account Email
               </div>
               <div
                 style={{
@@ -8124,7 +8157,7 @@ export default function Page() {
                   color: "#1e293b",
                 }}
               >
-                {activeAccount?.code ?? SINGLE_ACCOUNT_CODE}
+                {authenticatedUserEmail ?? "No email"}
               </div>
             </div>
 
@@ -8797,6 +8830,8 @@ export default function Page() {
       <aside
         style={{
           position: "relative",
+          height: "100%",
+          minHeight: 0,
           padding: 12,
           overflowY: "auto",
           display: "grid",
