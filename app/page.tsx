@@ -1248,6 +1248,12 @@ type TermRegistryDragPayload = {
   nodeType: NodeType | null;
 };
 
+type PendingRibbonRegistryTerm = {
+  entryId: string;
+  termValue: string;
+  referenceKey: string | null;
+};
+
 type TermRegistryDragPreview = {
   termValue: string;
   clientX: number;
@@ -3138,6 +3144,98 @@ export default function Page() {
       activeRegistryDragPayloadRef.current = null;
     },
     [setNodes, setTermRegistry]
+  );
+
+  const resolveDroppedRegistryTerm = useCallback(
+    (dataTransfer: DataTransfer | null): PendingRibbonRegistryTerm | null => {
+      const payload =
+        parseTermRegistryDragPayload(dataTransfer) ??
+        activeRegistryDragPayloadRef.current;
+
+      if (!payload) {
+        activeRegistryDragPayloadRef.current = null;
+        return null;
+      }
+
+      setIsCanvasRegistryDropActive(false);
+      setIsRegistryDragActive(false);
+      setRegistryDragPreview(null);
+      activeRegistryDragPayloadRef.current = null;
+
+      return {
+        entryId: payload.entryId,
+        termValue: payload.termValue,
+        referenceKey: payload.referenceKey,
+      };
+    },
+    []
+  );
+
+  const handleAssignPendingRibbonTermToField = useCallback(
+    (
+      nodeId: string,
+      field: RibbonCellRegistryField,
+      pendingTerm: PendingRibbonRegistryTerm
+    ) => {
+      captureUndoSnapshotRef.current();
+
+      setTermRegistry((currentRegistry) => {
+        const draggedEntryIndex = currentRegistry.findIndex(
+          (entry) => entry.id === pendingTerm.entryId
+        );
+
+        if (draggedEntryIndex === -1) {
+          return currentRegistry;
+        }
+
+        const now = new Date().toISOString();
+        let hasChanges = false;
+
+        const nextRegistry = currentRegistry.map((entry, entryIndex) => {
+          if (
+            entryIndex !== draggedEntryIndex &&
+            entry.assignedNodeId === nodeId &&
+            entry.assignedField === field
+          ) {
+            hasChanges = true;
+            return {
+              ...entry,
+              assignedNodeId: null,
+              assignedField: null,
+              updatedAt: now,
+            };
+          }
+
+          return entry;
+        });
+
+        const draggedEntry = nextRegistry[draggedEntryIndex];
+        const nextTermType = getRegistryTermTypeFromField(field);
+
+        if (
+          draggedEntry.assignedNodeId !== nodeId ||
+          draggedEntry.assignedField !== field ||
+          draggedEntry.termType !== nextTermType
+        ) {
+          hasChanges = true;
+          nextRegistry[draggedEntryIndex] = {
+            ...draggedEntry,
+            termType: nextTermType,
+            assignedNodeId: nodeId,
+            assignedField: field,
+            updatedAt: now,
+          };
+        }
+
+        return hasChanges ? nextRegistry : currentRegistry;
+      });
+
+      setIsCanvasRegistryDropActive(false);
+      setIsRegistryDragActive(false);
+      setRegistryDragPreview(null);
+      activeRegistryDragPayloadRef.current = null;
+    },
+    [setTermRegistry]
   );
 
   const handleCanvasPointerMove = useCallback(
@@ -5478,11 +5576,6 @@ export default function Page() {
 
     const ribbonCellField = parseRibbonCellRegistryField(clpRegistryFieldFilter);
     if (ribbonCellField) {
-      const ribbonCell = selectedRibbonNodeConfig?.cells.find(
-        (cell) => cell.id === ribbonCellField.cellId
-      );
-      const cellLabel = ribbonCell ? `Cell ${ribbonCell.column + 1}` : "Cell";
-
       const fieldLabel =
         ribbonCellField.fieldName === "label"
           ? "Label"
@@ -5490,7 +5583,7 @@ export default function Page() {
             ? "Key Command"
             : "Tool Tip";
 
-      return `${cellLabel} ${fieldLabel}`;
+      return fieldLabel;
     }
 
     return clpRegistryFieldFilter;
@@ -5643,6 +5736,8 @@ export default function Page() {
           onRegistryPickerOpen={openRegistryPickerForNodeField}
           onCanDropRegistryEntry={canDropRegistryEntryOnNodeField}
           onDropRegistryEntryOnField={handleDropRegistryEntryOnNodeField}
+          onResolveDroppedRegistryTerm={resolveDroppedRegistryTerm}
+          onAssignPendingRibbonTermToField={handleAssignPendingRibbonTermToField}
           menuTermGlossaryTerms={menuTermGlossaryTermsRef.current}
           glossaryHighlightedNodeIds={glossaryHighlightedNodeIdSet}
           showNodeId={showNodeIdsOnCanvas}
@@ -5655,10 +5750,12 @@ export default function Page() {
     [
       glossaryHighlightedNodeIdSet,
       canDropRegistryEntryOnNodeField,
+      handleAssignPendingRibbonTermToField,
       handleFlowCopyNodeBeforeChange,
       handleFlowCopyNodeMenuConfigChange,
       handleDropRegistryEntryOnNodeField,
       openRegistryPickerForNodeField,
+      resolveDroppedRegistryTerm,
       showDefaultNodeTitleOnCanvas,
       showNodeIdsOnCanvas,
       showMenuTermDeleteBlockedMessage,

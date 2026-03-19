@@ -115,6 +115,23 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
     field: RegistryTrackedField,
     dataTransfer: DataTransfer | null
   ) => void;
+  onResolveDroppedRegistryTerm: (dataTransfer: DataTransfer | null) => {
+    entryId: string;
+    termValue: string;
+    referenceKey: string | null;
+  } | null;
+  onAssignPendingRibbonTermToField: (
+    nodeId: string,
+    field:
+      | `ribbon_cell:[${string}]:label`
+      | `ribbon_cell:[${string}]:key_command`
+      | `ribbon_cell:[${string}]:tool_tip`,
+    pendingTerm: {
+      entryId: string;
+      termValue: string;
+      referenceKey: string | null;
+    }
+  ) => void;
 };
 
 const REGISTRY_TRACKED_FIELDS = [
@@ -128,6 +145,12 @@ const REGISTRY_TRACKED_FIELDS = [
 ] as const;
 
 type RegistryTrackedField = (typeof REGISTRY_TRACKED_FIELDS)[number];
+
+type PendingRibbonRegistryTerm = {
+  entryId: string;
+  termValue: string;
+  referenceKey: string | null;
+};
 
 const isRegistryTrackedField = (
   field: EditableMicrocopyField
@@ -175,6 +198,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   onMenuNodeConfigChange,
   onCanDropRegistryEntry,
   onDropRegistryEntryOnField,
+  onResolveDroppedRegistryTerm,
+  onAssignPendingRibbonTermToField,
 }: FlowCopyNodeProps) {
   const { setNodes } = useReactFlow<FlowNode, FlowEdge>();
   const updateNodeInternals = useUpdateNodeInternals();
@@ -183,6 +208,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const ribbonPopupRef = useRef<HTMLDivElement | null>(null);
   const [isEditingFrameTitle, setIsEditingFrameTitle] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
+  const [pendingRibbonRegistryTerm, setPendingRibbonRegistryTerm] =
+    useState<PendingRibbonRegistryTerm | null>(null);
+  const [activeRibbonDropCellId, setActiveRibbonDropCellId] =
+    useState<string | null>(null);
   const [activeRegistryDropField, setActiveRegistryDropField] =
     useState<RegistryTrackedField | null>(null);
   const [cellPopupPosition, setCellPopupPosition] = useState<{ x: number; y: number }>({
@@ -510,10 +539,16 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
   const closeRibbonCellPopup = useCallback(() => {
     setEditingCellId(null);
+    setPendingRibbonRegistryTerm(null);
+    setActiveRibbonDropCellId(null);
   }, []);
 
   const openRibbonCellEditor = useCallback(
-    (cellElement: HTMLDivElement, cellId: string) => {
+    (
+      cellElement: HTMLDivElement,
+      cellId: string,
+      pendingTerm: PendingRibbonRegistryTerm | null = null
+    ) => {
       const containerElement = ribbonContainerRef.current;
 
       if (containerElement) {
@@ -543,8 +578,81 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       }
 
       setEditingCellId(cellId);
+      setPendingRibbonRegistryTerm(pendingTerm);
+      setActiveRibbonDropCellId(null);
     },
     []
+  );
+
+  const handleRibbonCellDragOver = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, cellId: string) => {
+      if (!isRibbonNode) {
+        return;
+      }
+
+      const canDropRegistryEntry = onCanDropRegistryEntry(event.dataTransfer);
+      if (!canDropRegistryEntry) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+
+      setActiveRibbonDropCellId((currentCellId) =>
+        currentCellId === cellId ? currentCellId : cellId
+      );
+    },
+    [isRibbonNode, onCanDropRegistryEntry]
+  );
+
+  const handleRibbonCellDragLeave = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, cellId: string) => {
+      const relatedTarget = event.relatedTarget;
+
+      if (
+        relatedTarget instanceof Node &&
+        event.currentTarget.contains(relatedTarget)
+      ) {
+        return;
+      }
+
+      setActiveRibbonDropCellId((currentCellId) =>
+        currentCellId === cellId ? null : currentCellId
+      );
+    },
+    []
+  );
+
+  const handleRibbonCellDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, cellId: string) => {
+      if (!isRibbonNode) {
+        return;
+      }
+
+      const canDropRegistryEntry = onCanDropRegistryEntry(event.dataTransfer);
+      if (!canDropRegistryEntry) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const pendingTerm = onResolveDroppedRegistryTerm(event.dataTransfer);
+
+      if (!pendingTerm) {
+        setActiveRibbonDropCellId(null);
+        return;
+      }
+
+      openRibbonCellEditor(event.currentTarget, cellId, pendingTerm);
+    },
+    [
+      isRibbonNode,
+      onCanDropRegistryEntry,
+      onResolveDroppedRegistryTerm,
+      openRibbonCellEditor,
+    ]
   );
 
   const updateRibbonCellField = useCallback(
@@ -587,14 +695,40 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     [id, onBeforeChange, setNodes]
   );
 
+  const assignPendingRibbonTermToField = useCallback(
+    (field: "label" | "key_command" | "tool_tip") => {
+      if (!editingRibbonCell || !pendingRibbonRegistryTerm) {
+        return;
+      }
+
+      updateRibbonCellField(editingRibbonCell.id, field, pendingRibbonRegistryTerm.termValue);
+      onAssignPendingRibbonTermToField(
+        id,
+        buildRibbonCellRegistryField(editingRibbonCell.id, field),
+        pendingRibbonRegistryTerm
+      );
+      setPendingRibbonRegistryTerm(null);
+    },
+    [
+      editingRibbonCell,
+      id,
+      onAssignPendingRibbonTermToField,
+      pendingRibbonRegistryTerm,
+      updateRibbonCellField,
+    ]
+  );
+
   useEffect(() => {
     if (!isRibbonNode) {
       setEditingCellId(null);
+      setPendingRibbonRegistryTerm(null);
+      setActiveRibbonDropCellId(null);
       return;
     }
 
     if (editingCellId && !ribbonConfig.cells.some((cell) => cell.id === editingCellId)) {
       setEditingCellId(null);
+      setPendingRibbonRegistryTerm(null);
     }
   }, [editingCellId, isRibbonNode, ribbonConfig.cells]);
 
@@ -1023,6 +1157,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 const cellDisplayText = cell.label || cell.key_command || "—";
                 const isShowingLabel = Boolean(cell.label);
                 const isShowingKeyCommand = !isShowingLabel && Boolean(cell.key_command);
+                const isRibbonDropTargetActive = activeRibbonDropCellId === cell.id;
 
                 return (
                   <div
@@ -1034,22 +1169,30 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                     onPointerDown={(event) => {
                       event.stopPropagation();
                     }}
+                    onDragOver={(event) => handleRibbonCellDragOver(event, cell.id)}
+                    onDragLeave={(event) => handleRibbonCellDragLeave(event, cell.id)}
+                    onDrop={(event) => handleRibbonCellDrop(event, cell.id)}
                     onClick={(event) => {
                       event.stopPropagation();
-                      openRibbonCellEditor(event.currentTarget, cell.id);
+                      openRibbonCellEditor(event.currentTarget, cell.id, null);
                     }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
                         event.stopPropagation();
-                        openRibbonCellEditor(event.currentTarget, cell.id);
+                        openRibbonCellEditor(event.currentTarget, cell.id, null);
                       }
                     }}
                     style={{
                       position: "relative",
                       overflow: "visible",
-                      border: "1px solid #cbd5e1",
-                      background: "#ffffff",
+                      borderWidth: 1,
+                      borderStyle: "solid",
+                      borderColor: isRibbonDropTargetActive ? "#60a5fa" : "#cbd5e1",
+                      background: isRibbonDropTargetActive ? "#eff6ff" : "#ffffff",
+                      boxShadow: isRibbonDropTargetActive
+                        ? "0 0 0 1px rgba(37, 99, 235, 0.28)"
+                        : "none",
                       padding: "3px 6px",
                       minWidth: 80,
                       minHeight: 24,
@@ -1141,6 +1284,33 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               gap: 6,
             }}
           >
+            {pendingRibbonRegistryTerm && (
+              <div
+                style={{
+                  borderWidth: 1,
+                  borderStyle: "solid",
+                  borderColor: "#bfdbfe",
+                  borderRadius: 6,
+                  background: "#eff6ff",
+                  padding: "6px 8px",
+                  display: "grid",
+                  gap: 2,
+                }}
+              >
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#1e3a8a" }}>
+                  Assign term: {pendingRibbonRegistryTerm.termValue}
+                </div>
+                {pendingRibbonRegistryTerm.referenceKey && (
+                  <div style={{ fontSize: 10, color: "#475569" }}>
+                    Key: {pendingRibbonRegistryTerm.referenceKey}
+                  </div>
+                )}
+                <div style={{ fontSize: 10, color: "#334155" }}>
+                  Click a field below to place this term.
+                </div>
+              </div>
+            )}
+
             <label>
               <div
                 style={{
@@ -1162,6 +1332,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 onPointerDown={stopNodeSelectionPropagation}
                 onMouseDown={stopNodeSelectionPropagation}
                 onClick={stopNodeSelectionPropagation}
+                onFocus={() => assignPendingRibbonTermToField("label")}
                 onChange={(event) =>
                   updateRibbonCellField(
                     editingRibbonCell.id,
@@ -1213,6 +1384,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   onPointerDown={stopNodeSelectionPropagation}
                   onMouseDown={stopNodeSelectionPropagation}
                   onClick={stopNodeSelectionPropagation}
+                  onFocus={() => assignPendingRibbonTermToField("key_command")}
                   onChange={(event) =>
                     updateRibbonCellField(
                       editingRibbonCell.id,
@@ -1284,6 +1456,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   onPointerDown={stopNodeSelectionPropagation}
                   onMouseDown={stopNodeSelectionPropagation}
                   onClick={stopNodeSelectionPropagation}
+                  onFocus={() => assignPendingRibbonTermToField("tool_tip")}
                   onChange={(event) =>
                     updateRibbonCellField(
                       editingRibbonCell.id,
