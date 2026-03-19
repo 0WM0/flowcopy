@@ -32,6 +32,105 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-19-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session focused on stabilizing keyboard history behavior by fixing **redo (`Ctrl/Cmd+Shift+Z`)** in the editor.
+
+User-visible outcome:
+
+- undo continued to work
+- redo now correctly restores forward states after undo
+- keyboard shortcut routing remains scoped to canvas/body context and non-editable targets
+
+## 2) Core Data Model
+
+No persisted schema/type contracts were changed.
+
+The update was confined to runtime history navigation logic in `app/page.tsx`:
+
+- `historyStackRef`
+- `historyIndexRef`
+- `undo()` / `redo()` callbacks
+- keyboard shortcut handling branch for `Ctrl/Cmd+Shift+Z`
+
+## 3) Persistence and Migration Strategy
+
+Persistence and migration behavior were unchanged:
+
+- no storage key changes
+- no project payload changes
+- no migration-path updates
+
+The fix is in-memory history traversal behavior only.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+Redo/undo fixes are orthogonal to graph ordering and sequence identity.
+
+## 5) Node Rendering and Shape System
+
+No node or edge rendering/shape contracts were modified.
+
+- no `FlowCopyNode` changes
+- no edge/style rendering changes
+
+This session was editor-history control flow only.
+
+## 6) Editor Interaction Model
+
+Keyboard shortcut routing remains ordered correctly:
+
+1. check redo combo first: `Ctrl/Cmd + Shift + Z`
+2. then check undo combo: `Ctrl/Cmd + Z`
+
+Redo diagnostics were added at the shortcut branch with a console log showing:
+
+- `historyIndex`
+- `historyLength`
+- whether a future state exists (`historyIndex < historyLength - 1`)
+
+Undo/redo transition semantics were corrected for the current pre-change snapshot model by preserving the live state in history slots before applying restore snapshots.
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added targeted redo shortcut debug logging in `app/page.tsx`.
+2. Corrected undo traversal behavior so forward redo states remain available after undo.
+3. Corrected redo traversal restoration/index progression for multi-step redo.
+4. Preserved existing future-stack truncation behavior when new edits are pushed after undo.
+
+## 8) Validation and Operational Notes
+
+Validation completed for the touched file:
+
+- `npm run lint -- app/page.tsx`
+
+Result:
+
+- no lint errors
+- existing baseline warnings remain in `app/page.tsx` (pre-existing, unrelated to this fix)
+
+Operational note:
+
+- local `npm run dev` reported an existing Next dev lock (`.next/dev/lock`) from another running instance.
+
+## 9) Recommended Next Steps
+
+1. Add focused undo/redo regression tests for pre-change snapshot mode.
+2. Add coverage for multi-step undo/redo sequences and branch truncation after new edits.
+3. Remove/guard redo debug logging once validation is complete.
+4. Consider extracting history navigation logic from `app/page.tsx` into a dedicated helper/hook.
+
 ##03-18-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.

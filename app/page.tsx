@@ -21,6 +21,7 @@ import {
   type Connection,
   type EdgeChange,
   type NodeChange,
+  type OnNodeDrag,
   type NodeProps,
   type ReactFlowInstance,
   type OnSelectionChangeParams,
@@ -1478,6 +1479,14 @@ type EditorSnapshot = {
   uiJourneySnapshotDraftName: string;
 };
 
+const HISTORY_STACK_MAX_DEPTH = 30;
+
+type HistorySnapshot = EditorSnapshot & {
+  selectedNodeId: string | null;
+  selectedNodeIds: string[];
+  selectedEdgeId: string | null;
+};
+
 
 
 
@@ -1888,6 +1897,12 @@ export default function Page() {
   const canvasClipboardRef = useRef<CanvasClipboardSnapshot | null>(null);
   const activeRegistryDragPayloadRef = useRef<TermRegistryDragPayload | null>(null);
   const pasteInvocationCountRef = useRef(0);
+  const historyStackRef = useRef<HistorySnapshot[]>([]);
+  const historyIndexRef = useRef(-1);
+  const nodeMoveHistorySnapshotRef = useRef<HistorySnapshot | null>(null);
+  const nodeMoveHistoryCapturedOnStartRef = useRef(false);
+  const deletionHistoryCapturedThisBatchRef = useRef(false);
+  const deletionHistoryResetTimeoutRef = useRef<number | null>(null);
 
   const updateStore = useCallback((updater: (prev: AppStore) => AppStore) => {
     setStore((prev) => {
@@ -1918,6 +1933,10 @@ export default function Page() {
 
       if (menuTermDeleteErrorTimeoutRef.current !== null) {
         window.clearTimeout(menuTermDeleteErrorTimeoutRef.current);
+      }
+
+      if (deletionHistoryResetTimeoutRef.current !== null) {
+        window.clearTimeout(deletionHistoryResetTimeoutRef.current);
       }
     },
     []
@@ -2067,6 +2086,193 @@ export default function Page() {
     setAutoSaveChangeCounter((currentCounter) => currentCounter + 1);
   }, []);
 
+  const setHistoryBaseline = useCallback((snapshot: HistorySnapshot) => {
+    historyStackRef.current = [snapshot];
+    historyIndexRef.current = 0;
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    historyStackRef.current = [];
+    historyIndexRef.current = -1;
+  }, []);
+
+  const applyHistorySnapshot = useCallback(
+    (snapshot: HistorySnapshot) => {
+      setNodes(cloneFlowNodes(snapshot.nodes));
+      setEdges(cloneEdges(snapshot.edges));
+      setAdminOptions(cloneGlobalOptions(snapshot.adminOptions));
+      setControlledLanguageGlossary(
+        cloneControlledLanguageGlossary(snapshot.controlledLanguageGlossary)
+      );
+      setTermRegistry(snapshot.termRegistry.map((entry) => ({ ...entry })));
+      setUiJourneySnapshotPresets(
+        cloneUiJourneySnapshotPresets(snapshot.uiJourneySnapshotPresets)
+      );
+      setUiJourneyConversationSnapshot(
+        cloneUiJourneyConversationEntries(snapshot.uiJourneyConversationSnapshot)
+      );
+      setIsUiJourneyConversationOpen(snapshot.isUiJourneyConversationOpen);
+      setSelectedUiJourneySnapshotPresetId(snapshot.selectedUiJourneySnapshotPresetId);
+      setRecalledUiJourneyNodeIds([...snapshot.recalledUiJourneyNodeIds]);
+      setRecalledUiJourneyEdgeIds([...snapshot.recalledUiJourneyEdgeIds]);
+      setUiJourneySnapshotDraftName(snapshot.uiJourneySnapshotDraftName);
+      setSelectedNodeId(snapshot.selectedNodeId);
+      setSelectedNodeIds([...snapshot.selectedNodeIds]);
+      setSelectedEdgeId(snapshot.selectedEdgeId);
+    },
+    [setEdges, setNodes]
+  );
+
+  const createHistorySnapshot = useCallback(
+    (): HistorySnapshot => ({
+      nodes: cloneFlowNodes(nodes),
+      edges: cloneEdges(edges),
+      adminOptions: cloneGlobalOptions(adminOptions),
+      controlledLanguageGlossary: cloneControlledLanguageGlossary(
+        controlledLanguageGlossary
+      ),
+      termRegistry: termRegistry.map((entry) => ({ ...entry })),
+      uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(uiJourneySnapshotPresets),
+      uiJourneyConversationSnapshot: cloneUiJourneyConversationEntries(
+        uiJourneyConversationSnapshot
+      ),
+      isUiJourneyConversationOpen,
+      selectedUiJourneySnapshotPresetId,
+      recalledUiJourneyNodeIds: [...recalledUiJourneyNodeIds],
+      recalledUiJourneyEdgeIds: [...recalledUiJourneyEdgeIds],
+      uiJourneySnapshotDraftName,
+      selectedNodeId,
+      selectedNodeIds: [...selectedNodeIds],
+      selectedEdgeId,
+    }),
+    [
+      adminOptions,
+      controlledLanguageGlossary,
+      edges,
+      isUiJourneyConversationOpen,
+      nodes,
+      recalledUiJourneyEdgeIds,
+      recalledUiJourneyNodeIds,
+      selectedEdgeId,
+      selectedNodeId,
+      selectedNodeIds,
+      selectedUiJourneySnapshotPresetId,
+      termRegistry,
+      uiJourneyConversationSnapshot,
+      uiJourneySnapshotDraftName,
+      uiJourneySnapshotPresets,
+    ]
+  );
+
+  const commitHistorySnapshot = useCallback((snapshot: HistorySnapshot) => {
+    const currentHistoryStack = historyStackRef.current;
+    const currentHistoryIndex = historyIndexRef.current;
+
+    const truncatedHistoryStack =
+      currentHistoryIndex >= 0
+        ? currentHistoryStack.slice(0, currentHistoryIndex + 1)
+        : [];
+
+    const nextHistoryStackWithSnapshot = [...truncatedHistoryStack, snapshot];
+    const nextHistoryStack =
+      nextHistoryStackWithSnapshot.length > HISTORY_STACK_MAX_DEPTH
+        ? nextHistoryStackWithSnapshot.slice(
+            nextHistoryStackWithSnapshot.length - HISTORY_STACK_MAX_DEPTH
+          )
+        : nextHistoryStackWithSnapshot;
+
+    historyStackRef.current = nextHistoryStack;
+    historyIndexRef.current = nextHistoryStack.length - 1;
+  }, []);
+
+  const pushToHistory = useCallback((snapshotOverride?: HistorySnapshot) => {
+    if (store.session.view !== "editor") {
+      return;
+    }
+
+    commitHistorySnapshot(snapshotOverride ?? createHistorySnapshot());
+  }, [commitHistorySnapshot, createHistorySnapshot, store.session.view]);
+
+  const captureDeletionHistoryOncePerBatch = useCallback(() => {
+    if (deletionHistoryCapturedThisBatchRef.current) {
+      return;
+    }
+
+    deletionHistoryCapturedThisBatchRef.current = true;
+    pushToHistory();
+
+    if (deletionHistoryResetTimeoutRef.current !== null) {
+      window.clearTimeout(deletionHistoryResetTimeoutRef.current);
+    }
+
+    deletionHistoryResetTimeoutRef.current = window.setTimeout(() => {
+      deletionHistoryCapturedThisBatchRef.current = false;
+      deletionHistoryResetTimeoutRef.current = null;
+    }, 0);
+  }, [pushToHistory]);
+
+  const undo = useCallback(() => {
+    if (store.session.view !== "editor") {
+      return;
+    }
+
+    if (undoCaptureTimeoutRef.current !== null) {
+      window.clearTimeout(undoCaptureTimeoutRef.current);
+      undoCaptureTimeoutRef.current = null;
+    }
+
+    const currentHistoryIndex = historyIndexRef.current;
+    if (currentHistoryIndex < 1) {
+      return;
+    }
+
+    const snapshotToRestore = historyStackRef.current[currentHistoryIndex];
+    if (!snapshotToRestore) {
+      return;
+    }
+
+    historyStackRef.current[currentHistoryIndex] = createHistorySnapshot();
+    applyHistorySnapshot(snapshotToRestore);
+    historyIndexRef.current = currentHistoryIndex - 1;
+    markProjectDirty();
+  }, [
+    applyHistorySnapshot,
+    createHistorySnapshot,
+    markProjectDirty,
+    store.session.view,
+  ]);
+
+  const redo = useCallback(() => {
+    if (store.session.view !== "editor") {
+      return;
+    }
+
+    if (undoCaptureTimeoutRef.current !== null) {
+      window.clearTimeout(undoCaptureTimeoutRef.current);
+      undoCaptureTimeoutRef.current = null;
+    }
+
+    const nextHistoryIndex = historyIndexRef.current + 1;
+    if (nextHistoryIndex >= historyStackRef.current.length) {
+      return;
+    }
+
+    const snapshotToRestore = historyStackRef.current[nextHistoryIndex];
+    if (!snapshotToRestore) {
+      return;
+    }
+
+    historyStackRef.current[nextHistoryIndex] = createHistorySnapshot();
+    applyHistorySnapshot(snapshotToRestore);
+    historyIndexRef.current = nextHistoryIndex;
+    markProjectDirty();
+  }, [
+    applyHistorySnapshot,
+    createHistorySnapshot,
+    markProjectDirty,
+    store.session.view,
+  ]);
+
   const loadProjectIntoEditor = useCallback(
     (project: ProjectRecord) => {
       const normalizedAdminOptions = normalizeGlobalOptionConfig(
@@ -2075,6 +2281,12 @@ export default function Page() {
       const normalizedUiJourneySnapshotPresets = sanitizeUiJourneySnapshotPresets(
         project.canvas.uiJourneySnapshotPresets
       );
+      const normalizedControlledLanguageGlossary = sanitizeControlledLanguageGlossary(
+        project.canvas.controlledLanguageGlossary
+      );
+      const normalizedTermRegistry = Array.isArray(project.canvas.termRegistry)
+        ? project.canvas.termRegistry
+        : [];
 
       const hydratedNodes = sanitizePersistedNodes(
         project.canvas.nodes,
@@ -2082,14 +2294,12 @@ export default function Page() {
       );
       const prunedHydratedNodes = pruneFrameNodeMembership(hydratedNodes);
       const hydratedEdges = sanitizeEdges(project.canvas.edges, prunedHydratedNodes);
+      const initialSelectedNodeId = prunedHydratedNodes[0]?.id ?? null;
+      const initialSelectedNodeIds = initialSelectedNodeId ? [initialSelectedNodeId] : [];
 
       setAdminOptions(normalizedAdminOptions);
-      setControlledLanguageGlossary(
-        sanitizeControlledLanguageGlossary(project.canvas.controlledLanguageGlossary)
-      );
-      setTermRegistry(
-        Array.isArray(project.canvas.termRegistry) ? project.canvas.termRegistry : []
-      );
+      setControlledLanguageGlossary(normalizedControlledLanguageGlossary);
+      setTermRegistry(normalizedTermRegistry);
       setControlledLanguageDraftRow(createEmptyControlledLanguageDraftRow());
       setOpenControlledLanguageFieldType(null);
       setInspectorRegistryPickerSearchQuery("");
@@ -2102,9 +2312,32 @@ export default function Page() {
       setUiJourneySnapshotDraftName("");
       setUiJourneyConversationSnapshot([]);
       setIsUiJourneyConversationOpen(false);
-      setSelectedNodeId(prunedHydratedNodes[0]?.id ?? null);
-      setSelectedNodeIds(prunedHydratedNodes[0]?.id ? [prunedHydratedNodes[0].id] : []);
+      setSelectedNodeId(initialSelectedNodeId);
+      setSelectedNodeIds(initialSelectedNodeIds);
       setSelectedEdgeId(null);
+
+      setHistoryBaseline({
+        nodes: cloneFlowNodes(prunedHydratedNodes),
+        edges: cloneEdges(hydratedEdges),
+        adminOptions: cloneGlobalOptions(normalizedAdminOptions),
+        controlledLanguageGlossary: cloneControlledLanguageGlossary(
+          normalizedControlledLanguageGlossary
+        ),
+        termRegistry: normalizedTermRegistry.map((entry) => ({ ...entry })),
+        uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(
+          normalizedUiJourneySnapshotPresets
+        ),
+        uiJourneyConversationSnapshot: [],
+        isUiJourneyConversationOpen: false,
+        selectedUiJourneySnapshotPresetId: null,
+        recalledUiJourneyNodeIds: [],
+        recalledUiJourneyEdgeIds: [],
+        uiJourneySnapshotDraftName: "",
+        selectedNodeId: initialSelectedNodeId,
+        selectedNodeIds: [...initialSelectedNodeIds],
+        selectedEdgeId: null,
+      });
+
       setUndoStack([]);
       setIsProjectSequencePanelOpen(false);
       canvasClipboardRef.current = null;
@@ -2112,7 +2345,7 @@ export default function Page() {
       clearMenuTermDeleteError();
       setPendingOptionInputs(createEmptyPendingOptionInputs());
     },
-    [clearMenuTermDeleteError, setEdges, setNodes]
+    [clearMenuTermDeleteError, setEdges, setHistoryBaseline, setNodes]
   );
 
   const persistCurrentProjectState = useCallback(() => {
@@ -2587,13 +2820,19 @@ export default function Page() {
       },
     }));
 
+    clearHistory();
     setUndoStack([]);
-  }, [persistCurrentProjectState, saveProjectNow, updateStore]);
+  }, [clearHistory, persistCurrentProjectState, saveProjectNow, updateStore]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNode>[]) => {
       if (changes.length === 0) {
         return;
+      }
+
+      const hasNodeRemoval = changes.some((change) => change.type === "remove");
+      if (hasNodeRemoval) {
+        captureDeletionHistoryOncePerBatch();
       }
 
       if (hasNonSelectionNodeChanges(changes)) {
@@ -2607,7 +2846,7 @@ export default function Page() {
         return pruneFrameNodeMembership(constrainedNodes);
       });
     },
-    [queueUndoSnapshot, setNodes]
+    [captureDeletionHistoryOncePerBatch, queueUndoSnapshot, setNodes]
   );
 
   const onEdgesChange = useCallback(
@@ -2616,12 +2855,47 @@ export default function Page() {
         return;
       }
 
+      const hasEdgeRemoval = changes.some((change) => change.type === "remove");
+      if (hasEdgeRemoval) {
+        captureDeletionHistoryOncePerBatch();
+      }
+
       if (hasNonSelectionEdgeChanges(changes)) {
         queueUndoSnapshot();
       }
       setEdges((currentEdges) => applyEdgeChanges(changes, currentEdges));
     },
-    [queueUndoSnapshot, setEdges]
+    [captureDeletionHistoryOncePerBatch, queueUndoSnapshot, setEdges]
+  );
+
+  const onNodeDragStart = useCallback<OnNodeDrag<FlowNode>>(
+    (_event, _node, draggedNodes) => {
+      const snapshotBeforeMove = createHistorySnapshot();
+      nodeMoveHistorySnapshotRef.current = snapshotBeforeMove;
+
+      if (draggedNodes.length > 1) {
+        pushToHistory(snapshotBeforeMove);
+        nodeMoveHistoryCapturedOnStartRef.current = true;
+        return;
+      }
+
+      nodeMoveHistoryCapturedOnStartRef.current = false;
+    },
+    [createHistorySnapshot, pushToHistory]
+  );
+
+  const onNodeDragStop = useCallback<OnNodeDrag<FlowNode>>(
+    () => {
+      const snapshotBeforeMove = nodeMoveHistorySnapshotRef.current;
+
+      if (!nodeMoveHistoryCapturedOnStartRef.current && snapshotBeforeMove) {
+        pushToHistory(snapshotBeforeMove);
+      }
+
+      nodeMoveHistorySnapshotRef.current = null;
+      nodeMoveHistoryCapturedOnStartRef.current = false;
+    },
+    [pushToHistory]
   );
 
   const onConnect = useCallback(
@@ -2676,7 +2950,7 @@ export default function Page() {
         }
       }
 
-      queueUndoSnapshot();
+      pushToHistory();
 
       const newEdge = applyEdgeVisuals({
         id: `e-${params.source}-${params.target}-${createNodeId().slice(0, 8)}`,
@@ -2689,7 +2963,7 @@ export default function Page() {
 
       setEdges((eds) => addEdge(newEdge, eds));
     },
-    [edges, nodes, queueUndoSnapshot, setEdges]
+    [edges, nodes, pushToHistory, setEdges]
   );
 
   const onReconnect = useCallback(
@@ -2747,7 +3021,7 @@ export default function Page() {
         }
       }
 
-      queueUndoSnapshot();
+      pushToHistory();
 
       const nextConnection: Connection = {
         ...newConnection,
@@ -2760,7 +3034,7 @@ export default function Page() {
         )
       );
     },
-    [edges, nodes, queueUndoSnapshot, setEdges]
+    [edges, nodes, pushToHistory, setEdges]
   );
 
   const onInit = useCallback(
@@ -2801,7 +3075,7 @@ export default function Page() {
         return null;
       }
 
-      queueUndoSnapshot();
+      pushToHistory();
 
       const position = rf.screenToFlowPosition(clientPosition);
       const id = createNodeId();
@@ -2847,7 +3121,7 @@ export default function Page() {
       options?.onNodeCreated?.(id);
       return id;
     },
-    [adminOptions, queueUndoSnapshot, setNodes]
+    [adminOptions, pushToHistory, setNodes]
   );
 
   const addNodeAtEvent = useCallback(
@@ -3587,7 +3861,7 @@ export default function Page() {
 
   const handleDeleteSelection = useCallback(() => {
     if (selectedEdgeId) {
-      queueUndoSnapshot();
+      pushToHistory();
       setEdges((currentEdges) => currentEdges.filter((edge) => edge.id !== selectedEdgeId));
       setSelectedEdgeId(null);
       return;
@@ -3606,7 +3880,7 @@ export default function Page() {
 
     const selectedNodeIdsToDeleteSet = new Set(selectedNodeIdsToDelete);
 
-    queueUndoSnapshot();
+    pushToHistory();
     setNodes((currentNodes) =>
       pruneFrameNodeMembership(
         currentNodes.filter((node) => !selectedNodeIdsToDeleteSet.has(node.id))
@@ -3646,7 +3920,7 @@ export default function Page() {
     setSelectedNodeIds([]);
     setSelectedEdgeId(null);
   }, [
-    queueUndoSnapshot,
+    pushToHistory,
     selectedEdgeId,
     selectedNodeId,
     selectedNodeIds,
@@ -3672,6 +3946,53 @@ export default function Page() {
         targetElement === null ||
         targetElement === document.body ||
         targetElement === document.documentElement;
+
+      const isRedoShortcut =
+        (event.ctrlKey || event.metaKey) &&
+        event.shiftKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "z";
+
+      if (isRedoShortcut) {
+        if (isEditableEventTarget(event.target)) {
+          return;
+        }
+
+        if (!isTargetInsideCanvas && !isBodyTarget) {
+          return;
+        }
+
+        console.log("[history] redo shortcut detected", {
+          historyIndex: historyIndexRef.current,
+          historyLength: historyStackRef.current.length,
+          hasFutureState:
+            historyIndexRef.current < historyStackRef.current.length - 1,
+        });
+
+        event.preventDefault();
+        redo();
+        return;
+      }
+
+      const isUndoShortcut =
+        (event.ctrlKey || event.metaKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "z";
+
+      if (isUndoShortcut) {
+        if (isEditableEventTarget(event.target)) {
+          return;
+        }
+
+        if (!isTargetInsideCanvas && !isBodyTarget) {
+          return;
+        }
+
+        event.preventDefault();
+        undo();
+        return;
+      }
 
       const isCopyShortcut =
         (event.ctrlKey || event.metaKey) &&
@@ -3846,11 +4167,13 @@ export default function Page() {
     handleDeleteSelection,
     nodes,
     pasteCopiedCanvasNodes,
+    redo,
     selectedEdgeId,
     selectedNodeId,
     selectedNodeIds,
     store.session.editorMode,
     store.session.view,
+    undo,
   ]);
 
   const ordering = useMemo(() => computeFlowOrdering(nodes, edges), [nodes, edges]);
@@ -4783,7 +5106,7 @@ export default function Page() {
         return;
       }
 
-      queueUndoSnapshot();
+      pushToHistory();
 
       setNodes((currentNodes) =>
         pruneFrameNodeMembership(currentNodes.map((node) => {
@@ -4919,7 +5242,7 @@ export default function Page() {
       setOpenControlledLanguageFieldType(null);
       setInspectorRegistryPickerSearchQuery("");
     },
-    [clearMenuTermDeleteError, nodes, queueUndoSnapshot, setEdges, setNodes]
+    [clearMenuTermDeleteError, nodes, pushToHistory, setEdges, setNodes]
   );
 
   const updateSelectedNodeType = useCallback(
@@ -5669,7 +5992,7 @@ export default function Page() {
     );
     const memberNodeIds = selectedNodesForFrameCreation.map((node) => node.id);
 
-    queueUndoSnapshot();
+    pushToHistory();
 
     setNodes((currentNodes) => {
       const nextFrameNode = normalizeNode(
@@ -5699,7 +6022,7 @@ export default function Page() {
     setSelectedNodeId(frameId);
     setSelectedNodeIds([frameId]);
     },
-    [adminOptions, queueUndoSnapshot, selectedNonFrameNodesForFrameCreation, setNodes]
+    [adminOptions, pushToHistory, selectedNonFrameNodesForFrameCreation, setNodes]
   );
 
   useEffect(() => {
@@ -8191,6 +8514,8 @@ export default function Page() {
           onInit={onInit}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDragStop={onNodeDragStop}
           onConnect={onConnect}
           onReconnect={onReconnect}
           onPaneClick={onPaneClick}
