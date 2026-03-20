@@ -26,20 +26,6 @@ import {
   type ReactFlowInstance,
   type OnSelectionChangeParams,
 } from "@xyflow/react";
-import { jsPDF } from "jspdf";
-import {
-  AlignmentType,
-  BorderStyle,
-  Document as WordDocument,
-  Packer,
-  Paragraph,
-  Table,
-  TableCell,
-  TableLayoutType,
-  TableRow,
-  TextRun,
-  WidthType,
-} from "docx";
 
 import "@xyflow/react/dist/style.css";
 import type {
@@ -304,7 +290,6 @@ import {
   type ProjectRecord as DbProjectRecord,
 } from "./lib/db";
 import { useAutoSave } from "./hooks/useAutoSave";
-import { createClient } from "@/lib/supabase/client";
 
 
 type ImportFeedback = {
@@ -319,7 +304,7 @@ type TransferModalState = {
   context: TransferModalContext;
 };
 
-type TransferExportFormat = "csv" | "json" | "pdf" | "docx";
+type TransferExportFormat = "csv" | "json";
 
 type ClpExportFieldKey =
   | "termValue"
@@ -709,48 +694,6 @@ const TransferModal = ({
                   />
                   JSON
                 </label>
-
-                {state.context === "conversation" && (
-                  <label
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      fontSize: 12,
-                      color: "#334155",
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name={formatInputName}
-                      value="docx"
-                      checked={exportFormat === "docx"}
-                      onChange={() => onExportFormatChange("docx")}
-                    />
-                    DOCX
-                  </label>
-                )}
-
-                {state.context === "conversation" && (
-                  <label
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      fontSize: 12,
-                      color: "#334155",
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name={formatInputName}
-                      value="pdf"
-                      checked={exportFormat === "pdf"}
-                      onChange={() => onExportFormatChange("pdf")}
-                    />
-                    PDF
-                  </label>
-                )}
               </div>
             </section>
 
@@ -1190,14 +1133,6 @@ const HELP_CANVAS_SHORTCUTS: HelpShortcutDefinition[] = [
     keys: "Shift + F",
     description:
       "Frame selected non-frame nodes (requires at least two selected nodes).",
-  },
-  {
-    keys: "Ctrl/Cmd + Z",
-    description: "Undo (canvas mode).",
-  },
-  {
-    keys: "Ctrl/Cmd + Shift + Z",
-    description: "Redo (canvas mode).",
   },
   {
     keys: "Ctrl/Cmd + C",
@@ -1848,15 +1783,12 @@ type HistorySnapshot = EditorSnapshot & {
 
 
 export default function Page() {
-  const supabase = useMemo(() => createClient(), []);
-
   const [store, setStore] = useState<AppStore>(createEmptyStore);
   const [newProjectName, setNewProjectName] = useState("");
   const [dashboardActionError, setDashboardActionError] = useState<string | null>(null);
   const [dashboardActionProjectId, setDashboardActionProjectId] = useState<string | null>(null);
   const [dashboardProjects, setDashboardProjects] = useState<DbProjectListItem[]>([]);
   const [isDashboardProjectsLoading, setIsDashboardProjectsLoading] = useState(false);
-  const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(null);
 
   const [nodes, setNodes] = useNodesState<FlowNode>([]);
   const [edges, setEdges] = useEdgesState<FlowEdge>([]);
@@ -2008,35 +1940,6 @@ export default function Page() {
     hasLoadedStoreRef.current = true;
     setStore(readAppStore());
   }, []);
-
-  useEffect(() => {
-    let isSubscribed = true;
-
-    const loadAuthenticatedUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!isSubscribed) {
-        return;
-      }
-
-      setAuthenticatedUserEmail(user?.email ?? null);
-    };
-
-    void loadAuthenticatedUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthenticatedUserEmail(session?.user?.email ?? null);
-    });
-
-    return () => {
-      isSubscribed = false;
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
 
   useEffect(
     () => () => {
@@ -6400,45 +6303,58 @@ export default function Page() {
     },
     []
   );
-
-  const nodeTypes = useMemo(
-    () => ({
-      flowcopyNode: (props: NodeProps<FlowNode>) => (
-        <FlowCopyNode
-          {...props}
-          onBeforeChange={handleFlowCopyNodeBeforeChange}
-          onTextEditBlur={handleFlowCopyNodeTextEditBlur}
-          onCommitRegistryField={syncFieldToRegistry}
-          onRegistryPickerOpen={openRegistryPickerForNodeField}
-          onCanDropRegistryEntry={canDropRegistryEntryOnNodeField}
-          onDropRegistryEntryOnField={handleDropRegistryEntryOnNodeField}
-          onResolveDroppedRegistryTerm={resolveDroppedRegistryTerm}
-          onAssignPendingRibbonTermToField={handleAssignPendingRibbonTermToField}
-          menuTermGlossaryTerms={menuTermGlossaryTermsRef.current}
-          glossaryHighlightedNodeIds={glossaryHighlightedNodeIdSet}
-          showNodeId={showNodeIdsOnCanvas}
-          showDefaultNodeTitleOnCanvas={showDefaultNodeTitleOnCanvas}
-          onMenuTermDeleteBlocked={showMenuTermDeleteBlockedMessage}
-          onMenuNodeConfigChange={handleFlowCopyNodeMenuConfigChange}
-        />
-      ),
-    }),
-    [
-      glossaryHighlightedNodeIdSet,
-      canDropRegistryEntryOnNodeField,
-      handleAssignPendingRibbonTermToField,
-      handleFlowCopyNodeBeforeChange,
-      handleFlowCopyNodeTextEditBlur,
-      handleFlowCopyNodeMenuConfigChange,
-      handleDropRegistryEntryOnNodeField,
-      openRegistryPickerForNodeField,
-      resolveDroppedRegistryTerm,
-      showDefaultNodeTitleOnCanvas,
-      showNodeIdsOnCanvas,
-      showMenuTermDeleteBlockedMessage,
-      syncFieldToRegistry,
-    ]
-  );
+const nodeCallbacksRef = useRef({
+  handleFlowCopyNodeBeforeChange,
+  handleFlowCopyNodeTextEditBlur,
+  syncFieldToRegistry,
+  openRegistryPickerForNodeField,
+  canDropRegistryEntryOnNodeField,
+  handleDropRegistryEntryOnNodeField,
+  resolveDroppedRegistryTerm,
+  handleAssignPendingRibbonTermToField,
+  showMenuTermDeleteBlockedMessage,
+  handleFlowCopyNodeMenuConfigChange,
+});
+nodeCallbacksRef.current = {
+  handleFlowCopyNodeBeforeChange,
+  handleFlowCopyNodeTextEditBlur,
+  syncFieldToRegistry,
+  openRegistryPickerForNodeField,
+  canDropRegistryEntryOnNodeField,
+  handleDropRegistryEntryOnNodeField,
+  resolveDroppedRegistryTerm,
+  handleAssignPendingRibbonTermToField,
+  showMenuTermDeleteBlockedMessage,
+  handleFlowCopyNodeMenuConfigChange,
+};
+ const nodeTypes = useMemo(
+  () => ({
+    flowcopyNode: (props: NodeProps<FlowNode>) => (
+      <FlowCopyNode
+        {...props}
+        onBeforeChange={nodeCallbacksRef.current.handleFlowCopyNodeBeforeChange}
+        onTextEditBlur={nodeCallbacksRef.current.handleFlowCopyNodeTextEditBlur}
+        onCommitRegistryField={nodeCallbacksRef.current.syncFieldToRegistry}
+        onRegistryPickerOpen={nodeCallbacksRef.current.openRegistryPickerForNodeField}
+        onCanDropRegistryEntry={nodeCallbacksRef.current.canDropRegistryEntryOnNodeField}
+        onDropRegistryEntryOnField={nodeCallbacksRef.current.handleDropRegistryEntryOnNodeField}
+        onResolveDroppedRegistryTerm={nodeCallbacksRef.current.resolveDroppedRegistryTerm}
+        onAssignPendingRibbonTermToField={nodeCallbacksRef.current.handleAssignPendingRibbonTermToField}
+        menuTermGlossaryTerms={menuTermGlossaryTermsRef.current}
+        glossaryHighlightedNodeIds={glossaryHighlightedNodeIdSet}
+        showNodeId={showNodeIdsOnCanvas}
+        showDefaultNodeTitleOnCanvas={showDefaultNodeTitleOnCanvas}
+        onMenuTermDeleteBlocked={nodeCallbacksRef.current.showMenuTermDeleteBlockedMessage}
+        onMenuNodeConfigChange={nodeCallbacksRef.current.handleFlowCopyNodeMenuConfigChange}
+      />
+    ),
+  }),
+  [
+    glossaryHighlightedNodeIdSet,
+    showDefaultNodeTitleOnCanvas,
+    showNodeIdsOnCanvas,
+  ]
+);
 
   const updatePendingOptionInput = useCallback(
     (field: GlobalOptionField, value: string) => {
@@ -7419,715 +7335,12 @@ export default function Page() {
   );
 
   const exportUiJourneyConversation = useCallback(
-    async (format: UiJourneyConversationExportFormat | "pdf" | "docx"): Promise<boolean> => {
+    (format: UiJourneyConversationExportFormat): boolean => {
       if (!activeProject) {
         return false;
       }
 
-      const generatedAt = new Date();
-      const generatedAtLabel = generatedAt.toLocaleString();
-
-      if (format === "pdf") {
-        const doc = new jsPDF({
-          orientation: "portrait",
-          unit: "mm",
-          format: "a4",
-        });
-
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-
-        const marginLeft = 14;
-        const marginRight = 14;
-        const marginTop = 14;
-        const marginBottom = 14;
-        const railX = marginLeft + 8;
-        const cardX = railX + 10;
-        const cardWidth = pageWidth - cardX - marginRight;
-        const cardPaddingX = 5;
-        const cardPaddingY = 5;
-        const cardGap = 7;
-        const circleRadius = 4.5;
-        const titleLineHeight = 4.8;
-        const metaLineHeight = 3.8;
-        const rowLabelLineHeight = 3.5;
-        const rowValueLineHeight = 4.1;
-        const rowGap = 1.8;
-        const labelColumnWidth = 34;
-        const columnGap = 4;
-        const valueColumnWidth =
-          cardWidth - cardPaddingX * 2 - labelColumnWidth - columnGap;
-        const endMarkerReserve = 12;
-
-        const projectTitle = activeProject.name.trim() || activeProject.id;
-
-        const toLines = (text: string, width: number): string[] => {
-          const normalizedText = text.trim();
-          const split = doc.splitTextToSize(normalizedText.length > 0 ? normalizedText : "—", width);
-
-          if (Array.isArray(split)) {
-            return split.map((line) => String(line));
-          }
-
-          return [String(split)];
-        };
-
-        const drawLines = (
-          lines: string[],
-          x: number,
-          y: number,
-          lineHeight: number,
-          options?: { align?: "left" | "center" | "right" }
-        ) => {
-          lines.forEach((line, index) => {
-            doc.text(line, x, y + index * lineHeight, options);
-          });
-        };
-
-        const drawPageHeader = (pageNumber: number): number => {
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(15);
-          doc.setTextColor(15, 23, 42);
-          doc.text(projectTitle, marginLeft, marginTop);
-
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(9.5);
-          doc.setTextColor(71, 85, 105);
-          doc.text(`Exported ${generatedAtLabel}`, marginLeft, marginTop + 5);
-          doc.text(`Page ${pageNumber}`, pageWidth - marginRight, marginTop + 5, {
-            align: "right",
-          });
-
-          doc.setDrawColor(203, 213, 225);
-          doc.setLineWidth(0.3);
-          doc.line(marginLeft, marginTop + 8, pageWidth - marginRight, marginTop + 8);
-
-          return marginTop + 13;
-        };
-
-        const conversationCards = uiJourneyConversationSnapshot.map((entry) => {
-          const visibleEntryFields = entry.fields
-            .filter((field) => field.value.trim().length > 0)
-            .map((field) => ({
-              label: field.label,
-              value: field.value.trim(),
-            }));
-
-          if (entry.bodyText.trim().length > 0) {
-            visibleEntryFields.push({
-              label: "Body",
-              value: entry.bodyText.trim(),
-            });
-          }
-
-          if (entry.notes.trim().length > 0) {
-            visibleEntryFields.push({
-              label: "Notes",
-              value: entry.notes.trim(),
-            });
-          }
-
-          const normalizedFields =
-            visibleEntryFields.length > 0
-              ? visibleEntryFields
-              : [{ label: "Content", value: "No copy fields provided." }];
-
-          const titleLines = toLines(entry.title.trim() || "Untitled", cardWidth - cardPaddingX * 2);
-          const nodeMetaLines = toLines(
-            `${NODE_TYPE_LABELS[entry.nodeType]} node`,
-            cardWidth - cardPaddingX * 2
-          );
-
-          const rowLayouts = normalizedFields.map((field) => {
-            const labelLines = toLines(field.label, labelColumnWidth);
-            const valueLines = toLines(field.value, valueColumnWidth);
-
-            const rowHeight =
-              Math.max(
-                labelLines.length * rowLabelLineHeight,
-                valueLines.length * rowValueLineHeight
-              ) + rowGap;
-
-            return {
-              label: field.label,
-              value: field.value,
-              labelLines,
-              valueLines,
-              rowHeight,
-            };
-          });
-
-          const rowsHeight = rowLayouts.reduce(
-            (totalHeight, layout) => totalHeight + layout.rowHeight,
-            0
-          );
-
-          const titleHeight = titleLines.length * titleLineHeight;
-          const nodeMetaHeight = nodeMetaLines.length * metaLineHeight;
-
-          const cardHeight =
-            cardPaddingY +
-            titleHeight +
-            1.5 +
-            nodeMetaHeight +
-            3.5 +
-            rowsHeight +
-            cardPaddingY;
-
-          return {
-            entry,
-            titleLines,
-            nodeMetaLines,
-            rowLayouts,
-            cardHeight,
-          };
-        });
-
-        let currentPageNumber = 1;
-        let contentTop = drawPageHeader(currentPageNumber);
-        let cursorY = contentTop + 3;
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9.5);
-        doc.setTextColor(90, 127, 163);
-        doc.text("Sequence Start", cardX, cursorY + 1.5);
-
-        doc.setFillColor(43, 108, 176);
-        doc.circle(railX, cursorY, 2, "F");
-
-        let lastConnectorY = cursorY + 2;
-        cursorY += 6.5;
-
-        conversationCards.forEach((card, index) => {
-          const maxContentY = pageHeight - marginBottom - endMarkerReserve;
-
-          if (cursorY + card.cardHeight > maxContentY) {
-            doc.setDrawColor(43, 108, 176);
-            doc.setLineWidth(0.7);
-            doc.line(railX, lastConnectorY, railX, maxContentY - 2);
-
-            doc.addPage();
-            currentPageNumber += 1;
-            contentTop = drawPageHeader(currentPageNumber);
-            cursorY = contentTop + 5;
-            lastConnectorY = contentTop + 1;
-          }
-
-          const circleY = cursorY + 8;
-
-          doc.setDrawColor(43, 108, 176);
-          doc.setLineWidth(0.7);
-          doc.line(railX, lastConnectorY, railX, circleY - circleRadius);
-
-          doc.setFillColor(43, 108, 176);
-          doc.circle(railX, circleY, circleRadius, "F");
-
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(9.5);
-          doc.setTextColor(255, 255, 255);
-          doc.text(String(index + 1), railX, circleY + 1.4, {
-            align: "center",
-          });
-
-          doc.setDrawColor(189, 208, 230);
-          doc.setFillColor(255, 255, 255);
-          doc.roundedRect(cardX, cursorY, cardWidth, card.cardHeight, 2.4, 2.4, "FD");
-
-          let cardContentY = cursorY + cardPaddingY + 3;
-
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(11.5);
-          doc.setTextColor(26, 54, 93);
-          drawLines(card.titleLines, cardX + cardPaddingX, cardContentY, titleLineHeight);
-          cardContentY += card.titleLines.length * titleLineHeight + 1.5;
-
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(8.8);
-          doc.setTextColor(90, 127, 163);
-          drawLines(card.nodeMetaLines, cardX + cardPaddingX, cardContentY, metaLineHeight);
-          cardContentY += card.nodeMetaLines.length * metaLineHeight + 2.5;
-
-          doc.setDrawColor(226, 232, 240);
-          doc.setLineWidth(0.25);
-          doc.line(
-            cardX + cardPaddingX + labelColumnWidth + columnGap / 2,
-            cardContentY - 1,
-            cardX + cardPaddingX + labelColumnWidth + columnGap / 2,
-            cursorY + card.cardHeight - cardPaddingY
-          );
-
-          card.rowLayouts.forEach((rowLayout) => {
-            const rowTopY = cardContentY;
-
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(8.2);
-            doc.setTextColor(90, 127, 163);
-            drawLines(
-              rowLayout.labelLines,
-              cardX + cardPaddingX,
-              rowTopY,
-              rowLabelLineHeight
-            );
-
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(10.2);
-            doc.setTextColor(26, 54, 93);
-            drawLines(
-              rowLayout.valueLines,
-              cardX + cardPaddingX + labelColumnWidth + columnGap,
-              rowTopY,
-              rowValueLineHeight
-            );
-
-            cardContentY += rowLayout.rowHeight;
-          });
-
-          lastConnectorY = circleY + circleRadius;
-          cursorY += card.cardHeight + cardGap;
-        });
-
-        if (cursorY + 6 > pageHeight - marginBottom) {
-          doc.addPage();
-          currentPageNumber += 1;
-          contentTop = drawPageHeader(currentPageNumber);
-          cursorY = contentTop + 4;
-          lastConnectorY = contentTop + 1;
-        }
-
-        const endMarkerY = cursorY + 1;
-
-        doc.setDrawColor(43, 108, 176);
-        doc.setLineWidth(0.7);
-        doc.line(railX, lastConnectorY, railX, endMarkerY - 2);
-
-        doc.setDrawColor(43, 108, 176);
-        doc.setLineWidth(0.8);
-        doc.rect(railX - 2.2, endMarkerY - 2.2, 4.4, 4.4);
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9.5);
-        doc.setTextColor(90, 127, 163);
-        doc.text("Sequence End", cardX, endMarkerY + 1.4);
-
-        const safeProjectTitle = projectTitle
-          .replace(/[^a-z0-9-_]+/gi, "-")
-          .replace(/-+/g, "-")
-          .replace(/^-|-$/g, "");
-        const pdfFileName = `${safeProjectTitle || activeProject.id}-conversation.pdf`;
-        doc.save(pdfFileName);
-
-        setTransferFeedback({
-          type: "success",
-          message: "Exported UI Journey Conversation as PDF.",
-        });
-        return true;
-      }
-
-      if (format === "docx") {
-        try {
-          const projectTitle = activeProject.name.trim() || activeProject.id;
-          const safeProjectTitle = projectTitle
-            .replace(/[^a-z0-9-_]+/gi, "-")
-            .replace(/-+/g, "-")
-            .replace(/^-|-$/g, "");
-
-          const railColor = "2B6CB0";
-          const headingColor = "1A365D";
-          const mutedColor = "5A7FA3";
-          const noBorder = {
-            style: BorderStyle.NONE,
-            size: 0,
-            color: "FFFFFF",
-          };
-          const railBorder = {
-            style: BorderStyle.SINGLE,
-            size: 6,
-            color: railColor,
-          };
-
-          const toVisibleFields = (entry: UiJourneyConversationEntry) => {
-            const fields = entry.fields
-              .filter((field) => field.value.trim().length > 0)
-              .map((field) => ({
-                label: field.label,
-                value: field.value.trim(),
-              }));
-
-            if (entry.bodyText.trim().length > 0) {
-              fields.push({ label: "Body", value: entry.bodyText.trim() });
-            }
-
-            if (entry.notes.trim().length > 0) {
-              fields.push({ label: "Notes", value: entry.notes.trim() });
-            }
-
-            return fields.length > 0
-              ? fields
-              : [{ label: "Content", value: "No copy fields provided." }];
-          };
-
-          const estimateWrappedLines = (value: string, charsPerLine: number) => {
-            const normalized = value.trim();
-
-            if (normalized.length === 0) {
-              return 1;
-            }
-
-            return normalized
-              .split(/\r?\n/)
-              .reduce(
-                (total, line) => total + Math.max(1, Math.ceil(line.length / charsPerLine)),
-                0
-              );
-          };
-
-          const estimateCardUnits = (entry: UiJourneyConversationEntry) => {
-            const fields = toVisibleFields(entry);
-            const titleUnits = estimateWrappedLines(entry.title || "Untitled", 52);
-            const fieldUnits = fields.reduce((total, field) => {
-              const labelLines = estimateWrappedLines(field.label, 16);
-              const valueLines = estimateWrappedLines(field.value, 48);
-              return total + Math.max(labelLines, valueLines);
-            }, 0);
-
-            return 6 + titleUnits + fieldUnits;
-          };
-
-          const createMarkerBlock = (text: string) =>
-            new Table({
-              width: { size: 100, type: WidthType.PERCENTAGE },
-              layout: TableLayoutType.FIXED,
-              borders: {
-                top: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" },
-                bottom: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" },
-                left: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" },
-                right: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" },
-                insideHorizontal: noBorder,
-                insideVertical: noBorder,
-              },
-              rows: [
-                new TableRow({
-                  cantSplit: true,
-                  children: [
-                    new TableCell({
-                      width: { size: 100, type: WidthType.PERCENTAGE },
-                      shading: { fill: "F8FAFC" },
-                      margins: { top: 90, right: 120, bottom: 90, left: 120 },
-                      children: [
-                        new Paragraph({
-                          alignment: AlignmentType.LEFT,
-                          children: [
-                            new TextRun({
-                              text,
-                              bold: true,
-                              color: mutedColor,
-                              size: 20,
-                            }),
-                          ],
-                        }),
-                      ],
-                    }),
-                  ],
-                }),
-              ],
-            });
-
-          const pageUnitLimit = 56;
-          let consumedUnits = 0;
-
-          const rows: TableRow[] = [
-            new TableRow({
-              cantSplit: true,
-              children: [
-                new TableCell({
-                  width: { size: 8, type: WidthType.PERCENTAGE },
-                  margins: { top: 140, bottom: 140 },
-                  borders: {
-                    top: noBorder,
-                    bottom: noBorder,
-                    left: noBorder,
-                    right: railBorder,
-                  },
-                  children: [
-                    new Paragraph({
-                      alignment: AlignmentType.CENTER,
-                      children: [
-                        new TextRun({ text: "●", bold: true, color: railColor, size: 24 }),
-                      ],
-                    }),
-                  ],
-                }),
-                new TableCell({
-                  width: { size: 92, type: WidthType.PERCENTAGE },
-                  borders: {
-                    top: noBorder,
-                    bottom: noBorder,
-                    left: noBorder,
-                    right: noBorder,
-                  },
-                  margins: { top: 70, right: 20, bottom: 100, left: 140 },
-                  children: [createMarkerBlock("Sequence Start")],
-                }),
-              ],
-            }),
-          ];
-
-          uiJourneyConversationSnapshot.forEach((entry, entryIndex) => {
-            const fields = toVisibleFields(entry);
-            const estimatedUnits = estimateCardUnits(entry);
-            const shouldBreakBefore =
-              consumedUnits > 0 && consumedUnits + estimatedUnits > pageUnitLimit;
-
-            const fieldTable = new Table({
-              width: { size: 100, type: WidthType.PERCENTAGE },
-              layout: TableLayoutType.FIXED,
-              borders: {
-                top: { style: BorderStyle.SINGLE, size: 2, color: "E2E8F0" },
-                bottom: { style: BorderStyle.SINGLE, size: 2, color: "E2E8F0" },
-                left: { style: BorderStyle.SINGLE, size: 2, color: "E2E8F0" },
-                right: { style: BorderStyle.SINGLE, size: 2, color: "E2E8F0" },
-                insideHorizontal: { style: BorderStyle.SINGLE, size: 2, color: "E2E8F0" },
-                insideVertical: { style: BorderStyle.SINGLE, size: 2, color: "E2E8F0" },
-              },
-              rows: fields.map(
-                (field) =>
-                  new TableRow({
-                    cantSplit: true,
-                    children: [
-                      new TableCell({
-                        width: { size: 28, type: WidthType.PERCENTAGE },
-                        shading: { fill: "F8FAFC" },
-                        margins: { top: 70, right: 90, bottom: 70, left: 90 },
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: field.label,
-                                bold: true,
-                                color: mutedColor,
-                                size: 18,
-                              }),
-                            ],
-                          }),
-                        ],
-                      }),
-                      new TableCell({
-                        width: { size: 72, type: WidthType.PERCENTAGE },
-                        margins: { top: 70, right: 90, bottom: 70, left: 90 },
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: field.value,
-                                color: headingColor,
-                                size: 20,
-                              }),
-                            ],
-                          }),
-                        ],
-                      }),
-                    ],
-                  })
-              ),
-            });
-
-            const cardTable = new Table({
-              width: { size: 100, type: WidthType.PERCENTAGE },
-              layout: TableLayoutType.FIXED,
-              borders: {
-                top: { style: BorderStyle.SINGLE, size: 4, color: "BDD0E6" },
-                bottom: { style: BorderStyle.SINGLE, size: 4, color: "BDD0E6" },
-                left: { style: BorderStyle.SINGLE, size: 4, color: "BDD0E6" },
-                right: { style: BorderStyle.SINGLE, size: 4, color: "BDD0E6" },
-                insideHorizontal: noBorder,
-                insideVertical: noBorder,
-              },
-              rows: [
-                new TableRow({
-                  cantSplit: true,
-                  children: [
-                    new TableCell({
-                      shading: { fill: "FFFFFF" },
-                      margins: { top: 110, right: 120, bottom: 40, left: 120 },
-                      children: [
-                        new Paragraph({
-                          pageBreakBefore: shouldBreakBefore,
-                          children: [
-                            new TextRun({
-                              text: entry.title.trim() || "Untitled",
-                              bold: true,
-                              color: headingColor,
-                              size: 24,
-                            }),
-                          ],
-                        }),
-                        new Paragraph({
-                          spacing: { after: 90 },
-                          children: [
-                            new TextRun({
-                              text: `${NODE_TYPE_LABELS[entry.nodeType]} node`,
-                              color: mutedColor,
-                              size: 18,
-                            }),
-                          ],
-                        }),
-                        fieldTable,
-                      ],
-                    }),
-                  ],
-                }),
-              ],
-            });
-
-            rows.push(
-              new TableRow({
-                cantSplit: true,
-                children: [
-                  new TableCell({
-                    width: { size: 8, type: WidthType.PERCENTAGE },
-                    borders: {
-                      top: noBorder,
-                      bottom: noBorder,
-                      left: noBorder,
-                      right: railBorder,
-                    },
-                    margins: { top: 140, bottom: 140 },
-                    children: [
-                      new Paragraph({
-                        alignment: AlignmentType.CENTER,
-                        children: [
-                          new TextRun({
-                            text: String(entryIndex + 1),
-                            bold: true,
-                            color: railColor,
-                            size: 22,
-                          }),
-                        ],
-                      }),
-                    ],
-                  }),
-                  new TableCell({
-                    width: { size: 92, type: WidthType.PERCENTAGE },
-                    borders: {
-                      top: noBorder,
-                      bottom: noBorder,
-                      left: noBorder,
-                      right: noBorder,
-                    },
-                    margins: { top: 10, right: 20, bottom: 90, left: 140 },
-                    children: [cardTable],
-                  }),
-                ],
-              })
-            );
-
-            consumedUnits = shouldBreakBefore
-              ? estimatedUnits
-              : consumedUnits + estimatedUnits;
-          });
-
-          rows.push(
-            new TableRow({
-              cantSplit: true,
-              children: [
-                new TableCell({
-                  width: { size: 8, type: WidthType.PERCENTAGE },
-                  margins: { top: 140, bottom: 140 },
-                  borders: {
-                    top: noBorder,
-                    bottom: noBorder,
-                    left: noBorder,
-                    right: railBorder,
-                  },
-                  children: [
-                    new Paragraph({
-                      alignment: AlignmentType.CENTER,
-                      children: [
-                        new TextRun({ text: "■", bold: true, color: railColor, size: 22 }),
-                      ],
-                    }),
-                  ],
-                }),
-                new TableCell({
-                  width: { size: 92, type: WidthType.PERCENTAGE },
-                  borders: {
-                    top: noBorder,
-                    bottom: noBorder,
-                    left: noBorder,
-                    right: noBorder,
-                  },
-                  margins: { top: 70, right: 20, bottom: 20, left: 140 },
-                  children: [createMarkerBlock("Sequence End")],
-                }),
-              ],
-            })
-          );
-
-          const conversationTable = new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            layout: TableLayoutType.FIXED,
-            borders: {
-              top: noBorder,
-              bottom: noBorder,
-              left: noBorder,
-              right: noBorder,
-              insideHorizontal: noBorder,
-              insideVertical: noBorder,
-            },
-            rows,
-          });
-
-          const wordDoc = new WordDocument({
-            sections: [
-              {
-                properties: {},
-                children: [
-                  new Paragraph({
-                    spacing: { after: 100 },
-                    children: [
-                      new TextRun({ text: projectTitle, bold: true, color: headingColor, size: 30 }),
-                    ],
-                  }),
-                  new Paragraph({
-                    spacing: { after: 220 },
-                    children: [
-                      new TextRun({ text: `Exported ${generatedAtLabel}`, color: mutedColor, size: 18 }),
-                    ],
-                  }),
-                  conversationTable,
-                ],
-              },
-            ],
-          });
-
-          const blob = await Packer.toBlob(wordDoc);
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = `${safeProjectTitle || activeProject.id}-conversation.docx`;
-          document.body.appendChild(anchor);
-          anchor.click();
-          document.body.removeChild(anchor);
-          URL.revokeObjectURL(url);
-
-          setTransferFeedback({
-            type: "success",
-            message: "Exported UI Journey Conversation as DOCX.",
-          });
-          return true;
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "Failed to export UI Journey Conversation as DOCX.";
-
-          setTransferFeedback({
-            type: "error",
-            message,
-          });
-          return false;
-        }
-      }
+      const generatedAtLabel = new Date().toLocaleString();
 
       const payload = (() => {
         switch (format) {
@@ -8181,11 +7394,7 @@ export default function Page() {
       });
       return true;
     },
-    [
-      activeProject,
-      downloadTextFile,
-      uiJourneyConversationSnapshot,
-    ]
+    [activeProject, downloadTextFile, uiJourneyConversationSnapshot]
   );
 
   const exportProjectData = useCallback(
@@ -8292,7 +7501,7 @@ export default function Page() {
     ]
   );
 
-  const handleTransferModalExport = useCallback(async () => {
+  const handleTransferModalExport = useCallback(() => {
     if (!transferModalState || transferModalState.mode !== "export") {
       return;
     }
@@ -8301,24 +7510,10 @@ export default function Page() {
 
     switch (transferModalState.context) {
       case "project": {
-        if (transferExportFormat === "pdf" || transferExportFormat === "docx") {
-          setTransferFeedback({
-            type: "error",
-            message: "PDF and DOCX export are only available for Conversation.",
-          });
-          break;
-        }
         didExport = exportProjectData(transferExportFormat);
         break;
       }
       case "clp": {
-        if (transferExportFormat === "pdf" || transferExportFormat === "docx") {
-          setTransferFeedback({
-            type: "error",
-            message: "PDF and DOCX export are only available for Conversation.",
-          });
-          break;
-        }
         didExport = exportControlledLanguageGlossary(
           transferExportFormat,
           clpExportFieldSelection
@@ -8326,7 +7521,7 @@ export default function Page() {
         break;
       }
       case "conversation": {
-        didExport = await exportUiJourneyConversation(transferExportFormat);
+        didExport = exportUiJourneyConversation(transferExportFormat);
         break;
       }
       default: {
@@ -8932,7 +8127,7 @@ export default function Page() {
                   color: "#64748b",
                 }}
               >
-                User Account Email
+                User Account Code
               </div>
               <div
                 style={{
@@ -8942,7 +8137,7 @@ export default function Page() {
                   color: "#1e293b",
                 }}
               >
-                {authenticatedUserEmail ?? "No email"}
+                {activeAccount?.code ?? SINGLE_ACCOUNT_CODE}
               </div>
             </div>
 
@@ -9615,8 +8810,6 @@ export default function Page() {
       <aside
         style={{
           position: "relative",
-          height: "100%",
-          minHeight: 0,
           padding: 12,
           overflowY: "auto",
           display: "grid",
@@ -12791,22 +11984,10 @@ export default function Page() {
                   <strong>Edit node data:</strong> select exactly one node, then use the Node Data Panel on the right (multi-select must be narrowed first).
                 </li>
                 <li>
-                  <strong>Multiple field visibility:</strong> on default nodes, check multiple field visibility checkboxes in the inspector to show more than one field on the canvas simultaneously.
-                </li>
-                <li>
                   <strong>Assign copy via CLP picker:</strong> click the 📋 button beside supported fields (content, menu terms, ribbon cell label/key command/tool tip) to open a filtered registry picker, search terms, and assign in one click.
                 </li>
                 <li>
-                  <strong>Drag terms from registry:</strong> drag a term from the Term Registry (CLP View 2) onto the canvas to create a node, onto a default node field to assign the term, or onto a ribbon cell to open the cell modal with the term pre-loaded.
-                </li>
-                <li>
                   <strong>Reusing assigned terms:</strong> if a picked term is already assigned elsewhere, confirm the prompt to duplicate it for the current node/field.
-                </li>
-                <li>
-                  <strong>Import terms:</strong> click Import in the CLP panel to upload a CSV or JSON file, map columns to Termpath fields, preview entries, and import to the registry. Choose Add (merge) or Replace (wipe and reimport).
-                </li>
-                <li>
-                  <strong>Export options:</strong> click Export to open the context-aware export modal. CLP exports string data (CSV/JSON with selectable fields). Conversation View exports visual layouts (PDF/docx). Project exports full project data.
                 </li>
                 <li>
                   <strong>Frame a flow area:</strong> select 2+ non-frame nodes, then use Shift+F or “Frame selected nodes”.
@@ -12818,7 +11999,7 @@ export default function Page() {
                   <strong>Term highlighting:</strong> in Controlled Language, click a term occurrence count (Term Audit) or assigned registry entry to highlight matching node(s) on canvas.
                 </li>
                 <li>
-                  <strong>Undo / Redo:</strong> use Ctrl/Cmd+Z to undo and Ctrl/Cmd+Shift+Z to redo. Supports node creation/deletion, moves, connections, text edits, and registry changes (up to 30 steps).
+                  <strong>Undo recent changes:</strong> use Undo in the top actions bar (up to 3 snapshots).
                 </li>
               </ol>
             </section>
@@ -12836,16 +12017,13 @@ export default function Page() {
               </h4>
               <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 12 }}>
                 <li>
-                  <strong>Top actions:</strong> Back, Canvas/Table view toggle, Export, Import, Send Feedback, Get Help.
+                  <strong>Top actions:</strong> Back, Canvas/Table view toggle, Export, Import, Undo, Send Feedback, Get Help.
                 </li>
                 <li>
-                  <strong>Project Sequence ID panel:</strong> sequence preview and ordered node list. The Show Sequence ID toggle is now in the Admin tab.
+                  <strong>Project Sequence ID panel:</strong> sequence preview, ordered node list, and node-id visibility toggle.
                 </li>
                 <li>
-                  <strong>Node Data Panel:</strong> in <em>Edit + Govern</em>, edit node-type fields (Default / Menu / Ribbon / Frame) and use 📋 registry buttons to open field-specific CLP pickers. The right panel uses a three-tab system: <em>Edit + Govern</em>, <em>Journey</em>, and <em>Admin</em>.
-                </li>
-                <li>
-                  <strong>Export / Import:</strong> use the modal system with context-aware options. CLP supports CSV/JSON with field selection and mapping, Conversation View supports visual exports (PDF/docx), and Project handles full project data transfer.
+                  <strong>Node Data Panel:</strong> edit node-type fields (Default / Menu / Ribbon / Frame) and use 📋 registry buttons to open field-specific CLP pickers.
                 </li>
                 <li>
                   <strong>Controlled Language panel:</strong> use <em>Term Audit</em> for glossary term coverage/highlighting and <em>Term Registry</em> for term IDs, type/status filters, assignment tracking, and quick add/remove.
