@@ -2210,8 +2210,8 @@ export default function Page() {
       return;
     }
 
-    commitHistorySnapshot(snapshotOverride ?? createHistorySnapshot());
-  }, [commitHistorySnapshot, createHistorySnapshot, store.session.view]);
+    commitHistorySnapshot(snapshotOverride ?? createHistorySnapshot());markProjectDirty();
+  }, [commitHistorySnapshot, createHistorySnapshot, markProjectDirty, store.session.view]);
 
   const flushTextEditHistoryBurst = useCallback(() => {
     if (textEditHistoryDebounceTimeoutRef.current !== null) {
