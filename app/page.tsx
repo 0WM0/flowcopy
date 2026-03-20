@@ -1192,6 +1192,14 @@ const HELP_CANVAS_SHORTCUTS: HelpShortcutDefinition[] = [
       "Frame selected non-frame nodes (requires at least two selected nodes).",
   },
   {
+    keys: "Ctrl/Cmd + Z",
+    description: "Undo (canvas mode).",
+  },
+  {
+    keys: "Ctrl/Cmd + Shift + Z",
+    description: "Redo (canvas mode).",
+  },
+  {
     keys: "Ctrl/Cmd + C",
     description:
       "Copy selected nodes in Canvas mode to clipboard (selected frames include their member nodes).",
@@ -12783,10 +12791,22 @@ export default function Page() {
                   <strong>Edit node data:</strong> select exactly one node, then use the Node Data Panel on the right (multi-select must be narrowed first).
                 </li>
                 <li>
+                  <strong>Multiple field visibility:</strong> on default nodes, check multiple field visibility checkboxes in the inspector to show more than one field on the canvas simultaneously.
+                </li>
+                <li>
                   <strong>Assign copy via CLP picker:</strong> click the 📋 button beside supported fields (content, menu terms, ribbon cell label/key command/tool tip) to open a filtered registry picker, search terms, and assign in one click.
                 </li>
                 <li>
+                  <strong>Drag terms from registry:</strong> drag a term from the Term Registry (CLP View 2) onto the canvas to create a node, onto a default node field to assign the term, or onto a ribbon cell to open the cell modal with the term pre-loaded.
+                </li>
+                <li>
                   <strong>Reusing assigned terms:</strong> if a picked term is already assigned elsewhere, confirm the prompt to duplicate it for the current node/field.
+                </li>
+                <li>
+                  <strong>Import terms:</strong> click Import in the CLP panel to upload a CSV or JSON file, map columns to Termpath fields, preview entries, and import to the registry. Choose Add (merge) or Replace (wipe and reimport).
+                </li>
+                <li>
+                  <strong>Export options:</strong> click Export to open the context-aware export modal. CLP exports string data (CSV/JSON with selectable fields). Conversation View exports visual layouts (PDF/docx). Project exports full project data.
                 </li>
                 <li>
                   <strong>Frame a flow area:</strong> select 2+ non-frame nodes, then use Shift+F or “Frame selected nodes”.
@@ -12798,7 +12818,7 @@ export default function Page() {
                   <strong>Term highlighting:</strong> in Controlled Language, click a term occurrence count (Term Audit) or assigned registry entry to highlight matching node(s) on canvas.
                 </li>
                 <li>
-                  <strong>Undo recent changes:</strong> use Undo in the top actions bar (up to 3 snapshots).
+                  <strong>Undo / Redo:</strong> use Ctrl/Cmd+Z to undo and Ctrl/Cmd+Shift+Z to redo. Supports node creation/deletion, moves, connections, text edits, and registry changes (up to 30 steps).
                 </li>
               </ol>
             </section>
@@ -12816,13 +12836,16 @@ export default function Page() {
               </h4>
               <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 12 }}>
                 <li>
-                  <strong>Top actions:</strong> Back, Canvas/Table view toggle, Export, Import, Undo, Send Feedback, Get Help.
+                  <strong>Top actions:</strong> Back, Canvas/Table view toggle, Export, Import, Send Feedback, Get Help.
                 </li>
                 <li>
-                  <strong>Project Sequence ID panel:</strong> sequence preview, ordered node list, and node-id visibility toggle.
+                  <strong>Project Sequence ID panel:</strong> sequence preview and ordered node list. The Show Sequence ID toggle is now in the Admin tab.
                 </li>
                 <li>
-                  <strong>Node Data Panel:</strong> edit node-type fields (Default / Menu / Ribbon / Frame) and use 📋 registry buttons to open field-specific CLP pickers.
+                  <strong>Node Data Panel:</strong> in <em>Edit + Govern</em>, edit node-type fields (Default / Menu / Ribbon / Frame) and use 📋 registry buttons to open field-specific CLP pickers. The right panel uses a three-tab system: <em>Edit + Govern</em>, <em>Journey</em>, and <em>Admin</em>.
+                </li>
+                <li>
+                  <strong>Export / Import:</strong> use the modal system with context-aware options. CLP supports CSV/JSON with field selection and mapping, Conversation View supports visual exports (PDF/docx), and Project handles full project data transfer.
                 </li>
                 <li>
                   <strong>Controlled Language panel:</strong> use <em>Term Audit</em> for glossary term coverage/highlighting and <em>Term Registry</em> for term IDs, type/status filters, assignment tracking, and quick add/remove.
