@@ -32,6 +32,98 @@ This document captures the architecture and refactors for this session.
 
 ## Session Entries
 
+##03-20-2026##
+# FlowCopy Architecture (Session Summary)
+This document captures the architecture and refactors for this session.
+
+## 1) High-Level Product Shape
+
+This session delivered a focused editor polish pass with three user-visible outcomes:
+
+- dashboard/account header now shows authenticated user email instead of account code
+- side inspector layout was hardened so resize/scroll behavior remains stable in full-height editor layout
+- default admin option seed labels were normalized to title case for cleaner inspector/table presentation
+
+## 2) Core Data Model
+
+No persisted schema/type contracts were changed.
+
+Runtime/UI wiring updates were made in `app/page.tsx`:
+
+- added Supabase browser client initialization in-page (`createClient` + `useMemo`)
+- added `authenticatedUserEmail: string | null` state
+- added auth-state hydration/subscription effect (`getUser()` + `onAuthStateChange(...)`)
+
+Static configuration defaults were updated in `app/constants/index.ts`:
+
+- `DEFAULT_GLOBAL_OPTIONS` text values for `tone`, `polarity`, `reversibility`, `concept`, and `card_style` were capitalized
+
+## 3) Persistence and Migration Strategy
+
+No migration or storage-contract updates were introduced:
+
+- no localStorage key changes
+- no project payload shape changes
+- no import/export contract changes
+
+Operationally, capitalization updates apply to default-option seeds/fallbacks; existing persisted option values remain compatible.
+
+## 4) Ordering Model and Project Sequence ID
+
+No ordering behavior changed.
+
+- `computeFlowOrdering(...)` unchanged
+- `computeProjectSequenceId(...)` unchanged
+
+This session was dashboard/inspector/auth-display/config-label focused and orthogonal to graph sequencing.
+
+## 5) Node Rendering and Shape System
+
+No node/edge shape-system contracts were modified.
+
+Layout-level rendering adjustment in `app/page.tsx`:
+
+- side inspector `<aside>` now explicitly uses `height: "100%"` and `minHeight: 0` to stabilize scroll/resize behavior within the editor grid
+
+## 6) Editor Interaction Model
+
+Two interaction-surface updates were introduced:
+
+1. **Authenticated identity display in dashboard/account block**
+   - label changed from `User Account Code` to `User Account Email`
+   - value now resolves from live Supabase auth state (`authenticatedUserEmail ?? "No email"`)
+
+2. **Auth-state synchronization lifecycle**
+   - initial user lookup on mount via `supabase.auth.getUser()`
+   - live updates via `supabase.auth.onAuthStateChange(...)`
+   - subscription cleanup on unmount
+
+## 7) Refactor Outcomes
+
+Concrete outcomes from this session:
+
+1. Added Supabase auth-user read/subscription wiring to `Page` for live email display.
+2. Replaced dashboard identity copy/value from static account code to authenticated email.
+3. Applied inspector container sizing fix (`height: 100%`, `minHeight: 0`) to improve resize reliability.
+4. Capitalized default global option seed values for cleaner UI terminology consistency.
+
+## 8) Validation and Operational Notes
+
+Implementation deltas verified from session commit line:
+
+- `2e1f501` (`app/page.tsx`, `app/constants/index.ts`)
+
+Operational notes:
+
+- no migration/backfill required
+- no additional module boundaries changed beyond dashboard/auth-display and inspector layout styling
+
+## 9) Recommended Next Steps
+
+1. Add focused UI tests for dashboard identity display fallback (`email` vs `No email`).
+2. Add a small shared formatter/helper for default-option display labels vs persisted values to prevent casing drift.
+3. Add regression coverage for side-panel resize + scroll containment in constrained viewport heights.
+
 ##03-19-2026##
 # FlowCopy Architecture (Session Summary)
 This document captures the architecture and refactors for this session.
