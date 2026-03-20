@@ -14,6 +14,7 @@ import type {
   RibbonNodeConfig,
   FrameNodeConfig,
   PersistableMicrocopyNodeData,
+  DefaultNodeDisplayFieldType,
 } from "../types";
 import {
   NODE_SHAPE_OPTIONS,
@@ -34,7 +35,10 @@ import {
   UI_JOURNEY_HIGHLIGHT_STROKE_COLOR,
   UI_JOURNEY_RECALLED_STROKE_COLOR,
 } from "../constants";
-import { isNodeControlledLanguageFieldType } from "./controlled-language";
+import {
+  isDefaultNodeDisplayFieldType,
+  isNodeControlledLanguageFieldType,
+} from "./controlled-language";
 
 export const isFrameShade = (value: unknown): value is FrameShade =>
   value === "light" || value === "medium" || value === "dark";
@@ -695,8 +699,8 @@ export const createDefaultNodeData = (
   const displayTermFields = Array.isArray(overrides.display_term_fields)
     ? Array.from(
         new Set(
-          overrides.display_term_fields.filter((value): value is typeof displayTermField =>
-            isNodeControlledLanguageFieldType(value)
+          overrides.display_term_fields.filter((value): value is DefaultNodeDisplayFieldType =>
+            isDefaultNodeDisplayFieldType(value)
           )
         )
       )

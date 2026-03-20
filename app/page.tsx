@@ -35,6 +35,7 @@ import type {
   FrameShade,
   NodeType,
   NodeControlledLanguageFieldType,
+  DefaultNodeDisplayFieldType,
   ControlledLanguageFieldType,
   MenuNodeTerm,
   MenuNodeConfig,
@@ -116,6 +117,7 @@ import {
   DEFAULT_GLOBAL_OPTIONS,
   CONTROLLED_LANGUAGE_FIELDS,
   CONTROLLED_LANGUAGE_NODE_FIELDS,
+  DEFAULT_NODE_DISPLAY_FIELDS,
   CONTROLLED_LANGUAGE_FIELD_LABELS,
   CONTROLLED_LANGUAGE_FIELD_ORDER,
   CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS,
@@ -197,6 +199,7 @@ import {
   parseControlledLanguageGlossaryKey,
   isControlledLanguageFieldType,
   normalizeControlledLanguageFieldType,
+  isDefaultNodeDisplayFieldType,
   isNodeControlledLanguageFieldType,
   collectControlledLanguageTermsFromNode,
   replaceTermInNodeTextFields,
@@ -5273,7 +5276,7 @@ export default function Page() {
   );
 
   const updateSelectedDisplayTermField = useCallback(
-    (nextField: NodeControlledLanguageFieldType, isVisible: boolean) => {
+    (nextField: DefaultNodeDisplayFieldType, isVisible: boolean) => {
       if (!effectiveSelectedNodeId) {
         return;
       }
@@ -5290,8 +5293,8 @@ export default function Page() {
             ? Array.from(
                 new Set(
                   node.data.display_term_fields.filter(
-                    (field): field is NodeControlledLanguageFieldType =>
-                      isNodeControlledLanguageFieldType(field)
+                    (field): field is DefaultNodeDisplayFieldType =>
+                      isDefaultNodeDisplayFieldType(field)
                   )
                 )
               )
@@ -5303,7 +5306,9 @@ export default function Page() {
 
           const nextDisplayTermField = nextVisibleFields.includes(node.data.display_term_field)
             ? node.data.display_term_field
-            : nextVisibleFields[0] ?? node.data.display_term_field;
+            : nextVisibleFields.find((field): field is NodeControlledLanguageFieldType =>
+                isNodeControlledLanguageFieldType(field)
+              ) ?? node.data.display_term_field;
 
           return {
             ...node,
@@ -11453,7 +11458,7 @@ nodeCallbacksRef.current = {
                           Displayed term in node
                         </div>
 
-                        {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => (
+                        {DEFAULT_NODE_DISPLAY_FIELDS.map((fieldType) => (
                           <label
                             key={`display-term-field:${fieldType}`}
                             style={{
@@ -11478,7 +11483,9 @@ nodeCallbacksRef.current = {
                                 )
                               }
                             />
-                            {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
+                            {fieldType === "body_text"
+                              ? "Body Text"
+                              : CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
                           </label>
                         ))}
                       </div>

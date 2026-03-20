@@ -1723,45 +1723,89 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 }}
               >
                 <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>
-                  {CONTROLLED_LANGUAGE_FIELD_LABELS[displayTermFieldType]}
+                  {displayTermFieldType === "body_text"
+                    ? "Body Text"
+                    : CONTROLLED_LANGUAGE_FIELD_LABELS[displayTermFieldType]}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <input
-                    className="nodrag"
-                    style={getDefaultRegistryFieldInputStyle(displayTermFieldType, {
-                      ...inputStyle,
-                      flex: 1,
-                      minWidth: 0,
-                    })}
-                    value={data[displayTermFieldType]}
-                    placeholder="Add term"
-                    onPointerDown={stopNodeSelectionPropagation}
-                    onMouseDown={stopNodeSelectionPropagation}
-                    onClick={stopNodeSelectionPropagation}
-                    onDragOver={(event) =>
-                      handleDefaultRegistryFieldDragOver(event, displayTermFieldType)
-                    }
-                    onDragLeave={(event) =>
-                      handleDefaultRegistryFieldDragLeave(event, displayTermFieldType)
-                    }
-                    onDrop={(event) =>
-                      handleDefaultRegistryFieldDrop(event, displayTermFieldType)
-                    }
-                    onChange={(event) =>
-                      updateField(displayTermFieldType, event.target.value)
-                    }
-                    onBlur={(event) =>
-                      commitRegistryField(displayTermFieldType, event.currentTarget.value)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") {
-                        return;
+                  {displayTermFieldType === "body_text" ? (
+                    <textarea
+                      className="nodrag"
+                      rows={3}
+                      style={getDefaultRegistryFieldInputStyle(displayTermFieldType, {
+                        ...inputStyle,
+                        flex: 1,
+                        minWidth: 0,
+                        minHeight: 52,
+                        resize: "vertical",
+                      })}
+                      value={data[displayTermFieldType]}
+                      placeholder="Add term"
+                      onPointerDown={stopNodeSelectionPropagation}
+                      onMouseDown={stopNodeSelectionPropagation}
+                      onClick={stopNodeSelectionPropagation}
+                      onDragOver={(event) =>
+                        handleDefaultRegistryFieldDragOver(event, displayTermFieldType)
                       }
+                      onDragLeave={(event) =>
+                        handleDefaultRegistryFieldDragLeave(event, displayTermFieldType)
+                      }
+                      onDrop={(event) =>
+                        handleDefaultRegistryFieldDrop(event, displayTermFieldType)
+                      }
+                      onChange={(event) =>
+                        updateField(displayTermFieldType, event.target.value)
+                      }
+                      onBlur={(event) =>
+                        commitRegistryField(displayTermFieldType, event.currentTarget.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
 
-                      event.preventDefault();
-                      event.currentTarget.blur();
-                    }}
-                  />
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                  ) : (
+                    <input
+                      className="nodrag"
+                      style={getDefaultRegistryFieldInputStyle(displayTermFieldType, {
+                        ...inputStyle,
+                        flex: 1,
+                        minWidth: 0,
+                      })}
+                      value={data[displayTermFieldType]}
+                      placeholder="Add term"
+                      onPointerDown={stopNodeSelectionPropagation}
+                      onMouseDown={stopNodeSelectionPropagation}
+                      onClick={stopNodeSelectionPropagation}
+                      onDragOver={(event) =>
+                        handleDefaultRegistryFieldDragOver(event, displayTermFieldType)
+                      }
+                      onDragLeave={(event) =>
+                        handleDefaultRegistryFieldDragLeave(event, displayTermFieldType)
+                      }
+                      onDrop={(event) =>
+                        handleDefaultRegistryFieldDrop(event, displayTermFieldType)
+                      }
+                      onChange={(event) =>
+                        updateField(displayTermFieldType, event.target.value)
+                      }
+                      onBlur={(event) =>
+                        commitRegistryField(displayTermFieldType, event.currentTarget.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                  )}
                   <button
                     type="button"
                     className="nodrag"

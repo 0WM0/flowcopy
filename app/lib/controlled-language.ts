@@ -3,6 +3,7 @@ import type {
   ControlledLanguageGlossaryEntry,
   ControlledLanguageFieldType,
   NodeControlledLanguageFieldType,
+  DefaultNodeDisplayFieldType,
   ControlledLanguageAuditRow,
   ControlledLanguageDraftRow,
   ControlledLanguageAuditTermEntry,
@@ -11,6 +12,7 @@ import {
   CONTROLLED_LANGUAGE_FIELDS,
   CONTROLLED_LANGUAGE_FIELD_ORDER,
   CONTROLLED_LANGUAGE_NODE_FIELDS,
+  DEFAULT_NODE_DISPLAY_FIELDS,
 } from "../constants";
 
 export const isControlledLanguageFieldType = (
@@ -42,6 +44,12 @@ export const isNodeControlledLanguageFieldType = (
   value === "secondary_cta" ||
   value === "helper_text" ||
   value === "error_text";
+
+export const isDefaultNodeDisplayFieldType = (
+  value: unknown
+): value is DefaultNodeDisplayFieldType =>
+  typeof value === "string" &&
+  DEFAULT_NODE_DISPLAY_FIELDS.includes(value as DefaultNodeDisplayFieldType);
 
 export const collectControlledLanguageTermsFromNode = (
   node: FlowNode

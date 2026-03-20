@@ -8,6 +8,7 @@ import type {
   EditableMicrocopyField,
   ControlledLanguageFieldType,
   NodeControlledLanguageFieldType,
+  DefaultNodeDisplayFieldType,
   UiJourneyConversationExportFormat,
   DownloadTextExtension,
   FlatExportColumn,
@@ -219,6 +220,11 @@ export const CONTROLLED_LANGUAGE_NODE_FIELDS: NodeControlledLanguageFieldType[] 
   "secondary_cta",
   "helper_text",
   "error_text",
+];
+
+export const DEFAULT_NODE_DISPLAY_FIELDS: DefaultNodeDisplayFieldType[] = [
+  "body_text",
+  ...CONTROLLED_LANGUAGE_NODE_FIELDS,
 ];
 
 export const CONTROLLED_LANGUAGE_FIELD_LABELS: Record<

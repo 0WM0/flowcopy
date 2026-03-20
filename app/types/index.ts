@@ -10,6 +10,9 @@ export type NodeControlledLanguageFieldType =
   | "secondary_cta"
   | "helper_text"
   | "error_text";
+export type DefaultNodeDisplayFieldType =
+  | NodeControlledLanguageFieldType
+  | "body_text";
 export type ControlledLanguageFieldType =
   | NodeControlledLanguageFieldType
   | "menu_term"
@@ -67,7 +70,7 @@ export type MicrocopyNodeData = {
   helper_text: string;
   error_text: string;
   display_term_field: NodeControlledLanguageFieldType;
-  display_term_fields: NodeControlledLanguageFieldType[];
+  display_term_fields: DefaultNodeDisplayFieldType[];
   tone: string;
   polarity: string;
   reversibility: string;
