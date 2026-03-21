@@ -8467,14 +8467,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               style={TRANSFER_PAIR_BUTTON_STYLE}
               onClick={() => openTransferModal("export", "project")}
             >
-              Export
+              Export Project
             </button>
             <button
               type="button"
               style={TRANSFER_PAIR_BUTTON_STYLE}
               onClick={() => openTransferModal("import", "project")}
             >
-              Import
+              Import Project
             </button>
             <input
               ref={importFileInputRef}
@@ -8942,14 +8942,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               style={TRANSFER_PAIR_BUTTON_STYLE}
               onClick={() => openTransferModal("export", "project")}
             >
-              Export
+              Export Project
             </button>
             <button
               type="button"
               style={TRANSFER_PAIR_BUTTON_STYLE}
               onClick={() => openTransferModal("import", "project")}
             >
-              Import
+              Import Project
             </button>
             <button
               type="button"
@@ -8958,10 +8958,16 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 opacity: undoStack.length === 0 ? 0.5 : 1,
                 cursor: undoStack.length === 0 ? "not-allowed" : "pointer",
               }}
-              onClick={handleUndo}
-              disabled={undoStack.length === 0}
+              onClick={undo}
             >
-              Undo ({undoStack.length}/3)
+              Undo
+            </button>
+            <button
+              type="button"
+              style={buttonStyle}
+              onClick={redo}
+            >
+              Redo
             </button>
           </div>
 
@@ -9320,7 +9326,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 <button
                   type="button"
                   style={TRANSFER_PAIR_BUTTON_STYLE}
-                  onClick={() => openTransferModal("export", "clp")}
+                  onClick={() => openTransferModal("Export Project", "clp")}
                 >
                   Export
                 </button>
