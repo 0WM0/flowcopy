@@ -1740,7 +1740,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         resize: "vertical",
                       })}
                       value={data[displayTermFieldType]}
-                      placeholder="Add term"
+                      placeholder="Add body text"
                       onPointerDown={stopNodeSelectionPropagation}
                       onMouseDown={stopNodeSelectionPropagation}
                       onClick={stopNodeSelectionPropagation}

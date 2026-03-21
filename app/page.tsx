@@ -311,6 +311,8 @@ type TransferModalState = {
 type TransferExportFormat = "csv" | "json";
 
 type ClpExportFieldKey =
+  | "frame"
+  | "title"
   | "termValue"
   | "referenceKey"
   | "nodeType"
@@ -334,6 +336,8 @@ const TRANSFER_MODAL_CONTEXT_LABELS: Record<TransferModalContext, string> = {
 };
 
 const CLP_EXPORT_FIELD_OPTIONS: Array<{ key: ClpExportFieldKey; label: string }> = [
+  { key: "frame", label: "Frame" },
+  { key: "title", label: "Title" },
   { key: "termValue", label: "Term value" },
   { key: "referenceKey", label: "Reference key" },
   { key: "nodeType", label: "Node type" },
@@ -346,6 +350,8 @@ const CLP_IMPORT_FIELD_OPTIONS: Array<{
   label: string;
   required: boolean;
 }> = [
+  { key: "frame", label: "Frame", required: false },
+  { key: "title", label: "Title", required: false },
   { key: "termValue", label: "Term Value", required: true },
   { key: "referenceKey", label: "Reference Key", required: false },
   { key: "nodeType", label: "Node Type", required: false },
@@ -354,6 +360,8 @@ const CLP_IMPORT_FIELD_OPTIONS: Array<{
 ];
 
 const createDefaultClpExportFieldSelection = (): Record<ClpExportFieldKey, boolean> => ({
+  frame: true,
+  title: true,
   termValue: true,
   referenceKey: true,
   nodeType: true,
@@ -6987,12 +6995,23 @@ nodeCallbacksRef.current = {
 
       const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
 
-      const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entry) => {
-        const assignedNode = entry.assignedNodeId
-          ? nodeById.get(entry.assignedNodeId) ?? null
-          : null;
-        const nodeTitle = assignedNode?.data?.title;
-        const trimmedNodeTitle = typeof nodeTitle === "string" ? nodeTitle.trim() : "";
+const frameByMemberNodeId = new Map<string, string>();
+nodes.forEach((node) => {
+  if (node.data.node_type === "frame") {
+    const frameConfig = normalizeFrameNodeConfig(node.data.frame_config);
+    const frameTitle = typeof node.data.title === "string" ? node.data.title.trim() : "";
+    frameConfig.member_node_ids.forEach((memberId: string) => {
+      frameByMemberNodeId.set(memberId, frameTitle);
+    });
+  }
+});
+
+const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entry) => {
+  const assignedNode = entry.assignedNodeId
+    ? nodeById.get(entry.assignedNodeId) ?? null
+    : null;
+  const nodeTitle = assignedNode?.data?.title;
+  const trimmedNodeTitle = typeof nodeTitle === "string" ? nodeTitle.trim() : "";
         const assignmentStatus = entry.assignedNodeId
           ? trimmedNodeTitle
             ? `Assigned to: ${trimmedNodeTitle}`
@@ -7004,8 +7023,10 @@ nodeCallbacksRef.current = {
             : "";
 
         return {
-          termValue: entry.value,
-          referenceKey: entry.friendlyId ?? "",
+  frame: entry.assignedNodeId ? frameByMemberNodeId.get(entry.assignedNodeId) ?? "" : "",
+  title: trimmedNodeTitle,
+  termValue: entry.value,
+  referenceKey: entry.friendlyId ?? "",
           nodeType: assignedNode?.data?.node_type ?? "",
           sequenceNumber: sequenceNumberValue,
           assignmentStatus,
