@@ -319,7 +319,13 @@ type ClpExportFieldKey =
   | "sequenceNumber"
   | "assignmentStatus";
 
-type ClpImportColumnMapping = Record<ClpExportFieldKey, string | null>;
+type ClpImportColumnMapping = {
+  termValue: string | null;
+  referenceKey: string | null;
+  nodeType: string | null;
+  sequenceNumber: string | null;
+  assignmentStatus: string | null;
+};
 
 type ClpImportMode = "add" | "replace";
 
@@ -346,12 +352,10 @@ const CLP_EXPORT_FIELD_OPTIONS: Array<{ key: ClpExportFieldKey; label: string }>
 ];
 
 const CLP_IMPORT_FIELD_OPTIONS: Array<{
-  key: ClpExportFieldKey;
+  key: keyof ClpImportColumnMapping;
   label: string;
   required: boolean;
 }> = [
-  { key: "frame", label: "Frame", required: false },
-  { key: "title", label: "Title", required: false },
   { key: "termValue", label: "Term Value", required: true },
   { key: "referenceKey", label: "Reference Key", required: false },
   { key: "nodeType", label: "Node Type", required: false },
@@ -9356,7 +9360,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 <button
                   type="button"
                   style={TRANSFER_PAIR_BUTTON_STYLE}
-                  onClick={() => openTransferModal("Export Project", "clp")}
+                  onClick={() => openTransferModal("export", "clp")}
                 >
                   Export
                 </button>
