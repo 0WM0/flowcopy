@@ -293,6 +293,7 @@ import {
   type ProjectRecord as DbProjectRecord,
 } from "./lib/db";
 import { useAutoSave } from "./hooks/useAutoSave";
+import { createClient } from "@/lib/supabase/client";
 
 
 type ImportFeedback = {
@@ -1786,6 +1787,8 @@ type HistorySnapshot = EditorSnapshot & {
 
 
 export default function Page() {
+  const supabase = useMemo(() => createClient(), []);
+
   const [store, setStore] = useState<AppStore>(createEmptyStore);
   const [newProjectName, setNewProjectName] = useState("");
   const [dashboardActionError, setDashboardActionError] = useState<string | null>(null);
@@ -1873,6 +1876,9 @@ export default function Page() {
   const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(
+    null
+  );
   const [feedbackType, setFeedbackType] = useState<FeedbackType>("user_interface");
   const [feedbackEmail, setFeedbackEmail] = useState("");
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -1943,6 +1949,35 @@ export default function Page() {
     hasLoadedStoreRef.current = true;
     setStore(readAppStore());
   }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const syncAuthenticatedUserEmail = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!isActive) {
+        return;
+      }
+
+      setAuthenticatedUserEmail(user?.email ?? null);
+    };
+
+    void syncAuthenticatedUserEmail();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthenticatedUserEmail(session?.user?.email ?? null);
+    });
+
+    return () => {
+      isActive = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(
     () => () => {
@@ -4498,8 +4533,9 @@ export default function Page() {
   const openFeedbackModal = useCallback(() => {
     setFeedbackSubmitStatus("idle");
     setFeedbackSubmitMessage(null);
+    setFeedbackEmail(authenticatedUserEmail ?? "");
     setIsFeedbackModalOpen(true);
-  }, []);
+  }, [authenticatedUserEmail]);
 
   const closeFeedbackModal = useCallback(() => {
     if (feedbackSubmitStatus === "submitting") {
@@ -8132,7 +8168,7 @@ nodeCallbacksRef.current = {
                   color: "#64748b",
                 }}
               >
-                User Account Code
+                User Account Email
               </div>
               <div
                 style={{
@@ -8142,7 +8178,7 @@ nodeCallbacksRef.current = {
                   color: "#1e293b",
                 }}
               >
-                {activeAccount?.code ?? SINGLE_ACCOUNT_CODE}
+               {authenticatedUserEmail ?? "No email"}
               </div>
             </div>
 
@@ -11074,24 +11110,26 @@ nodeCallbacksRef.current = {
               </>
             ) : (
               <>
-                {selectedNode.data.node_type !== "ribbon" && (
-                  <label>
-                    <div style={inspectorFieldLabelStyle}>Node shape</div>
-                    <select
-                      style={inputStyle}
-                      value={selectedNode.data.node_shape}
-                      onChange={(event) =>
-                        updateSelectedField("node_shape", event.target.value as NodeShape)
-                      }
-                    >
-                      {NODE_SHAPE_OPTIONS.map((shape) => (
-                        <option key={`shape:${shape}`} value={shape}>
-                          {shape.charAt(0).toUpperCase() + shape.slice(1)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
+                {/* hidden for beta */}
+                {false &&
+                  selectedNode.data.node_type !== "ribbon" && (
+                    <label>
+                      <div style={inspectorFieldLabelStyle}>Node shape</div>
+                      <select
+                        style={inputStyle}
+                        value={selectedNode.data.node_shape}
+                        onChange={(event) =>
+                          updateSelectedField("node_shape", event.target.value as NodeShape)
+                        }
+                      >
+                        {NODE_SHAPE_OPTIONS.map((shape) => (
+                          <option key={`shape:${shape}`} value={shape}>
+                            {shape.charAt(0).toUpperCase() + shape.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
 
                 <div>
                   <div
