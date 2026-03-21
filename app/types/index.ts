@@ -64,6 +64,7 @@ export type FlowEdgeData = {
 
 export type MicrocopyNodeData = {
   title: string;
+  showTitle: boolean;
   body_text: string;
   primary_cta: string;
   secondary_cta: string;
@@ -98,6 +99,7 @@ export type PersistableMicrocopyNodeData = Omit<
 export type EditableMicrocopyField = Exclude<
   keyof PersistableMicrocopyNodeData,
   | "parallel_group_id"
+  | "showTitle"
   | "menu_config"
   | "frame_config"
   | "ribbon_config"

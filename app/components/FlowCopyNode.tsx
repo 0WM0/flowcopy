@@ -196,7 +196,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   menuTermGlossaryTerms,
   glossaryHighlightedNodeIds,
   showNodeId,
-  showDefaultNodeTitleOnCanvas,
   onMenuTermDeleteBlocked,
   onMenuNodeConfigChange,
   onCanDropRegistryEntry,
@@ -1561,6 +1560,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           padding: "70px 72px",
         }
       : baseContentStyle;
+  const shouldRenderCanvasTitle = data.showTitle === true;
 
   return (
     <div
@@ -1651,7 +1651,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
         {isMenuNode ? (
           <>
-            {showDefaultNodeTitleOnCanvas && (
+            {shouldRenderCanvasTitle && (
               <div style={{ marginTop: 4 }}>
                 <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>Title</div>
                 <input
@@ -1680,7 +1680,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           </>
         ) : (
           <>
-            {showDefaultNodeTitleOnCanvas && (
+            {shouldRenderCanvasTitle && (
               <div style={{ marginTop: 4 }}>
                 <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>Title</div>
                 <input

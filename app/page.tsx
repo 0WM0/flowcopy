@@ -5368,6 +5368,36 @@ export default function Page() {
     [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
   );
 
+  const updateSelectedShowTitle = useCallback(
+    (isVisible: boolean) => {
+      if (!effectiveSelectedNodeId) {
+        return;
+      }
+
+      pushToHistory();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (
+            node.id !== effectiveSelectedNodeId ||
+            (node.data.node_type !== "default" && node.data.node_type !== "menu")
+          ) {
+            return node;
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              showTitle: isVisible,
+            },
+          };
+        })
+      );
+    },
+    [effectiveSelectedNodeId, pushToHistory, setNodes]
+  );
+
   const updateNodeTypeById = useCallback(
     (nodeId: string, nextType: NodeType) => {
       const targetNode = nodes.find((node) => node.id === nodeId);
@@ -10817,6 +10847,45 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   </div>
                 </label>
 
+                <div
+                  style={{
+                    border: "1px solid #dbeafe",
+                    borderRadius: 8,
+                    padding: 8,
+                    background: "#f8fbff",
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                    Field visibility
+                  </div>
+
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 12,
+                      color: "#334155",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedNode.data.showTitle === true}
+                      onChange={(event) => updateSelectedShowTitle(event.target.checked)}
+                    />
+                    Show Title
+                  </label>
+
+                  <div
+                    style={{
+                      borderTop: "1px solid #bfdbfe",
+                      marginTop: 2,
+                    }}
+                  />
+                </div>
+
                 <label>
                   <div style={inspectorFieldLabelStyle}>Menu Terms</div>
                   <input
@@ -11169,26 +11238,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     }}
                   >
                     <div style={{ ...inspectorFieldLabelStyle, marginBottom: 0 }}>Title</div>
-                    {selectedNode.data.node_type !== "ribbon" && (
-                      <label
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          fontSize: 11,
-                          color: "#334155",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={showDefaultNodeTitleOnCanvas}
-                          onChange={(event) =>
-                            setShowDefaultNodeTitleOnCanvas(event.target.checked)
-                          }
-                        />
-                        Show
-                      </label>
-                    )}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <input
@@ -11520,39 +11569,77 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         }}
                       >
                         <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
-                          Displayed term in node
+                          Field visibility
                         </div>
 
-                        {DEFAULT_NODE_DISPLAY_FIELDS.map((fieldType) => (
-                          <label
-                            key={`display-term-field:${fieldType}`}
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 12,
+                            color: "#334155",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedNode.data.showTitle === true}
+                            onChange={(event) => updateSelectedShowTitle(event.target.checked)}
+                          />
+                          Show Title
+                        </label>
+
+                        <div
+                          style={{
+                            borderTop: "1px solid #bfdbfe",
+                            marginTop: 2,
+                            paddingTop: 6,
+                          }}
+                        >
+                          <div
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              fontSize: 12,
-                              color: "#334155",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: "#475569",
+                              marginBottom: 4,
+                              textTransform: "uppercase",
+                              letterSpacing: 0.4,
                             }}
                           >
-                            <input
-                              type="checkbox"
-                              checked={(
-                                selectedNode.data.display_term_fields ?? [
-                                  selectedNode.data.display_term_field,
-                                ]
-                              ).includes(fieldType)}
-                              onChange={(event) =>
-                                updateSelectedDisplayTermField(
-                                  fieldType,
-                                  event.target.checked
-                                )
-                              }
-                            />
-                            {fieldType === "body_text"
-                              ? "Body Text"
-                              : CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
-                          </label>
-                        ))}
+                            Displayed term fields
+                          </div>
+
+                          {DEFAULT_NODE_DISPLAY_FIELDS.map((fieldType) => (
+                            <label
+                              key={`display-term-field:${fieldType}`}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontSize: 12,
+                                color: "#334155",
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={(
+                                  selectedNode.data.display_term_fields ?? [
+                                    selectedNode.data.display_term_field,
+                                  ]
+                                ).includes(fieldType)}
+                                onChange={(event) =>
+                                  updateSelectedDisplayTermField(
+                                    fieldType,
+                                    event.target.checked
+                                  )
+                                }
+                              />
+                              {fieldType === "body_text"
+                                ? "Body Text"
+                                : CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
+                            </label>
+                          ))}
+                        </div>
                       </div>
 
                       <label>

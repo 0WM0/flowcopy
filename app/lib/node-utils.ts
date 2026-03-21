@@ -690,6 +690,7 @@ export const createDefaultNodeData = (
   globalOptions: GlobalOptionConfig,
   overrides: Partial<PersistableMicrocopyNodeData> = {}
 ): MicrocopyNodeData => {
+  const nodeType = isNodeType(overrides.node_type) ? overrides.node_type : "default";
   const displayTermField = isNodeControlledLanguageFieldType(
     overrides.display_term_field
   )
@@ -708,6 +709,12 @@ export const createDefaultNodeData = (
 
   return {
     title: overrides.title ?? "",
+    showTitle:
+      nodeType === "default" || nodeType === "menu"
+        ? false
+        : typeof overrides.showTitle === "boolean"
+          ? overrides.showTitle
+          : true,
     body_text: overrides.body_text ?? "",
     primary_cta: overrides.primary_cta ?? "",
     secondary_cta: overrides.secondary_cta ?? "",
@@ -733,7 +740,7 @@ export const createDefaultNodeData = (
     card_style:
       overrides.card_style ?? firstOptionOrFallback(globalOptions.card_style, "default"),
     node_shape: isNodeShape(overrides.node_shape) ? overrides.node_shape : "rectangle",
-    node_type: isNodeType(overrides.node_type) ? overrides.node_type : "default",
+    node_type: nodeType,
     menu_config: normalizeMenuNodeConfig(
       overrides.menu_config,
       overrides.primary_cta ?? "Continue",
@@ -1008,6 +1015,7 @@ export const serializeNodesForStorage = (
   nodes.map((node) => {
     const persistableData: PersistableMicrocopyNodeData = {
       title: node.data.title,
+      showTitle: node.data.showTitle,
       body_text: node.data.body_text,
       primary_cta: node.data.primary_cta,
       secondary_cta: node.data.secondary_cta,
