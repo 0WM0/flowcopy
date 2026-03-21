@@ -11112,7 +11112,7 @@ nodeCallbacksRef.current = {
               <>
                 {/* hidden for beta */}
                 {false &&
-                  selectedNode.data.node_type !== "ribbon" && (
+                  selectedNode?.data.node_type !== "ribbon" && (
                     <label>
                       <div style={inspectorFieldLabelStyle}>Node shape</div>
                       <select
