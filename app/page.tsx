@@ -11117,7 +11117,7 @@ nodeCallbacksRef.current = {
                       <div style={inspectorFieldLabelStyle}>Node shape</div>
                       <select
                         style={inputStyle}
-                        value={selectedNode.data.node_shape}
+                        value={selectedNode?.data.node_shape}
                         onChange={(event) =>
                           updateSelectedField("node_shape", event.target.value as NodeShape)
                         }
