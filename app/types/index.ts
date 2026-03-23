@@ -4,7 +4,13 @@ export type NodeShape = "rectangle" | "rounded" | "pill" | "diamond";
 export type EdgeKind = "sequential" | "parallel";
 export type EdgeLineStyle = "solid" | "dashed" | "dotted";
 export type FrameShade = "light" | "medium" | "dark";
-export type NodeType = "default" | "menu" | "frame" | "ribbon";
+export type NodeType =
+  | "default"
+  | "menu"
+  | "frame"
+  | "ribbon"
+  | "vertical_multi_term"
+  | "horizontal_multi_term";
 export type NodeControlledLanguageFieldType =
   | "primary_cta"
   | "secondary_cta"
@@ -53,6 +59,31 @@ export type RibbonNodeConfig = {
   ribbon_style: string;
 };
 
+export type NodeContentLayout = "single" | "vertical" | "horizontal";
+
+export type NodeContentSlot = {
+  id: string;
+  value: string;
+  termType: string | null;
+  groupId: string | null;
+  position: number;
+};
+
+export type NodeContentGroup = {
+  id: string;
+  row: number;
+  column: number;
+};
+
+export type NodeContentConfig = {
+  layout: NodeContentLayout;
+  rows: number;
+  columns: number;
+  groups: NodeContentGroup[];
+  slots: NodeContentSlot[];
+  style: string;
+};
+
 export type EdgeDirection = "forward" | "reversed";
 
 export type FlowEdgeData = {
@@ -85,6 +116,7 @@ export type MicrocopyNodeData = {
   menu_config: MenuNodeConfig;
   frame_config: FrameNodeConfig;
   ribbon_config: RibbonNodeConfig | null;
+  content_config: NodeContentConfig;
   parallel_group_id: string | null;
   sequence_index: number | null;
   ui_journey_highlighted?: boolean;
@@ -103,6 +135,7 @@ export type EditableMicrocopyField = Exclude<
   | "menu_config"
   | "frame_config"
   | "ribbon_config"
+  | "content_config"
   | "node_type"
   | "display_term_field"
   | "display_term_fields"

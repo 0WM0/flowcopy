@@ -5,6 +5,7 @@ import type {
   EdgeKind,
   GlobalOptionField,
   GlobalOptionConfig,
+  NodeContentLayout,
   EditableMicrocopyField,
   ControlledLanguageFieldType,
   NodeControlledLanguageFieldType,
@@ -77,6 +78,19 @@ export const NODE_TYPE_LABELS: Record<(typeof NODE_TYPE_OPTIONS)[number], string
   menu: "Menu",
   ribbon: "Ribbon",
 };
+export const UNIFIED_NODE_TYPE_OPTIONS = [
+  "default",
+  "vertical_multi_term",
+  "horizontal_multi_term",
+];
+export const UNIFIED_NODE_TYPE_LABELS: Record<
+  (typeof UNIFIED_NODE_TYPE_OPTIONS)[number],
+  string
+> = {
+  default: "Default",
+  vertical_multi_term: "Vertical Multi-Term",
+  horizontal_multi_term: "Horizontal Multi-Term",
+};
 export const FRAME_SHADE_OPTIONS: FrameShade[] = ["light", "medium", "dark"];
 export const FRAME_SHADE_LABELS: Record<FrameShade, string> = {
   light: "Light",
@@ -102,6 +116,33 @@ export const RIBBON_CELL_MAX_KEY_COMMAND_LENGTH = 24;
 export const RIBBON_SOURCE_HANDLE_PREFIX = "ribbon-cell-";
 export const RIBBON_TOP_HANDLE_ID = "ribbon-top";
 export const RIBBON_BOTTOM_HANDLE_ID = "ribbon-bottom";
+
+export const NODE_CONTENT_LAYOUT_OPTIONS: NodeContentLayout[] = [
+  "single",
+  "vertical",
+  "horizontal",
+];
+export const NODE_CONTENT_DEFAULT_LAYOUT: NodeContentLayout = "single";
+export const NODE_CONTENT_DEFAULT_ROWS = 1;
+export const NODE_CONTENT_DEFAULT_COLUMNS = 1;
+export const NODE_CONTENT_DEFAULT_STYLE = "";
+export const NODE_CONTENT_DEFAULT_SLOT_TYPES: string[] = [
+  "Title",
+  "Primary CTA",
+  "Secondary CTA",
+  "Helper Text",
+  "Error Text",
+  "Body Text",
+];
+
+export const MULTI_TERM_DEFAULT_SLOT_TYPES: string[] = [
+  "Term",
+  "Key Command",
+  "Tool Tip",
+];
+
+export const CONTENT_SLOT_ID_PREFIX = "cs-";
+export const CONTENT_GROUP_ID_PREFIX = "cg-";
 
 export const FRAME_SHADE_STYLES: Record<
   FrameShade,
