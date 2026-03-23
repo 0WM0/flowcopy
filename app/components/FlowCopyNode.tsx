@@ -38,6 +38,7 @@ import {
   PARALLEL_ALT_TARGET_HANDLE_ID,
   CONTROLLED_LANGUAGE_FIELD_LABELS,
   DIAMOND_CLIP_PATH,
+  DEFAULT_NODE_DISPLAY_FIELDS,
   inputStyle,
   buttonStyle,
 } from "../constants";
@@ -261,14 +262,14 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const frameShadeStyle = FRAME_SHADE_STYLES[frameConfig.shade];
 
   const visibleDisplayTermFieldTypes = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          Array.isArray(data.display_term_fields)
-            ? data.display_term_fields
-            : [data.display_term_field]
-        )
-      ),
+    () => {
+      const fieldSet = new Set(
+        Array.isArray(data.display_term_fields)
+          ? data.display_term_fields
+          : [data.display_term_field]
+      );
+      return DEFAULT_NODE_DISPLAY_FIELDS.filter((field) => fieldSet.has(field));
+    },
     [data.display_term_field, data.display_term_fields]
   );
   const editingRibbonCell = useMemo(() => {
@@ -1894,9 +1895,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                     gap: 5,
                   }}
                 >
-                  <div style={{ fontSize: 9, color: "#334155", fontWeight: 700 }}>
-                    Term {index + 1}
-                  </div>
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>

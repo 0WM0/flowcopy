@@ -10950,7 +10950,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     }}
                   >
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
-                      Menu Terms
+                      Term Input
                     </div>
                     <button
                       type="button"
@@ -11009,18 +11009,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           background: "#fff",
                         }}
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: 6,
-                          }}
-                        >
-                          <div style={{ fontSize: 10, color: "#334155", fontWeight: 700 }}>
-                            Term {index + 1}
-                          </div>
-                        </div>
+
 
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <button
@@ -11646,42 +11635,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         </div>
                       </div>
 
-                      <label>
-                        <div style={inspectorFieldLabelStyle}>Body text</div>
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-                          <textarea
-                            style={{ ...inputStyle, minHeight: 68, resize: "vertical" }}
-                            value={selectedNode.data.body_text}
-                            onChange={(event) =>
-                              updateSelectedField("body_text", event.target.value)
-                            }
-                            onBlur={(event) =>
-                              commitSelectedRegistryField("body_text", event.target.value)
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key !== "Enter") {
-                                return;
-                              }
-
-                              event.preventDefault();
-                              event.currentTarget.blur();
-                            }}
-                          />
-                          <button
-                            type="button"
-                            style={getInspectorRegistryButtonStyle(
-                              activeInspectorRegistryPickerField === "body_text"
-                            )}
-                            title="Open CLP registry"
-                            aria-label="Open CLP registry"
-                            onClick={() =>
-                              toggleInspectorRegistryPickerForField("body_text")
-                            }
-                          >
-                            📋
-                          </button>
-                        </div>
-                      </label>
+                    
 
                       <div>
                         <div style={{ fontSize: 12, marginBottom: 4, color: "#334155" }}>
@@ -11748,6 +11702,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           />
                         </label>
                       ))}
+                      
                     </>
                   )}
               </>
