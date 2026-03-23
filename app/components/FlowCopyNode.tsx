@@ -17,6 +17,9 @@ import type {
   FlowNode,
   MenuNodeConfig,
   MenuNodeTerm,
+  NodeContentConfig,
+  NodeContentGroup,
+  NodeContentSlot,
   RibbonNodeConfig,
   RibbonNodeCell,
   NodeType,
@@ -39,6 +42,7 @@ import {
   CONTROLLED_LANGUAGE_FIELD_LABELS,
   DIAMOND_CLIP_PATH,
   DEFAULT_NODE_DISPLAY_FIELDS,
+  MULTI_TERM_DEFAULT_SLOT_TYPES,
   inputStyle,
   buttonStyle,
 } from "../constants";
@@ -47,8 +51,11 @@ import {
   normalizeMenuNodeConfig,
   normalizeFrameNodeConfig,
   normalizeRibbonNodeConfig,
+  normalizeNodeContentConfig,
   clampMenuRightConnections,
   createMenuNodeTerm,
+  createContentGroupId,
+  createContentSlotId,
   buildMenuSourceHandleId,
   buildRibbonSourceHandleId,
   resolveNodeHighlightColor,
@@ -59,6 +66,7 @@ import {
   getFallbackNodeSize,
   getNodeVisualSize,
 } from "../lib/node-utils";
+import { syncSequentialEdgesForMenuNode } from "../lib/edge-utils";
 
 function BodyTextPreview({ value }: { value: string }) {
   if (value.trim().length === 0) {
@@ -155,6 +163,12 @@ type PendingRibbonRegistryTerm = {
   referenceKey: string | null;
 };
 
+type VerticalTermRow = {
+  group: NodeContentGroup;
+  slots: NodeContentSlot[];
+  primarySlot: NodeContentSlot | null;
+};
+
 const isRegistryTrackedField = (
   field: EditableMicrocopyField
 ): field is RegistryTrackedField =>
@@ -162,6 +176,28 @@ const isRegistryTrackedField = (
 
 const buildMenuTermRegistryField = (menuTermId: string): `menu_term:[${string}]` =>
   `menu_term:[${menuTermId}]`;
+
+const buildContentSlotRegistryField = (slotId: string): `slot:[${string}]` =>
+  `slot:[${slotId}]`;
+
+const sortContentGroups = (a: NodeContentGroup, b: NodeContentGroup): number => {
+  if (a.row !== b.row) {
+    return a.row - b.row;
+  }
+
+  return a.column - b.column;
+};
+
+const sortContentSlots = (a: NodeContentSlot, b: NodeContentSlot): number =>
+  a.position - b.position;
+
+const getContentSlotLabel = (slot: NodeContentSlot, index: number): string => {
+  if (typeof slot.termType === "string" && slot.termType.trim().length > 0) {
+    return slot.termType;
+  }
+
+  return `Slot ${index + 1}`;
+};
 
 const buildRibbonCellRegistryField = (
   cellId: string,
@@ -204,13 +240,16 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   onResolveDroppedRegistryTerm,
   onAssignPendingRibbonTermToField,
 }: FlowCopyNodeProps) {
-  const { setNodes } = useReactFlow<FlowNode, FlowEdge>();
+  const { setNodes, setEdges } = useReactFlow<FlowNode, FlowEdge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const frameTitleInputRef = useRef<HTMLInputElement | null>(null);
   const ribbonContainerRef = useRef<HTMLDivElement | null>(null);
   const ribbonPopupRef = useRef<HTMLDivElement | null>(null);
+  const verticalTermsContainerRef = useRef<HTMLDivElement | null>(null);
+  const verticalTermPopupRef = useRef<HTMLDivElement | null>(null);
   const [isEditingFrameTitle, setIsEditingFrameTitle] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
+  const [editingVerticalGroupId, setEditingVerticalGroupId] = useState<string | null>(null);
   const [pendingRibbonRegistryTerm, setPendingRibbonRegistryTerm] =
     useState<PendingRibbonRegistryTerm | null>(null);
   const [activeRibbonDropCellId, setActiveRibbonDropCellId] =
@@ -221,22 +260,24 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     x: 0,
     y: 0,
   });
+  const [verticalPopupPosition, setVerticalPopupPosition] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
   const isGlossaryHighlighted = glossaryHighlightedNodeIds.has(id);
 
   const isMenuNode = data.node_type === "menu";
+  const isVerticalMultiTermNode = data.node_type === "vertical_multi_term";
+  const isVerticalTermsNode = isMenuNode || isVerticalMultiTermNode;
   const isFrameNode = data.node_type === "frame";
   const isRibbonNode = data.node_type === "ribbon";
-  const menuConfig = useMemo(
+  const contentConfig = useMemo(
     () =>
-      normalizeMenuNodeConfig(
-        data.menu_config,
-        data.primary_cta,
-        Math.max(
-          MENU_NODE_RIGHT_CONNECTIONS_MIN,
-          data.menu_config.max_right_connections
-        )
+      normalizeNodeContentConfig(
+        data.content_config,
+        isVerticalTermsNode ? "vertical" : isRibbonNode ? "horizontal" : "single"
       ),
-    [data.menu_config, data.primary_cta]
+    [data.content_config, isRibbonNode, isVerticalTermsNode]
   );
   const frameConfig = useMemo(
     () => normalizeFrameNodeConfig(data.frame_config),
@@ -260,6 +301,26 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     });
   }, [isRibbonNode, ribbonConfig.cells]);
   const frameShadeStyle = FRAME_SHADE_STYLES[frameConfig.shade];
+  const verticalTermRows = useMemo<VerticalTermRow[]>(() => {
+    if (!isVerticalTermsNode) {
+      return [];
+    }
+
+    const sortedGroups = [...contentConfig.groups].sort(sortContentGroups);
+
+    return sortedGroups.map((group) => {
+      const slots = contentConfig.slots
+        .filter((slot) => slot.groupId === group.id)
+        .sort(sortContentSlots);
+      const primarySlot = slots.find((slot) => slot.position === 0) ?? slots[0] ?? null;
+
+      return {
+        group,
+        slots,
+        primarySlot,
+      };
+    });
+  }, [contentConfig.groups, contentConfig.slots, isVerticalTermsNode]);
 
   const visibleDisplayTermFieldTypes = useMemo(
     () => {
@@ -279,6 +340,15 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
     return ribbonConfig.cells.find((cell) => cell.id === editingCellId) ?? null;
   }, [editingCellId, isRibbonNode, ribbonConfig.cells]);
+  const editingVerticalTermRow = useMemo(() => {
+    if (!isVerticalTermsNode || !editingVerticalGroupId) {
+      return null;
+    }
+
+    return (
+      verticalTermRows.find((row) => row.group.id === editingVerticalGroupId) ?? null
+    );
+  }, [editingVerticalGroupId, isVerticalTermsNode, verticalTermRows]);
 
   const stopNodeSelectionPropagation = useCallback(
     (event: React.SyntheticEvent<HTMLElement>) => {
@@ -394,7 +464,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   }, [
     data.node_type,
     id,
-    menuConfig.terms.length,
+    verticalTermRows.length,
     ribbonConfig.columns,
     ribbonConfig.cells.length,
     visibleDisplayTermFieldTypes.length,
@@ -438,17 +508,21 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     [id, isFrameNode, onCommitRegistryField, onTextEditBlur]
   );
 
-  const commitMenuTermRegistryField = useCallback(
-    (menuTermId: string, value: string) => {
+  const commitContentSlotRegistryField = useCallback(
+    (slotId: string, value: string) => {
       onTextEditBlur();
 
-      if (!isMenuNode) {
+      if (!isVerticalTermsNode) {
         return;
       }
 
-      onCommitRegistryField(id, buildMenuTermRegistryField(menuTermId), value);
+      onCommitRegistryField(
+        id,
+        buildContentSlotRegistryField(slotId) as unknown as `menu_term:[${string}]`,
+        value
+      );
     },
-    [id, isMenuNode, onCommitRegistryField, onTextEditBlur]
+    [id, isVerticalTermsNode, onCommitRegistryField, onTextEditBlur]
   );
 
   const commitRibbonCellRegistryField = useCallback(
@@ -464,89 +538,304 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     [id, isRibbonNode, onCommitRegistryField, onTextEditBlur]
   );
 
-  const replaceMenuConfig = useCallback(
+  const toBridgedMenuConfig = useCallback(
+    (nextContentConfig: NodeContentConfig, fallbackMenuConfig: MenuNodeConfig): MenuNodeConfig => {
+      const sortedGroups = [...nextContentConfig.groups].sort(sortContentGroups);
+      const nextTerms = sortedGroups.map((group): MenuNodeTerm => {
+        const groupSlots = nextContentConfig.slots
+          .filter((slot) => slot.groupId === group.id)
+          .sort(sortContentSlots);
+        const primarySlot =
+          groupSlots.find((slot) => slot.position === 0) ?? groupSlots[0] ?? null;
+
+        return {
+          id: group.id,
+          term: primarySlot?.value ?? "",
+        };
+      });
+
+      const fallbackTerms = fallbackMenuConfig.terms.slice(0, MENU_NODE_RIGHT_CONNECTIONS_MIN);
+      const terms = nextTerms.length > 0 ? nextTerms : fallbackTerms;
+
+      return normalizeMenuNodeConfig(
+        {
+          max_right_connections: clampMenuRightConnections(
+            Math.max(MENU_NODE_RIGHT_CONNECTIONS_MIN, terms.length)
+          ),
+          terms,
+        },
+        data.primary_cta,
+        Math.max(MENU_NODE_RIGHT_CONNECTIONS_MIN, terms.length)
+      );
+    },
+    [data.primary_cta]
+  );
+
+  const updateVerticalTermsContentConfig = useCallback(
     (
-      nextMenuConfig: MenuNodeConfig,
+      updater: (currentConfig: NodeContentConfig) => NodeContentConfig,
       historyCaptureMode: "discrete" | "text" = "discrete"
     ) => {
-      if (!isMenuNode) {
+      if (!isVerticalTermsNode) {
         return;
       }
 
-      onMenuNodeConfigChange(id, () => nextMenuConfig, historyCaptureMode);
+      onBeforeChange();
+
+      let nextMenuConfigForEdges: MenuNodeConfig | null = null;
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== id) {
+            return node;
+          }
+
+          if (
+            node.data.node_type !== "menu" &&
+            node.data.node_type !== "vertical_multi_term"
+          ) {
+            return node;
+          }
+
+          const currentContentConfig = normalizeNodeContentConfig(
+            node.data.content_config,
+            "vertical"
+          );
+          const requestedNextContentConfig = updater(currentContentConfig);
+          const nextContentConfig = normalizeNodeContentConfig(
+            requestedNextContentConfig,
+            "vertical"
+          );
+          const normalizedNextMenuConfig = toBridgedMenuConfig(
+            nextContentConfig,
+            normalizeMenuNodeConfig(
+              node.data.menu_config,
+              node.data.primary_cta,
+              Math.max(
+                MENU_NODE_RIGHT_CONNECTIONS_MIN,
+                node.data.menu_config.max_right_connections
+              )
+            )
+          );
+
+          if (node.data.node_type === "menu") {
+            nextMenuConfigForEdges = normalizedNextMenuConfig;
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              content_config: nextContentConfig,
+              menu_config: normalizedNextMenuConfig,
+              primary_cta: normalizedNextMenuConfig.terms[0]?.term ?? node.data.primary_cta,
+              secondary_cta:
+                normalizedNextMenuConfig.terms[1]?.term ?? node.data.secondary_cta,
+            },
+          };
+        })
+      );
+
+      if (isMenuNode) {
+        setEdges((currentEdges) =>
+          nextMenuConfigForEdges
+            ? syncSequentialEdgesForMenuNode(currentEdges, id, nextMenuConfigForEdges)
+            : currentEdges
+        );
+      }
     },
-    [id, isMenuNode, onMenuNodeConfigChange]
+    [id, isMenuNode, isVerticalTermsNode, onBeforeChange, setEdges, setNodes, toBridgedMenuConfig]
   );
 
-  const addMenuTerm = useCallback(() => {
-    if (!isMenuNode) {
+  const addVerticalTermGroup = useCallback(() => {
+    if (!isVerticalTermsNode) {
       return;
     }
 
-    replaceMenuConfig({
-      max_right_connections: clampMenuRightConnections(menuConfig.max_right_connections + 1),
-      terms: [...menuConfig.terms, createMenuNodeTerm("")],
+    updateVerticalTermsContentConfig((currentConfig) => {
+      const sortedGroups = [...currentConfig.groups].sort(sortContentGroups);
+      const nextRow =
+        sortedGroups.length > 0
+          ? sortedGroups[sortedGroups.length - 1]!.row + 1
+          : 0;
+      const groupId = createContentGroupId();
+
+      const nextGroup: NodeContentGroup = {
+        id: groupId,
+        row: nextRow,
+        column: 0,
+      };
+
+      const nextSlots = MULTI_TERM_DEFAULT_SLOT_TYPES.map((termType, index) => ({
+        id: createContentSlotId(),
+        value: "",
+        termType,
+        groupId,
+        position: index,
+      }));
+
+      return {
+        ...currentConfig,
+        groups: [...currentConfig.groups, nextGroup],
+        slots: [...currentConfig.slots, ...nextSlots],
+        rows: Math.max(1, currentConfig.groups.length + 1),
+      };
     });
-  }, [isMenuNode, menuConfig, replaceMenuConfig]);
+  }, [isVerticalTermsNode, updateVerticalTermsContentConfig]);
 
-  const updateMenuTermById = useCallback(
-    (termId: string, term: string) => {
-      if (!isMenuNode) {
-        return;
-      }
-
-      const nextTerms = menuConfig.terms.map((menuTerm) =>
-        menuTerm.id === termId
-          ? {
-              ...menuTerm,
-              term,
-            }
-          : menuTerm
+  const updateVerticalSlotValue = useCallback(
+    (slotId: string, value: string) => {
+      updateVerticalTermsContentConfig(
+        (currentConfig) => ({
+          ...currentConfig,
+          slots: currentConfig.slots.map((slot) =>
+            slot.id === slotId
+              ? {
+                  ...slot,
+                  value,
+                }
+              : slot
+          ),
+        }),
+        "text"
       );
-
-      replaceMenuConfig({
-        ...menuConfig,
-        terms: nextTerms,
-      }, "text");
     },
-    [isMenuNode, menuConfig, replaceMenuConfig]
+    [updateVerticalTermsContentConfig]
   );
 
-  const deleteMenuTermById = useCallback(
-    (termId: string) => {
-      if (!isMenuNode) {
+  const deleteVerticalTermGroup = useCallback(
+    (groupId: string) => {
+      if (!isVerticalTermsNode) {
         return;
       }
 
-      if (menuConfig.terms.length <= MENU_NODE_RIGHT_CONNECTIONS_MIN) {
+      if (verticalTermRows.length <= MENU_NODE_RIGHT_CONNECTIONS_MIN) {
         onMenuTermDeleteBlocked();
         return;
       }
 
-      const termToDelete = menuConfig.terms.find((term) => term.id === termId);
-      if (!termToDelete) {
-        return;
-      }
-
+      const rowToDelete = verticalTermRows.find((row) => row.group.id === groupId);
+      const rowLabel = rowToDelete?.primarySlot?.value || "Untitled";
       const confirmed = window.confirm(
-        `Delete this menu term (${termToDelete.term || "Untitled"})? This will also remove any sequential edge attached to it.`
+        `Delete this menu term (${rowLabel})? This will also remove any sequential edge attached to it.`
       );
 
       if (!confirmed) {
         return;
       }
 
-      const filteredTerms = menuConfig.terms.filter((term) => term.id !== termId);
-      const nextMax = clampMenuRightConnections(
-        Math.max(filteredTerms.length, MENU_NODE_RIGHT_CONNECTIONS_MIN)
-      );
+      updateVerticalTermsContentConfig((currentConfig) => {
+        const remainingGroups = currentConfig.groups
+          .filter((group) => group.id !== groupId)
+          .sort(sortContentGroups)
+          .map((group, index) => ({
+            ...group,
+            row: index,
+          }));
 
-      replaceMenuConfig({
-        max_right_connections: nextMax,
-        terms: filteredTerms,
+        return {
+          ...currentConfig,
+          groups: remainingGroups,
+          slots: currentConfig.slots.filter((slot) => slot.groupId !== groupId),
+          rows: Math.max(1, remainingGroups.length),
+        };
       });
+
+      setEditingVerticalGroupId((currentGroupId) =>
+        currentGroupId === groupId ? null : currentGroupId
+      );
     },
-    [isMenuNode, menuConfig, onMenuTermDeleteBlocked, replaceMenuConfig]
+    [
+      isVerticalTermsNode,
+      onMenuTermDeleteBlocked,
+      updateVerticalTermsContentConfig,
+      verticalTermRows,
+    ]
+  );
+
+  const moveVerticalTermGroup = useCallback(
+    (groupId: string, direction: -1 | 1) => {
+      if (!isVerticalTermsNode) {
+        return;
+      }
+
+      updateVerticalTermsContentConfig((currentConfig) => {
+        const sortedGroups = [...currentConfig.groups].sort(sortContentGroups);
+        const currentIndex = sortedGroups.findIndex((group) => group.id === groupId);
+        if (currentIndex < 0) {
+          return currentConfig;
+        }
+
+        const swapIndex = currentIndex + direction;
+        if (swapIndex < 0 || swapIndex >= sortedGroups.length) {
+          return currentConfig;
+        }
+
+        const currentGroup = sortedGroups[currentIndex]!;
+        const swapGroup = sortedGroups[swapIndex]!;
+
+        return {
+          ...currentConfig,
+          groups: currentConfig.groups.map((group) => {
+            if (group.id === currentGroup.id) {
+              return { ...group, row: swapGroup.row };
+            }
+
+            if (group.id === swapGroup.id) {
+              return { ...group, row: currentGroup.row };
+            }
+
+            return group;
+          }),
+        };
+      });
+
+      if (typeof window !== "undefined") {
+        window.requestAnimationFrame(() => {
+          updateNodeInternals(id);
+        });
+      }
+    },
+    [id, isVerticalTermsNode, updateNodeInternals, updateVerticalTermsContentConfig]
+  );
+
+  const closeVerticalTermPopup = useCallback(() => {
+    setEditingVerticalGroupId(null);
+  }, []);
+
+  const openVerticalTermEditor = useCallback(
+    (rowElement: HTMLDivElement, groupId: string) => {
+      const containerElement = verticalTermsContainerRef.current;
+
+      if (containerElement) {
+        let offsetX = 0;
+        let offsetY = 0;
+        let currentElement: HTMLElement | null = rowElement;
+
+        while (currentElement && currentElement !== containerElement) {
+          offsetX += currentElement.offsetLeft;
+          offsetY += currentElement.offsetTop;
+
+          const nextOffsetParent: Element | null = currentElement.offsetParent;
+          currentElement =
+            nextOffsetParent instanceof HTMLElement ? nextOffsetParent : null;
+        }
+
+        if (currentElement === containerElement) {
+          setVerticalPopupPosition({
+            x: offsetX + 8,
+            y: offsetY + rowElement.offsetHeight + 6,
+          });
+        } else {
+          setVerticalPopupPosition({ x: 8, y: 8 });
+        }
+      } else {
+        setVerticalPopupPosition({ x: 8, y: 8 });
+      }
+
+      setEditingVerticalGroupId(groupId);
+    },
+    []
   );
 
   const closeRibbonCellPopup = useCallback(() => {
@@ -1650,7 +1939,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           </span>
         </div>
 
-        {isMenuNode ? (
+        {isVerticalTermsNode ? (
           <>
             {shouldRenderCanvasTitle && (
               <div style={{ marginTop: 4 }}>
@@ -1678,6 +1967,367 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 />
               </div>
             )}
+
+            <div
+              ref={verticalTermsContainerRef}
+              style={{
+                marginTop: 4,
+                border: "1px solid #93c5fd",
+                borderRadius: 8,
+                padding: 4,
+                paddingBottom: 1,
+                background: "#f8fbff",
+                display: "grid",
+                gap: 3,
+                position: "relative",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 6,
+                }}
+              >
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#1d4ed8" }}>
+                  {isMenuNode ? "Menu Terms" : "Terms"}
+                </div>
+                <button
+                  type="button"
+                  className="nodrag"
+                  style={{
+                    ...buttonStyle,
+                    width: 18,
+                    height: 18,
+                    minWidth: 18,
+                    padding: 0,
+                    borderRadius: 999,
+                    fontSize: 12,
+                    lineHeight: 1,
+                    fontWeight: 700,
+                    color: "#1d4ed8",
+                    borderColor: "#93c5fd",
+                  }}
+                  title="Add term"
+                  aria-label="Add term"
+                  onPointerDown={stopNodeSelectionPropagation}
+                  onMouseDown={stopNodeSelectionPropagation}
+                  onClick={(event) => {
+                    stopNodeSelectionPropagation(event);
+                    addVerticalTermGroup();
+                  }}
+                >
+                  +
+                </button>
+              </div>
+
+              {verticalTermRows.map((row, index) => {
+                const isFirst = index === 0;
+                const isLast = index === verticalTermRows.length - 1;
+
+                return (
+                  <div
+                    key={`vertical-row:${row.group.id}`}
+                    data-vertical-group-row-id={row.group.id}
+                    className="nodrag nopan"
+                    onPointerDown={stopNodeSelectionPropagation}
+                    style={{
+                      border: "1px solid #93c5fd",
+                      borderRadius: 6,
+                      padding: 3,
+                      display: "grid",
+                      gap: 3,
+                      background: "#fff",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <button
+                        type="button"
+                        className="nodrag"
+                        style={{
+                          ...buttonStyle,
+                          fontSize: 9,
+                          padding: "1px 5px",
+                          borderColor: "#fca5a5",
+                          color: "#b91c1c",
+                          flexShrink: 0,
+                        }}
+                        title="Delete this term"
+                        onPointerDown={stopNodeSelectionPropagation}
+                        onMouseDown={stopNodeSelectionPropagation}
+                        onClick={(event) => {
+                          stopNodeSelectionPropagation(event);
+                          deleteVerticalTermGroup(row.group.id);
+                        }}
+                      >
+                        X
+                      </button>
+
+                      <button
+                        type="button"
+                        className="nodrag"
+                        style={{
+                          ...buttonStyle,
+                          fontSize: 9,
+                          padding: "1px 5px",
+                          color: "#1d4ed8",
+                          borderColor: "#93c5fd",
+                          flexShrink: 0,
+                          opacity: isFirst ? 0.45 : 1,
+                        }}
+                        title="Move up"
+                        disabled={isFirst}
+                        onPointerDown={stopNodeSelectionPropagation}
+                        onMouseDown={stopNodeSelectionPropagation}
+                        onClick={(event) => {
+                          stopNodeSelectionPropagation(event);
+                          moveVerticalTermGroup(row.group.id, -1);
+                        }}
+                      >
+                        ↑
+                      </button>
+
+                      <button
+                        type="button"
+                        className="nodrag"
+                        style={{
+                          ...buttonStyle,
+                          fontSize: 9,
+                          padding: "1px 5px",
+                          color: "#1d4ed8",
+                          borderColor: "#93c5fd",
+                          flexShrink: 0,
+                          opacity: isLast ? 0.45 : 1,
+                        }}
+                        title="Move down"
+                        disabled={isLast}
+                        onPointerDown={stopNodeSelectionPropagation}
+                        onMouseDown={stopNodeSelectionPropagation}
+                        onClick={(event) => {
+                          stopNodeSelectionPropagation(event);
+                          moveVerticalTermGroup(row.group.id, 1);
+                        }}
+                      >
+                        ↓
+                      </button>
+
+                      <div style={{ position: "relative", paddingRight: 14, flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <input
+                            className="nodrag"
+                            data-menu-term-input="true"
+                            style={{
+                              ...inputStyle,
+                              flex: 1,
+                              minWidth: 0,
+                            }}
+                            value={row.primarySlot?.value ?? ""}
+                            placeholder="Add term"
+                            onPointerDown={stopNodeSelectionPropagation}
+                            onMouseDown={stopNodeSelectionPropagation}
+                            onClick={stopNodeSelectionPropagation}
+                            onChange={(event) => {
+                              if (!row.primarySlot) {
+                                return;
+                              }
+
+                              updateVerticalSlotValue(row.primarySlot.id, event.target.value);
+                            }}
+                            onBlur={(event) => {
+                              if (!row.primarySlot) {
+                                return;
+                              }
+
+                              commitContentSlotRegistryField(
+                                row.primarySlot.id,
+                                event.currentTarget.value
+                              );
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter") {
+                                return;
+                              }
+
+                              event.preventDefault();
+                              event.currentTarget.blur();
+                            }}
+                          />
+
+                          <button
+                            type="button"
+                            className="nodrag"
+                            style={getCanvasRegistryButtonStyle()}
+                            title="Open CLP registry"
+                            aria-label="Open CLP registry"
+                            onPointerDown={stopNodeSelectionPropagation}
+                            onMouseDown={stopNodeSelectionPropagation}
+                            onClick={(event) => {
+                              stopNodeSelectionPropagation(event);
+
+                              if (!row.primarySlot) {
+                                return;
+                              }
+
+                              onRegistryPickerOpen(
+                                id,
+                                buildContentSlotRegistryField(
+                                  row.primarySlot.id
+                                ) as unknown as `menu_term:[${string}]`
+                              );
+                            }}
+                          >
+                            📋
+                          </button>
+
+                          <button
+                            type="button"
+                            className="nodrag"
+                            style={getCanvasRegistryButtonStyle()}
+                            title="Edit all term fields"
+                            aria-label="Edit all term fields"
+                            onPointerDown={stopNodeSelectionPropagation}
+                            onMouseDown={stopNodeSelectionPropagation}
+                            onClick={(event) => {
+                              stopNodeSelectionPropagation(event);
+                              const rowElement = event.currentTarget.closest(
+                                "[data-vertical-group-row-id]"
+                              );
+
+                              if (!(rowElement instanceof HTMLDivElement)) {
+                                return;
+                              }
+
+                              openVerticalTermEditor(rowElement, row.group.id);
+                            }}
+                          >
+                            ↗
+                          </button>
+                        </div>
+
+                        <Handle
+                          type="source"
+                          position={Position.Right}
+                          id={buildMenuSourceHandleId(row.group.id)}
+                          style={{
+                            top: "50%",
+                            right: -9,
+                            transform: "translateY(-50%)",
+                            width: 10,
+                            height: 10,
+                            borderRadius: 999,
+                            background: "#2563eb",
+                            border: "2px solid #fff",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {editingVerticalTermRow && (
+                <div
+                  ref={verticalTermPopupRef}
+                  className="nodrag nopan"
+                  onPointerDown={stopNodeSelectionPropagation}
+                  onClick={stopNodeSelectionPropagation}
+                  style={{
+                    position: "absolute",
+                    left: verticalPopupPosition.x,
+                    top: verticalPopupPosition.y,
+                    width: 260,
+                    background: "#ffffff",
+                    border: "1px solid #94a3b8",
+                    borderRadius: 8,
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    padding: "8px 10px",
+                    zIndex: 10,
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  {editingVerticalTermRow.slots.map((slot, slotIndex) => (
+                    <label key={`vertical-slot:${slot.id}`}>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: "#64748b",
+                          marginBottom: 4,
+                        }}
+                      >
+                        {getContentSlotLabel(slot, slotIndex)}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <input
+                          className="nodrag"
+                          style={{
+                            ...inputStyle,
+                            flex: 1,
+                            minWidth: 0,
+                            fontSize: 11,
+                          }}
+                          value={slot.value}
+                          onPointerDown={stopNodeSelectionPropagation}
+                          onMouseDown={stopNodeSelectionPropagation}
+                          onClick={stopNodeSelectionPropagation}
+                          onChange={(event) =>
+                            updateVerticalSlotValue(slot.id, event.target.value)
+                          }
+                          onBlur={(event) =>
+                            commitContentSlotRegistryField(slot.id, event.currentTarget.value)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") {
+                              return;
+                            }
+
+                            event.preventDefault();
+                            event.currentTarget.blur();
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="nodrag"
+                          style={getCanvasRegistryButtonStyle()}
+                          title="Open CLP registry"
+                          aria-label="Open CLP registry"
+                          onPointerDown={stopNodeSelectionPropagation}
+                          onMouseDown={stopNodeSelectionPropagation}
+                          onClick={(event) => {
+                            stopNodeSelectionPropagation(event);
+                            onRegistryPickerOpen(
+                              id,
+                              buildContentSlotRegistryField(
+                                slot.id
+                              ) as unknown as `menu_term:[${string}]`
+                            );
+                          }}
+                        >
+                          📋
+                        </button>
+                      </div>
+                    </label>
+                  ))}
+
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      type="button"
+                      className="nodrag"
+                      style={{
+                        ...buttonStyle,
+                        fontSize: 11,
+                        padding: "4px 10px",
+                      }}
+                      onClick={closeVerticalTermPopup}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <>
@@ -1826,162 +2476,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               </div>
             ))}
           </>
-        )}
-
-        {isMenuNode && (
-          <div
-            style={{
-              marginTop: 4,
-              border: "1px solid #93c5fd",
-              borderRadius: 8,
-              padding: 4,
-              paddingBottom: 1,
-              background: "#f8fbff",
-              display: "grid",
-              gap: 3,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 6,
-              }}
-            >
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#1d4ed8" }}>
-                Menu Terms
-              </div>
-              <button
-                type="button"
-                className="nodrag"
-                style={{
-                  ...buttonStyle,
-                  width: 18,
-                  height: 18,
-                  minWidth: 18,
-                  padding: 0,
-                  borderRadius: 999,
-                  fontSize: 12,
-                  lineHeight: 1,
-                  fontWeight: 700,
-                  color: "#1d4ed8",
-                  borderColor: "#93c5fd",
-                }}
-                title="Add menu term"
-                aria-label="Add menu term"
-                onClick={addMenuTerm}
-              >
-                +
-              </button>
-            </div>
-
-            {menuConfig.terms.map((menuTerm, index) => (
-              <div
-                key={`menu-term:${menuTerm.id}`}
-                style={{
-                  border: "1px solid #93c5fd",
-                  borderRadius: 6,
-                  padding: 3,
-                  display: "grid",
-                  gap: 3,
-                  background: "#fff",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5,
-                  }}
-                >
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <button
-                    type="button"
-                    className="nodrag"
-                    style={{
-                      ...buttonStyle,
-                      fontSize: 9,
-                      padding: "1px 5px",
-                      borderColor: "#fca5a5",
-                      color: "#b91c1c",
-                      flexShrink: 0,
-                    }}
-                    title="Delete this term"
-                    onClick={() => deleteMenuTermById(menuTerm.id)}
-                  >
-                    X
-                  </button>
-
-                  <div style={{ position: "relative", paddingRight: 14, flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <input
-                        className="nodrag"
-                        data-menu-term-input="true"
-                        style={{
-                          ...inputStyle,
-                          flex: 1,
-                          minWidth: 0,
-                        }}
-                        value={menuTerm.term}
-                        placeholder="Add term"
-                        onPointerDown={stopNodeSelectionPropagation}
-                        onMouseDown={stopNodeSelectionPropagation}
-                        onClick={stopNodeSelectionPropagation}
-                        onChange={(event) => updateMenuTermById(menuTerm.id, event.target.value)}
-                        onBlur={(event) =>
-                          commitMenuTermRegistryField(menuTerm.id, event.currentTarget.value)
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter") {
-                            return;
-                          }
-
-                          event.preventDefault();
-                          event.currentTarget.blur();
-                        }}
-                      />
-
-                      <button
-                        type="button"
-                        className="nodrag"
-                        style={getCanvasRegistryButtonStyle()}
-                        title="Open CLP registry"
-                        aria-label="Open CLP registry"
-                        onPointerDown={stopNodeSelectionPropagation}
-                        onMouseDown={stopNodeSelectionPropagation}
-                        onClick={(event) => {
-                          stopNodeSelectionPropagation(event);
-                          onRegistryPickerOpen(id, buildMenuTermRegistryField(menuTerm.id));
-                        }}
-                      >
-                        📋
-                      </button>
-                    </div>
-
-                    <Handle
-                      type="source"
-                      position={Position.Right}
-                      id={buildMenuSourceHandleId(menuTerm.id)}
-                      style={{
-                        top: "50%",
-                        right: -9,
-                        transform: "translateY(-50%)",
-                        width: 10,
-                        height: 10,
-                        borderRadius: 999,
-                        background: "#2563eb",
-                        border: "2px solid #fff",
-                      }}
-                    />
-                  </div>
-                </div>
-
-              </div>
-            ))}
-          </div>
         )}
 
         {showNodeId && (
