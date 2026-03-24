@@ -340,6 +340,40 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
     return ribbonConfig.cells.find((cell) => cell.id === editingCellId) ?? null;
   }, [editingCellId, isRibbonNode, ribbonConfig.cells]);
+  const editingRibbonSlots = useMemo<NodeContentSlot[]>(() => {
+    if (!isRibbonNode || !editingCellId) {
+      return [];
+    }
+
+    // Find the matching group in content_config
+    const matchingGroup = data.content_config.groups.find(
+      (group) => group.id === editingCellId
+    );
+
+    if (!matchingGroup) {
+      // Fallback: try matching by row/column position from the ribbon cell
+      const editingCell = ribbonConfig.cells.find((cell) => cell.id === editingCellId);
+      if (!editingCell) {
+        return [];
+      }
+
+      const positionalGroup = data.content_config.groups.find(
+        (group) => group.row === editingCell.row && group.column === editingCell.column
+      );
+
+      if (!positionalGroup) {
+        return [];
+      }
+
+      return data.content_config.slots
+        .filter((slot) => slot.groupId === positionalGroup.id)
+        .sort(sortContentSlots);
+    }
+
+    return data.content_config.slots
+      .filter((slot) => slot.groupId === matchingGroup.id)
+      .sort(sortContentSlots);
+  }, [isRibbonNode, editingCellId, data.content_config, ribbonConfig.cells]);
   const editingVerticalTermRow = useMemo(() => {
     if (!isVerticalTermsNode || !editingVerticalGroupId) {
       return null;
@@ -512,7 +546,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     (slotId: string, value: string) => {
       onTextEditBlur();
 
-      if (!isVerticalTermsNode) {
+      if (!isVerticalTermsNode && !isRibbonNode) {
         return;
       }
 
@@ -522,7 +556,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
         value
       );
     },
-    [id, isVerticalTermsNode, onCommitRegistryField, onTextEditBlur]
+    [id, isVerticalTermsNode, isRibbonNode, onCommitRegistryField, onTextEditBlur]
   );
 
   const commitRibbonCellRegistryField = useCallback(
@@ -995,7 +1029,67 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     },
     [id, onBeforeChange, setNodes]
   );
+  const updateRibbonSlotValue = useCallback(
+    (slotId: string, value: string) => {
+      onBeforeChange();
 
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== id || node.data.node_type !== "ribbon") {
+            return node;
+          }
+
+          const nextContentConfig: NodeContentConfig = {
+            ...node.data.content_config,
+            slots: node.data.content_config.slots.map((slot) =>
+              slot.id === slotId ? { ...slot, value } : slot
+            ),
+          };
+
+          // Bridge-sync: find which group this slot belongs to, find the cell, update it
+          const changedSlot = nextContentConfig.slots.find((s) => s.id === slotId);
+          let nextRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
+
+          if (changedSlot?.groupId) {
+            const group = nextContentConfig.groups.find(
+              (g) => g.id === changedSlot.groupId
+            );
+
+            if (group) {
+              const groupSlots = nextContentConfig.slots
+                .filter((s) => s.groupId === group.id)
+                .sort(sortContentSlots);
+
+              nextRibbonConfig = {
+                ...nextRibbonConfig,
+                cells: nextRibbonConfig.cells.map((cell) => {
+                  if (cell.row === group.row && cell.column === group.column) {
+                    return {
+                      ...cell,
+                      label: groupSlots[0]?.value ?? cell.label,
+                      key_command: groupSlots[1]?.value ?? cell.key_command,
+                      tool_tip: groupSlots[2]?.value ?? cell.tool_tip,
+                    };
+                  }
+                  return cell;
+                }),
+              };
+            }
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              content_config: nextContentConfig,
+              ribbon_config: nextRibbonConfig,
+            },
+          };
+        })
+      );
+    },
+    [id, onBeforeChange, setNodes]
+  );
   const assignPendingRibbonTermToField = useCallback(
     (field: "label" | "key_command" | "tool_tip") => {
       if (!editingRibbonCell || !pendingRibbonRegistryTerm) {
@@ -1612,197 +1706,69 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 </div>
               </div>
             )}
-
-            <label>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "#64748b",
-                  marginBottom: 4,
-                }}
-              >
-                Label
-              </div>
-              <input
-                className="nodrag"
-                style={{
-                  ...inputStyle,
-                  fontSize: 11,
-                }}
-                value={editingRibbonCell.label}
-                onPointerDown={stopNodeSelectionPropagation}
-                onMouseDown={stopNodeSelectionPropagation}
-                onClick={stopNodeSelectionPropagation}
-                onFocus={() => assignPendingRibbonTermToField("label")}
-                onChange={(event) =>
-                  updateRibbonCellField(
-                    editingRibbonCell.id,
-                    "label",
-                    event.target.value
-                  )
-                }
-                onBlur={(event) =>
-                  commitRibbonCellRegistryField(
-                    editingRibbonCell.id,
-                    "label",
-                    event.currentTarget.value
-                  )
-                }
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") {
-                    return;
-                  }
-
-                  event.preventDefault();
-                  event.currentTarget.blur();
-                }}
-              />
-            </label>
-
-            <label>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "#64748b",
-                  marginBottom: 4,
-                }}
-              >
-                Key Command
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input
-                  className="nodrag"
+{editingRibbonSlots.map((slot, slotIndex) => (
+              <label key={`ribbon-slot:${slot.id}`}>
+                <div
                   style={{
-                    ...inputStyle,
-                    flex: 1,
-                    minWidth: 0,
-                    fontSize: 11,
-                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                  }}
-                  value={editingRibbonCell.key_command}
-                  maxLength={RIBBON_CELL_MAX_KEY_COMMAND_LENGTH}
-                  onPointerDown={stopNodeSelectionPropagation}
-                  onMouseDown={stopNodeSelectionPropagation}
-                  onClick={stopNodeSelectionPropagation}
-                  onFocus={() => assignPendingRibbonTermToField("key_command")}
-                  onChange={(event) =>
-                    updateRibbonCellField(
-                      editingRibbonCell.id,
-                      "key_command",
-                      event.target.value
-                    )
-                  }
-                  onBlur={(event) =>
-                    commitRibbonCellRegistryField(
-                      editingRibbonCell.id,
-                      "key_command",
-                      event.currentTarget.value
-                    )
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter") {
-                      return;
-                    }
-
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                  }}
-                />
-                <button
-                  type="button"
-                  className="nodrag"
-                  style={getCanvasRegistryButtonStyle()}
-                  title="Open CLP registry"
-                  aria-label="Open CLP registry"
-                  onPointerDown={stopNodeSelectionPropagation}
-                  onMouseDown={stopNodeSelectionPropagation}
-                  onClick={(event) => {
-                    stopNodeSelectionPropagation(event);
-                    onRegistryPickerOpen(
-                      id,
-                      buildRibbonCellRegistryField(editingRibbonCell.id, "key_command")
-                    );
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: "#64748b",
+                    marginBottom: 4,
                   }}
                 >
-                  📋
-                </button>
-              </div>
-            </label>
-
-            <label>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "#64748b",
-                  marginBottom: 4,
-                }}
-              >
-                Tool Tip
-              </div>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-                <textarea
-                  className="nodrag"
-                  style={{
-                    ...inputStyle,
-                    flex: 1,
-                    minWidth: 0,
-                    fontSize: 11,
-                    resize: "vertical",
-                    minHeight: 44,
-                  }}
-                  rows={2}
-                  value={editingRibbonCell.tool_tip}
-                  onPointerDown={stopNodeSelectionPropagation}
-                  onMouseDown={stopNodeSelectionPropagation}
-                  onClick={stopNodeSelectionPropagation}
-                  onFocus={() => assignPendingRibbonTermToField("tool_tip")}
-                  onChange={(event) =>
-                    updateRibbonCellField(
-                      editingRibbonCell.id,
-                      "tool_tip",
-                      event.target.value
-                    )
-                  }
-                  onBlur={(event) =>
-                    commitRibbonCellRegistryField(
-                      editingRibbonCell.id,
-                      "tool_tip",
-                      event.currentTarget.value
-                    )
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter") {
-                      return;
+                  {getContentSlotLabel(slot, slotIndex)}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    className="nodrag"
+                    style={{
+                      ...inputStyle,
+                      flex: 1,
+                      minWidth: 0,
+                      fontSize: 11,
+                    }}
+                    value={slot.value}
+                    onPointerDown={stopNodeSelectionPropagation}
+                    onMouseDown={stopNodeSelectionPropagation}
+                    onClick={stopNodeSelectionPropagation}
+                    onChange={(event) =>
+                      updateRibbonSlotValue(slot.id, event.target.value)
                     }
+                    onBlur={(event) =>
+                      commitContentSlotRegistryField(slot.id, event.currentTarget.value)
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") {
+                        return;
+                      }
 
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                  }}
-                />
-                <button
-                  type="button"
-                  className="nodrag"
-                  style={getCanvasRegistryButtonStyle()}
-                  title="Open CLP registry"
-                  aria-label="Open CLP registry"
-                  onPointerDown={stopNodeSelectionPropagation}
-                  onMouseDown={stopNodeSelectionPropagation}
-                  onClick={(event) => {
-                    stopNodeSelectionPropagation(event);
-                    onRegistryPickerOpen(
-                      id,
-                      buildRibbonCellRegistryField(editingRibbonCell.id, "tool_tip")
-                    );
-                  }}
-                >
-                  📋
-                </button>
-              </div>
-            </label>
-
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="nodrag"
+                    style={getCanvasRegistryButtonStyle()}
+                    title="Open CLP registry"
+                    aria-label="Open CLP registry"
+                    onPointerDown={stopNodeSelectionPropagation}
+                    onMouseDown={stopNodeSelectionPropagation}
+                    onClick={(event) => {
+                      stopNodeSelectionPropagation(event);
+                      onRegistryPickerOpen(
+                        id,
+                        buildContentSlotRegistryField(
+                          slot.id
+                        ) as unknown as `ribbon_cell:[${string}]:label`
+                      );
+                    }}
+                  >
+                    📋
+                  </button>
+                </div>
+              </label>
+            ))}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button
                 type="button"
