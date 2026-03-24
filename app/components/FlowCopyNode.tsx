@@ -221,7 +221,149 @@ const getCanvasRegistryButtonStyle = (): React.CSSProperties => ({
   color: "#1e3a8a",
   flexShrink: 0,
 });
+function SlotTermTypeEditor({
+  slot,
+  slotIndex,
+  allSlots,
+  onChangeTermType,
+}: {
+  slot: NodeContentSlot;
+  slotIndex: number;
+  allSlots: NodeContentSlot[];
+  onChangeTermType: (slotId: string, termType: string) => void;
+}) {
+  const [mode, setMode] = useState<"display" | "select" | "custom">("display");
+  const [customValue, setCustomValue] = useState("");
 
+  const currentLabel = getContentSlotLabel(slot, slotIndex);
+
+  const inUseTypes = useMemo(() => {
+    const types = new Set<string>();
+    allSlots.forEach((s) => {
+      if (typeof s.termType === "string" && s.termType.trim().length > 0) {
+        types.add(s.termType.trim());
+      }
+    });
+    MULTI_TERM_DEFAULT_SLOT_TYPES.forEach((t) => types.add(t));
+    ["Title", "Primary CTA", "Secondary CTA", "Helper Text", "Error Text", "Body Text"].forEach(
+      (t) => types.add(t)
+    );
+    return Array.from(types).sort((a, b) => a.localeCompare(b));
+  }, [allSlots]);
+
+  if (mode === "custom") {
+    return (
+      <div style={{ marginBottom: 4 }}>
+        <input
+          className="nodrag"
+          autoFocus
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: "#1e293b",
+            border: "1px solid #93c5fd",
+            borderRadius: 4,
+            padding: "2px 4px",
+            background: "#eff6ff",
+            width: "100%",
+          }}
+          value={customValue}
+          placeholder="Type a label and press Enter"
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+          onChange={(event) => setCustomValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && customValue.trim().length > 0) {
+              event.preventDefault();
+              const titleCased = customValue.trim().replace(
+                /\w\S*/g,
+                (txt) => txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase()
+              );
+              onChangeTermType(slot.id, titleCased);
+              setMode("display");
+            }
+            if (event.key === "Escape") {
+              setMode("display");
+            }
+          }}
+          onBlur={() => setMode("display")}
+        />
+      </div>
+    );
+  }
+
+  if (mode === "select") {
+    return (
+      <div style={{ marginBottom: 4 }}>
+        <select
+          className="nodrag"
+          autoFocus
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: "#1e293b",
+            border: "1px solid #93c5fd",
+            borderRadius: 4,
+            padding: "2px 4px",
+            background: "#eff6ff",
+            width: "100%",
+            cursor: "pointer",
+          }}
+          value={slot.termType ?? ""}
+          onChange={(event) => {
+            const value = event.target.value;
+            if (value === "__custom__") {
+              setCustomValue("");
+              setMode("custom");
+              return;
+            }
+            onChangeTermType(slot.id, value);
+            setMode("display");
+          }}
+          onBlur={() => setMode("display")}
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          {inUseTypes.map((termType) => (
+            <option key={`term-type:${termType}`} value={termType}>
+              {termType}
+            </option>
+          ))}
+          <option value="__custom__">+ Add term label...</option>
+        </select>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => setMode("select")}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setMode("select");
+        }
+      }}
+      style={{
+        fontSize: 10,
+        fontWeight: 600,
+        color: "#64748b",
+        marginBottom: 4,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+      }}
+      title="Click to change term type"
+    >
+      {currentLabel}
+      <span style={{ fontSize: 8, color: "#94a3b8" }}>▼</span>
+    </div>
+  );
+}
 const FlowCopyNode = React.memo(function FlowCopyNode({
   id,
   data,
@@ -1090,6 +1232,33 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     },
     [id, onBeforeChange, setNodes]
   );
+  const updateSlotTermType = useCallback(
+    (slotId: string, termType: string) => {
+      onBeforeChange();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== id) {
+            return node;
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              content_config: {
+                ...node.data.content_config,
+                slots: node.data.content_config.slots.map((slot) =>
+                  slot.id === slotId ? { ...slot, termType } : slot
+                ),
+              },
+            },
+          };
+        })
+      );
+    },
+    [id, onBeforeChange, setNodes]
+  );
   const assignPendingRibbonTermToField = useCallback(
     (field: "label" | "key_command" | "tool_tip") => {
       if (!editingRibbonCell || !pendingRibbonRegistryTerm) {
@@ -1708,16 +1877,12 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             )}
 {editingRibbonSlots.map((slot, slotIndex) => (
               <label key={`ribbon-slot:${slot.id}`}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: "#64748b",
-                    marginBottom: 4,
-                  }}
-                >
-                  {getContentSlotLabel(slot, slotIndex)}
-                </div>
+                <SlotTermTypeEditor
+                        slot={slot}
+                        slotIndex={slotIndex}
+                        allSlots={data.content_config.slots}
+                        onChangeTermType={updateSlotTermType}
+                      />
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <input
                     className="nodrag"
@@ -2202,16 +2367,12 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 >
                   {editingVerticalTermRow.slots.map((slot, slotIndex) => (
                     <label key={`vertical-slot:${slot.id}`}>
-                      <div
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 600,
-                          color: "#64748b",
-                          marginBottom: 4,
-                        }}
-                      >
-                        {getContentSlotLabel(slot, slotIndex)}
-                      </div>
+                      <SlotTermTypeEditor
+                        slot={slot}
+                        slotIndex={slotIndex}
+                        allSlots={data.content_config.slots}
+                        onChangeTermType={updateSlotTermType}
+                      />
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <input
                           className="nodrag"
