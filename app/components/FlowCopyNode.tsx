@@ -1890,19 +1890,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           <span style={{ fontSize: 10, color: "#1d4ed8", fontWeight: 600 }}>
             #{data.sequence_index ?? "-"}
           </span>
-          <span
-            style={{
-              fontSize: 9,
-              fontWeight: 600,
-              color: data.action_type_color,
-              border: `1px solid ${data.action_type_color}`,
-              borderRadius: 2,
-              padding: "0px 4px",
-              background: "#fff",
-            }}
-          >
-            {data.action_type_name}
-          </span>
         </div>
 
         {isVerticalTermsNode ? (
