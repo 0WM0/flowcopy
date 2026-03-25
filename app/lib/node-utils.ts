@@ -301,63 +301,13 @@ const migrateMultiTermNodeContentConfig = (
   }, layout);
 };
 
-const migrateRibbonNodeContentConfig = (
-  source: NodeContentMigrationSource
-): NodeContentConfig => {
-  const normalizedRibbonConfig = normalizeRibbonNodeConfig(source.ribbon_config);
-  const groups: NodeContentGroup[] = normalizedRibbonConfig.cells.map((cell) => ({
-    id: cell.id,
-    row: cell.row,
-    column: cell.column,
-  }));
-
-  const slots: NodeContentSlot[] = [];
-
-  normalizedRibbonConfig.cells.forEach((cell, cellIndex) => {
-    const basePosition = cellIndex * 3;
-
-    slots.push(
-      {
-        id: `${cell.id}:label`,
-        value: cell.label,
-        termType: "cell_label",
-        groupId: cell.id,
-        position: basePosition,
-      },
-      {
-        id: `${cell.id}:key_command`,
-        value: cell.key_command,
-        termType: "key_command",
-        groupId: cell.id,
-        position: basePosition + 1,
-      },
-      {
-        id: `${cell.id}:tool_tip`,
-        value: cell.tool_tip,
-        termType: "tool_tip",
-        groupId: cell.id,
-        position: basePosition + 2,
-      }
-    );
-  });
-
-  return normalizeNodeContentConfig({
-    layout: "horizontal",
-    rows: normalizedRibbonConfig.rows,
-    columns: normalizedRibbonConfig.columns,
-    groups,
-    slots,
-    style: normalizedRibbonConfig.ribbon_style,
-  }, "horizontal");
-};
-
 export const migrateLegacyNodeContentConfig = (
   source: NodeContentMigrationSource
 ): NodeContentConfig => {
   const nodeType = isNodeType(source.node_type) ? source.node_type : "default";
 
   if (nodeType === "ribbon") {
-    return migrateRibbonNodeContentConfig(source);
+    return migrateRibbonToContentConfig(source.ribbon_config, toSanitizedString(source.title));
   }
 
   if (nodeType === "menu" || nodeType === "vertical_multi_term") {
@@ -383,11 +333,16 @@ export const normalizeAndMigrateNodeContentConfig = (
         ? "horizontal"
         : "single";
 
-  if (contentConfigValue !== undefined) {
-    return normalizeNodeContentConfig(contentConfigValue, layout);
+if (contentConfigValue !== undefined && contentConfigValue !== null) {
+    const candidate = normalizeNodeContentConfig(contentConfigValue, layout);
+    const needsGroups = layout === "vertical" || layout === "horizontal";
+    if (needsGroups ? candidate.groups.length > 0 : candidate.slots.length > 0) {
+      return candidate;
+    }
   }
-
-  return migrateLegacyNodeContentConfig(source);
+  const migrated = migrateLegacyNodeContentConfig(source);
+  console.log("MIGRATION DEBUG", { nodeType: source.node_type, groups: migrated.groups.length, slots: migrated.slots.length });
+  return migrated;
 };
 
 export const clampFrameDimension = (value: number, minimum: number): number => {
@@ -1234,20 +1189,27 @@ export const createDefaultNodeData = (
       1
     ),
     frame_config: normalizeFrameNodeConfig(overrides.frame_config),
+    ...((() => { if (nodeType === "ribbon" || nodeType === "horizontal_multi_term") { console.log("CREATE_DEFAULT DEBUG", { nodeType, hasRibbonConfig: !!overrides.ribbon_config, ribbonCells: overrides.ribbon_config ? (overrides.ribbon_config as any).cells?.length : "no config" }); } return {}; })()),
     ribbon_config: null,
     content_config:
-      overrides.content_config &&
-      typeof overrides.content_config === "object" &&
-      Array.isArray((overrides.content_config as Partial<NodeContentConfig>).slots)
-        ? normalizeNodeContentConfig(
-            overrides.content_config,
-            nodeType === "vertical_multi_term"
-              ? "vertical"
-              : nodeType === "horizontal_multi_term"
-                ? "horizontal"
-                : "single"
-          )
-        : nodeType === "default"
+      (() => {
+        if (
+          overrides.content_config &&
+          typeof overrides.content_config === "object" &&
+          Array.isArray((overrides.content_config as Partial<NodeContentConfig>).slots)
+        ) {
+          const ccLayout: NodeContentLayout =
+            nodeType === "vertical_multi_term" || nodeType === "menu" ? "vertical"
+            : nodeType === "horizontal_multi_term" || nodeType === "ribbon" ? "horizontal"
+            : "single";
+          const candidate = normalizeNodeContentConfig(overrides.content_config, ccLayout);
+          const needsGroups = ccLayout === "vertical" || ccLayout === "horizontal";
+          if (needsGroups ? candidate.groups.length > 0 : candidate.slots.length > 0) {
+            return candidate;
+          }
+        }
+        return null;
+      })() ?? (nodeType === "default"
           ? migrateDefaultToContentConfig(overrides)
           : nodeType === "frame"
             ? migrateFrameToContentConfig(overrides.title ?? "")
@@ -1262,7 +1224,7 @@ export const createDefaultNodeData = (
                     overrides.ribbon_config,
                     overrides.title ?? ""
                   )
-                : migrateDefaultToContentConfig(overrides),
+                : migrateDefaultToContentConfig(overrides)),
     parallel_group_id:
       typeof overrides.parallel_group_id === "string" &&
       overrides.parallel_group_id.trim().length > 0
@@ -1292,21 +1254,26 @@ export const normalizeNode = (
         defaultData.node_type === "ribbon"
           ? normalizeRibbonNodeConfig(sourceData.ribbon_config)
           : null,
-      content_config:
-        sourceData.content_config &&
-        typeof sourceData.content_config === "object" &&
-        Array.isArray((sourceData.content_config as Partial<NodeContentConfig>).slots)
-          ? normalizeNodeContentConfig(
-              sourceData.content_config,
-              defaultData.node_type === "vertical_multi_term" ||
-                defaultData.node_type === "menu"
-                ? "vertical"
-                : defaultData.node_type === "horizontal_multi_term" ||
-                    defaultData.node_type === "ribbon"
-                  ? "horizontal"
-                  : "single"
-            )
-          : defaultData.content_config,
+      content_config: (() => {
+        if (
+          sourceData.content_config &&
+          typeof sourceData.content_config === "object" &&
+          Array.isArray((sourceData.content_config as Partial<NodeContentConfig>).slots)
+        ) {
+          const ccLayout: NodeContentLayout =
+            defaultData.node_type === "vertical_multi_term" || defaultData.node_type === "menu"
+              ? "vertical"
+              : defaultData.node_type === "horizontal_multi_term" || defaultData.node_type === "ribbon"
+                ? "horizontal"
+                : "single";
+          const candidate = normalizeNodeContentConfig(sourceData.content_config, ccLayout);
+          const needsGroups = ccLayout === "vertical" || ccLayout === "horizontal";
+          if (needsGroups ? candidate.groups.length > 0 : candidate.slots.length > 0) {
+            return candidate;
+          }
+        }
+        return defaultData.content_config;
+      })(),
     },
   };
 };

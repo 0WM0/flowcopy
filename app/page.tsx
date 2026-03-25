@@ -237,6 +237,7 @@ import {
   getNodeContentStyle,
   createDefaultNodeData,
   getFallbackNodeSize,
+  migrateRibbonToContentConfig,
 } from "./lib/node-utils";
 
 import {
@@ -1348,6 +1349,10 @@ const getRegistryTermTypeFromField = (field: DynamicRegistryTrackedField): strin
     if (field.endsWith(":tool_tip")) {
       return "tool_tip";
     }
+  }
+
+  if (field.startsWith("slot:[")) {
+    return "slot";
   }
 
   return field;
@@ -4839,6 +4844,23 @@ export default function Page() {
 
   const syncFieldToRegistry = useCallback(
     (nodeId: string, field: DynamicRegistryTrackedField, value: string) => {
+      const resolvedTermType: string | null = field.startsWith("slot:[")
+        ? (() => {
+            const slotId = field.slice(6, -1);
+            const targetNode = nodes.find((n) => n.id === nodeId);
+            console.log("SLOT DEBUG", {
+              slotId,
+              foundNode: !!targetNode,
+              slotIds: targetNode?.data?.content_config?.slots?.map((s) => s.id),
+              termTypes: targetNode?.data?.content_config?.slots?.map((s) => s.termType),
+            });
+            const slot = targetNode?.data?.content_config?.slots?.find(
+              (s) => s.id === slotId
+            );
+            return slot?.termType ?? null;
+          })()
+        : null;
+
       setTermRegistry((currentRegistry) => {
         const now = new Date().toISOString();
         const matchingEntries = currentRegistry.filter(
@@ -4889,7 +4911,7 @@ export default function Page() {
             value,
             friendlyId: null,
             friendlyIdLocked: false,
-            termType: getRegistryTermTypeFromField(field),
+            termType: resolvedTermType ?? getRegistryTermTypeFromField(field),
             assignedNodeId: nodeId,
             assignedField: field,
             deduplicationSuffix: null,
@@ -4925,7 +4947,7 @@ export default function Page() {
         return nextRegistry;
       });
     },
-    [setTermRegistry]
+    [nodes, setTermRegistry]
   );
 
   const syncSelectedRegistryFieldOnBlur = useCallback(
@@ -5506,6 +5528,10 @@ export default function Page() {
                   node.data.secondary_cta
                 ),
                 ribbon_config: normalizeRibbonNodeConfig(node.data.ribbon_config),
+                content_config: migrateRibbonToContentConfig(
+                  normalizeRibbonNodeConfig(node.data.ribbon_config),
+                  node.data.title ?? ""
+                ),
               },
             };
           }

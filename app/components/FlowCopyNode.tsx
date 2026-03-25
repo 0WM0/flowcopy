@@ -486,6 +486,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     if (!isRibbonNode || !editingCellId) {
       return [];
     }
+    console.log("RIBBON POPUP DEBUG", {
+      editingCellId,
+      groupCount: data.content_config.groups.length,
+      slotCount: data.content_config.slots.length,
+      groupIds: data.content_config.groups.map((g) => g.id),
+      cellIds: ribbonConfig.cells.map((c) => c.id),
+    });
 
     // Find the matching group in content_config
     const matchingGroup = data.content_config.groups.find(
