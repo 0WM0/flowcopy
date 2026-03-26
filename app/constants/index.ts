@@ -136,9 +136,9 @@ export const NODE_CONTENT_DEFAULT_SLOT_TYPES: string[] = [
 ];
 
 export const MULTI_TERM_DEFAULT_SLOT_TYPES: string[] = [
-  "Term",
-  "Key Command",
-  "Tool Tip",
+  "menu_term",
+  "key_command",
+  "tool_tip",
 ];
 
 export const CONTENT_SLOT_ID_PREFIX = "cs-";
@@ -281,6 +281,35 @@ export const CONTROLLED_LANGUAGE_FIELD_LABELS: Record<
   cell_label: "Cell Label",
   tool_tip: "Tool Tip",
 };
+
+export const TERM_REGISTRY_TERM_TYPE_LABELS: Record<string, string> = {
+  title: "Title",
+  body_text: "Body Text",
+  primary_cta: "Primary CTA",
+  secondary_cta: "Secondary CTA",
+  helper_text: "Helper Text",
+  error_text: "Error Text",
+  notes: "Notes",
+  menu_term: "Menu Term",
+  key_command: "Key Command",
+  tool_tip: "Tool Tip",
+  cell_label: "Cell Label",
+};
+
+export const TERM_REGISTRY_TERM_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "", label: "Untyped" },
+  { value: "title", label: "Title" },
+  { value: "body_text", label: "Body Text" },
+  { value: "primary_cta", label: "Primary CTA" },
+  { value: "secondary_cta", label: "Secondary CTA" },
+  { value: "helper_text", label: "Helper Text" },
+  { value: "error_text", label: "Error Text" },
+  { value: "notes", label: "Notes" },
+  { value: "menu_term", label: "Menu Term" },
+  { value: "key_command", label: "Key Command" },
+  { value: "tool_tip", label: "Tool Tip" },
+  { value: "cell_label", label: "Cell Label" },
+];
 
 export const CONTROLLED_LANGUAGE_FIELD_ORDER: Record<
   ControlledLanguageFieldType,

@@ -124,6 +124,8 @@ import {
   CONTROLLED_LANGUAGE_ROW_HEIGHT_PX,
   CONTROLLED_LANGUAGE_TABLE_HEADER_HEIGHT_PX,
   CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX,
+  TERM_REGISTRY_TERM_TYPE_LABELS,
+  TERM_REGISTRY_TERM_TYPE_OPTIONS,
   UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS,
   DOWNLOAD_TEXT_MIME_BY_EXTENSION,
   TABLE_TEXTAREA_FIELDS,
@@ -237,6 +239,7 @@ import {
   getNodeContentStyle,
   createDefaultNodeData,
   getFallbackNodeSize,
+  migrateMenuToContentConfig,
   migrateRibbonToContentConfig,
 } from "./lib/node-utils";
 
@@ -1377,35 +1380,6 @@ const parseRibbonCellRegistryField = (
     fieldName: match[2] as RibbonCellRegistryFieldName,
   };
 };
-
-const TERM_REGISTRY_TERM_TYPE_LABELS: Record<string, string> = {
-  title: "Title",
-  body_text: "Body Text",
-  primary_cta: "Primary CTA",
-  secondary_cta: "Secondary CTA",
-  helper_text: "Helper Text",
-  error_text: "Error Text",
-  notes: "Notes",
-  menu_term: "Menu Term",
-  key_command: "Key Command",
-  tool_tip: "Tool Tip",
-  cell_label: "Cell Label",
-};
-
-const TERM_REGISTRY_TERM_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "", label: "Untyped" },
-  { value: "title", label: "Title" },
-  { value: "body_text", label: "Body Text" },
-  { value: "primary_cta", label: "Primary CTA" },
-  { value: "secondary_cta", label: "Secondary CTA" },
-  { value: "helper_text", label: "Helper Text" },
-  { value: "error_text", label: "Error Text" },
-  { value: "notes", label: "Notes" },
-  { value: "menu_term", label: "Menu Term" },
-  { value: "key_command", label: "Key Command" },
-  { value: "tool_tip", label: "Tool Tip" },
-  { value: "cell_label", label: "Cell Label" },
-];
 
 const INSPECTOR_CONTENT_FIELD_LABELS: Record<RegistryTrackedField, string> = {
   title: "Title",
@@ -5482,6 +5456,11 @@ export default function Page() {
                 secondary_cta: getSecondaryMenuTermValue(
                   nextMenuConfig,
                   node.data.secondary_cta
+                ),
+                content_config: migrateMenuToContentConfig(
+                  nextMenuConfig,
+                  node.data.primary_cta,
+                  node.data.title ?? ""
                 ),
               },
             };
@@ -9775,17 +9754,16 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         onChange={(event) => setRegistryFilterType(event.target.value)}
                       >
                         <option value="all">All Types</option>
-                        <option value="title">Title</option>
-                        <option value="body_text">Body Text</option>
-                        <option value="primary_cta">Primary CTA</option>
-                        <option value="secondary_cta">Secondary CTA</option>
-                        <option value="helper_text">Helper Text</option>
-                        <option value="error_text">Error Text</option>
-                        <option value="notes">Notes</option>
-                        <option value="menu_term">Menu Term</option>
-                        <option value="key_command">Key Command</option>
-                        <option value="tool_tip">Tool Tip</option>
-                        <option value="cell_label">Cell Label</option>
+                        {TERM_REGISTRY_TERM_TYPE_OPTIONS.filter(
+                          (termTypeOption) => termTypeOption.value.length > 0
+                        ).map((termTypeOption) => (
+                          <option
+                            key={`registry-filter-type-option:${termTypeOption.value}`}
+                            value={termTypeOption.value}
+                          >
+                            {termTypeOption.label}
+                          </option>
+                        ))}
                       </select>
                     </>
                   )}

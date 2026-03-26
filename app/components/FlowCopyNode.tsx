@@ -43,6 +43,8 @@ import {
   DIAMOND_CLIP_PATH,
   DEFAULT_NODE_DISPLAY_FIELDS,
   MULTI_TERM_DEFAULT_SLOT_TYPES,
+  TERM_REGISTRY_TERM_TYPE_LABELS,
+  TERM_REGISTRY_TERM_TYPE_OPTIONS,
   inputStyle,
   buttonStyle,
 } from "../constants";
@@ -191,9 +193,59 @@ const sortContentGroups = (a: NodeContentGroup, b: NodeContentGroup): number => 
 const sortContentSlots = (a: NodeContentSlot, b: NodeContentSlot): number =>
   a.position - b.position;
 
+const LEGACY_SLOT_TERM_TYPE_MAP: Record<string, string> = {
+  title: "title",
+  "body text": "body_text",
+  "primary cta": "primary_cta",
+  "secondary cta": "secondary_cta",
+  "helper text": "helper_text",
+  "error text": "error_text",
+  notes: "notes",
+  term: "menu_term",
+  "menu term": "menu_term",
+  label: "cell_label",
+  "cell label": "cell_label",
+  "key command": "key_command",
+  "tool tip": "tool_tip",
+};
+
+const normalizeSlotTermTypeValue = (
+  termType: string | null | undefined
+): string => {
+  if (typeof termType !== "string") {
+    return "";
+  }
+
+  const trimmedTermType = termType.trim();
+  if (trimmedTermType.length === 0) {
+    return "";
+  }
+
+  const lowerTermType = trimmedTermType.toLowerCase();
+  if (TERM_REGISTRY_TERM_TYPE_LABELS[lowerTermType]) {
+    return lowerTermType;
+  }
+
+  return LEGACY_SLOT_TERM_TYPE_MAP[lowerTermType] ?? trimmedTermType;
+};
+
+const getSlotTermTypeDisplayLabel = (termType: string): string => {
+  const normalizedTermType = termType.trim();
+  if (normalizedTermType.length === 0) {
+    return "Untyped";
+  }
+
+  return (
+    TERM_REGISTRY_TERM_TYPE_LABELS[normalizedTermType] ??
+    TERM_REGISTRY_TERM_TYPE_LABELS[normalizedTermType.toLowerCase()] ??
+    normalizedTermType
+  );
+};
+
 const getContentSlotLabel = (slot: NodeContentSlot, index: number): string => {
-  if (typeof slot.termType === "string" && slot.termType.trim().length > 0) {
-    return slot.termType;
+  const normalizedTermType = normalizeSlotTermTypeValue(slot.termType);
+  if (normalizedTermType.length > 0) {
+    return getSlotTermTypeDisplayLabel(normalizedTermType);
   }
 
   return `Slot ${index + 1}`;
@@ -224,32 +276,19 @@ const getCanvasRegistryButtonStyle = (): React.CSSProperties => ({
 function SlotTermTypeEditor({
   slot,
   slotIndex,
-  allSlots,
   onChangeTermType,
 }: {
   slot: NodeContentSlot;
   slotIndex: number;
-  allSlots: NodeContentSlot[];
   onChangeTermType: (slotId: string, termType: string) => void;
 }) {
   const [mode, setMode] = useState<"display" | "select" | "custom">("display");
   const [customValue, setCustomValue] = useState("");
+  const selectedTermTypeValue = normalizeSlotTermTypeValue(slot.termType);
 
   const currentLabel = getContentSlotLabel(slot, slotIndex);
 
-  const inUseTypes = useMemo(() => {
-    const types = new Set<string>();
-    allSlots.forEach((s) => {
-      if (typeof s.termType === "string" && s.termType.trim().length > 0) {
-        types.add(s.termType.trim());
-      }
-    });
-    MULTI_TERM_DEFAULT_SLOT_TYPES.forEach((t) => types.add(t));
-    ["Title", "Primary CTA", "Secondary CTA", "Helper Text", "Error Text", "Body Text"].forEach(
-      (t) => types.add(t)
-    );
-    return Array.from(types).sort((a, b) => a.localeCompare(b));
-  }, [allSlots]);
+  const termTypeOptions = TERM_REGISTRY_TERM_TYPE_OPTIONS;
 
   if (mode === "custom") {
     return (
@@ -276,11 +315,12 @@ function SlotTermTypeEditor({
           onKeyDown={(event) => {
             if (event.key === "Enter" && customValue.trim().length > 0) {
               event.preventDefault();
-              const titleCased = customValue.trim().replace(
-                /\w\S*/g,
-                (txt) => txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase()
-              );
-              onChangeTermType(slot.id, titleCased);
+              const normalizedCustomTermType = normalizeSlotTermTypeValue(customValue);
+              const nextTermType =
+                normalizedCustomTermType.length > 0
+                  ? normalizedCustomTermType
+                  : customValue.trim();
+              onChangeTermType(slot.id, nextTermType);
               setMode("display");
             }
             if (event.key === "Escape") {
@@ -310,7 +350,7 @@ function SlotTermTypeEditor({
             width: "100%",
             cursor: "pointer",
           }}
-          value={slot.termType ?? ""}
+          value={selectedTermTypeValue}
           onChange={(event) => {
             const value = event.target.value;
             if (value === "__custom__") {
@@ -325,9 +365,12 @@ function SlotTermTypeEditor({
           onPointerDown={(event) => event.stopPropagation()}
           onMouseDown={(event) => event.stopPropagation()}
         >
-          {inUseTypes.map((termType) => (
-            <option key={`term-type:${termType}`} value={termType}>
-              {termType}
+          {termTypeOptions.map((termTypeOption) => (
+            <option
+              key={`term-type:${termTypeOption.value || "untyped"}`}
+              value={termTypeOption.value}
+            >
+              {termTypeOption.label}
             </option>
           ))}
           <option value="__custom__">+ Add term label...</option>
@@ -1243,6 +1286,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     (slotId: string, termType: string) => {
       onBeforeChange();
 
+      const normalizedTermType = normalizeSlotTermTypeValue(termType);
+
       setNodes((currentNodes) =>
         currentNodes.map((node) => {
           if (node.id !== id) {
@@ -1256,7 +1301,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               content_config: {
                 ...node.data.content_config,
                 slots: node.data.content_config.slots.map((slot) =>
-                  slot.id === slotId ? { ...slot, termType } : slot
+                  slot.id === slotId
+                    ? {
+                        ...slot,
+                        termType:
+                          normalizedTermType.length > 0 ? normalizedTermType : null,
+                      }
+                    : slot
                 ),
               },
             },
@@ -1887,7 +1938,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 <SlotTermTypeEditor
                         slot={slot}
                         slotIndex={slotIndex}
-                        allSlots={data.content_config.slots}
                         onChangeTermType={updateSlotTermType}
                       />
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -2377,7 +2427,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       <SlotTermTypeEditor
                         slot={slot}
                         slotIndex={slotIndex}
-                        allSlots={data.content_config.slots}
                         onChangeTermType={updateSlotTermType}
                       />
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
