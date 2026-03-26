@@ -468,23 +468,32 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     () => normalizeFrameNodeConfig(data.frame_config),
     [data.frame_config]
   );
-  const ribbonConfig = useMemo(
-    () => normalizeRibbonNodeConfig(data.ribbon_config),
-    [data.ribbon_config]
-  );
   const sortedRibbonCells = useMemo<RibbonNodeCell[]>(() => {
     if (!isRibbonNode) {
       return [];
     }
 
-    return [...ribbonConfig.cells].sort((a, b) => {
-      if (a.row !== b.row) {
-        return a.row - b.row;
-      }
+    const sortedGroups = [...contentConfig.groups].sort(sortContentGroups);
 
-      return a.column - b.column;
+    return sortedGroups.map((group) => {
+      const groupSlots = contentConfig.slots
+        .filter((slot) => slot.groupId === group.id)
+        .sort(sortContentSlots);
+      const labelSlot =
+        groupSlots.find((slot) => slot.position === 0) ?? groupSlots[0] ?? null;
+      const keyCommandSlot = groupSlots.find((slot) => slot.position === 1) ?? null;
+      const toolTipSlot = groupSlots.find((slot) => slot.position === 2) ?? null;
+
+      return {
+        id: group.id,
+        row: group.row,
+        column: group.column,
+        label: labelSlot?.value ?? "",
+        key_command: keyCommandSlot?.value ?? "",
+        tool_tip: toolTipSlot?.value ?? "",
+      };
     });
-  }, [isRibbonNode, ribbonConfig.cells]);
+  }, [contentConfig.groups, contentConfig.slots, isRibbonNode]);
   const frameShadeStyle = FRAME_SHADE_STYLES[frameConfig.shade];
   const verticalTermRows = useMemo<VerticalTermRow[]>(() => {
     if (!isVerticalTermsNode) {
@@ -523,49 +532,23 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       return null;
     }
 
-    return ribbonConfig.cells.find((cell) => cell.id === editingCellId) ?? null;
-  }, [editingCellId, isRibbonNode, ribbonConfig.cells]);
+    return sortedRibbonCells.find((cell) => cell.id === editingCellId) ?? null;
+  }, [editingCellId, isRibbonNode, sortedRibbonCells]);
   const editingRibbonSlots = useMemo<NodeContentSlot[]>(() => {
     if (!isRibbonNode || !editingCellId) {
       return [];
     }
-    console.log("RIBBON POPUP DEBUG", {
-      editingCellId,
-      groupCount: data.content_config.groups.length,
-      slotCount: data.content_config.slots.length,
-      groupIds: data.content_config.groups.map((g) => g.id),
-      cellIds: ribbonConfig.cells.map((c) => c.id),
-    });
 
-    // Find the matching group in content_config
-    const matchingGroup = data.content_config.groups.find(
-      (group) => group.id === editingCellId
-    );
+    const matchingGroup = contentConfig.groups.find((group) => group.id === editingCellId);
 
     if (!matchingGroup) {
-      // Fallback: try matching by row/column position from the ribbon cell
-      const editingCell = ribbonConfig.cells.find((cell) => cell.id === editingCellId);
-      if (!editingCell) {
-        return [];
-      }
-
-      const positionalGroup = data.content_config.groups.find(
-        (group) => group.row === editingCell.row && group.column === editingCell.column
-      );
-
-      if (!positionalGroup) {
-        return [];
-      }
-
-      return data.content_config.slots
-        .filter((slot) => slot.groupId === positionalGroup.id)
-        .sort(sortContentSlots);
+      return [];
     }
 
-    return data.content_config.slots
+    return contentConfig.slots
       .filter((slot) => slot.groupId === matchingGroup.id)
       .sort(sortContentSlots);
-  }, [isRibbonNode, editingCellId, data.content_config, ribbonConfig.cells]);
+  }, [isRibbonNode, editingCellId, contentConfig.groups, contentConfig.slots]);
   const editingVerticalTermRow = useMemo(() => {
     if (!isVerticalTermsNode || !editingVerticalGroupId) {
       return null;
@@ -691,8 +674,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     data.node_type,
     id,
     verticalTermRows.length,
-    ribbonConfig.columns,
-    ribbonConfig.cells.length,
+    contentConfig.groups.length,
+    contentConfig.slots.length,
     visibleDisplayTermFieldTypes.length,
     updateNodeInternals,
   ]);
@@ -1348,11 +1331,22 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       return;
     }
 
-    if (editingCellId && !ribbonConfig.cells.some((cell) => cell.id === editingCellId)) {
+    if (!editingCellId) {
+      return;
+    }
+
+    const matchingGroupExists = contentConfig.groups.some(
+      (group) => group.id === editingCellId
+    );
+    const matchingGroupHasSlots = contentConfig.slots.some(
+      (slot) => slot.groupId === editingCellId
+    );
+
+    if (!matchingGroupExists || !matchingGroupHasSlots) {
       setEditingCellId(null);
       setPendingRibbonRegistryTerm(null);
     }
-  }, [editingCellId, isRibbonNode, ribbonConfig.cells]);
+  }, [contentConfig.groups, contentConfig.slots, editingCellId, isRibbonNode]);
 
   useEffect(() => {
     if (!editingCellId) {
