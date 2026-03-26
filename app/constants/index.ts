@@ -75,8 +75,8 @@ export const NODE_SHAPE_OPTIONS = [
 export const NODE_TYPE_OPTIONS = ["default", "menu", "ribbon"];
 export const NODE_TYPE_LABELS: Record<(typeof NODE_TYPE_OPTIONS)[number], string> = {
   default: "Default",
-  menu: "Menu",
-  ribbon: "Ribbon",
+  menu: "Vertical",
+  ribbon: "Horizontal",
 };
 export const UNIFIED_NODE_TYPE_OPTIONS = [
   "default",

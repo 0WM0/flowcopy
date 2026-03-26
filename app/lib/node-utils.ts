@@ -41,7 +41,7 @@ import {
   NODE_CONTENT_DEFAULT_COLUMNS,
   NODE_CONTENT_DEFAULT_STYLE,
   NODE_CONTENT_DEFAULT_SLOT_TYPES,
-  MULTI_TERM_DEFAULT_SLOT_TYPES,
+  TERM_REGISTRY_TERM_TYPE_OPTIONS,
   CONTENT_SLOT_ID_PREFIX,
   CONTENT_GROUP_ID_PREFIX,
   UI_JOURNEY_HIGHLIGHT_STROKE_COLOR,
@@ -101,6 +101,38 @@ export const createContentGroupId = (): string =>
 
 const toSanitizedString = (value: unknown): string =>
   typeof value === "string" ? value : "";
+
+const resolveCanonicalRegistryTermType = (
+  requestedTermType: string,
+  fallbackTermType: string
+): string => {
+  const findCanonicalValue = (value: string): string | null => {
+    const normalized = value.trim().toLowerCase();
+    if (normalized.length === 0) {
+      return null;
+    }
+
+    const match = TERM_REGISTRY_TERM_TYPE_OPTIONS.find((option) => {
+      const normalizedOptionValue = option.value.trim().toLowerCase();
+      const normalizedOptionLabel = option.label.trim().toLowerCase();
+      return (
+        normalizedOptionValue === normalized || normalizedOptionLabel === normalized
+      );
+    });
+
+    if (!match || match.value.trim().length === 0) {
+      return null;
+    }
+
+    return match.value.trim();
+  };
+
+  return (
+    findCanonicalValue(requestedTermType) ??
+    findCanonicalValue(fallbackTermType) ??
+    fallbackTermType.trim()
+  );
+};
 
 const clampPositiveInteger = (value: unknown, fallback: number): number => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -871,6 +903,11 @@ export const migrateMenuToContentConfig = (
   const normalized = normalizeMenuNodeConfig(menuConfig, fallbackPrimaryTerm);
   const groups: NodeContentGroup[] = [];
   const slots: NodeContentSlot[] = [];
+  const menuSlotTermTypes = [
+    resolveCanonicalRegistryTermType("menu_term", "menu_term"),
+    resolveCanonicalRegistryTermType("key_command", "key_command"),
+    resolveCanonicalRegistryTermType("tool_tip", "tool_tip"),
+  ];
 
   if (title) {
     slots.push({
@@ -886,7 +923,7 @@ export const migrateMenuToContentConfig = (
     const groupId = createContentGroupId();
     groups.push({ id: groupId, row: index, column: 0 });
 
-    MULTI_TERM_DEFAULT_SLOT_TYPES.forEach((slotTermType, slotIndex) => {
+    menuSlotTermTypes.forEach((slotTermType, slotIndex) => {
       slots.push({
         id: createContentSlotId(),
         value: slotIndex === 0 ? term.term : "",
@@ -930,9 +967,9 @@ export const migrateRibbonToContentConfig = (
     groups.push({ id: groupId, row: cell.row, column: cell.column });
 
     const cellFields: [string, string][] = [
-      ["Label", cell.label],
-      ["Key Command", cell.key_command],
-      ["Tool Tip", cell.tool_tip],
+      [resolveCanonicalRegistryTermType("cell_label", "cell_label"), cell.label],
+      [resolveCanonicalRegistryTermType("key_command", "key_command"), cell.key_command],
+      [resolveCanonicalRegistryTermType("tool_tip", "tool_tip"), cell.tool_tip],
     ];
 
     cellFields.forEach(([slotTermType, value], slotIndex) => {

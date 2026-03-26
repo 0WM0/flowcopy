@@ -437,6 +437,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   menuTermGlossaryTerms,
   glossaryHighlightedNodeIds,
   showNodeId,
+  showDefaultNodeTitleOnCanvas,
   onMenuTermDeleteBlocked,
   onMenuNodeConfigChange,
   onCanDropRegistryEntry,
@@ -447,11 +448,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const { setNodes, setEdges } = useReactFlow<FlowNode, FlowEdge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const frameTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const canvasTitleInputRef = useRef<HTMLInputElement | null>(null);
   const ribbonContainerRef = useRef<HTMLDivElement | null>(null);
   const ribbonPopupRef = useRef<HTMLDivElement | null>(null);
   const verticalTermsContainerRef = useRef<HTMLDivElement | null>(null);
   const verticalTermPopupRef = useRef<HTMLDivElement | null>(null);
   const [isEditingFrameTitle, setIsEditingFrameTitle] = useState(false);
+  const [isEditingCanvasTitle, setIsEditingCanvasTitle] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
   const [editingVerticalGroupId, setEditingVerticalGroupId] = useState<string | null>(null);
   const [pendingRibbonRegistryTerm, setPendingRibbonRegistryTerm] =
@@ -707,6 +710,15 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     frameTitleInputRef.current?.focus();
     frameTitleInputRef.current?.select();
   }, [isEditingFrameTitle]);
+
+  useEffect(() => {
+    if (!isEditingCanvasTitle) {
+      return;
+    }
+
+    canvasTitleInputRef.current?.focus();
+    canvasTitleInputRef.current?.select();
+  }, [isEditingCanvasTitle]);
 
   const updateField = useCallback(
     <K extends EditableMicrocopyField>(
@@ -1363,6 +1375,48 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     );
   }, [contentConfig.slots, isRibbonNode, sortedRibbonCells, updateRibbonContentConfig]);
 
+  const lastVerticalGroupId =
+    verticalTermRows[verticalTermRows.length - 1]?.group.id ?? null;
+  const lastVerticalGroupHasData =
+    lastVerticalGroupId !== null &&
+    contentConfig.slots.some(
+      (slot) => slot.groupId === lastVerticalGroupId && slot.value.trim().length > 0
+    );
+  const canRemoveVerticalGroup =
+    verticalTermRows.length > MENU_NODE_RIGHT_CONNECTIONS_MIN && !lastVerticalGroupHasData;
+
+  const removeLastVerticalTermGroup = useCallback(() => {
+    if (!isVerticalTermsNode || !canRemoveVerticalGroup) {
+      return;
+    }
+
+    const groupIdToRemove = verticalTermRows[verticalTermRows.length - 1]?.group.id;
+    if (!groupIdToRemove) {
+      return;
+    }
+
+    updateVerticalTermsContentConfig((currentConfig) => {
+      const remainingGroups = currentConfig.groups
+        .filter((group) => group.id !== groupIdToRemove)
+        .sort(sortContentGroups)
+        .map((group, index) => ({
+          ...group,
+          row: index,
+        }));
+
+      return {
+        ...currentConfig,
+        groups: remainingGroups,
+        slots: currentConfig.slots.filter((slot) => slot.groupId !== groupIdToRemove),
+        rows: Math.max(1, remainingGroups.length),
+      };
+    });
+
+    setEditingVerticalGroupId((currentGroupId) =>
+      currentGroupId === groupIdToRemove ? null : currentGroupId
+    );
+  }, [canRemoveVerticalGroup, isVerticalTermsNode, updateVerticalTermsContentConfig, verticalTermRows]);
+
   const updateRibbonSlotValue = useCallback(
     (slotId: string, value: string) => {
       onBeforeChange();
@@ -1906,21 +1960,72 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             <span style={{ fontSize: 10, color: "#1d4ed8", fontWeight: 600 }}>
               #{data.sequence_index ?? "-"}
             </span>
-            <span
-              style={{
-                flex: 1,
-                minWidth: 0,
-                fontSize: 11,
-                fontWeight: 600,
-                color: "#334155",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-              title={data.title || "Ribbon"}
-            >
-              {data.title || "Ribbon"}
-            </span>
+            {isEditingCanvasTitle ? (
+              <input
+                ref={canvasTitleInputRef}
+                className="nodrag"
+                style={{
+                  ...inputStyle,
+                  flex: 1,
+                  minWidth: 0,
+                  height: 20,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#334155",
+                }}
+                value={data.title}
+                placeholder="Add title"
+                onPointerDown={stopNodeSelectionPropagation}
+                onMouseDown={stopNodeSelectionPropagation}
+                onClick={stopNodeSelectionPropagation}
+                onChange={(event) => updateField("title", event.target.value)}
+                onBlur={(event) => {
+                  commitRegistryField("title", event.currentTarget.value);
+                  setIsEditingCanvasTitle(false);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
+
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setIsEditingCanvasTitle(false);
+                  }
+                }}
+              />
+            ) : (
+              <span
+                role="button"
+                tabIndex={0}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#334155",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  cursor: "text",
+                }}
+                title={data.title.trim() || "Untitled"}
+                onPointerDown={stopNodeSelectionPropagation}
+                onClick={(event) => {
+                  stopNodeSelectionPropagation(event);
+                  setIsEditingCanvasTitle(true);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setIsEditingCanvasTitle(true);
+                  }
+                }}
+              >
+                {data.title.trim() || "Untitled"}
+              </span>
+            )}
           </div>
 
           <div
@@ -2254,7 +2359,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           padding: "70px 72px",
         }
       : baseContentStyle;
-  const shouldRenderCanvasTitle = data.showTitle === true;
+  const canvasHeaderTitle = data.title.trim() || "Untitled";
+  const shouldRenderCanvasTitle =
+    data.showTitle === true ||
+    (data.node_type === "default" && showDefaultNodeTitleOnCanvas);
 
   return (
     <div
@@ -2319,7 +2427,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
+            alignItems: "center",
             gap: 6,
             paddingBottom: 3,
             borderBottom: "1px solid #94a3b8",
@@ -2328,78 +2436,104 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           <span style={{ fontSize: 10, color: "#1d4ed8", fontWeight: 600 }}>
             #{data.sequence_index ?? "-"}
           </span>
+          {isEditingCanvasTitle ? (
+            <input
+              ref={canvasTitleInputRef}
+              className="nodrag"
+              style={{
+                ...inputStyle,
+                flex: 1,
+                minWidth: 0,
+                height: 20,
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#334155",
+              }}
+              value={data.title}
+              placeholder="Add title"
+              onPointerDown={stopNodeSelectionPropagation}
+              onMouseDown={stopNodeSelectionPropagation}
+              onClick={stopNodeSelectionPropagation}
+              onChange={(event) => updateField("title", event.target.value)}
+              onBlur={(event) => {
+                commitRegistryField("title", event.currentTarget.value);
+                setIsEditingCanvasTitle(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
+
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setIsEditingCanvasTitle(false);
+                }
+              }}
+            />
+          ) : (
+            <span
+              role="button"
+              tabIndex={0}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#334155",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                cursor: "text",
+              }}
+              title={canvasHeaderTitle}
+              onPointerDown={stopNodeSelectionPropagation}
+              onClick={(event) => {
+                stopNodeSelectionPropagation(event);
+                setIsEditingCanvasTitle(true);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setIsEditingCanvasTitle(true);
+                }
+              }}
+            >
+              {canvasHeaderTitle}
+            </span>
+          )}
         </div>
 
         {isVerticalTermsNode ? (
           <>
-            {shouldRenderCanvasTitle && (
-              <div style={{ marginTop: 4 }}>
-                <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>Title</div>
-                <input
-                  className="nodrag"
-                  style={inputStyle}
-                  value={data.title}
-                  placeholder="Add title"
-                  onPointerDown={stopNodeSelectionPropagation}
-                  onMouseDown={stopNodeSelectionPropagation}
-                  onClick={stopNodeSelectionPropagation}
-                  onChange={(event) => updateField("title", event.target.value)}
-                  onBlur={(event) =>
-                    commitRegistryField("title", event.currentTarget.value)
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter") {
-                      return;
-                    }
-
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                  }}
-                />
-              </div>
-            )}
-
             <div
               ref={verticalTermsContainerRef}
               style={{
                 marginTop: 4,
-                border: "1px solid #93c5fd",
-                borderRadius: 8,
+                border: "1px solid #cbd5e1",
+                borderRadius: 6,
                 padding: 4,
                 paddingBottom: 1,
-                background: "#f8fbff",
-                display: "grid",
-                gap: 3,
+                background: "#f1f5f9",
+                display: "flex",
+                alignItems: "stretch",
+                gap: 4,
                 position: "relative",
               }}
             >
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 6,
+                  display: "inline-flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  gap: 2,
+                  flexShrink: 0,
                 }}
               >
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#1d4ed8" }}>
-                  {isMenuNode ? "Menu Terms" : "Terms"}
-                </div>
                 <button
                   type="button"
                   className="nodrag"
-                  style={{
-                    ...buttonStyle,
-                    width: 18,
-                    height: 18,
-                    minWidth: 18,
-                    padding: 0,
-                    borderRadius: 999,
-                    fontSize: 12,
-                    lineHeight: 1,
-                    fontWeight: 700,
-                    color: "#1d4ed8",
-                    borderColor: "#93c5fd",
-                  }}
+                  style={getRibbonCellActionButtonStyle("neutral")}
                   title="Add term"
                   aria-label="Add term"
                   onPointerDown={stopNodeSelectionPropagation}
@@ -2411,20 +2545,51 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 >
                   +
                 </button>
+                <button
+                  type="button"
+                  className="nodrag"
+                  style={{
+                    ...getRibbonCellActionButtonStyle("danger"),
+                    opacity: canRemoveVerticalGroup ? 1 : 0.35,
+                    cursor: canRemoveVerticalGroup ? "pointer" : "not-allowed",
+                  }}
+                  title={
+                    canRemoveVerticalGroup
+                      ? "Remove last empty term"
+                      : "Clear the last term before removing"
+                  }
+                  aria-label="Remove term"
+                  disabled={!canRemoveVerticalGroup}
+                  onPointerDown={stopNodeSelectionPropagation}
+                  onMouseDown={stopNodeSelectionPropagation}
+                  onClick={(event) => {
+                    stopNodeSelectionPropagation(event);
+                    if (!canRemoveVerticalGroup) {
+                      return;
+                    }
+                    removeLastVerticalTermGroup();
+                  }}
+                >
+                  −
+                </button>
               </div>
 
-              {verticalTermRows.map((row, index) => {
-                const isFirst = index === 0;
-                const isLast = index === verticalTermRows.length - 1;
-
-                return (
+              <div
+                style={{
+                  display: "grid",
+                  flex: 1,
+                  gap: 3,
+                }}
+              >
+                {verticalTermRows.map((row) => {
+                  return (
                   <div
                     key={`vertical-row:${row.group.id}`}
                     data-vertical-group-row-id={row.group.id}
                     className="nodrag nopan"
                     onPointerDown={stopNodeSelectionPropagation}
                     style={{
-                      border: "1px solid #93c5fd",
+                      border: "1px solid #cbd5e1",
                       borderRadius: 6,
                       padding: 3,
                       display: "grid",
@@ -2433,76 +2598,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <button
-                        type="button"
-                        className="nodrag"
-                        style={{
-                          ...buttonStyle,
-                          fontSize: 9,
-                          padding: "1px 5px",
-                          borderColor: "#fca5a5",
-                          color: "#b91c1c",
-                          flexShrink: 0,
-                        }}
-                        title="Delete this term"
-                        onPointerDown={stopNodeSelectionPropagation}
-                        onMouseDown={stopNodeSelectionPropagation}
-                        onClick={(event) => {
-                          stopNodeSelectionPropagation(event);
-                          deleteVerticalTermGroup(row.group.id);
-                        }}
-                      >
-                        X
-                      </button>
-
-                      <button
-                        type="button"
-                        className="nodrag"
-                        style={{
-                          ...buttonStyle,
-                          fontSize: 9,
-                          padding: "1px 5px",
-                          color: "#1d4ed8",
-                          borderColor: "#93c5fd",
-                          flexShrink: 0,
-                          opacity: isFirst ? 0.45 : 1,
-                        }}
-                        title="Move up"
-                        disabled={isFirst}
-                        onPointerDown={stopNodeSelectionPropagation}
-                        onMouseDown={stopNodeSelectionPropagation}
-                        onClick={(event) => {
-                          stopNodeSelectionPropagation(event);
-                          moveVerticalTermGroup(row.group.id, -1);
-                        }}
-                      >
-                        ↑
-                      </button>
-
-                      <button
-                        type="button"
-                        className="nodrag"
-                        style={{
-                          ...buttonStyle,
-                          fontSize: 9,
-                          padding: "1px 5px",
-                          color: "#1d4ed8",
-                          borderColor: "#93c5fd",
-                          flexShrink: 0,
-                          opacity: isLast ? 0.45 : 1,
-                        }}
-                        title="Move down"
-                        disabled={isLast}
-                        onPointerDown={stopNodeSelectionPropagation}
-                        onMouseDown={stopNodeSelectionPropagation}
-                        onClick={(event) => {
-                          stopNodeSelectionPropagation(event);
-                          moveVerticalTermGroup(row.group.id, 1);
-                        }}
-                      >
-                        ↓
-                      </button>
-
                       <div style={{ position: "relative", paddingRight: 14, flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           <input
@@ -2614,8 +2709,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       </div>
                     </div>
                   </div>
-                );
-              })}
+                  );
+                })}
+              </div>
 
               {editingVerticalTermRow && (
                 <div

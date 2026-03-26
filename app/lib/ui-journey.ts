@@ -7,19 +7,16 @@ import type {
   UiJourneyConversationField,
   UiJourneyConversationConnectionMeta,
   UiJourneySnapshotPreset,
-  NodeControlledLanguageFieldType,
 } from "../types";
 import {
-  CONTROLLED_LANGUAGE_NODE_FIELDS,
-  CONTROLLED_LANGUAGE_FIELD_LABELS,
   RIBBON_SOURCE_HANDLE_PREFIX,
+  TERM_REGISTRY_TERM_TYPE_LABELS,
 } from "../constants";
 import { computeFlowOrdering } from "./flow-ordering";
 import { isSequentialEdge } from "./edge-utils";
 import {
   isNodeType,
   normalizeFrameNodeConfig,
-  normalizeMenuNodeConfig,
   normalizeNodeContentConfig,
   normalizeRibbonNodeConfig,
 } from "./node-utils";
@@ -49,64 +46,33 @@ const buildUiJourneyConversationRibbonCellEntryId = (
   sequence: number | null
 ): string => `entry:${nodeId}:cell:${cellId}:seq-${sequence ?? "x"}`;
 
-const sortContentGroups = (
-  a: { row: number; column: number },
-  b: { row: number; column: number }
-): number => {
-  if (a.row !== b.row) {
-    return a.row - b.row;
-  }
-
-  return a.column - b.column;
-};
-
-const sortContentSlots = (
-  a: { position: number },
-  b: { position: number }
-): number => a.position - b.position;
-
-const getFirstFilledContentSlotValue = (
-  nodeData: MicrocopyNodeData,
-  layout: "vertical" | "horizontal"
-): string => {
-  const normalizedContentConfig = normalizeNodeContentConfig(
-    nodeData.content_config,
-    layout
-  );
-  const sortedGroups = [...normalizedContentConfig.groups].sort(sortContentGroups);
-
-  for (const group of sortedGroups) {
-    const sortedSlots = normalizedContentConfig.slots
-      .filter((slot) => slot.groupId === group.id)
-      .sort(sortContentSlots);
-
-    for (const slot of sortedSlots) {
-      const normalizedSlotValue = slot.value.trim();
-      if (normalizedSlotValue.length > 0) {
-        return normalizedSlotValue;
-      }
-    }
-  }
-
-  return "";
-};
-
 const getUiJourneyConversationTitle = (nodeData: MicrocopyNodeData): string => {
-  if (nodeData.node_type === "ribbon" || nodeData.node_type === "horizontal_multi_term") {
-    return (
-      getFirstFilledContentSlotValue(nodeData, "horizontal") ||
-      nodeData.title.trim()
-    );
+  const normalizedTitle = nodeData.title.trim();
+  return normalizedTitle.length > 0 ? normalizedTitle : "Untitled";
+};
+
+const normalizeConversationSlotTermTypeLabel = (
+  termType: string | null
+): string => {
+  if (typeof termType !== "string") {
+    return "Untyped";
   }
 
-  if (nodeData.node_type === "menu" || nodeData.node_type === "vertical_multi_term") {
-    return (
-      getFirstFilledContentSlotValue(nodeData, "vertical") ||
-      nodeData.title.trim()
-    );
+  const normalizedTermType = termType.trim();
+  if (normalizedTermType.length === 0) {
+    return "Untyped";
   }
 
-  return nodeData.title.trim();
+  const canonicalTermType =
+    normalizedTermType.toLowerCase() === "term"
+      ? "menu_term"
+      : normalizedTermType.toLowerCase();
+
+  return (
+    TERM_REGISTRY_TERM_TYPE_LABELS[canonicalTermType] ??
+    TERM_REGISTRY_TERM_TYPE_LABELS[normalizedTermType] ??
+    normalizedTermType
+  );
 };
 
 export const buildUiJourneyConversationConnectionMetaByNodeId = ({
@@ -282,6 +248,48 @@ export const buildUiJourneyConversationFields = (
   nodeId: string,
   nodeData: MicrocopyNodeData
 ): UiJourneyConversationField[] => {
+  if (
+    nodeData.node_type === "menu" ||
+    nodeData.node_type === "vertical_multi_term" ||
+    nodeData.node_type === "horizontal_multi_term"
+  ) {
+    const layout =
+      nodeData.node_type === "horizontal_multi_term" ? "horizontal" : "vertical";
+    const normalizedContentConfig = normalizeNodeContentConfig(
+      nodeData.content_config,
+      layout
+    );
+
+    const sortedGroups = [...normalizedContentConfig.groups].sort((a, b) => {
+      if (a.row !== b.row) {
+        return a.row - b.row;
+      }
+
+      return a.column - b.column;
+    });
+
+    return sortedGroups.flatMap((group) =>
+      normalizedContentConfig.slots
+        .filter((slot) => slot.groupId === group.id)
+        .sort((a, b) => a.position - b.position)
+        .flatMap((slot) => {
+          const normalizedValue = slot.value.trim();
+          if (!normalizedValue) {
+            return [];
+          }
+
+          return [
+            {
+              id: buildUiJourneyConversationFieldId(nodeId, `content_slot:${slot.id}`),
+              sourceKey: `content_slot:${slot.id}`,
+              label: normalizeConversationSlotTermTypeLabel(slot.termType),
+              value: normalizedValue,
+            },
+          ];
+        })
+    );
+  }
+
   const fields: UiJourneyConversationField[] = [];
 
   const addField = (label: string, sourceKey: string, value: string) => {
