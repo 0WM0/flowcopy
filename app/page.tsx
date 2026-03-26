@@ -5405,15 +5405,22 @@ export default function Page() {
         return;
       }
 
-      if (
-        targetNode.data.node_type !== "default" &&
-        targetNode.data.node_type !== nextType
-      ) {
+      if (targetNode.data.node_type === nextType) {
         return;
       }
 
-      if (targetNode.data.node_type === nextType) {
-        return;
+      const currentNodeType = targetNode.data.node_type;
+      const isCurrentHorizontalOrVertical =
+        currentNodeType === "menu" || currentNodeType === "ribbon";
+
+      if (nextType === "default" && isCurrentHorizontalOrVertical) {
+        const confirmed = window.confirm(
+          "Switching to Default will discard Horizontal/Vertical slot structure data. Continue?"
+        );
+
+        if (!confirmed) {
+          return;
+        }
       }
 
       pushToHistory();
@@ -5425,6 +5432,53 @@ export default function Page() {
           }
 
           if (nextType === "menu") {
+            if (node.data.node_type === "ribbon") {
+              const sortedContentGroups = [...node.data.content_config.groups].sort((a, b) => {
+                if (a.row !== b.row) {
+                  return a.row - b.row;
+                }
+
+                return a.column - b.column;
+              });
+
+              const derivedMenuTerms: MenuNodeTerm[] = sortedContentGroups.map((group) => {
+                const primarySlot = node.data.content_config.slots
+                  .filter((slot) => slot.groupId === group.id)
+                  .sort((a, b) => a.position - b.position)[0];
+
+                return {
+                  id: group.id,
+                  term: primarySlot?.value ?? "",
+                };
+              });
+
+              const minimumConnections = Math.max(
+                MENU_NODE_RIGHT_CONNECTIONS_MIN,
+                derivedMenuTerms.length
+              );
+              const nextMenuConfig = normalizeMenuNodeConfig(
+                {
+                  max_right_connections: minimumConnections,
+                  terms: derivedMenuTerms,
+                },
+                node.data.primary_cta,
+                minimumConnections
+              );
+
+              return {
+                ...node,
+                data: {
+                  ...applyMenuConfigToNodeData(node.data, nextMenuConfig),
+                  node_type: "menu",
+                  menu_config: nextMenuConfig,
+                  content_config: {
+                    ...node.data.content_config,
+                    layout: "vertical",
+                  },
+                },
+              };
+            }
+
             const normalizedMenuConfig = normalizeMenuNodeConfig(
               node.data.menu_config,
               node.data.primary_cta,
@@ -5493,6 +5547,61 @@ export default function Page() {
           }
 
           if (nextType === "ribbon") {
+            if (node.data.node_type === "menu") {
+              const sortedContentGroups = [...node.data.content_config.groups].sort((a, b) => {
+                if (a.row !== b.row) {
+                  return a.row - b.row;
+                }
+
+                return a.column - b.column;
+              });
+
+              const derivedRibbonCells = sortedContentGroups.map((group) => {
+                const sortedGroupSlots = node.data.content_config.slots
+                  .filter((slot) => slot.groupId === group.id)
+                  .sort((a, b) => a.position - b.position);
+
+                return {
+                  id: group.id,
+                  row: group.row,
+                  column: group.column,
+                  label: sortedGroupSlots.find((slot) => slot.position === 0)?.value ?? "",
+                  key_command:
+                    sortedGroupSlots.find((slot) => slot.position === 1)?.value ?? "",
+                  tool_tip: sortedGroupSlots.find((slot) => slot.position === 2)?.value ?? "",
+                };
+              });
+
+              const fallbackRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
+              const nextRibbonConfig = normalizeRibbonNodeConfig({
+                rows:
+                  Math.max(
+                    1,
+                    ...derivedRibbonCells.map((cell) => cell.row + 1)
+                  ) || 1,
+                columns:
+                  Math.max(
+                    1,
+                    ...derivedRibbonCells.map((cell) => cell.column + 1)
+                  ) || 1,
+                cells: derivedRibbonCells,
+                ribbon_style: fallbackRibbonConfig.ribbon_style,
+              });
+
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  node_type: "ribbon",
+                  ribbon_config: nextRibbonConfig,
+                  content_config: {
+                    ...node.data.content_config,
+                    layout: "horizontal",
+                  },
+                },
+              };
+            }
+
             return {
               ...node,
               data: {
@@ -10763,8 +10872,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {NODE_TYPE_OPTIONS.map((nodeTypeOption) => {
                   const isActive = selectedNode.data.node_type === nodeTypeOption;
+                  const currentNodeType = selectedNode.data.node_type;
                   const isEnabled =
-                    selectedNode.data.node_type === "default" || isActive;
+                    isActive ||
+                    currentNodeType === "default" ||
+                    ((currentNodeType === "menu" || currentNodeType === "ribbon") &&
+                      (nodeTypeOption === "menu" || nodeTypeOption === "ribbon"));
 
                   return (
                     <button
