@@ -240,71 +240,6 @@ export const normalizeNodeContentConfig = (
   };
 };
 
-const migrateDefaultNodeContentConfig = (
-  source: NodeContentMigrationSource
-): NodeContentConfig => {
-  const legacySlots: NodeContentSlot[] = [
-    {
-      id: "title",
-      value: toSanitizedString(source.title),
-      termType: "title",
-      groupId: null,
-      position: 0,
-    },
-    {
-      id: "body_text",
-      value: toSanitizedString(source.body_text),
-      termType: "body_text",
-      groupId: null,
-      position: 1,
-    },
-    {
-      id: "primary_cta",
-      value: toSanitizedString(source.primary_cta),
-      termType: "primary_cta",
-      groupId: null,
-      position: 2,
-    },
-    {
-      id: "secondary_cta",
-      value: toSanitizedString(source.secondary_cta),
-      termType: "secondary_cta",
-      groupId: null,
-      position: 3,
-    },
-    {
-      id: "helper_text",
-      value: toSanitizedString(source.helper_text),
-      termType: "helper_text",
-      groupId: null,
-      position: 4,
-    },
-    {
-      id: "error_text",
-      value: toSanitizedString(source.error_text),
-      termType: "error_text",
-      groupId: null,
-      position: 5,
-    },
-    {
-      id: "notes",
-      value: toSanitizedString(source.notes),
-      termType: "notes",
-      groupId: null,
-      position: 6,
-    },
-  ].filter((slot) => slot.value.length > 0);
-
-  return normalizeNodeContentConfig({
-    layout: "single",
-    rows: 1,
-    columns: 1,
-    groups: [],
-    slots: legacySlots,
-    style: NODE_CONTENT_DEFAULT_STYLE,
-  }, "single");
-};
-
 const migrateMultiTermNodeContentConfig = (
   source: NodeContentMigrationSource,
   layout: Extract<NodeContentLayout, "vertical" | "horizontal">
@@ -350,7 +285,15 @@ export const migrateLegacyNodeContentConfig = (
     return migrateMultiTermNodeContentConfig(source, "horizontal");
   }
 
-  return migrateDefaultNodeContentConfig(source);
+  return migrateDefaultToContentConfig({
+    title: toSanitizedString(source.title),
+    body_text: toSanitizedString(source.body_text),
+    primary_cta: toSanitizedString(source.primary_cta),
+    secondary_cta: toSanitizedString(source.secondary_cta),
+    helper_text: toSanitizedString(source.helper_text),
+    error_text: toSanitizedString(source.error_text),
+    notes: toSanitizedString(source.notes),
+  });
 };
 
 export const normalizeAndMigrateNodeContentConfig = (
@@ -867,12 +810,22 @@ export const migrateDefaultToContentConfig = (
   const slots: NodeContentSlot[] = [];
 
   const fieldMap: [string, string][] = [
-    ["Title", data.title ?? ""],
-    ["Primary CTA", data.primary_cta ?? ""],
-    ["Secondary CTA", data.secondary_cta ?? ""],
-    ["Helper Text", data.helper_text ?? ""],
-    ["Error Text", data.error_text ?? ""],
-    ["Body Text", data.body_text ?? ""],
+    [resolveCanonicalRegistryTermType("title", "title"), data.title ?? ""],
+    [
+      resolveCanonicalRegistryTermType("primary_cta", "primary_cta"),
+      data.primary_cta ?? "",
+    ],
+    [
+      resolveCanonicalRegistryTermType("secondary_cta", "secondary_cta"),
+      data.secondary_cta ?? "",
+    ],
+    [
+      resolveCanonicalRegistryTermType("helper_text", "helper_text"),
+      data.helper_text ?? "",
+    ],
+    [resolveCanonicalRegistryTermType("error_text", "error_text"), data.error_text ?? ""],
+    [resolveCanonicalRegistryTermType("body_text", "body_text"), data.body_text ?? ""],
+    [resolveCanonicalRegistryTermType("notes", "notes"), data.notes ?? ""],
   ];
 
   fieldMap.forEach(([termType, value], index) => {
