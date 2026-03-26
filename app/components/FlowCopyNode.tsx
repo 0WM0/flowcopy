@@ -259,6 +259,8 @@ const buildRibbonCellRegistryField = (
   | `ribbon_cell:[${string}]:key_command`
   | `ribbon_cell:[${string}]:tool_tip` => `ribbon_cell:[${cellId}]:${field}`;
 
+const RIBBON_CELL_DEFAULT_SLOT_TYPES = ["cell_label", "key_command", "tool_tip"] as const;
+
 const getCanvasRegistryButtonStyle = (): React.CSSProperties => ({
   ...buttonStyle,
   width: 16,
@@ -271,6 +273,23 @@ const getCanvasRegistryButtonStyle = (): React.CSSProperties => ({
   borderColor: "#d4d4d8",
   background: "#fff",
   color: "#1e3a8a",
+  flexShrink: 0,
+});
+
+const getRibbonCellActionButtonStyle = (
+  tone: "neutral" | "danger" = "neutral"
+): React.CSSProperties => ({
+  ...buttonStyle,
+  width: 15,
+  height: 15,
+  minWidth: 15,
+  padding: 0,
+  borderRadius: 4,
+  fontSize: 10,
+  lineHeight: 1,
+  borderColor: tone === "danger" ? "#fecaca" : "#cbd5e1",
+  color: tone === "danger" ? "#b91c1c" : "#334155",
+  background: "#fff",
   flexShrink: 0,
 });
 function SlotTermTypeEditor({
@@ -1204,6 +1223,146 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     },
     [id, onBeforeChange, setNodes]
   );
+
+  const updateRibbonContentConfig = useCallback(
+    (updater: (currentConfig: NodeContentConfig) => NodeContentConfig) => {
+      if (!isRibbonNode) {
+        return;
+      }
+
+      onBeforeChange();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== id || node.data.node_type !== "ribbon") {
+            return node;
+          }
+
+          const currentContentConfig = normalizeNodeContentConfig(
+            node.data.content_config,
+            "horizontal"
+          );
+          const requestedNextContentConfig = updater(currentContentConfig);
+          const nextContentConfig = normalizeNodeContentConfig(
+            requestedNextContentConfig,
+            "horizontal"
+          );
+
+          const sortedGroups = [...nextContentConfig.groups].sort(sortContentGroups);
+          const normalizedGroups = sortedGroups.map((group, index) => ({
+            ...group,
+            row: 0,
+            column: index,
+          }));
+          const normalizedGroupIds = new Set(normalizedGroups.map((group) => group.id));
+
+          const normalizedContentConfig: NodeContentConfig = {
+            ...nextContentConfig,
+            rows: 1,
+            columns: Math.max(1, normalizedGroups.length),
+            groups: normalizedGroups,
+            slots: nextContentConfig.slots.filter((slot) =>
+              slot.groupId ? normalizedGroupIds.has(slot.groupId) : true
+            ),
+          };
+
+          const currentRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
+          const nextRibbonCells = normalizedGroups.map((group) => {
+            const groupSlots = normalizedContentConfig.slots
+              .filter((slot) => slot.groupId === group.id)
+              .sort(sortContentSlots);
+
+            return {
+              id: group.id,
+              row: group.row,
+              column: group.column,
+              label: groupSlots.find((slot) => slot.position === 0)?.value ?? "",
+              key_command: groupSlots.find((slot) => slot.position === 1)?.value ?? "",
+              tool_tip: groupSlots.find((slot) => slot.position === 2)?.value ?? "",
+            };
+          });
+
+          const nextRibbonConfig: RibbonNodeConfig = {
+            ...currentRibbonConfig,
+            rows: 1,
+            columns: Math.max(1, normalizedGroups.length),
+            cells: nextRibbonCells,
+          };
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              content_config: normalizedContentConfig,
+              ribbon_config: nextRibbonConfig,
+            },
+          };
+        })
+      );
+    },
+    [id, isRibbonNode, onBeforeChange, setNodes]
+  );
+
+  const addRibbonCell = useCallback(() => {
+    if (!isRibbonNode) {
+      return;
+    }
+
+    updateRibbonContentConfig((currentConfig) => {
+      const sortedGroups = [...currentConfig.groups].sort(sortContentGroups);
+      const groupId = createContentGroupId();
+      const nextGroup: NodeContentGroup = {
+        id: groupId,
+        row: 0,
+        column: sortedGroups.length,
+      };
+
+      const nextSlots = RIBBON_CELL_DEFAULT_SLOT_TYPES.map((termType, index) => ({
+        id: createContentSlotId(),
+        value: "",
+        termType,
+        groupId,
+        position: index,
+      }));
+
+      return {
+        ...currentConfig,
+        rows: 1,
+        columns: Math.max(1, sortedGroups.length + 1),
+        groups: [...currentConfig.groups, nextGroup],
+        slots: [...currentConfig.slots, ...nextSlots],
+      };
+    });
+  }, [isRibbonNode, updateRibbonContentConfig]);
+
+  const removeRibbonCell = useCallback(() => {
+    if (!isRibbonNode || sortedRibbonCells.length <= 1) {
+      return;
+    }
+
+    const lastCellId = sortedRibbonCells[sortedRibbonCells.length - 1]?.id;
+    if (!lastCellId) {
+      return;
+    }
+
+    const cellHasData = contentConfig.slots.some(
+      (slot) => slot.groupId === lastCellId && slot.value.trim().length > 0
+    );
+    if (cellHasData) {
+      return;
+    }
+
+    updateRibbonContentConfig((currentConfig) => ({
+      ...currentConfig,
+      groups: currentConfig.groups.filter((group) => group.id !== lastCellId),
+      slots: currentConfig.slots.filter((slot) => slot.groupId !== lastCellId),
+    }));
+
+    setEditingCellId((currentCellId) =>
+      currentCellId === lastCellId ? null : currentCellId
+    );
+  }, [contentConfig.slots, isRibbonNode, sortedRibbonCells, updateRibbonContentConfig]);
+
   const updateRibbonSlotValue = useCallback(
     (slotId: string, value: string) => {
       onBeforeChange();
@@ -1620,6 +1779,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
     const totalCells = sortedRibbonCells.length;
     const minNodeHeight = Math.max(50, totalCells > 0 ? 58 : 50);
+    const lastRibbonCellId = sortedRibbonCells[sortedRibbonCells.length - 1]?.id ?? null;
+    const lastRibbonCellHasData =
+      lastRibbonCellId !== null &&
+      contentConfig.slots.some(
+        (slot) => slot.groupId === lastRibbonCellId && slot.value.trim().length > 0
+      );
+    const canRemoveRibbonCell = sortedRibbonCells.length > 1 && !lastRibbonCellHasData;
 
     return (
       <div
@@ -1759,14 +1925,69 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
           <div
             style={{
-              display: "grid",
-              gap: 0,
+              display: "flex",
+              alignItems: "stretch",
+              gap: 4,
               padding: 4,
             }}
           >
             <div
               style={{
+                display: "inline-flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                gap: 2,
+                flexShrink: 0,
+              }}
+            >
+              <button
+                type="button"
+                className="nodrag"
+                style={getRibbonCellActionButtonStyle("neutral")}
+                title="Add cell"
+                aria-label="Add cell"
+                onPointerDown={stopNodeSelectionPropagation}
+                onMouseDown={stopNodeSelectionPropagation}
+                onClick={(event) => {
+                  stopNodeSelectionPropagation(event);
+                  addRibbonCell();
+                }}
+              >
+                +
+              </button>
+              <button
+                type="button"
+                className="nodrag"
+                style={{
+                  ...getRibbonCellActionButtonStyle("danger"),
+                  opacity: canRemoveRibbonCell ? 1 : 0.35,
+                  cursor: canRemoveRibbonCell ? "pointer" : "not-allowed",
+                }}
+                title={
+                  canRemoveRibbonCell
+                    ? "Remove last empty cell"
+                    : "Clear the last cell before removing"
+                }
+                aria-label="Remove cell"
+                disabled={!canRemoveRibbonCell}
+                onPointerDown={stopNodeSelectionPropagation}
+                onMouseDown={stopNodeSelectionPropagation}
+                onClick={(event) => {
+                  stopNodeSelectionPropagation(event);
+                  if (!canRemoveRibbonCell) {
+                    return;
+                  }
+                  removeRibbonCell();
+                }}
+              >
+                −
+              </button>
+            </div>
+
+            <div
+              style={{
                 display: "grid",
+                flex: 1,
                 gridTemplateColumns: `repeat(${Math.max(1, sortedRibbonCells.length)}, minmax(80px, auto))`,
               }}
             >
@@ -1833,6 +2054,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         width: "100%",
                         fontStyle:
                           isShowingLabel || isShowingKeyCommand ? "normal" : "italic",
+                        minWidth: 0,
                       }}
                     >
                       {cellDisplayText}

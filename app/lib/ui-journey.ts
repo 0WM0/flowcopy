@@ -20,6 +20,7 @@ import {
   isNodeType,
   normalizeFrameNodeConfig,
   normalizeMenuNodeConfig,
+  normalizeNodeContentConfig,
   normalizeRibbonNodeConfig,
 } from "./node-utils";
 
@@ -47,6 +48,66 @@ const buildUiJourneyConversationRibbonCellEntryId = (
   cellId: string,
   sequence: number | null
 ): string => `entry:${nodeId}:cell:${cellId}:seq-${sequence ?? "x"}`;
+
+const sortContentGroups = (
+  a: { row: number; column: number },
+  b: { row: number; column: number }
+): number => {
+  if (a.row !== b.row) {
+    return a.row - b.row;
+  }
+
+  return a.column - b.column;
+};
+
+const sortContentSlots = (
+  a: { position: number },
+  b: { position: number }
+): number => a.position - b.position;
+
+const getFirstFilledContentSlotValue = (
+  nodeData: MicrocopyNodeData,
+  layout: "vertical" | "horizontal"
+): string => {
+  const normalizedContentConfig = normalizeNodeContentConfig(
+    nodeData.content_config,
+    layout
+  );
+  const sortedGroups = [...normalizedContentConfig.groups].sort(sortContentGroups);
+
+  for (const group of sortedGroups) {
+    const sortedSlots = normalizedContentConfig.slots
+      .filter((slot) => slot.groupId === group.id)
+      .sort(sortContentSlots);
+
+    for (const slot of sortedSlots) {
+      const normalizedSlotValue = slot.value.trim();
+      if (normalizedSlotValue.length > 0) {
+        return normalizedSlotValue;
+      }
+    }
+  }
+
+  return "";
+};
+
+const getUiJourneyConversationTitle = (nodeData: MicrocopyNodeData): string => {
+  if (nodeData.node_type === "ribbon" || nodeData.node_type === "horizontal_multi_term") {
+    return (
+      getFirstFilledContentSlotValue(nodeData, "horizontal") ||
+      nodeData.title.trim()
+    );
+  }
+
+  if (nodeData.node_type === "menu" || nodeData.node_type === "vertical_multi_term") {
+    return (
+      getFirstFilledContentSlotValue(nodeData, "vertical") ||
+      nodeData.title.trim()
+    );
+  }
+
+  return nodeData.title.trim();
+};
 
 export const buildUiJourneyConversationConnectionMetaByNodeId = ({
   nodes,
@@ -675,7 +736,7 @@ export const buildUiJourneyConversationEntries = ({
           nodeId,
           nodeType: "ribbon",
           sequence,
-          title: node.data.title.trim(),
+          title: getUiJourneyConversationTitle(node.data),
           fields: buildUiJourneyConversationRibbonHeaderFields(nodeId, node.data),
           bodyText: "",
           notes: "",
@@ -756,7 +817,7 @@ export const buildUiJourneyConversationEntries = ({
         nodeId,
         nodeType: node.data.node_type,
         sequence,
-        title: node.data.title.trim(),
+        title: getUiJourneyConversationTitle(node.data),
         fields: buildUiJourneyConversationFields(nodeId, node.data),
         bodyText: (node.data.body_text ?? "").trim(),
         notes: (node.data.notes ?? "").trim(),

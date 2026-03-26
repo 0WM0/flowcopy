@@ -110,7 +110,7 @@ export const FRAME_NODE_PADDING = 28;
 
 export const RIBBON_NODE_MAX_ROWS = 3;
 export const RIBBON_NODE_MIN_COLUMNS = 1;
-export const RIBBON_NODE_DEFAULT_COLUMNS = 3;
+export const RIBBON_NODE_DEFAULT_COLUMNS = 1;
 export const RIBBON_NODE_DEFAULT_ROWS = 1;
 export const RIBBON_CELL_MAX_KEY_COMMAND_LENGTH = 24;
 export const RIBBON_SOURCE_HANDLE_PREFIX = "ribbon-cell-";
