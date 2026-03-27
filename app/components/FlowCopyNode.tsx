@@ -100,13 +100,20 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onTextEditBlur: () => void;
   onCommitRegistryField: (
     nodeId: string,
-    field: RegistryTrackedField | `menu_term:[${string}]` | `ribbon_cell:[${string}]:label` | `ribbon_cell:[${string}]:key_command` | `ribbon_cell:[${string}]:tool_tip`,
+    field:
+      | RegistryTrackedField
+      | `slot:[${string}]`
+      | `menu_term:[${string}]`
+      | `ribbon_cell:[${string}]:label`
+      | `ribbon_cell:[${string}]:key_command`
+      | `ribbon_cell:[${string}]:tool_tip`,
     value: string
   ) => void;
   onRegistryPickerOpen: (
     nodeId: string,
     field:
       | RegistryTrackedField
+      | `slot:[${string}]`
       | `menu_term:[${string}]`
       | `ribbon_cell:[${string}]:label`
       | `ribbon_cell:[${string}]:key_command`
@@ -125,7 +132,7 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onCanDropRegistryEntry: (dataTransfer: DataTransfer | null) => boolean;
   onDropRegistryEntryOnField: (
     nodeId: string,
-    field: RegistryTrackedField,
+    field: DefaultNodeRegistryField,
     dataTransfer: DataTransfer | null
   ) => void;
   onResolveDroppedRegistryTerm: (dataTransfer: DataTransfer | null) => {
@@ -158,6 +165,8 @@ const REGISTRY_TRACKED_FIELDS = [
 ] as const;
 
 type RegistryTrackedField = (typeof REGISTRY_TRACKED_FIELDS)[number];
+type SlotRegistryField = `slot:[${string}]`;
+type DefaultNodeRegistryField = RegistryTrackedField | SlotRegistryField;
 
 type PendingRibbonRegistryTerm = {
   entryId: string;
@@ -171,6 +180,13 @@ type VerticalTermRow = {
   primarySlot: NodeContentSlot | null;
 };
 
+type DefaultNodeDisplaySlot = {
+  slot: NodeContentSlot;
+  field: SlotRegistryField;
+  normalizedTermType: string;
+  label: string;
+};
+
 const isRegistryTrackedField = (
   field: EditableMicrocopyField
 ): field is RegistryTrackedField =>
@@ -179,7 +195,7 @@ const isRegistryTrackedField = (
 const buildMenuTermRegistryField = (menuTermId: string): `menu_term:[${string}]` =>
   `menu_term:[${menuTermId}]`;
 
-const buildContentSlotRegistryField = (slotId: string): `slot:[${string}]` =>
+const buildContentSlotRegistryField = (slotId: string): SlotRegistryField =>
   `slot:[${slotId}]`;
 
 const sortContentGroups = (a: NodeContentGroup, b: NodeContentGroup): number => {
@@ -449,10 +465,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const updateNodeInternals = useUpdateNodeInternals();
   const frameTitleInputRef = useRef<HTMLInputElement | null>(null);
   const canvasTitleInputRef = useRef<HTMLInputElement | null>(null);
-  const ribbonContainerRef = useRef<HTMLDivElement | null>(null);
-  const ribbonPopupRef = useRef<HTMLDivElement | null>(null);
   const verticalTermsContainerRef = useRef<HTMLDivElement | null>(null);
   const verticalTermPopupRef = useRef<HTMLDivElement | null>(null);
+  const ribbonContainerRef = useRef<HTMLDivElement | null>(null);
+  const ribbonPopupRef = useRef<HTMLDivElement | null>(null);
   const [isEditingFrameTitle, setIsEditingFrameTitle] = useState(false);
   const [isEditingCanvasTitle, setIsEditingCanvasTitle] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
@@ -462,12 +478,15 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const [activeRibbonDropCellId, setActiveRibbonDropCellId] =
     useState<string | null>(null);
   const [activeRegistryDropField, setActiveRegistryDropField] =
-    useState<RegistryTrackedField | null>(null);
+    useState<DefaultNodeRegistryField | null>(null);
   const [cellPopupPosition, setCellPopupPosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
   });
-  const [verticalPopupPosition, setVerticalPopupPosition] = useState<{ x: number; y: number }>({
+  const [verticalTermPopupPosition, setVerticalTermPopupPosition] = useState<{
+    x: number;
+    y: number;
+  }>({
     x: 0,
     y: 0,
   });
@@ -540,6 +559,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
   const visibleDisplayTermFieldTypes = useMemo(
     () => {
+      if (data.node_type === "default") {
+        return [];
+      }
+
       const fieldSet = new Set(
         Array.isArray(data.display_term_fields)
           ? data.display_term_fields
@@ -547,8 +570,26 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       );
       return DEFAULT_NODE_DISPLAY_FIELDS.filter((field) => fieldSet.has(field));
     },
-    [data.display_term_field, data.display_term_fields]
+    [data.display_term_field, data.display_term_fields, data.node_type]
   );
+  const defaultNodeDisplaySlots = useMemo<DefaultNodeDisplaySlot[]>(() => {
+    if (data.node_type !== "default") {
+      return [];
+    }
+
+    return [...contentConfig.slots]
+      .sort(sortContentSlots)
+      .map((slot, slotIndex) => {
+        const normalizedTermType = normalizeSlotTermTypeValue(slot.termType);
+
+        return {
+          slot,
+          field: buildContentSlotRegistryField(slot.id),
+          normalizedTermType,
+          label: getContentSlotLabel(slot, slotIndex),
+        };
+      });
+  }, [contentConfig.slots, data.node_type]);
   const editingRibbonCell = useMemo(() => {
     if (!isRibbonNode || !editingCellId) {
       return null;
@@ -571,7 +612,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       .filter((slot) => slot.groupId === matchingGroup.id)
       .sort(sortContentSlots);
   }, [isRibbonNode, editingCellId, contentConfig.groups, contentConfig.slots]);
-  const editingVerticalTermRow = useMemo(() => {
+  const editingVerticalRow = useMemo(() => {
     if (!isVerticalTermsNode || !editingVerticalGroupId) {
       return null;
     }
@@ -580,7 +621,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       verticalTermRows.find((row) => row.group.id === editingVerticalGroupId) ?? null
     );
   }, [editingVerticalGroupId, isVerticalTermsNode, verticalTermRows]);
-
   const stopNodeSelectionPropagation = useCallback(
     (event: React.SyntheticEvent<HTMLElement>) => {
       event.stopPropagation();
@@ -591,7 +631,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const handleDefaultRegistryFieldDragOver = useCallback(
     (
       event: React.DragEvent<HTMLInputElement | HTMLTextAreaElement>,
-      field: RegistryTrackedField
+      field: DefaultNodeRegistryField
     ) => {
       if (data.node_type !== "default") {
         return;
@@ -616,7 +656,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const handleDefaultRegistryFieldDragLeave = useCallback(
     (
       event: React.DragEvent<HTMLInputElement | HTMLTextAreaElement>,
-      field: RegistryTrackedField
+      field: DefaultNodeRegistryField
     ) => {
       const relatedTarget = event.relatedTarget;
 
@@ -637,7 +677,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const handleDefaultRegistryFieldDrop = useCallback(
     (
       event: React.DragEvent<HTMLInputElement | HTMLTextAreaElement>,
-      field: RegistryTrackedField
+      field: DefaultNodeRegistryField
     ) => {
       if (data.node_type !== "default") {
         return;
@@ -659,7 +699,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
   const getDefaultRegistryFieldInputStyle = useCallback(
     (
-      field: RegistryTrackedField,
+      field: DefaultNodeRegistryField,
       baseStyle: React.CSSProperties
     ): React.CSSProperties => {
       if (activeRegistryDropField !== field) {
@@ -698,7 +738,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     verticalTermRows.length,
     contentConfig.groups.length,
     contentConfig.slots.length,
+    defaultNodeDisplaySlots.length,
     visibleDisplayTermFieldTypes.length,
+    editingVerticalGroupId,
     updateNodeInternals,
   ]);
 
@@ -752,7 +794,12 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     (slotId: string, value: string) => {
       onTextEditBlur();
 
-      if (!isVerticalTermsNode && !isRibbonNode) {
+      if (data.node_type !== "default" && !isVerticalTermsNode && !isRibbonNode) {
+        return;
+      }
+
+      if (data.node_type === "default") {
+        onCommitRegistryField(id, buildContentSlotRegistryField(slotId), value);
         return;
       }
 
@@ -762,7 +809,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
         value
       );
     },
-    [id, isVerticalTermsNode, isRibbonNode, onCommitRegistryField, onTextEditBlur]
+    [data.node_type, id, isVerticalTermsNode, isRibbonNode, onCommitRegistryField, onTextEditBlur]
   );
 
   const commitRibbonCellRegistryField = useCallback(
@@ -1062,15 +1109,15 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
         }
 
         if (currentElement === containerElement) {
-          setVerticalPopupPosition({
+          setVerticalTermPopupPosition({
             x: offsetX + 8,
             y: offsetY + rowElement.offsetHeight + 6,
           });
         } else {
-          setVerticalPopupPosition({ x: 8, y: 8 });
+          setVerticalTermPopupPosition({ x: 8, y: 8 });
         }
       } else {
-        setVerticalPopupPosition({ x: 8, y: 8 });
+        setVerticalTermPopupPosition({ x: 8, y: 8 });
       }
 
       setEditingVerticalGroupId(groupId);
@@ -1478,6 +1525,47 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     },
     [id, onBeforeChange, setNodes]
   );
+  const updateDefaultSlotValue = useCallback(
+    (slotId: string, value: string) => {
+      if (data.node_type !== "default") {
+        return;
+      }
+
+      onBeforeChange();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== id || node.data.node_type !== "default") {
+            return node;
+          }
+
+          const nextContentConfig = normalizeNodeContentConfig(
+            {
+              ...node.data.content_config,
+              slots: node.data.content_config.slots.map((slot) =>
+                slot.id === slotId
+                  ? {
+                      ...slot,
+                      value,
+                    }
+                  : slot
+              ),
+            },
+            "single"
+          );
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              content_config: nextContentConfig,
+            },
+          };
+        })
+      );
+    },
+    [data.node_type, id, onBeforeChange, setNodes]
+  );
   const updateSlotTermType = useCallback(
     (slotId: string, termType: string) => {
       onBeforeChange();
@@ -1605,6 +1693,78 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [closeRibbonCellPopup, editingCellId]);
+
+  useEffect(() => {
+    if (!editingVerticalGroupId) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (verticalTermPopupRef.current?.contains(target)) {
+        return;
+      }
+
+      if (
+        target instanceof HTMLElement &&
+        target.closest("[data-vertical-group-row-id]") &&
+        verticalTermsContainerRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      closeVerticalTermPopup();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      closeVerticalTermPopup();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeVerticalTermPopup, editingVerticalGroupId]);
+
+  useEffect(() => {
+    if (!isVerticalTermsNode) {
+      setEditingVerticalGroupId(null);
+      return;
+    }
+
+    if (!editingVerticalGroupId) {
+      return;
+    }
+
+    const matchingGroupExists = contentConfig.groups.some(
+      (group) => group.id === editingVerticalGroupId
+    );
+    const matchingGroupHasSlots = contentConfig.slots.some(
+      (slot) => slot.groupId === editingVerticalGroupId
+    );
+
+    if (!matchingGroupExists || !matchingGroupHasSlots) {
+      setEditingVerticalGroupId(null);
+    }
+  }, [
+    contentConfig.groups,
+    contentConfig.slots,
+    editingVerticalGroupId,
+    isVerticalTermsNode,
+  ]);
 
   if (isFrameNode) {
     const frameTitle = data.title.trim();
@@ -2582,148 +2742,115 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 }}
               >
                 {verticalTermRows.map((row) => {
+                  const isEditingRow = editingVerticalGroupId === row.group.id;
+
                   return (
-                  <div
-                    key={`vertical-row:${row.group.id}`}
-                    data-vertical-group-row-id={row.group.id}
-                    className="nodrag nopan"
-                    onPointerDown={stopNodeSelectionPropagation}
-                    style={{
-                      border: "1px solid #cbd5e1",
-                      borderRadius: 6,
-                      padding: 3,
-                      display: "grid",
-                      gap: 3,
-                      background: "#fff",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <div style={{ position: "relative", paddingRight: 14, flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <input
-                            className="nodrag"
-                            data-menu-term-input="true"
+                    <div
+                      key={`vertical-row:${row.group.id}`}
+                      data-vertical-group-row-id={row.group.id}
+                      className="nodrag nopan"
+                      onPointerDown={stopNodeSelectionPropagation}
+                      role="button"
+                      tabIndex={0}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openVerticalTermEditor(event.currentTarget, row.group.id);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          openVerticalTermEditor(event.currentTarget, row.group.id);
+                        }
+                      }}
+                      style={{
+                        border: `1px solid ${isEditingRow ? "#60a5fa" : "#cbd5e1"}`,
+                        borderRadius: 6,
+                        padding: 3,
+                        display: "grid",
+                        gap: 3,
+                        background: isEditingRow ? "#eff6ff" : "#fff",
+                        boxShadow: isEditingRow
+                          ? "0 0 0 1px rgba(37, 99, 235, 0.28)"
+                          : "none",
+                        cursor: "text",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <div style={{ position: "relative", paddingRight: 14, flex: 1 }}>
+                          <div
                             style={{
                               ...inputStyle,
-                              flex: 1,
                               minWidth: 0,
+                              width: "100%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 6,
+                              cursor: "text",
+                              background: isEditingRow ? "#eff6ff" : "#fff",
                             }}
-                            value={row.primarySlot?.value ?? ""}
-                            placeholder="Add term"
-                            onPointerDown={stopNodeSelectionPropagation}
-                            onMouseDown={stopNodeSelectionPropagation}
-                            onClick={stopNodeSelectionPropagation}
-                            onChange={(event) => {
-                              if (!row.primarySlot) {
-                                return;
-                              }
+                            title="Click to edit term details"
+                          >
+                            <span
+                              style={{
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                color:
+                                  row.primarySlot?.value.trim().length
+                                    ? "#0f172a"
+                                    : "#94a3b8",
+                                fontStyle:
+                                  row.primarySlot?.value.trim().length
+                                    ? "normal"
+                                    : "italic",
+                              }}
+                            >
+                              {row.primarySlot?.value.trim() || "Add term"}
+                            </span>
+                            <span style={{ fontSize: 11, color: "#64748b", flexShrink: 0 }}>
+                              ▾
+                            </span>
+                          </div>
 
-                              updateVerticalSlotValue(row.primarySlot.id, event.target.value);
-                            }}
-                            onBlur={(event) => {
-                              if (!row.primarySlot) {
-                                return;
-                              }
-
-                              commitContentSlotRegistryField(
-                                row.primarySlot.id,
-                                event.currentTarget.value
-                              );
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key !== "Enter") {
-                                return;
-                              }
-
-                              event.preventDefault();
-                              event.currentTarget.blur();
+                          <Handle
+                            type="source"
+                            position={Position.Right}
+                            id={buildMenuSourceHandleId(row.group.id)}
+                            style={{
+                              top: "50%",
+                              right: -9,
+                              transform: "translateY(-50%)",
+                              width: 10,
+                              height: 10,
+                              borderRadius: 999,
+                              background: "#2563eb",
+                              border: "2px solid #fff",
                             }}
                           />
-
-                          <button
-                            type="button"
-                            className="nodrag"
-                            style={getCanvasRegistryButtonStyle()}
-                            title="Open CLP registry"
-                            aria-label="Open CLP registry"
-                            onPointerDown={stopNodeSelectionPropagation}
-                            onMouseDown={stopNodeSelectionPropagation}
-                            onClick={(event) => {
-                              stopNodeSelectionPropagation(event);
-
-                              if (!row.primarySlot) {
-                                return;
-                              }
-
-                              onRegistryPickerOpen(
-                                id,
-                                buildContentSlotRegistryField(
-                                  row.primarySlot.id
-                                ) as unknown as `menu_term:[${string}]`
-                              );
-                            }}
-                          >
-                            📋
-                          </button>
-
-                          <button
-                            type="button"
-                            className="nodrag"
-                            style={getCanvasRegistryButtonStyle()}
-                            title="Edit all term fields"
-                            aria-label="Edit all term fields"
-                            onPointerDown={stopNodeSelectionPropagation}
-                            onMouseDown={stopNodeSelectionPropagation}
-                            onClick={(event) => {
-                              stopNodeSelectionPropagation(event);
-                              const rowElement = event.currentTarget.closest(
-                                "[data-vertical-group-row-id]"
-                              );
-
-                              if (!(rowElement instanceof HTMLDivElement)) {
-                                return;
-                              }
-
-                              openVerticalTermEditor(rowElement, row.group.id);
-                            }}
-                          >
-                            ↗
-                          </button>
                         </div>
-
-                        <Handle
-                          type="source"
-                          position={Position.Right}
-                          id={buildMenuSourceHandleId(row.group.id)}
-                          style={{
-                            top: "50%",
-                            right: -9,
-                            transform: "translateY(-50%)",
-                            width: 10,
-                            height: 10,
-                            borderRadius: 999,
-                            background: "#2563eb",
-                            border: "2px solid #fff",
-                          }}
-                        />
                       </div>
                     </div>
-                  </div>
                   );
                 })}
               </div>
 
-              {editingVerticalTermRow && (
+              {editingVerticalRow && (
                 <div
                   ref={verticalTermPopupRef}
                   className="nodrag nopan"
-                  onPointerDown={stopNodeSelectionPropagation}
-                  onClick={stopNodeSelectionPropagation}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                  }}
                   style={{
                     position: "absolute",
-                    left: verticalPopupPosition.x,
-                    top: verticalPopupPosition.y,
-                    width: 260,
+                    left: verticalTermPopupPosition.x,
+                    top: verticalTermPopupPosition.y,
+                    width: 220,
                     background: "#ffffff",
                     border: "1px solid #94a3b8",
                     borderRadius: 8,
@@ -2734,7 +2861,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                     gap: 6,
                   }}
                 >
-                  {editingVerticalTermRow.slots.map((slot, slotIndex) => (
+                  {editingVerticalRow.slots.map((slot, slotIndex) => (
                     <label key={`vertical-slot:${slot.id}`}>
                       <SlotTermTypeEditor
                         slot={slot}
@@ -2792,7 +2919,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       </div>
                     </label>
                   ))}
-
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
                     <button
                       type="button"
@@ -2847,116 +2973,227 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               </div>
             )}
 
-            {visibleDisplayTermFieldTypes.map((displayTermFieldType) => (
-              <div
-                key={`display-term:${displayTermFieldType}`}
-                style={{
-                  marginTop: 4,
-                  paddingTop: 4,
-                }}
-              >
-                <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>
-                  {displayTermFieldType === "body_text"
-                    ? "Body Text"
-                    : CONTROLLED_LANGUAGE_FIELD_LABELS[displayTermFieldType]}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  {displayTermFieldType === "body_text" ? (
-                    <textarea
-                      className="nodrag"
-                      rows={3}
-                      style={getDefaultRegistryFieldInputStyle(displayTermFieldType, {
-                        ...inputStyle,
-                        flex: 1,
-                        minWidth: 0,
-                        minHeight: 52,
-                        resize: "vertical",
-                      })}
-                      value={data[displayTermFieldType]}
-                      placeholder="Add body text"
-                      onPointerDown={stopNodeSelectionPropagation}
-                      onMouseDown={stopNodeSelectionPropagation}
-                      onClick={stopNodeSelectionPropagation}
-                      onDragOver={(event) =>
-                        handleDefaultRegistryFieldDragOver(event, displayTermFieldType)
-                      }
-                      onDragLeave={(event) =>
-                        handleDefaultRegistryFieldDragLeave(event, displayTermFieldType)
-                      }
-                      onDrop={(event) =>
-                        handleDefaultRegistryFieldDrop(event, displayTermFieldType)
-                      }
-                      onChange={(event) =>
-                        updateField(displayTermFieldType, event.target.value)
-                      }
-                      onBlur={(event) =>
-                        commitRegistryField(displayTermFieldType, event.currentTarget.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") {
-                          return;
-                        }
-
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                      }}
-                    />
-                  ) : (
-                    <input
-                      className="nodrag"
-                      style={getDefaultRegistryFieldInputStyle(displayTermFieldType, {
-                        ...inputStyle,
-                        flex: 1,
-                        minWidth: 0,
-                      })}
-                      value={data[displayTermFieldType]}
-                      placeholder="Add term"
-                      onPointerDown={stopNodeSelectionPropagation}
-                      onMouseDown={stopNodeSelectionPropagation}
-                      onClick={stopNodeSelectionPropagation}
-                      onDragOver={(event) =>
-                        handleDefaultRegistryFieldDragOver(event, displayTermFieldType)
-                      }
-                      onDragLeave={(event) =>
-                        handleDefaultRegistryFieldDragLeave(event, displayTermFieldType)
-                      }
-                      onDrop={(event) =>
-                        handleDefaultRegistryFieldDrop(event, displayTermFieldType)
-                      }
-                      onChange={(event) =>
-                        updateField(displayTermFieldType, event.target.value)
-                      }
-                      onBlur={(event) =>
-                        commitRegistryField(displayTermFieldType, event.currentTarget.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") {
-                          return;
-                        }
-
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                      }}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    className="nodrag"
-                    style={getCanvasRegistryButtonStyle()}
-                    title="Open CLP registry"
-                    aria-label="Open CLP registry"
-                    onPointerDown={stopNodeSelectionPropagation}
-                    onMouseDown={stopNodeSelectionPropagation}
-                    onClick={(event) => {
-                      stopNodeSelectionPropagation(event);
-                      onRegistryPickerOpen(id, displayTermFieldType);
+            {data.node_type === "default"
+              ? defaultNodeDisplaySlots.map(({ slot, field, normalizedTermType, label }) => (
+                  <div
+                    key={`default-slot:${slot.id}`}
+                    style={{
+                      marginTop: 4,
+                      paddingTop: 4,
                     }}
                   >
-                    📋
-                  </button>
-                </div>
-              </div>
-            ))}
+                    <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>
+                      {label}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      {normalizedTermType === "body_text" ? (
+                        <textarea
+                          className="nodrag"
+                          rows={3}
+                          style={getDefaultRegistryFieldInputStyle(field, {
+                            ...inputStyle,
+                            flex: 1,
+                            minWidth: 0,
+                            minHeight: 52,
+                            resize: "vertical",
+                          })}
+                          value={slot.value}
+                          placeholder="Add body text"
+                          onPointerDown={stopNodeSelectionPropagation}
+                          onMouseDown={stopNodeSelectionPropagation}
+                          onClick={stopNodeSelectionPropagation}
+                          onDragOver={(event) =>
+                            handleDefaultRegistryFieldDragOver(event, field)
+                          }
+                          onDragLeave={(event) =>
+                            handleDefaultRegistryFieldDragLeave(event, field)
+                          }
+                          onDrop={(event) => handleDefaultRegistryFieldDrop(event, field)}
+                          onChange={(event) =>
+                            updateDefaultSlotValue(slot.id, event.target.value)
+                          }
+                          onBlur={(event) =>
+                            commitContentSlotRegistryField(
+                              slot.id,
+                              event.currentTarget.value
+                            )
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") {
+                              return;
+                            }
+
+                            event.preventDefault();
+                            event.currentTarget.blur();
+                          }}
+                        />
+                      ) : (
+                        <input
+                          className="nodrag"
+                          style={getDefaultRegistryFieldInputStyle(field, {
+                            ...inputStyle,
+                            flex: 1,
+                            minWidth: 0,
+                          })}
+                          value={slot.value}
+                          placeholder="Add term"
+                          onPointerDown={stopNodeSelectionPropagation}
+                          onMouseDown={stopNodeSelectionPropagation}
+                          onClick={stopNodeSelectionPropagation}
+                          onDragOver={(event) =>
+                            handleDefaultRegistryFieldDragOver(event, field)
+                          }
+                          onDragLeave={(event) =>
+                            handleDefaultRegistryFieldDragLeave(event, field)
+                          }
+                          onDrop={(event) => handleDefaultRegistryFieldDrop(event, field)}
+                          onChange={(event) =>
+                            updateDefaultSlotValue(slot.id, event.target.value)
+                          }
+                          onBlur={(event) =>
+                            commitContentSlotRegistryField(
+                              slot.id,
+                              event.currentTarget.value
+                            )
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") {
+                              return;
+                            }
+
+                            event.preventDefault();
+                            event.currentTarget.blur();
+                          }}
+                        />
+                      )}
+                      <button
+                        type="button"
+                        className="nodrag"
+                        style={getCanvasRegistryButtonStyle()}
+                        title="Open CLP registry"
+                        aria-label="Open CLP registry"
+                        onPointerDown={stopNodeSelectionPropagation}
+                        onMouseDown={stopNodeSelectionPropagation}
+                        onClick={(event) => {
+                          stopNodeSelectionPropagation(event);
+                          onRegistryPickerOpen(id, field);
+                        }}
+                      >
+                        📋
+                      </button>
+                    </div>
+                  </div>
+                ))
+              : visibleDisplayTermFieldTypes.map((displayTermFieldType) => (
+                  <div
+                    key={`display-term:${displayTermFieldType}`}
+                    style={{
+                      marginTop: 4,
+                      paddingTop: 4,
+                    }}
+                  >
+                    <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>
+                      {displayTermFieldType === "body_text"
+                        ? "Body Text"
+                        : CONTROLLED_LANGUAGE_FIELD_LABELS[displayTermFieldType]}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      {displayTermFieldType === "body_text" ? (
+                        <textarea
+                          className="nodrag"
+                          rows={3}
+                          style={getDefaultRegistryFieldInputStyle(displayTermFieldType, {
+                            ...inputStyle,
+                            flex: 1,
+                            minWidth: 0,
+                            minHeight: 52,
+                            resize: "vertical",
+                          })}
+                          value={data[displayTermFieldType]}
+                          placeholder="Add body text"
+                          onPointerDown={stopNodeSelectionPropagation}
+                          onMouseDown={stopNodeSelectionPropagation}
+                          onClick={stopNodeSelectionPropagation}
+                          onDragOver={(event) =>
+                            handleDefaultRegistryFieldDragOver(event, displayTermFieldType)
+                          }
+                          onDragLeave={(event) =>
+                            handleDefaultRegistryFieldDragLeave(event, displayTermFieldType)
+                          }
+                          onDrop={(event) =>
+                            handleDefaultRegistryFieldDrop(event, displayTermFieldType)
+                          }
+                          onChange={(event) =>
+                            updateField(displayTermFieldType, event.target.value)
+                          }
+                          onBlur={(event) =>
+                            commitRegistryField(displayTermFieldType, event.currentTarget.value)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") {
+                              return;
+                            }
+
+                            event.preventDefault();
+                            event.currentTarget.blur();
+                          }}
+                        />
+                      ) : (
+                        <input
+                          className="nodrag"
+                          style={getDefaultRegistryFieldInputStyle(displayTermFieldType, {
+                            ...inputStyle,
+                            flex: 1,
+                            minWidth: 0,
+                          })}
+                          value={data[displayTermFieldType]}
+                          placeholder="Add term"
+                          onPointerDown={stopNodeSelectionPropagation}
+                          onMouseDown={stopNodeSelectionPropagation}
+                          onClick={stopNodeSelectionPropagation}
+                          onDragOver={(event) =>
+                            handleDefaultRegistryFieldDragOver(event, displayTermFieldType)
+                          }
+                          onDragLeave={(event) =>
+                            handleDefaultRegistryFieldDragLeave(event, displayTermFieldType)
+                          }
+                          onDrop={(event) =>
+                            handleDefaultRegistryFieldDrop(event, displayTermFieldType)
+                          }
+                          onChange={(event) =>
+                            updateField(displayTermFieldType, event.target.value)
+                          }
+                          onBlur={(event) =>
+                            commitRegistryField(displayTermFieldType, event.currentTarget.value)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") {
+                              return;
+                            }
+
+                            event.preventDefault();
+                            event.currentTarget.blur();
+                          }}
+                        />
+                      )}
+                      <button
+                        type="button"
+                        className="nodrag"
+                        style={getCanvasRegistryButtonStyle()}
+                        title="Open CLP registry"
+                        aria-label="Open CLP registry"
+                        onPointerDown={stopNodeSelectionPropagation}
+                        onMouseDown={stopNodeSelectionPropagation}
+                        onClick={(event) => {
+                          stopNodeSelectionPropagation(event);
+                          onRegistryPickerOpen(id, displayTermFieldType);
+                        }}
+                      >
+                        📋
+                      </button>
+                    </div>
+                  </div>
+                ))}
           </>
         )}
 

@@ -1249,6 +1249,7 @@ const REGISTRY_TRACKED_FIELDS = [
 
 type RegistryTrackedField = (typeof REGISTRY_TRACKED_FIELDS)[number];
 
+type SlotRegistryField = `slot:[${string}]`;
 type MenuTermRegistryField = `menu_term:[${string}]`;
 type RibbonCellRegistryFieldName = "label" | "key_command" | "tool_tip";
 type RibbonCellRegistryField =
@@ -1257,6 +1258,7 @@ type RibbonCellRegistryField =
   | `ribbon_cell:[${string}]:tool_tip`;
 type DynamicRegistryTrackedField =
   | RegistryTrackedField
+  | SlotRegistryField
   | MenuTermRegistryField
   | RibbonCellRegistryField;
 
@@ -1334,6 +1336,41 @@ const buildRibbonCellRegistryField = (
   cellId: string,
   fieldName: RibbonCellRegistryFieldName
 ): RibbonCellRegistryField => `ribbon_cell:[${cellId}]:${fieldName}`;
+
+const parseSlotRegistryField = (field: DynamicRegistryTrackedField): string | null => {
+  const match = /^slot:\[(.+)\]$/.exec(field);
+  return match ? match[1] : null;
+};
+
+const getSlotTermTypeForNode = (node: FlowNode | null, slotId: string): string | null => {
+  if (!node) {
+    return null;
+  }
+
+  const slot = node.data.content_config.slots.find(
+    (candidateSlot) => candidateSlot.id === slotId
+  );
+
+  if (typeof slot?.termType !== "string") {
+    return null;
+  }
+
+  const normalizedTermType = slot.termType.trim();
+  return normalizedTermType.length > 0 ? normalizedTermType : null;
+};
+
+const getSlotFieldLabelForNode = (node: FlowNode | null, slotId: string): string => {
+  const slotTermType = getSlotTermTypeForNode(node, slotId);
+  if (!slotTermType) {
+    return "Slot";
+  }
+
+  return (
+    TERM_REGISTRY_TERM_TYPE_LABELS[slotTermType] ??
+    TERM_REGISTRY_TERM_TYPE_LABELS[slotTermType.toLowerCase()] ??
+    slotTermType
+  );
+};
 
 const getRegistryTermTypeFromField = (field: DynamicRegistryTrackedField): string => {
   if (field.startsWith("menu_term:[")) {
@@ -3435,7 +3472,7 @@ export default function Page() {
   const handleDropRegistryEntryOnNodeField = useCallback(
     (
       nodeId: string,
-      field: RegistryTrackedField,
+      field: RegistryTrackedField | SlotRegistryField,
       dataTransfer: DataTransfer | null
     ) => {
       const payload =
