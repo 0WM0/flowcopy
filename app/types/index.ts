@@ -230,6 +230,7 @@ export type TermRegistryEntry = {
    */
   assignedNodeId: string | null;
   assignedField: string | null;
+  assignedSlotId?: string | null;
 
   /**
    * Hidden 3-digit suffix for internal deduplication when the same friendlyId

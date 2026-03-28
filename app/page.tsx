@@ -1340,6 +1340,47 @@ const parseSlotRegistryField = (field: DynamicRegistryTrackedField): string | nu
   return match ? match[1] : null;
 };
 
+const resolveAssignedSlotIdForRegistryAssignment = (
+  field: DynamicRegistryTrackedField,
+  node: FlowNode | null,
+  termTypeOverride?: string | null
+): string | null => {
+  const explicitSlotId = parseSlotRegistryField(field);
+  if (explicitSlotId) {
+    return explicitSlotId;
+  }
+
+  const explicitMenuTermIdMatch = /^menu_term:\[(.+)\]$/.exec(field);
+  if (explicitMenuTermIdMatch) {
+    return explicitMenuTermIdMatch[1];
+  }
+
+  const explicitRibbonCellIdMatch = /^ribbon_cell:\[(.+)\]:(label|key_command|tool_tip)$/.exec(
+    field
+  );
+  if (explicitRibbonCellIdMatch) {
+    return explicitRibbonCellIdMatch[1];
+  }
+
+  if (!node) {
+    return null;
+  }
+
+  const normalizedTermType = normalizeContentSlotTermType(
+    termTypeOverride ?? getRegistryTermTypeFromField(field, node)
+  );
+
+  if (normalizedTermType.length === 0) {
+    return null;
+  }
+
+  const matchingSlot = node.data.content_config.slots.find(
+    (slot) => normalizeContentSlotTermType(slot.termType) === normalizedTermType
+  );
+
+  return matchingSlot?.id ?? null;
+};
+
 const getSlotTermTypeForNode = (node: FlowNode | null, slotId: string): string | null => {
   if (!node) {
     return null;
@@ -3245,7 +3286,7 @@ export default function Page() {
       nodeType: "default" | "menu" | "ribbon" | "frame" = "default",
       options?: {
         primaryTextValue?: string;
-        onNodeCreated?: (nodeId: string) => void;
+        onNodeCreated?: (nodeId: string, createdNode: FlowNode) => void;
       }
     ) => {
       const rf = rfRef.current;
@@ -3304,14 +3345,16 @@ export default function Page() {
                 : {}),
             };
 
-      setNodes((nds) => [
-        ...nds,
-        normalizeNode(nodeToCreate, normalizeGlobalOptionConfig(adminOptions)),
-      ]);
+      const createdNode = normalizeNode(
+        nodeToCreate,
+        normalizeGlobalOptionConfig(adminOptions)
+      );
+
+      setNodes((nds) => [...nds, createdNode]);
       setSelectedNodeId(id);
       setSelectedNodeIds([id]);
       setSelectedEdgeId(null);
-      options?.onNodeCreated?.(id);
+      options?.onNodeCreated?.(id, createdNode);
       return id;
     },
     [adminOptions, pushToHistory, setNodes]
@@ -3410,7 +3453,6 @@ export default function Page() {
       event.preventDefault();
       event.dataTransfer.dropEffect = "copy";
 
-      console.log("[CLP Drag] dragover payload", payload);
 
       if (!isCanvasRegistryDropActive) {
         setIsCanvasRegistryDropActive(true);
@@ -3487,7 +3529,7 @@ export default function Page() {
         droppedNodeType,
         {
           primaryTextValue: payload.termValue,
-          onNodeCreated: (createdNodeId) => {
+          onNodeCreated: (createdNodeId, createdNode) => {
             const now = new Date().toISOString();
 
             setTermRegistry((currentRegistry) =>
@@ -3497,6 +3539,11 @@ export default function Page() {
                       ...entry,
                       assignedNodeId: createdNodeId,
                       assignedField: "primary_cta",
+                      assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
+                        "primary_cta",
+                        createdNode,
+                        "primary_cta"
+                      ),
                       updatedAt: now,
                     }
                   : entry
@@ -3574,18 +3621,25 @@ export default function Page() {
 
         const now = new Date().toISOString();
         let hasChanges = false;
+        const nextTermType = getRegistryTermTypeFromField(field, targetNode);
+        const targetAssignedSlotId = resolveAssignedSlotIdForRegistryAssignment(
+          field,
+          targetNode,
+          nextTermType
+        );
 
         const nextRegistry = currentRegistry.map((entry, entryIndex) => {
           if (
             entryIndex !== draggedEntryIndex &&
             entry.assignedNodeId === nodeId &&
-            entry.assignedField === field
+            entry.assignedSlotId === targetAssignedSlotId
           ) {
             hasChanges = true;
             return {
               ...entry,
               assignedNodeId: null,
               assignedField: null,
+              assignedSlotId: null,
               updatedAt: now,
             };
           }
@@ -3594,11 +3648,10 @@ export default function Page() {
         });
 
         const draggedEntry = nextRegistry[draggedEntryIndex];
-        const nextTermType = getRegistryTermTypeFromField(field, targetNode);
 
         if (
           draggedEntry.assignedNodeId !== nodeId ||
-          draggedEntry.assignedField !== field ||
+          draggedEntry.assignedSlotId !== targetAssignedSlotId ||
           draggedEntry.termType !== nextTermType
         ) {
           hasChanges = true;
@@ -3607,6 +3660,11 @@ export default function Page() {
             termType: nextTermType,
             assignedNodeId: nodeId,
             assignedField: field,
+            assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
+              field,
+              targetNode,
+              nextTermType
+            ),
             updatedAt: now,
           };
         }
@@ -3666,18 +3724,26 @@ export default function Page() {
 
         const now = new Date().toISOString();
         let hasChanges = false;
+        const nextTermType = getRegistryTermTypeFromField(field);
+        const targetNode = nodes.find((node) => node.id === nodeId) ?? null;
+        const targetAssignedSlotId = resolveAssignedSlotIdForRegistryAssignment(
+          field,
+          targetNode,
+          nextTermType
+        );
 
         const nextRegistry = currentRegistry.map((entry, entryIndex) => {
           if (
             entryIndex !== draggedEntryIndex &&
             entry.assignedNodeId === nodeId &&
-            entry.assignedField === field
+            entry.assignedSlotId === targetAssignedSlotId
           ) {
             hasChanges = true;
             return {
               ...entry,
               assignedNodeId: null,
               assignedField: null,
+              assignedSlotId: null,
               updatedAt: now,
             };
           }
@@ -3686,11 +3752,10 @@ export default function Page() {
         });
 
         const draggedEntry = nextRegistry[draggedEntryIndex];
-        const nextTermType = getRegistryTermTypeFromField(field);
 
         if (
           draggedEntry.assignedNodeId !== nodeId ||
-          draggedEntry.assignedField !== field ||
+          draggedEntry.assignedSlotId !== targetAssignedSlotId ||
           draggedEntry.termType !== nextTermType
         ) {
           hasChanges = true;
@@ -3699,6 +3764,7 @@ export default function Page() {
             termType: nextTermType,
             assignedNodeId: nodeId,
             assignedField: field,
+            assignedSlotId: targetAssignedSlotId,
             updatedAt: now,
           };
         }
@@ -3994,6 +4060,11 @@ export default function Page() {
       remappedPastedNodes.forEach((pastedNode) => {
         REGISTRY_TRACKED_FIELDS.forEach((field) => {
           const fieldValue = (pastedNode.data as Record<string, unknown>)[field];
+              const targetAssignedSlotId = resolveAssignedSlotIdForRegistryAssignment(
+                field,
+                pastedNode,
+                field
+              );
 
           if (typeof fieldValue !== "string" || fieldValue.trim() === "") {
             return;
@@ -4001,7 +4072,8 @@ export default function Page() {
 
           const existingIndex = nextRegistry.findIndex(
             (entry) =>
-              entry.assignedNodeId === pastedNode.id && entry.assignedField === field
+                  entry.assignedNodeId === pastedNode.id &&
+                  entry.assignedSlotId === targetAssignedSlotId
           );
 
           if (existingIndex !== -1) {
@@ -4027,6 +4099,11 @@ export default function Page() {
             termType: field,
             assignedNodeId: pastedNode.id,
             assignedField: field,
+            assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
+              field,
+              pastedNode,
+              field
+            ),
             deduplicationSuffix: null,
             createdAt: now,
             updatedAt: now,
@@ -4112,6 +4189,7 @@ export default function Page() {
           ...entry,
           assignedNodeId: null,
           assignedField: null,
+          assignedSlotId: null,
           updatedAt: now,
         };
       });
@@ -4920,8 +4998,14 @@ export default function Page() {
 
       setTermRegistry((currentRegistry) => {
         const now = new Date().toISOString();
+        const targetAssignedSlotId = resolveAssignedSlotIdForRegistryAssignment(
+          field,
+          targetNode
+        );
         const matchingEntries = currentRegistry.filter(
-          (entry) => entry.assignedNodeId === nodeId && entry.assignedField === field
+          (entry) =>
+            entry.assignedNodeId === nodeId &&
+            entry.assignedSlotId === targetAssignedSlotId
         );
         const existingEntry = matchingEntries[0] ?? null;
         const duplicateEntries = matchingEntries.slice(1);
@@ -4971,6 +5055,10 @@ export default function Page() {
             termType: getRegistryTermTypeFromField(field, targetNode),
             assignedNodeId: nodeId,
             assignedField: field,
+            assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
+              field,
+              targetNode
+            ),
             deduplicationSuffix: null,
             createdAt: now,
             updatedAt: now,
@@ -5363,6 +5451,7 @@ export default function Page() {
         termType: nextTermType,
         assignedNodeId: null,
         assignedField: null,
+        assignedSlotId: null,
         deduplicationSuffix: null,
         createdAt: now,
         updatedAt: now,
@@ -5788,9 +5877,7 @@ export default function Page() {
         );
 
       if (removedMenuTermIds.length > 0) {
-        const removedMenuTermFieldSet = new Set(
-          removedMenuTermIds.map((menuTermId) => buildMenuTermRegistryField(menuTermId))
-        );
+        const removedMenuTermSlotIdSet = new Set(removedMenuTermIds);
 
         setTermRegistry((currentRegistry) => {
           const now = new Date().toISOString();
@@ -5799,8 +5886,8 @@ export default function Page() {
           const nextRegistry = currentRegistry.map((entry) => {
             if (
               entry.assignedNodeId !== nodeId ||
-              entry.assignedField === null ||
-              !removedMenuTermFieldSet.has(entry.assignedField as MenuTermRegistryField)
+              entry.assignedSlotId === null ||
+              !removedMenuTermSlotIdSet.has(entry.assignedSlotId)
             ) {
               return entry;
             }
@@ -5811,6 +5898,7 @@ export default function Page() {
               ...entry,
               assignedNodeId: null,
               assignedField: null,
+              assignedSlotId: null,
               updatedAt: now,
             };
           });
@@ -6221,10 +6309,23 @@ export default function Page() {
         return;
       }
 
+      const targetTermType = getRegistryTermTypeFromField(field, selectedNode);
+      const targetAssignedSlotId = resolveAssignedSlotIdForRegistryAssignment(
+        field,
+        selectedNode,
+        targetTermType
+      );
+
+      console.log("[CLP Debug] HMN field assign clicked", {
+        field,
+        entryAssignedSlotId: entry.assignedSlotId,
+        targetAssignedSlotId,
+      });
+
       const assignedToOtherField =
         entry.assignedNodeId !== null &&
         (entry.assignedNodeId !== effectiveSelectedNodeId ||
-          entry.assignedField !== field);
+          entry.assignedSlotId !== targetAssignedSlotId);
 
       let createDuplicateEntry = false;
 
@@ -6258,7 +6359,6 @@ export default function Page() {
       }
 
       const now = new Date().toISOString();
-      const targetTermType = getRegistryTermTypeFromField(field, selectedNode);
 
       pushToHistory();
 
@@ -6268,7 +6368,7 @@ export default function Page() {
         let nextRegistry = currentRegistry.map((registryEntry) => {
           if (
             registryEntry.assignedNodeId === effectiveSelectedNodeId &&
-            registryEntry.assignedField === field &&
+            registryEntry.assignedSlotId === targetAssignedSlotId &&
             (createDuplicateEntry || registryEntry.id !== entry.id)
           ) {
             hasChanges = true;
@@ -6276,6 +6376,7 @@ export default function Page() {
               ...registryEntry,
               assignedNodeId: null,
               assignedField: null,
+              assignedSlotId: null,
               updatedAt: now,
             };
           }
@@ -6293,6 +6394,11 @@ export default function Page() {
               termType: targetTermType,
               assignedNodeId: effectiveSelectedNodeId,
               assignedField: field,
+              assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
+                field,
+                selectedNode,
+                targetTermType
+              ),
               createdAt: now,
               updatedAt: now,
             },
@@ -6306,7 +6412,7 @@ export default function Page() {
             const existingEntry = nextRegistry[existingIndex];
             if (
               existingEntry.assignedNodeId !== effectiveSelectedNodeId ||
-              existingEntry.assignedField !== field ||
+              existingEntry.assignedSlotId !== targetAssignedSlotId ||
               existingEntry.termType !== targetTermType
             ) {
               hasChanges = true;
@@ -6316,6 +6422,11 @@ export default function Page() {
                 termType: targetTermType,
                 assignedNodeId: effectiveSelectedNodeId,
                 assignedField: field,
+                assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
+                  field,
+                  selectedNode,
+                  targetTermType
+                ),
                 updatedAt: now,
               };
             }
@@ -6427,6 +6538,22 @@ export default function Page() {
 
     return getRegistryTermTypeFromField(clpRegistryFieldFilter, selectedNode);
   }, [clpRegistryFieldFilter, selectedNode]);
+
+  const clpRegistryFieldFilterAssignedSlotId = useMemo(() => {
+    if (!clpRegistryFieldFilter) {
+      return null;
+    }
+
+    return resolveAssignedSlotIdForRegistryAssignment(
+      clpRegistryFieldFilter,
+      selectedNode,
+      inspectorRegistryPickerTargetTermType
+    );
+  }, [
+    clpRegistryFieldFilter,
+    inspectorRegistryPickerTargetTermType,
+    selectedNode,
+  ]);
 
   const filteredInspectorRegistryEntries = useMemo(() => {
     console.log("[CLP Registry Filter] comparing", {
@@ -7444,6 +7571,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           termType: mappedNodeTypeValue.length > 0 ? mappedNodeTypeValue : null,
           assignedNodeId: hasExplicitValidUnassignedStatus ? null : null,
           assignedField: null,
+          assignedSlotId: null,
           deduplicationSuffix: null,
           createdAt: now,
           updatedAt: now,
@@ -10035,7 +10163,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       filteredInspectorRegistryEntries.map((entry) => {
                         const isAssignedHere =
                           entry.assignedNodeId === effectiveSelectedNodeId &&
-                          entry.assignedField === clpRegistryFieldFilter;
+                          entry.assignedSlotId === clpRegistryFieldFilterAssignedSlotId;
 
                         const assignedNode = entry.assignedNodeId
                           ? nodes.find((node) => node.id === entry.assignedNodeId)
