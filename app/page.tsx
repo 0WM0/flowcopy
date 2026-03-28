@@ -1353,7 +1353,7 @@ const getSlotTermTypeForNode = (node: FlowNode | null, slotId: string): string |
     return null;
   }
 
-  const normalizedTermType = slot.termType.trim();
+  const normalizedTermType = normalizeContentSlotTermType(slot.termType);
   return normalizedTermType.length > 0 ? normalizedTermType : null;
 };
 
@@ -1370,7 +1370,10 @@ const getSlotFieldLabelForNode = (node: FlowNode | null, slotId: string): string
   );
 };
 
-const getRegistryTermTypeFromField = (field: DynamicRegistryTrackedField): string => {
+const getRegistryTermTypeFromField = (
+  field: DynamicRegistryTrackedField,
+  node: FlowNode | null = null
+): string => {
   if (field.startsWith("menu_term:[")) {
     return "menu_term";
   }
@@ -1390,7 +1393,12 @@ const getRegistryTermTypeFromField = (field: DynamicRegistryTrackedField): strin
   }
 
   if (field.startsWith("slot:[")) {
-    return "slot";
+    const slotId = parseSlotRegistryField(field);
+    if (!slotId) {
+      return "slot";
+    }
+
+    return getSlotTermTypeForNode(node, slotId) ?? "slot";
   }
 
   return field;
@@ -1984,6 +1992,7 @@ export default function Page() {
   const deletionHistoryResetTimeoutRef = useRef<number | null>(null);
   const textEditHistoryBeforeSnapshotRef = useRef<HistorySnapshot | null>(null);
   const textEditHistoryDebounceTimeoutRef = useRef<number | null>(null);
+  const didJustOpenRegistryPickerRef = useRef(false);
 
   const updateStore = useCallback((updater: (prev: AppStore) => AppStore) => {
     setStore((prev) => {
@@ -3534,6 +3543,8 @@ export default function Page() {
         return;
       }
 
+      const targetNode = nodes.find((node) => node.id === nodeId) ?? null;
+
       pushToHistory();
 
       setNodes((currentNodes) =>
@@ -3583,7 +3594,7 @@ export default function Page() {
         });
 
         const draggedEntry = nextRegistry[draggedEntryIndex];
-        const nextTermType = getRegistryTermTypeFromField(field);
+        const nextTermType = getRegistryTermTypeFromField(field, targetNode);
 
         if (
           draggedEntry.assignedNodeId !== nodeId ||
@@ -3608,7 +3619,7 @@ export default function Page() {
       setRegistryDragPreview(null);
       activeRegistryDragPayloadRef.current = null;
     },
-    [pushToHistory, setNodes, setTermRegistry]
+    [nodes, pushToHistory, setNodes, setTermRegistry]
   );
 
   const resolveDroppedRegistryTerm = useCallback(
@@ -4905,22 +4916,7 @@ export default function Page() {
 
   const syncFieldToRegistry = useCallback(
     (nodeId: string, field: DynamicRegistryTrackedField, value: string) => {
-      const resolvedTermType: string | null = field.startsWith("slot:[")
-        ? (() => {
-            const slotId = field.slice(6, -1);
-            const targetNode = nodes.find((n) => n.id === nodeId);
-            console.log("SLOT DEBUG", {
-              slotId,
-              foundNode: !!targetNode,
-              slotIds: targetNode?.data?.content_config?.slots?.map((s) => s.id),
-              termTypes: targetNode?.data?.content_config?.slots?.map((s) => s.termType),
-            });
-            const slot = targetNode?.data?.content_config?.slots?.find(
-              (s) => s.id === slotId
-            );
-            return slot?.termType ?? null;
-          })()
-        : null;
+      const targetNode = nodes.find((node) => node.id === nodeId) ?? null;
 
       setTermRegistry((currentRegistry) => {
         const now = new Date().toISOString();
@@ -4972,7 +4968,7 @@ export default function Page() {
             value,
             friendlyId: null,
             friendlyIdLocked: false,
-            termType: resolvedTermType ?? getRegistryTermTypeFromField(field),
+            termType: getRegistryTermTypeFromField(field, targetNode),
             assignedNodeId: nodeId,
             assignedField: field,
             deduplicationSuffix: null,
@@ -6183,26 +6179,37 @@ export default function Page() {
   );
 
   const toggleInspectorRegistryPickerForField = useCallback(
-    (field: DynamicRegistryTrackedField) => {
+    (field: DynamicRegistryTrackedField, nodeOverride: FlowNode | null = null) => {
+      const targetNode = nodeOverride ?? selectedNode;
+
+      console.log("[CLP Registry Picker] field clicked", {
+        field,
+        termType: getRegistryTermTypeFromField(field, targetNode),
+      });
+
+      didJustOpenRegistryPickerRef.current = true;
       setClpActiveView("registry");
       setOpenControlledLanguageFieldType(field);
       setClpRegistryFieldFilter(field);
       setInspectorRegistryPickerSearchQuery("");
     },
-    []
+    [selectedNode]
   );
 
   const openRegistryPickerForNodeField = useCallback(
     (nodeId: string, field: DynamicRegistryTrackedField) => {
+      const targetNode = nodes.find((node) => node.id === nodeId) ?? null;
+
       setSelectedEdgeId(null);
       setSelectedNodeId(nodeId);
       setSelectedNodeIds([nodeId]);
-      toggleInspectorRegistryPickerForField(field);
+      toggleInspectorRegistryPickerForField(field, targetNode);
     },
-    [toggleInspectorRegistryPickerForField]
+    [nodes, toggleInspectorRegistryPickerForField]
   );
 
   const closeInspectorRegistryPicker = useCallback(() => {
+    didJustOpenRegistryPickerRef.current = false;
     setOpenControlledLanguageFieldType(null);
     setClpRegistryFieldFilter(null);
     setInspectorRegistryPickerSearchQuery("");
@@ -6251,7 +6258,7 @@ export default function Page() {
       }
 
       const now = new Date().toISOString();
-      const targetTermType = getRegistryTermTypeFromField(field);
+      const targetTermType = getRegistryTermTypeFromField(field, selectedNode);
 
       pushToHistory();
 
@@ -6400,10 +6407,16 @@ export default function Page() {
       return fieldLabel;
     }
 
+    const slotId = parseSlotRegistryField(clpRegistryFieldFilter);
+    if (slotId) {
+      return getSlotFieldLabelForNode(selectedNode, slotId);
+    }
+
     return clpRegistryFieldFilter;
   }, [
     clpRegistryFieldFilter,
     selectedMenuNodeConfig,
+    selectedNode,
     selectedRibbonNodeConfig,
   ]);
 
@@ -6412,10 +6425,17 @@ export default function Page() {
       return null;
     }
 
-    return getRegistryTermTypeFromField(clpRegistryFieldFilter);
-  }, [clpRegistryFieldFilter]);
+    return getRegistryTermTypeFromField(clpRegistryFieldFilter, selectedNode);
+  }, [clpRegistryFieldFilter, selectedNode]);
 
   const filteredInspectorRegistryEntries = useMemo(() => {
+    console.log("[CLP Registry Filter] comparing", {
+      inspectorRegistryPickerTargetTermType,
+      firstThreeRegistryEntryTermTypes: termRegistry
+        .slice(0, 3)
+        .map((entry) => entry.termType),
+    });
+
     if (!inspectorRegistryPickerTargetTermType) {
       return [];
     }
@@ -6448,6 +6468,11 @@ export default function Page() {
   }, [clpRegistryFieldFilter, openControlledLanguageFieldType]);
 
   useEffect(() => {
+    if (didJustOpenRegistryPickerRef.current) {
+      didJustOpenRegistryPickerRef.current = false;
+      return;
+    }
+
     if (openControlledLanguageFieldType && !activeInspectorRegistryPickerField) {
       closeInspectorRegistryPicker();
     }

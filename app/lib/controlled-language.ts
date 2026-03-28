@@ -11,7 +11,6 @@ import type {
 import {
   CONTROLLED_LANGUAGE_FIELDS,
   CONTROLLED_LANGUAGE_FIELD_ORDER,
-  CONTROLLED_LANGUAGE_NODE_FIELDS,
   DEFAULT_NODE_DISPLAY_FIELDS,
 } from "../constants";
 
@@ -54,38 +53,20 @@ export const isDefaultNodeDisplayFieldType = (
 export const collectControlledLanguageTermsFromNode = (
   node: FlowNode
 ): ControlledLanguageAuditTermEntry[] => {
-  if (node.data.node_type === "menu") {
-    const menuTerms = node.data.menu_config.terms.map((menuTerm) => ({
-      field_type: "menu_term" as const,
-      term: menuTerm.term,
-    }));
+  return node.data.content_config.slots.flatMap((slot) => {
+    const fieldType = normalizeControlledLanguageFieldType(slot.termType);
 
-    return menuTerms;
-  }
+    if (!fieldType) {
+      return [];
+    }
 
-  if (node.data.node_type === "ribbon") {
-    const ribbonCells = node.data.ribbon_config?.cells ?? [];
-
-    return ribbonCells.flatMap((cell) => [
+    return [
       {
-        field_type: "cell_label" as const,
-        term: cell.label,
+        field_type: fieldType,
+        term: slot.value,
       },
-      {
-        field_type: "key_command" as const,
-        term: cell.key_command,
-      },
-      {
-        field_type: "tool_tip" as const,
-        term: cell.tool_tip,
-      },
-    ]);
-  }
-
-  return CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => ({
-    field_type: fieldType,
-    term: node.data[fieldType],
-  }));
+    ];
+  });
 };
 
 export const normalizeControlledLanguageTerm = (value: string): string => value.trim();
