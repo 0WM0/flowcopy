@@ -67,6 +67,7 @@ export type NodeContentSlot = {
   termType: string | null;
   groupId: string | null;
   position: number;
+  visible?: boolean;
 };
 
 export type NodeContentGroup = {

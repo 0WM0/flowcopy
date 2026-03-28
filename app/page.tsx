@@ -35,7 +35,6 @@ import type {
   FrameShade,
   NodeType,
   NodeControlledLanguageFieldType,
-  DefaultNodeDisplayFieldType,
   ControlledLanguageFieldType,
   MenuNodeTerm,
   MenuNodeConfig,
@@ -201,7 +200,6 @@ import {
   parseControlledLanguageGlossaryKey,
   isControlledLanguageFieldType,
   normalizeControlledLanguageFieldType,
-  isDefaultNodeDisplayFieldType,
   isNodeControlledLanguageFieldType,
   collectControlledLanguageTermsFromNode,
   replaceTermInNodeTextFields,
@@ -1450,6 +1448,38 @@ const getTermRegistryTermTypeLabel = (termType: string | null): string => {
   }
 
   return TERM_REGISTRY_TERM_TYPE_LABELS[termType] ?? termType;
+};
+
+const normalizeContentSlotTermType = (termType: string | null | undefined): string => {
+  if (typeof termType !== "string") {
+    return "";
+  }
+
+  const trimmedTermType = termType.trim();
+  if (trimmedTermType.length === 0) {
+    return "";
+  }
+
+  const lowerTermType = trimmedTermType.toLowerCase();
+  if (TERM_REGISTRY_TERM_TYPE_LABELS[lowerTermType]) {
+    return lowerTermType;
+  }
+
+  return lowerTermType === "body text" ? "body_text" : lowerTermType;
+};
+
+const getContentSlotInspectorLabel = (termType: string | null | undefined): string => {
+  const normalizedTermType = normalizeContentSlotTermType(termType);
+
+  if (normalizedTermType.length === 0) {
+    return "Slot";
+  }
+
+  return (
+    TERM_REGISTRY_TERM_TYPE_LABELS[normalizedTermType] ??
+    TERM_REGISTRY_TERM_TYPE_LABELS[normalizedTermType.toLowerCase()] ??
+    normalizedTermType
+  );
 };
 
 const createEmptyProjectData = (): Record<string, unknown> =>
@@ -5356,8 +5386,8 @@ export default function Page() {
     [effectiveSelectedNodeId, queueUndoSnapshot, setNodes, startTextEditHistoryBurst]
   );
 
-  const updateSelectedDisplayTermField = useCallback(
-    (nextField: DefaultNodeDisplayFieldType, isVisible: boolean) => {
+  const updateSelectedContentSlotVisibility = useCallback(
+    (slotId: string, isVisible: boolean) => {
       if (!effectiveSelectedNodeId) {
         return;
       }
@@ -5370,33 +5400,23 @@ export default function Page() {
             return node;
           }
 
-          const normalizedVisibleFields = Array.isArray(node.data.display_term_fields)
-            ? Array.from(
-                new Set(
-                  node.data.display_term_fields.filter(
-                    (field): field is DefaultNodeDisplayFieldType =>
-                      isDefaultNodeDisplayFieldType(field)
-                  )
-                )
-              )
-            : [node.data.display_term_field];
-
-          const nextVisibleFields = isVisible
-            ? Array.from(new Set([...normalizedVisibleFields, nextField]))
-            : normalizedVisibleFields.filter((field) => field !== nextField);
-
-          const nextDisplayTermField = nextVisibleFields.includes(node.data.display_term_field)
-            ? node.data.display_term_field
-            : nextVisibleFields.find((field): field is NodeControlledLanguageFieldType =>
-                isNodeControlledLanguageFieldType(field)
-              ) ?? node.data.display_term_field;
+          const nextContentConfig = {
+            ...node.data.content_config,
+            slots: node.data.content_config.slots.map((slot) =>
+              slot.id === slotId
+                ? {
+                    ...slot,
+                    visible: isVisible,
+                  }
+                : slot
+            ),
+          };
 
           return {
             ...node,
             data: {
               ...node.data,
-              display_term_field: nextDisplayTermField,
-              display_term_fields: nextVisibleFields,
+              content_config: nextContentConfig,
             },
           };
         })
@@ -11756,9 +11776,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             Displayed term fields
                           </div>
 
-                          {DEFAULT_NODE_DISPLAY_FIELDS.map((fieldType) => (
+                          {selectedNode.data.content_config.slots
+                            .filter(
+                              (slot) =>
+                                normalizeContentSlotTermType(slot.termType) !== "title"
+                            )
+                            .map((slot, slotIndex) => (
                             <label
-                              key={`display-term-field:${fieldType}`}
+                              key={`display-term-slot:${slot.id}:${slotIndex}`}
                               style={{
                                 display: "flex",
                                 alignItems: "center",
@@ -11769,21 +11794,15 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             >
                               <input
                                 type="checkbox"
-                                checked={(
-                                  selectedNode.data.display_term_fields ?? [
-                                    selectedNode.data.display_term_field,
-                                  ]
-                                ).includes(fieldType)}
+                                checked={slot.visible !== false}
                                 onChange={(event) =>
-                                  updateSelectedDisplayTermField(
-                                    fieldType,
+                                  updateSelectedContentSlotVisibility(
+                                    slot.id,
                                     event.target.checked
                                   )
                                 }
                               />
-                              {fieldType === "body_text"
-                                ? "Body Text"
-                                : CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
+                              {getContentSlotInspectorLabel(slot.termType)}
                             </label>
                           ))}
                         </div>

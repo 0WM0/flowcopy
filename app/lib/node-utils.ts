@@ -188,6 +188,7 @@ export const normalizeNodeContentConfig = (
           typeof s.position === "number" && Number.isFinite(s.position)
             ? s.position
             : 0,
+        visible: typeof s.visible === "boolean" ? s.visible : undefined,
       },
     ];
   });
@@ -835,6 +836,7 @@ export const migrateDefaultToContentConfig = (
       termType,
       groupId: null,
       position: index,
+      visible: true,
     });
   });
 

@@ -579,6 +579,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
     return [...contentConfig.slots]
       .sort(sortContentSlots)
+      .filter((slot) => slot.visible !== false)
       .map((slot, slotIndex) => {
         const normalizedTermType = normalizeSlotTermTypeValue(slot.termType);
 
