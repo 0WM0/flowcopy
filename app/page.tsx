@@ -1917,8 +1917,6 @@ export default function Page() {
   const [recalledUiJourneyEdgeIds, setRecalledUiJourneyEdgeIds] = useState<string[]>([]);
   const [uiJourneySnapshotDraftName, setUiJourneySnapshotDraftName] = useState("");
   const [showNodeIdsOnCanvas, setShowNodeIdsOnCanvas] = useState(false);
-  const [showDefaultNodeTitleOnCanvas, setShowDefaultNodeTitleOnCanvas] =
-    useState(false);
   const [undoStack, setUndoStack] = useState<EditorSnapshot[]>([]);
   const [transferModalState, setTransferModalState] = useState<TransferModalState | null>(
     null
@@ -3235,7 +3233,7 @@ export default function Page() {
   const addNodeAtClientPosition = useCallback(
     (
       clientPosition: { x: number; y: number },
-      nodeType: "default" | "menu" | "ribbon" = "default",
+      nodeType: "default" | "menu" | "ribbon" | "frame" = "default",
       options?: {
         primaryTextValue?: string;
         onNodeCreated?: (nodeId: string) => void;
@@ -3274,6 +3272,21 @@ export default function Page() {
                     : {}),
                 },
               }
+          : nodeType === "frame"
+            ? {
+                id,
+                position,
+                data: {
+                  node_type: "frame",
+                  title: normalizedPrimaryText,
+                  frame_config: {
+                    shade: "medium",
+                    member_node_ids: [],
+                    width: FRAME_NODE_MIN_WIDTH,
+                    height: FRAME_NODE_MIN_HEIGHT,
+                  },
+                },
+              }
           : {
               id,
               position,
@@ -3309,6 +3322,13 @@ export default function Page() {
       );
     },
     [addNodeAtClientPosition]
+  );
+
+  const handleQuickAddFromSideTab = useCallback(
+    (nodeType: "default" | "menu" | "ribbon") => {
+      addNodeAtClientPosition(getCanvasFallbackClientPosition(), nodeType);
+    },
+    [addNodeAtClientPosition, getCanvasFallbackClientPosition]
   );
 
   const handleRegistryEntryDragStart = useCallback(
@@ -5425,36 +5445,6 @@ export default function Page() {
     [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
   );
 
-  const updateSelectedShowTitle = useCallback(
-    (isVisible: boolean) => {
-      if (!effectiveSelectedNodeId) {
-        return;
-      }
-
-      pushToHistory();
-
-      setNodes((currentNodes) =>
-        currentNodes.map((node) => {
-          if (
-            node.id !== effectiveSelectedNodeId ||
-            (node.data.node_type !== "default" && node.data.node_type !== "menu")
-          ) {
-            return node;
-          }
-
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              showTitle: isVisible,
-            },
-          };
-        })
-      );
-    },
-    [effectiveSelectedNodeId, pushToHistory, setNodes]
-  );
-
   const updateNodeTypeById = useCallback(
     (nodeId: string, nextType: NodeType) => {
       const targetNode = nodes.find((node) => node.id === nodeId);
@@ -6597,17 +6587,12 @@ nodeCallbacksRef.current = {
         menuTermGlossaryTerms={menuTermGlossaryTermsRef.current}
         glossaryHighlightedNodeIds={glossaryHighlightedNodeIdSet}
         showNodeId={showNodeIdsOnCanvas}
-        showDefaultNodeTitleOnCanvas={showDefaultNodeTitleOnCanvas}
         onMenuTermDeleteBlocked={nodeCallbacksRef.current.showMenuTermDeleteBlockedMessage}
         onMenuNodeConfigChange={nodeCallbacksRef.current.handleFlowCopyNodeMenuConfigChange}
       />
     ),
   }),
-  [
-    glossaryHighlightedNodeIdSet,
-    showDefaultNodeTitleOnCanvas,
-    showNodeIdsOnCanvas,
-  ]
+  [glossaryHighlightedNodeIdSet, showNodeIdsOnCanvas]
 );
 
   const updatePendingOptionInput = useCallback(
@@ -9026,6 +9011,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         height: "100vh",
         display: "grid",
         gridTemplateColumns: `1fr ${sidePanelWidth}px`,
+        position: "relative",
       }}
     >
       <div
@@ -9074,6 +9060,101 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         </ReactFlow>
       </div>
 
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: `calc(100% - ${sidePanelWidth}px - 11px)`,
+          transform: "translateY(-50%)",
+          width: 22,
+          border: "1px solid #cbd5e1",
+          borderRadius: 8,
+          background: "#f8fafc",
+          boxShadow: "0 4px 12px rgba(15, 23, 42, 0.16)",
+          zIndex: 40,
+          display: "grid",
+          gap: 4,
+          padding: "4px 2px",
+          justifyItems: "center",
+          userSelect: "none",
+        }}
+      >
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize side panel"
+          title="Drag to resize panel"
+          onPointerDown={handleSidePanelResizePointerDown}
+          style={{
+            width: "100%",
+            height: 8,
+            cursor: "col-resize",
+            borderRadius: 4,
+            backgroundImage:
+              "radial-gradient(circle, #94a3b8 1px, transparent 1px)",
+            backgroundSize: "4px 4px",
+            backgroundPosition: "center",
+            opacity: isResizingSidePanel ? 1 : 0.85,
+          }}
+        />
+
+        {[
+          { key: "default", label: "D", title: "Add Default node" },
+          { key: "ribbon", label: "H", title: "Add Horizontal node" },
+          { key: "menu", label: "V", title: "Add Vertical node" },
+        ].map((item) => (
+          <button
+            key={`side-tab-add:${item.key}`}
+            type="button"
+            title={item.title}
+            aria-label={item.title}
+            style={{
+              ...buttonStyle,
+              width: 16,
+              minWidth: 16,
+              height: 16,
+              padding: 0,
+              borderRadius: 4,
+              fontSize: 9,
+              fontWeight: 700,
+              lineHeight: 1,
+              color: "#334155",
+              borderColor: "#d4d4d8",
+              background: "#fff",
+            }}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+            }}
+            onClick={() =>
+              handleQuickAddFromSideTab(
+                item.key as "default" | "menu" | "ribbon"
+              )
+            }
+          >
+            {item.label}
+          </button>
+        ))}
+
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize side panel"
+          title="Drag to resize panel"
+          onPointerDown={handleSidePanelResizePointerDown}
+          style={{
+            width: "100%",
+            height: 8,
+            cursor: "col-resize",
+            borderRadius: 4,
+            backgroundImage:
+              "radial-gradient(circle, #94a3b8 1px, transparent 1px)",
+            backgroundSize: "4px 4px",
+            backgroundPosition: "center",
+            opacity: isResizingSidePanel ? 1 : 0.85,
+          }}
+        />
+      </div>
+
       <aside
         style={{
           position: "relative",
@@ -9085,36 +9166,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           gap: 10,
         }}
       >
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize side panel"
-          title="Drag to resize panel"
-          onPointerDown={handleSidePanelResizePointerDown}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: -6,
-            width: 12,
-            height: "100%",
-            cursor: "col-resize",
-            zIndex: 20,
-            background: isResizingSidePanel ? "#bfdbfe" : "#e2e8f0",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <div
-            aria-hidden
-            style={{
-              width: 2,
-              height: 40,
-              borderRadius: 1,
-              background: "#94a3b8",
-            }}
-          />
-        </div>
         <section
           style={{
             border: "1px solid #d4d4d8",
@@ -11039,23 +11090,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     Field visibility
                   </div>
 
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      fontSize: 12,
-                      color: "#334155",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedNode.data.showTitle === true}
-                      onChange={(event) => updateSelectedShowTitle(event.target.checked)}
-                    />
-                    Show Title
-                  </label>
-
                   <div
                     style={{
                       borderTop: "1px solid #bfdbfe",
@@ -11738,23 +11772,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
                           Field visibility
                         </div>
-
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 12,
-                            color: "#334155",
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedNode.data.showTitle === true}
-                            onChange={(event) => updateSelectedShowTitle(event.target.checked)}
-                          />
-                          Show Title
-                        </label>
 
                         <div
                           style={{

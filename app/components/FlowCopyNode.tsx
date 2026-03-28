@@ -122,7 +122,6 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   menuTermGlossaryTerms: string[];
   glossaryHighlightedNodeIds: ReadonlySet<string>;
   showNodeId: boolean;
-  showDefaultNodeTitleOnCanvas: boolean;
   onMenuTermDeleteBlocked: () => void;
   onMenuNodeConfigChange: (
     nodeId: string,
@@ -453,7 +452,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   menuTermGlossaryTerms,
   glossaryHighlightedNodeIds,
   showNodeId,
-  showDefaultNodeTitleOnCanvas,
   onMenuTermDeleteBlocked,
   onMenuNodeConfigChange,
   onCanDropRegistryEntry,
@@ -1985,6 +1983,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   }
 
   if (isRibbonNode) {
+    const ribbonHeaderTitle = data.title.trim();
     const ribbonHighlightColor = resolveNodeHighlightColor({
       selected,
       uiJourneyHighlighted: Boolean(data.ui_journey_highlighted),
@@ -2121,6 +2120,32 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             <span style={{ fontSize: 10, color: "#1d4ed8", fontWeight: 600 }}>
               #{data.sequence_index ?? "-"}
             </span>
+            <button
+              type="button"
+              className="nodrag"
+              style={{
+                ...buttonStyle,
+                minWidth: 0,
+                padding: "0 4px",
+                height: 16,
+                borderRadius: 999,
+                fontSize: 10,
+                lineHeight: 1,
+                color: "#475569",
+                borderColor: "#cbd5e1",
+                background: "#f8fafc",
+              }}
+              title="Edit title"
+              aria-label="Edit title"
+              onPointerDown={stopNodeSelectionPropagation}
+              onMouseDown={stopNodeSelectionPropagation}
+              onClick={(event) => {
+                stopNodeSelectionPropagation(event);
+                setIsEditingCanvasTitle(true);
+              }}
+            >
+              —
+            </button>
             {isEditingCanvasTitle ? (
               <input
                 ref={canvasTitleInputRef}
@@ -2158,8 +2183,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               />
             ) : (
               <span
-                role="button"
-                tabIndex={0}
                 style={{
                   flex: 1,
                   minWidth: 0,
@@ -2169,22 +2192,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
-                  cursor: "text",
                 }}
-                title={data.title.trim() || "Untitled"}
-                onPointerDown={stopNodeSelectionPropagation}
-                onClick={(event) => {
-                  stopNodeSelectionPropagation(event);
-                  setIsEditingCanvasTitle(true);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setIsEditingCanvasTitle(true);
-                  }
-                }}
+                title={ribbonHeaderTitle || "Add title"}
               >
-                {data.title.trim() || "Untitled"}
+                {ribbonHeaderTitle}
               </span>
             )}
           </div>
@@ -2503,8 +2514,25 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       glossaryHighlighted: isGlossaryHighlighted,
     }
   );
+  const useDarkCompactPalette = isVerticalTermsNode;
+  const defaultNodeHighlightColor = resolveNodeHighlightColor({
+    selected,
+    uiJourneyHighlighted: Boolean(data.ui_journey_highlighted),
+    uiJourneyRecalled: Boolean(data.ui_journey_recalled),
+    glossaryHighlighted: isGlossaryHighlighted,
+  });
   const compactNodeStyle: React.CSSProperties = {
     ...nodeBaseStyle,
+    ...(useDarkCompactPalette
+      ? {
+          borderRadius: 8,
+          border: `2px solid ${defaultNodeHighlightColor ?? "#94a3b8"}`,
+          background: "#f1f5f9",
+          boxShadow: defaultNodeHighlightColor
+            ? `0 0 0 3px ${defaultNodeHighlightColor}, 0 3px 10px rgba(0, 0, 0, 0.12)`
+            : "0 1px 3px rgba(0,0,0,0.08)",
+        }
+      : {}),
     padding:
       data.node_shape === "pill"
         ? "13px 20px 8px 20px"
@@ -2520,10 +2548,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           padding: "70px 72px",
         }
       : baseContentStyle;
-  const canvasHeaderTitle = data.title.trim() || "Untitled";
-  const shouldRenderCanvasTitle =
-    data.showTitle === true ||
-    (data.node_type === "default" && showDefaultNodeTitleOnCanvas);
+  const canvasHeaderTitle = data.title.trim();
 
   return (
     <div
@@ -2590,13 +2615,42 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             display: "flex",
             alignItems: "center",
             gap: 6,
-            paddingBottom: 3,
+            padding: useDarkCompactPalette ? "3px 8px" : "0 0 3px",
+            margin: useDarkCompactPalette ? "-6px -6px 0" : undefined,
             borderBottom: "1px solid #94a3b8",
+            borderRadius: useDarkCompactPalette ? "6px 6px 0 0" : undefined,
+            background: useDarkCompactPalette ? "#e2e8f0" : undefined,
           }}
         >
           <span style={{ fontSize: 10, color: "#1d4ed8", fontWeight: 600 }}>
             #{data.sequence_index ?? "-"}
           </span>
+          <button
+            type="button"
+            className="nodrag"
+            style={{
+              ...buttonStyle,
+              minWidth: 0,
+              padding: "0 4px",
+              height: 16,
+              borderRadius: 999,
+              fontSize: 10,
+              lineHeight: 1,
+              color: "#475569",
+              borderColor: "#cbd5e1",
+              background: "#f8fafc",
+            }}
+            title="Edit title"
+            aria-label="Edit title"
+            onPointerDown={stopNodeSelectionPropagation}
+            onMouseDown={stopNodeSelectionPropagation}
+            onClick={(event) => {
+              stopNodeSelectionPropagation(event);
+              setIsEditingCanvasTitle(true);
+            }}
+          >
+            —
+          </button>
           {isEditingCanvasTitle ? (
             <input
               ref={canvasTitleInputRef}
@@ -2634,8 +2688,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             />
           ) : (
             <span
-              role="button"
-              tabIndex={0}
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -2645,20 +2697,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                cursor: "text",
               }}
-              title={canvasHeaderTitle}
-              onPointerDown={stopNodeSelectionPropagation}
-              onClick={(event) => {
-                stopNodeSelectionPropagation(event);
-                setIsEditingCanvasTitle(true);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setIsEditingCanvasTitle(true);
-                }
-              }}
+              title={canvasHeaderTitle || "Add title"}
             >
               {canvasHeaderTitle}
             </span>
@@ -2940,40 +2980,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           </>
         ) : (
           <>
-            {shouldRenderCanvasTitle && (
-              <div style={{ marginTop: 4 }}>
-                <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>Title</div>
-                <input
-                  className="nodrag"
-                  style={getDefaultRegistryFieldInputStyle("title", inputStyle)}
-                  value={data.title}
-                  placeholder="Add title"
-                  onPointerDown={stopNodeSelectionPropagation}
-                  onMouseDown={stopNodeSelectionPropagation}
-                  onClick={stopNodeSelectionPropagation}
-                  onDragOver={(event) =>
-                    handleDefaultRegistryFieldDragOver(event, "title")
-                  }
-                  onDragLeave={(event) =>
-                    handleDefaultRegistryFieldDragLeave(event, "title")
-                  }
-                  onDrop={(event) => handleDefaultRegistryFieldDrop(event, "title")}
-                  onChange={(event) => updateField("title", event.target.value)}
-                  onBlur={(event) =>
-                    commitRegistryField("title", event.currentTarget.value)
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter") {
-                      return;
-                    }
-
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                  }}
-                />
-              </div>
-            )}
-
             {data.node_type === "default"
               ? defaultNodeDisplaySlots.map(({ slot, field, normalizedTermType, label }) => (
                   <div
