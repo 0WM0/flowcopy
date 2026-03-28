@@ -2323,8 +2323,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             <div
               style={{
                 display: "grid",
-                flex: 1,
-                gridTemplateColumns: `repeat(${Math.max(1, sortedRibbonCells.length)}, minmax(80px, auto))`,
+                flex: "0 0 auto",
+                width: "max-content",
+                gridTemplateColumns: `repeat(${Math.max(1, sortedRibbonCells.length)}, 132px)`,
               }}
             >
               {sortedRibbonCells.map((cell) => {
@@ -2359,7 +2360,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                     }}
                     style={{
                       position: "relative",
-                      overflow: "visible",
+                      overflow: "hidden",
                       borderWidth: 1,
                       borderStyle: "solid",
                       borderColor: isRibbonDropTargetActive ? "#60a5fa" : "#cbd5e1",
@@ -2368,7 +2369,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         ? "0 0 0 1px rgba(37, 99, 235, 0.28)"
                         : "none",
                       padding: "3px 6px",
-                      minWidth: 80,
+                      minWidth: 0,
                       minHeight: 24,
                       display: "flex",
                       alignItems: "center",
@@ -2391,6 +2392,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         fontStyle:
                           isShowingLabel || isShowingKeyCommand ? "normal" : "italic",
                         minWidth: 0,
+                        display: "block",
+                        flex: 1,
                       }}
                     >
                       {cellDisplayText}
@@ -2499,7 +2502,12 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       ...inputStyle,
                       flex: 1,
                       minWidth: 0,
+                      width: "100%",
+                      maxWidth: "100%",
                       fontSize: 11,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                     value={slot.value}
                     onPointerDown={stopNodeSelectionPropagation}
@@ -2838,6 +2846,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 style={{
                   display: "grid",
                   flex: 1,
+                  minWidth: 0,
+                  overflow: "hidden",
                   gap: 3,
                 }}
               >
@@ -2867,6 +2877,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         border: `1px solid ${isEditingRow ? "#60a5fa" : "#cbd5e1"}`,
                         borderRadius: 6,
                         padding: 3,
+                        minWidth: 0,
                         display: "grid",
                         gap: 3,
                         background: isEditingRow ? "#eff6ff" : "#fff",
@@ -2877,23 +2888,36 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                        <div style={{ position: "relative", paddingRight: 14, flex: 1 }}>
+                        <div
+                          style={{
+                            position: "relative",
+                            paddingRight: 14,
+                            flex: 1,
+                            minWidth: 0,
+                            maxWidth: "100%",
+                            overflow: "hidden",
+                          }}
+                        >
                           <div
                             style={{
                               ...inputStyle,
                               minWidth: 0,
                               width: "100%",
+                              maxWidth: "100%",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "space-between",
                               gap: 6,
                               cursor: "text",
                               background: isEditingRow ? "#eff6ff" : "#fff",
+                              overflow: "hidden",
                             }}
                             title="Click to edit term details"
                           >
                             <span
                               style={{
+                                minWidth: 0,
+                                flex: 1,
                                 whiteSpace: "nowrap",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
@@ -2975,7 +2999,12 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                             ...inputStyle,
                             flex: 1,
                             minWidth: 0,
+                            width: "100%",
+                            maxWidth: "100%",
                             fontSize: 11,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
                           }}
                           value={slot.value}
                           onPointerDown={stopNodeSelectionPropagation}
