@@ -462,12 +462,15 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const { setNodes, setEdges } = useReactFlow<FlowNode, FlowEdge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const frameTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const frameTitleCancelRequestedRef = useRef(false);
   const canvasTitleInputRef = useRef<HTMLInputElement | null>(null);
   const verticalTermsContainerRef = useRef<HTMLDivElement | null>(null);
   const verticalTermPopupRef = useRef<HTMLDivElement | null>(null);
   const ribbonContainerRef = useRef<HTMLDivElement | null>(null);
   const ribbonPopupRef = useRef<HTMLDivElement | null>(null);
   const [isEditingFrameTitle, setIsEditingFrameTitle] = useState(false);
+  const [frameTitleDraft, setFrameTitleDraft] = useState("");
+  const [frameTitleOriginal, setFrameTitleOriginal] = useState("");
   const [isEditingCanvasTitle, setIsEditingCanvasTitle] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
   const [editingVerticalGroupId, setEditingVerticalGroupId] = useState<string | null>(null);
@@ -587,7 +590,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           normalizedTermType,
           label: getContentSlotLabel(slot, slotIndex),
         };
-      });
+      })
+      .filter(({ normalizedTermType }) => normalizedTermType !== "title");
   }, [contentConfig.slots, data.node_type]);
   const editingRibbonCell = useMemo(() => {
     if (!isRibbonNode || !editingCellId) {
@@ -775,6 +779,30 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     },
     [id, onBeforeChange, setNodes]
   );
+
+  const openFrameTitleEditor = useCallback(() => {
+    setFrameTitleOriginal(data.title);
+    setFrameTitleDraft(data.title);
+    setIsEditingFrameTitle(true);
+  }, [data.title]);
+
+  const commitFrameTitleEdit = useCallback(() => {
+    if (frameTitleCancelRequestedRef.current) {
+      frameTitleCancelRequestedRef.current = false;
+      setIsEditingFrameTitle(false);
+      return;
+    }
+
+    updateField("title", frameTitleDraft);
+    onTextEditBlur();
+    setIsEditingFrameTitle(false);
+  }, [frameTitleDraft, onTextEditBlur, updateField]);
+
+  const cancelFrameTitleEdit = useCallback(() => {
+    frameTitleCancelRequestedRef.current = true;
+    setFrameTitleDraft(frameTitleOriginal);
+    setIsEditingFrameTitle(false);
+  }, [frameTitleOriginal]);
 
   const commitRegistryField = useCallback(
     (field: EditableMicrocopyField, value: string) => {
@@ -1855,8 +1883,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
         </div>
 
         <div
-          role="button"
-          tabIndex={0}
           style={{
             position: "absolute",
             top: -14,
@@ -1874,15 +1900,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
-            cursor: "text",
-          }}
-          title={frameTitle || "Add title"}
-          onClick={() => setIsEditingFrameTitle(true)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              setIsEditingFrameTitle(true);
-            }
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
           }}
         >
           {isEditingFrameTitle ? (
@@ -1900,16 +1920,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 fontWeight: 700,
                 color: frameShadeStyle.tabText,
               }}
-              value={data.title}
+              value={frameTitleDraft}
               placeholder="Add title"
               onPointerDown={stopNodeSelectionPropagation}
               onMouseDown={stopNodeSelectionPropagation}
               onClick={stopNodeSelectionPropagation}
-              onChange={(event) => updateField("title", event.target.value)}
-              onBlur={(event) => {
-                onTextEditBlur();
-                setIsEditingFrameTitle(false);
-              }}
+              onChange={(event) => setFrameTitleDraft(event.target.value)}
+              onBlur={commitFrameTitleEdit}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
@@ -1918,12 +1935,54 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
                 if (event.key === "Escape") {
                   event.preventDefault();
-                  setIsEditingFrameTitle(false);
+                  cancelFrameTitleEdit();
                 }
               }}
             />
           ) : (
-            frameTitle || "Add title"
+            <>
+              <button
+                type="button"
+                className="nodrag"
+                style={{
+                  ...buttonStyle,
+                  minWidth: 0,
+                  padding: "0 4px",
+                  height: 16,
+                  borderRadius: 999,
+                  fontSize: 10,
+                  lineHeight: 1,
+                  color: "#475569",
+                  borderColor: "#cbd5e1",
+                  background: "#f8fafc",
+                  flexShrink: 0,
+                }}
+                title="Edit title"
+                aria-label="Edit title"
+                onPointerDown={stopNodeSelectionPropagation}
+                onMouseDown={stopNodeSelectionPropagation}
+                onClick={(event) => {
+                  stopNodeSelectionPropagation(event);
+                  openFrameTitleEditor();
+                }}
+              >
+                —
+              </button>
+              {frameTitle.length > 0 && (
+                <span
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={frameTitle}
+                >
+                  {frameTitle}
+                </span>
+              )}
+            </>
           )}
         </div>
 

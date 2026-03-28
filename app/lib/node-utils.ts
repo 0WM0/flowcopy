@@ -810,33 +810,40 @@ export const migrateDefaultToContentConfig = (
 ): NodeContentConfig => {
   const slots: NodeContentSlot[] = [];
 
-  const fieldMap: [string, string][] = [
-    [resolveCanonicalRegistryTermType("title", "title"), data.title ?? ""],
+  const fieldMap: [string, string, string][] = [
+    ["title", resolveCanonicalRegistryTermType("title", "title"), data.title ?? ""],
     [
+      "primary_cta",
       resolveCanonicalRegistryTermType("primary_cta", "primary_cta"),
       data.primary_cta ?? "",
     ],
     [
+      "secondary_cta",
       resolveCanonicalRegistryTermType("secondary_cta", "secondary_cta"),
       data.secondary_cta ?? "",
     ],
     [
+      "helper_text",
       resolveCanonicalRegistryTermType("helper_text", "helper_text"),
       data.helper_text ?? "",
     ],
-    [resolveCanonicalRegistryTermType("error_text", "error_text"), data.error_text ?? ""],
-    [resolveCanonicalRegistryTermType("body_text", "body_text"), data.body_text ?? ""],
-    [resolveCanonicalRegistryTermType("notes", "notes"), data.notes ?? ""],
+    [
+      "error_text",
+      resolveCanonicalRegistryTermType("error_text", "error_text"),
+      data.error_text ?? "",
+    ],
+    ["body_text", resolveCanonicalRegistryTermType("body_text", "body_text"), data.body_text ?? ""],
+    ["notes", resolveCanonicalRegistryTermType("notes", "notes"), data.notes ?? ""],
   ];
 
-  fieldMap.forEach(([termType, value], index) => {
+  fieldMap.forEach(([fieldType, termType, value], index) => {
     slots.push({
       id: createContentSlotId(),
       value,
       termType,
       groupId: null,
       position: index,
-      visible: true,
+      visible: fieldType === "primary_cta" || fieldType === "helper_text",
     });
   });
 
