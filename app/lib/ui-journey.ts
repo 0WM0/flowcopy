@@ -18,7 +18,6 @@ import {
   isNodeType,
   normalizeFrameNodeConfig,
   normalizeNodeContentConfig,
-  normalizeRibbonNodeConfig,
 } from "./node-utils";
 
 type UiJourneySnapshotCapture = {
@@ -290,28 +289,39 @@ export const buildUiJourneyConversationFields = (
     );
   }
 
-  const fields: UiJourneyConversationField[] = [];
+  const normalizedContentConfig = normalizeNodeContentConfig(
+    nodeData.content_config,
+    "default"
+  );
 
-  const addField = (label: string, sourceKey: string, value: string) => {
-    const normalizedValue = value.trim();
-    if (!normalizedValue) {
-      return;
+  const sortedGroups = [...normalizedContentConfig.groups].sort((a, b) => {
+    if (a.row !== b.row) {
+      return a.row - b.row;
     }
 
-    fields.push({
-      id: buildUiJourneyConversationFieldId(nodeId, sourceKey),
-      sourceKey,
-      label,
-      value: normalizedValue,
-    });
-  };
+    return a.column - b.column;
+  });
 
-  addField("Primary CTA", "primary_cta", nodeData.primary_cta);
-  addField("Secondary CTA", "secondary_cta", nodeData.secondary_cta);
-  addField("Helper Text", "helper_text", nodeData.helper_text);
-  addField("Error Text", "error_text", nodeData.error_text);
+  return sortedGroups.flatMap((group) =>
+    normalizedContentConfig.slots
+      .filter((slot) => slot.groupId === group.id)
+      .sort((a, b) => a.position - b.position)
+      .flatMap((slot) => {
+        const normalizedValue = slot.value.trim();
+        if (!normalizedValue) {
+          return [];
+        }
 
-  return fields;
+        return [
+          {
+            id: buildUiJourneyConversationFieldId(nodeId, `content_slot:${slot.id}`),
+            sourceKey: `content_slot:${slot.id}`,
+            label: normalizeConversationSlotTermTypeLabel(slot.termType),
+            value: normalizedValue,
+          },
+        ];
+      })
+  );
 };
 
 const buildUiJourneyConversationRibbonHeaderFields = (
@@ -336,35 +346,6 @@ const buildUiJourneyConversationRibbonHeaderFields = (
 
   addField("Concept", "concept", nodeData.concept);
   addField("Notes", "notes", nodeData.notes);
-
-  return fields;
-};
-
-const buildUiJourneyConversationRibbonCellFields = (
-  nodeId: string,
-  cellId: string,
-  keyCommand: string,
-  toolTip: string
-): UiJourneyConversationField[] => {
-  const fields: UiJourneyConversationField[] = [];
-  const cellScopedNodeId = `${nodeId}:cell:${cellId}`;
-
-  const addField = (label: string, sourceKey: string, value: string) => {
-    const normalizedValue = value.trim();
-    if (!normalizedValue) {
-      return;
-    }
-
-    fields.push({
-      id: buildUiJourneyConversationFieldId(cellScopedNodeId, sourceKey),
-      sourceKey,
-      label,
-      value: normalizedValue,
-    });
-  };
-
-  addField("Key Command", "key_command", keyCommand);
-  addField("Tool Tip", "tool_tip", toolTip);
 
   return fields;
 };
@@ -751,22 +732,22 @@ export const buildUiJourneyConversationEntries = ({
           connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
         };
 
-        const normalizedRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
+        const normalizedContentConfig = normalizeNodeContentConfig(
+          node.data.content_config,
+          "horizontal"
+        );
 
-        const ribbonCellEntries: UiJourneyConversationEntry[] = [...normalizedRibbonConfig.cells]
-          .sort((cellA, cellB) => {
-            if (cellA.column !== cellB.column) {
-              return cellA.column - cellB.column;
-            }
+        const sortedGroups = [...normalizedContentConfig.groups].sort((a, b) => {
+          if (a.row !== b.row) {
+            return a.row - b.row;
+          }
 
-            if (cellA.row !== cellB.row) {
-              return cellA.row - cellB.row;
-            }
+          return a.column - b.column;
+        });
 
-            return cellA.id.localeCompare(cellB.id);
-          })
-          .filter((cell) => {
-            const cellSourceHandlePrefix = `${RIBBON_SOURCE_HANDLE_PREFIX}${cell.id}`;
+        const ribbonCellEntries: UiJourneyConversationEntry[] = sortedGroups
+          .filter((group) => {
+            const cellSourceHandlePrefix = `${RIBBON_SOURCE_HANDLE_PREFIX}${group.id}`;
 
             return edges.some((edge) => {
               if (edge.source !== nodeId) {
@@ -787,12 +768,18 @@ export const buildUiJourneyConversationEntries = ({
               );
             });
           })
-          .map((cell) => {
-            const cellScopedNodeId = `${nodeId}:cell:${cell.id}`;
-            const normalizedCellLabel = cell.label.trim();
+          .map((group) => {
+            const cellScopedNodeId = `${nodeId}:cell:${group.id}`;
+            const groupSlots = normalizedContentConfig.slots
+              .filter((slot) => slot.groupId === group.id)
+              .sort((a, b) => a.position - b.position);
+            const labelSlot = groupSlots.find(
+              (slot) => slot.termType?.trim().toLowerCase() === "cell_label"
+            );
+            const normalizedCellLabel = (labelSlot?.value ?? "").trim();
 
             return {
-              entryId: buildUiJourneyConversationRibbonCellEntryId(nodeId, cell.id, sequence),
+              entryId: buildUiJourneyConversationRibbonCellEntryId(nodeId, group.id, sequence),
               nodeInstanceId: cellScopedNodeId,
               titleFieldId: buildUiJourneyConversationTitleFieldId(cellScopedNodeId),
               nodeId,
@@ -801,13 +788,25 @@ export const buildUiJourneyConversationEntries = ({
               title:
                 normalizedCellLabel.length > 0
                   ? normalizedCellLabel
-                  : `Cell ${cell.column + 1}`,
-              fields: buildUiJourneyConversationRibbonCellFields(
-                nodeId,
-                cell.id,
-                cell.key_command,
-                cell.tool_tip
-              ),
+                  : `Cell ${group.column + 1}`,
+              fields: groupSlots.flatMap((slot) => {
+                const normalizedValue = slot.value.trim();
+                if (!normalizedValue) {
+                  return [];
+                }
+
+                return [
+                  {
+                    id: buildUiJourneyConversationFieldId(
+                      nodeId,
+                      `content_slot:${slot.id}`
+                    ),
+                    sourceKey: `content_slot:${slot.id}`,
+                    label: normalizeConversationSlotTermTypeLabel(slot.termType),
+                    value: normalizedValue,
+                  },
+                ];
+              }),
               bodyText: "",
               notes: "",
               connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,

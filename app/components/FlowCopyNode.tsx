@@ -16,11 +16,9 @@ import type {
   FlowEdge,
   FlowNode,
   MenuNodeConfig,
-  MenuNodeTerm,
   NodeContentConfig,
   NodeContentGroup,
   NodeContentSlot,
-  RibbonNodeConfig,
   RibbonNodeCell,
   NodeType,
   PersistableMicrocopyNodeData,
@@ -39,9 +37,7 @@ import {
   PARALLEL_TARGET_HANDLE_ID,
   PARALLEL_ALT_SOURCE_HANDLE_ID,
   PARALLEL_ALT_TARGET_HANDLE_ID,
-  CONTROLLED_LANGUAGE_FIELD_LABELS,
   DIAMOND_CLIP_PATH,
-  DEFAULT_NODE_DISPLAY_FIELDS,
   MULTI_TERM_DEFAULT_SLOT_TYPES,
   TERM_REGISTRY_TERM_TYPE_LABELS,
   TERM_REGISTRY_TERM_TYPE_OPTIONS,
@@ -50,12 +46,9 @@ import {
 } from "../constants";
 
 import {
-  normalizeMenuNodeConfig,
   normalizeFrameNodeConfig,
-  normalizeRibbonNodeConfig,
   normalizeNodeContentConfig,
   clampMenuRightConnections,
-  createMenuNodeTerm,
   createContentGroupId,
   createContentSlotId,
   buildMenuSourceHandleId,
@@ -243,6 +236,9 @@ const normalizeSlotTermTypeValue = (
 
   return LEGACY_SLOT_TERM_TYPE_MAP[lowerTermType] ?? trimmedTermType;
 };
+
+const normalizeContentSlotTermType = (termType: string | null | undefined): string =>
+  normalizeSlotTermTypeValue(termType);
 
 const getSlotTermTypeDisplayLabel = (termType: string): string => {
   const normalizedTermType = termType.trim();
@@ -562,21 +558,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     });
   }, [contentConfig.groups, contentConfig.slots, isVerticalTermsNode]);
 
-  const visibleDisplayTermFieldTypes = useMemo(
-    () => {
-      if (data.node_type === "default") {
-        return [];
-      }
-
-      const fieldSet = new Set(
-        Array.isArray(data.display_term_fields)
-          ? data.display_term_fields
-          : [data.display_term_field]
-      );
-      return DEFAULT_NODE_DISPLAY_FIELDS.filter((field) => fieldSet.has(field));
-    },
-    [data.display_term_field, data.display_term_fields, data.node_type]
-  );
   const defaultNodeDisplaySlots = useMemo<DefaultNodeDisplaySlot[]>(() => {
     if (data.node_type !== "default") {
       return [];
@@ -748,7 +729,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     contentConfig.groups.length,
     contentConfig.slots.length,
     defaultNodeDisplaySlots.length,
-    visibleDisplayTermFieldTypes.length,
     editingVerticalGroupId,
     updateNodeInternals,
   ]);
@@ -858,39 +838,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     [id, isRibbonNode, onCommitRegistryField, onTextEditBlur]
   );
 
-  const toBridgedMenuConfig = useCallback(
-    (nextContentConfig: NodeContentConfig, fallbackMenuConfig: MenuNodeConfig): MenuNodeConfig => {
-      const sortedGroups = [...nextContentConfig.groups].sort(sortContentGroups);
-      const nextTerms = sortedGroups.map((group): MenuNodeTerm => {
-        const groupSlots = nextContentConfig.slots
-          .filter((slot) => slot.groupId === group.id)
-          .sort(sortContentSlots);
-        const primarySlot =
-          groupSlots.find((slot) => slot.position === 0) ?? groupSlots[0] ?? null;
-
-        return {
-          id: group.id,
-          term: primarySlot?.value ?? "",
-        };
-      });
-
-      const fallbackTerms = fallbackMenuConfig.terms.slice(0, MENU_NODE_RIGHT_CONNECTIONS_MIN);
-      const terms = nextTerms.length > 0 ? nextTerms : fallbackTerms;
-
-      return normalizeMenuNodeConfig(
-        {
-          max_right_connections: clampMenuRightConnections(
-            Math.max(MENU_NODE_RIGHT_CONNECTIONS_MIN, terms.length)
-          ),
-          terms,
-        },
-        data.primary_cta,
-        Math.max(MENU_NODE_RIGHT_CONNECTIONS_MIN, terms.length)
-      );
-    },
-    [data.primary_cta]
-  );
-
   const updateVerticalTermsContentConfig = useCallback(
     (
       updater: (currentConfig: NodeContentConfig) => NodeContentConfig,
@@ -926,31 +873,43 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             requestedNextContentConfig,
             "vertical"
           );
-          const normalizedNextMenuConfig = toBridgedMenuConfig(
-            nextContentConfig,
-            normalizeMenuNodeConfig(
-              node.data.menu_config,
-              node.data.primary_cta,
-              Math.max(
-                MENU_NODE_RIGHT_CONNECTIONS_MIN,
-                node.data.menu_config.max_right_connections
-              )
-            )
-          );
 
-          if (node.data.node_type === "menu") {
-            nextMenuConfigForEdges = normalizedNextMenuConfig;
-          }
+          const sortedGroups = [...nextContentConfig.groups].sort(sortContentGroups);
+          const getPrimaryGroupSlotValue = (groupId: string): string => {
+            const groupSlots = nextContentConfig.slots
+              .filter((slot) => slot.groupId === groupId)
+              .sort(sortContentSlots);
+            const primarySlot =
+              groupSlots.find((slot) => slot.position === 0) ?? groupSlots[0] ?? null;
+            return primarySlot?.value ?? "";
+          };
+
+          const nextPrimaryCta =
+            sortedGroups.length > 0
+              ? getPrimaryGroupSlotValue(sortedGroups[0]!.id)
+              : node.data.primary_cta;
+          const nextSecondaryCta =
+            sortedGroups.length > 1
+              ? getPrimaryGroupSlotValue(sortedGroups[1]!.id)
+              : node.data.secondary_cta;
+
+          nextMenuConfigForEdges = {
+            max_right_connections: clampMenuRightConnections(
+              Math.max(MENU_NODE_RIGHT_CONNECTIONS_MIN, sortedGroups.length)
+            ),
+            terms: sortedGroups.map((group) => ({
+              id: group.id,
+              term: getPrimaryGroupSlotValue(group.id),
+            })),
+          };
 
           return {
             ...node,
             data: {
               ...node.data,
               content_config: nextContentConfig,
-              menu_config: normalizedNextMenuConfig,
-              primary_cta: normalizedNextMenuConfig.terms[0]?.term ?? node.data.primary_cta,
-              secondary_cta:
-                normalizedNextMenuConfig.terms[1]?.term ?? node.data.secondary_cta,
+              primary_cta: nextPrimaryCta,
+              secondary_cta: nextSecondaryCta,
             },
           };
         })
@@ -964,7 +923,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
         );
       }
     },
-    [id, isMenuNode, isVerticalTermsNode, onBeforeChange, setEdges, setNodes, toBridgedMenuConfig]
+    [id, isMenuNode, isVerticalTermsNode, onBeforeChange, setEdges, setNodes]
   );
 
   const addVerticalTermGroup = useCallback(() => {
@@ -1365,16 +1324,48 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             return node;
           }
 
-          const currentRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
-          const nextRibbonConfig: RibbonNodeConfig = {
-            ...currentRibbonConfig,
-            cells: currentRibbonConfig.cells.map((cell) =>
-              cell.id === cellId
+          const currentContentConfig = normalizeNodeContentConfig(
+            node.data.content_config,
+            "horizontal"
+          );
+
+          const matchingGroup = currentContentConfig.groups.find(
+            (group) => group.id === cellId
+          );
+
+          if (!matchingGroup) {
+            return node;
+          }
+
+          const targetTermTypeByField: Record<
+            "label" | "key_command" | "tool_tip",
+            "cell_label" | "key_command" | "tool_tip"
+          > = {
+            label: "cell_label",
+            key_command: "key_command",
+            tool_tip: "tool_tip",
+          };
+
+          const targetTermType = targetTermTypeByField[field];
+          const targetSlot = currentContentConfig.slots.find(
+            (slot) =>
+              slot.groupId === matchingGroup.id &&
+              normalizeContentSlotTermType(slot.termType) === targetTermType
+          );
+
+          if (!targetSlot) {
+            return node;
+          }
+
+          const nextContentConfig: NodeContentConfig = {
+            ...currentContentConfig,
+            slots: currentContentConfig.slots.map((slot) =>
+              slot.id === targetSlot.id
                 ? {
-                    ...cell,
-                    [field]: value,
+                    ...slot,
+                    value: String(value),
                   }
-                : cell
+                : slot
             ),
           };
 
@@ -1382,7 +1373,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             ...node,
             data: {
               ...node.data,
-              ribbon_config: nextRibbonConfig,
+              content_config: nextContentConfig,
             },
           };
         })
@@ -1433,35 +1424,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             ),
           };
 
-          const currentRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
-          const nextRibbonCells = normalizedGroups.map((group) => {
-            const groupSlots = normalizedContentConfig.slots
-              .filter((slot) => slot.groupId === group.id)
-              .sort(sortContentSlots);
-
-            return {
-              id: group.id,
-              row: group.row,
-              column: group.column,
-              label: groupSlots.find((slot) => slot.position === 0)?.value ?? "",
-              key_command: groupSlots.find((slot) => slot.position === 1)?.value ?? "",
-              tool_tip: groupSlots.find((slot) => slot.position === 2)?.value ?? "",
-            };
-          });
-
-          const nextRibbonConfig: RibbonNodeConfig = {
-            ...currentRibbonConfig,
-            rows: 1,
-            columns: Math.max(1, normalizedGroups.length),
-            cells: nextRibbonCells,
-          };
-
           return {
             ...node,
             data: {
               ...node.data,
               content_config: normalizedContentConfig,
-              ribbon_config: nextRibbonConfig,
             },
           };
         })
@@ -1589,43 +1556,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             ),
           };
 
-          // Bridge-sync: find which group this slot belongs to, find the cell, update it
-          const changedSlot = nextContentConfig.slots.find((s) => s.id === slotId);
-          let nextRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
-
-          if (changedSlot?.groupId) {
-            const group = nextContentConfig.groups.find(
-              (g) => g.id === changedSlot.groupId
-            );
-
-            if (group) {
-              const groupSlots = nextContentConfig.slots
-                .filter((s) => s.groupId === group.id)
-                .sort(sortContentSlots);
-
-              nextRibbonConfig = {
-                ...nextRibbonConfig,
-                cells: nextRibbonConfig.cells.map((cell) => {
-                  if (cell.row === group.row && cell.column === group.column) {
-                    return {
-                      ...cell,
-                      label: groupSlots[0]?.value ?? cell.label,
-                      key_command: groupSlots[1]?.value ?? cell.key_command,
-                      tool_tip: groupSlots[2]?.value ?? cell.tool_tip,
-                    };
-                  }
-                  return cell;
-                }),
-              };
-            }
-          }
-
           return {
             ...node,
             data: {
               ...node.data,
               content_config: nextContentConfig,
-              ribbon_config: nextRibbonConfig,
             },
           };
         })
@@ -3271,8 +3206,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           </>
         ) : (
           <>
-            {data.node_type === "default"
-              ? defaultNodeDisplaySlots.map(({ slot, field, normalizedTermType, label }) => (
+            {data.node_type === "default" &&
+              defaultNodeDisplaySlots.map(({ slot, field, normalizedTermType, label }) => (
                   <div
                     key={`default-slot:${slot.id}`}
                     style={{
@@ -3375,116 +3310,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         onClick={(event) => {
                           stopNodeSelectionPropagation(event);
                           onRegistryPickerOpen(id, field);
-                        }}
-                      >
-                        📋
-                      </button>
-                    </div>
-                  </div>
-                ))
-              : visibleDisplayTermFieldTypes.map((displayTermFieldType) => (
-                  <div
-                    key={`display-term:${displayTermFieldType}`}
-                    style={{
-                      marginTop: 4,
-                      paddingTop: 4,
-                    }}
-                  >
-                    <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>
-                      {displayTermFieldType === "body_text"
-                        ? "Body Text"
-                        : CONTROLLED_LANGUAGE_FIELD_LABELS[displayTermFieldType]}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      {displayTermFieldType === "body_text" ? (
-                        <textarea
-                          className="nodrag"
-                          rows={3}
-                          style={getDefaultRegistryFieldInputStyle(displayTermFieldType, {
-                            ...inputStyle,
-                            flex: 1,
-                            minWidth: 0,
-                            minHeight: 52,
-                            resize: "vertical",
-                          })}
-                          value={data[displayTermFieldType]}
-                          placeholder="Add body text"
-                          onPointerDown={stopNodeSelectionPropagation}
-                          onMouseDown={stopNodeSelectionPropagation}
-                          onClick={stopNodeSelectionPropagation}
-                          onDragOver={(event) =>
-                            handleDefaultRegistryFieldDragOver(event, displayTermFieldType)
-                          }
-                          onDragLeave={(event) =>
-                            handleDefaultRegistryFieldDragLeave(event, displayTermFieldType)
-                          }
-                          onDrop={(event) =>
-                            handleDefaultRegistryFieldDrop(event, displayTermFieldType)
-                          }
-                          onChange={(event) =>
-                            updateField(displayTermFieldType, event.target.value)
-                          }
-                          onBlur={(event) =>
-                            commitRegistryField(displayTermFieldType, event.currentTarget.value)
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key !== "Enter") {
-                              return;
-                            }
-
-                            event.preventDefault();
-                            event.currentTarget.blur();
-                          }}
-                        />
-                      ) : (
-                        <input
-                          className="nodrag"
-                          style={getDefaultRegistryFieldInputStyle(displayTermFieldType, {
-                            ...inputStyle,
-                            flex: 1,
-                            minWidth: 0,
-                          })}
-                          value={data[displayTermFieldType]}
-                          placeholder="Add term"
-                          onPointerDown={stopNodeSelectionPropagation}
-                          onMouseDown={stopNodeSelectionPropagation}
-                          onClick={stopNodeSelectionPropagation}
-                          onDragOver={(event) =>
-                            handleDefaultRegistryFieldDragOver(event, displayTermFieldType)
-                          }
-                          onDragLeave={(event) =>
-                            handleDefaultRegistryFieldDragLeave(event, displayTermFieldType)
-                          }
-                          onDrop={(event) =>
-                            handleDefaultRegistryFieldDrop(event, displayTermFieldType)
-                          }
-                          onChange={(event) =>
-                            updateField(displayTermFieldType, event.target.value)
-                          }
-                          onBlur={(event) =>
-                            commitRegistryField(displayTermFieldType, event.currentTarget.value)
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key !== "Enter") {
-                              return;
-                            }
-
-                            event.preventDefault();
-                            event.currentTarget.blur();
-                          }}
-                        />
-                      )}
-                      <button
-                        type="button"
-                        className="nodrag"
-                        style={getCanvasRegistryButtonStyle()}
-                        title="Open CLP registry"
-                        aria-label="Open CLP registry"
-                        onPointerDown={stopNodeSelectionPropagation}
-                        onMouseDown={stopNodeSelectionPropagation}
-                        onClick={(event) => {
-                          stopNodeSelectionPropagation(event);
-                          onRegistryPickerOpen(id, displayTermFieldType);
                         }}
                       >
                         📋
