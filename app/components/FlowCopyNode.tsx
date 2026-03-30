@@ -474,9 +474,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const [isEditingCanvasTitle, setIsEditingCanvasTitle] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
   const [editingVerticalGroupId, setEditingVerticalGroupId] = useState<string | null>(null);
+  const [pendingVerticalRegistryTerm, setPendingVerticalRegistryTerm] =
+    useState<PendingRibbonRegistryTerm | null>(null);
   const [pendingRibbonRegistryTerm, setPendingRibbonRegistryTerm] =
     useState<PendingRibbonRegistryTerm | null>(null);
   const [activeRibbonDropCellId, setActiveRibbonDropCellId] =
+    useState<string | null>(null);
+  const [activeVerticalDropGroupId, setActiveVerticalDropGroupId] =
     useState<string | null>(null);
   const [activeRegistryDropField, setActiveRegistryDropField] =
     useState<DefaultNodeRegistryField | null>(null);
@@ -682,6 +686,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       event: React.DragEvent<HTMLInputElement | HTMLTextAreaElement>,
       field: DefaultNodeRegistryField
     ) => {
+      console.log("[CLP Debug] default field drop", { field, nodeId: id });
+
       if (data.node_type !== "default") {
         return;
       }
@@ -1115,6 +1121,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
   const closeVerticalTermPopup = useCallback(() => {
     setEditingVerticalGroupId(null);
+    setPendingVerticalRegistryTerm(null);
+    setActiveVerticalDropGroupId(null);
   }, []);
 
   const openVerticalTermEditor = useCallback(
@@ -1267,6 +1275,79 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       onCanDropRegistryEntry,
       onResolveDroppedRegistryTerm,
       openRibbonCellEditor,
+    ]
+  );
+
+  const handleVerticalRowDragOver = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, groupId: string) => {
+      if (!isVerticalTermsNode) {
+        return;
+      }
+
+      const canDropRegistryEntry = onCanDropRegistryEntry(event.dataTransfer);
+      if (!canDropRegistryEntry) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+
+      setActiveVerticalDropGroupId((currentGroupId) =>
+        currentGroupId === groupId ? currentGroupId : groupId
+      );
+    },
+    [isVerticalTermsNode, onCanDropRegistryEntry]
+  );
+
+  const handleVerticalRowDragLeave = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, groupId: string) => {
+      const relatedTarget = event.relatedTarget;
+
+      if (
+        relatedTarget instanceof Node &&
+        event.currentTarget.contains(relatedTarget)
+      ) {
+        return;
+      }
+
+      setActiveVerticalDropGroupId((currentGroupId) =>
+        currentGroupId === groupId ? null : currentGroupId
+      );
+    },
+    []
+  );
+
+  const handleVerticalRowDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, groupId: string) => {
+      if (!isVerticalTermsNode) {
+        return;
+      }
+
+      const canDropRegistryEntry = onCanDropRegistryEntry(event.dataTransfer);
+      if (!canDropRegistryEntry) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const pendingTerm = onResolveDroppedRegistryTerm(event.dataTransfer);
+
+      if (!pendingTerm) {
+        setActiveVerticalDropGroupId(null);
+        return;
+      }
+
+      openVerticalTermEditor(event.currentTarget, groupId);
+      setPendingVerticalRegistryTerm(pendingTerm);
+      setActiveVerticalDropGroupId(null);
+    },
+    [
+      isVerticalTermsNode,
+      onCanDropRegistryEntry,
+      onResolveDroppedRegistryTerm,
+      openVerticalTermEditor,
     ]
   );
 
@@ -1769,6 +1850,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   useEffect(() => {
     if (!isVerticalTermsNode) {
       setEditingVerticalGroupId(null);
+      setPendingVerticalRegistryTerm(null);
+      setActiveVerticalDropGroupId(null);
       return;
     }
 
@@ -1785,6 +1868,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
     if (!matchingGroupExists || !matchingGroupHasSlots) {
       setEditingVerticalGroupId(null);
+      setPendingVerticalRegistryTerm(null);
+      setActiveVerticalDropGroupId(null);
     }
   }, [
     contentConfig.groups,
@@ -2489,12 +2574,47 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               </div>
             )}
 {editingRibbonSlots.map((slot, slotIndex) => (
-              <label key={`ribbon-slot:${slot.id}`}>
+              <label
+                key={`ribbon-slot:${slot.id}`}
+                className={pendingRibbonRegistryTerm ? "ribbon-slot-assignable" : undefined}
+                onClick={(event) => {
+                  if (!pendingRibbonRegistryTerm) {
+                    return;
+                  }
+
+                  stopNodeSelectionPropagation(event);
+                  updateRibbonSlotValue(slot.id, pendingRibbonRegistryTerm.termValue);
+                  onAssignPendingRibbonTermToField(
+                    id,
+                    buildContentSlotRegistryField(slot.id) as unknown as `ribbon_cell:[${string}]:label`,
+                    pendingRibbonRegistryTerm
+                  );
+                  setPendingRibbonRegistryTerm(null);
+                }}
+                onMouseEnter={(event) => {
+                  if (!pendingRibbonRegistryTerm) {
+                    return;
+                  }
+
+                  event.currentTarget.style.background = "#eff6ff";
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = "transparent";
+                }}
+                style={{
+                  display: "block",
+                  borderRadius: 6,
+                  padding: "2px 4px",
+                  margin: "0 -4px",
+                  cursor: pendingRibbonRegistryTerm ? "pointer" : "default",
+                  background: "transparent",
+                }}
+              >
                 <SlotTermTypeEditor
-                        slot={slot}
-                        slotIndex={slotIndex}
-                        onChangeTermType={updateSlotTermType}
-                      />
+                  slot={slot}
+                  slotIndex={slotIndex}
+                  onChangeTermType={updateSlotTermType}
+                />
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <input
                     className="nodrag"
@@ -2508,6 +2628,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
+                      pointerEvents: pendingRibbonRegistryTerm ? "none" : undefined,
                     }}
                     value={slot.value}
                     onPointerDown={stopNodeSelectionPropagation}
@@ -2531,7 +2652,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   <button
                     type="button"
                     className="nodrag"
-                    style={getCanvasRegistryButtonStyle()}
+                    style={{
+                      ...getCanvasRegistryButtonStyle(),
+                      pointerEvents: pendingRibbonRegistryTerm ? "none" : undefined,
+                    }}
                     title="Open CLP registry"
                     aria-label="Open CLP registry"
                     onPointerDown={stopNodeSelectionPropagation}
@@ -2853,6 +2977,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               >
                 {verticalTermRows.map((row) => {
                   const isEditingRow = editingVerticalGroupId === row.group.id;
+                  const isVerticalDropTargetActive =
+                    activeVerticalDropGroupId === row.group.id;
 
                   return (
                     <div
@@ -2860,6 +2986,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       data-vertical-group-row-id={row.group.id}
                       className="nodrag nopan"
                       onPointerDown={stopNodeSelectionPropagation}
+                      onDragOver={(event) => handleVerticalRowDragOver(event, row.group.id)}
+                      onDragLeave={(event) => handleVerticalRowDragLeave(event, row.group.id)}
+                      onDrop={(event) => handleVerticalRowDrop(event, row.group.id)}
                       role="button"
                       tabIndex={0}
                       onClick={(event) => {
@@ -2874,14 +3003,21 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         }
                       }}
                       style={{
-                        border: `1px solid ${isEditingRow ? "#60a5fa" : "#cbd5e1"}`,
+                        border: `1px solid ${
+                          isVerticalDropTargetActive || isEditingRow
+                            ? "#60a5fa"
+                            : "#cbd5e1"
+                        }`,
                         borderRadius: 6,
                         padding: 3,
                         minWidth: 0,
                         display: "grid",
                         gap: 3,
-                        background: isEditingRow ? "#eff6ff" : "#fff",
-                        boxShadow: isEditingRow
+                        background:
+                          isVerticalDropTargetActive || isEditingRow
+                            ? "#eff6ff"
+                            : "#fff",
+                        boxShadow: isVerticalDropTargetActive || isEditingRow
                           ? "0 0 0 1px rgba(37, 99, 235, 0.28)"
                           : "none",
                         cursor: "text",
@@ -2985,8 +3121,71 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                     gap: 6,
                   }}
                 >
+                  {pendingVerticalRegistryTerm && (
+                    <div
+                      style={{
+                        borderWidth: 1,
+                        borderStyle: "solid",
+                        borderColor: "#bfdbfe",
+                        borderRadius: 6,
+                        background: "#eff6ff",
+                        padding: "6px 8px",
+                        display: "grid",
+                        gap: 2,
+                      }}
+                    >
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#1e3a8a" }}>
+                        Assign term: {pendingVerticalRegistryTerm.termValue}
+                      </div>
+                      {pendingVerticalRegistryTerm.referenceKey && (
+                        <div style={{ fontSize: 10, color: "#475569" }}>
+                          Key: {pendingVerticalRegistryTerm.referenceKey}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 10, color: "#334155" }}>
+                        Click a field below to place this term.
+                      </div>
+                    </div>
+                  )}
                   {editingVerticalRow.slots.map((slot, slotIndex) => (
-                    <label key={`vertical-slot:${slot.id}`}>
+                    <label
+                      key={`vertical-slot:${slot.id}`}
+                      className={
+                        pendingVerticalRegistryTerm ? "ribbon-slot-assignable" : undefined
+                      }
+                      onClick={(event) => {
+                        if (!pendingVerticalRegistryTerm) {
+                          return;
+                        }
+
+                        stopNodeSelectionPropagation(event);
+                        updateVerticalSlotValue(slot.id, pendingVerticalRegistryTerm.termValue);
+                        onAssignPendingRibbonTermToField(
+                          id,
+                          buildContentSlotRegistryField(slot.id) as unknown as `ribbon_cell:[${string}]:label`,
+                          pendingVerticalRegistryTerm
+                        );
+                        setPendingVerticalRegistryTerm(null);
+                      }}
+                      onMouseEnter={(event) => {
+                        if (!pendingVerticalRegistryTerm) {
+                          return;
+                        }
+
+                        event.currentTarget.style.background = "#eff6ff";
+                      }}
+                      onMouseLeave={(event) => {
+                        event.currentTarget.style.background = "transparent";
+                      }}
+                      style={{
+                        display: "block",
+                        borderRadius: 6,
+                        padding: "2px 4px",
+                        margin: "0 -4px",
+                        cursor: pendingVerticalRegistryTerm ? "pointer" : "default",
+                        background: "transparent",
+                      }}
+                    >
                       <SlotTermTypeEditor
                         slot={slot}
                         slotIndex={slotIndex}
@@ -3005,6 +3204,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
+                            pointerEvents: pendingVerticalRegistryTerm ? "none" : undefined,
                           }}
                           value={slot.value}
                           onPointerDown={stopNodeSelectionPropagation}
@@ -3028,7 +3228,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         <button
                           type="button"
                           className="nodrag"
-                          style={getCanvasRegistryButtonStyle()}
+                          style={{
+                            ...getCanvasRegistryButtonStyle(),
+                            pointerEvents: pendingVerticalRegistryTerm ? "none" : undefined,
+                          }}
                           title="Open CLP registry"
                           aria-label="Open CLP registry"
                           onPointerDown={stopNodeSelectionPropagation}

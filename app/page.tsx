@@ -1330,6 +1330,9 @@ const isRegistryTrackedField = (field: string): field is RegistryTrackedField =>
 const buildMenuTermRegistryField = (menuTermId: string): MenuTermRegistryField =>
   `menu_term:[${menuTermId}]`;
 
+const buildContentSlotRegistryField = (slotId: string): SlotRegistryField =>
+  `slot:[${slotId}]`;
+
 const buildRibbonCellRegistryField = (
   cellId: string,
   fieldName: RibbonCellRegistryFieldName
@@ -1439,7 +1442,9 @@ const getRegistryTermTypeFromField = (
       return "slot";
     }
 
-    return getSlotTermTypeForNode(node, slotId) ?? "slot";
+    const result = getSlotTermTypeForNode(node, slotId) ?? "slot";
+
+    return result;
   }
 
   return field;
@@ -3538,7 +3543,6 @@ export default function Page() {
                   ? {
                       ...entry,
                       assignedNodeId: createdNodeId,
-                      assignedField: "primary_cta",
                       assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
                         "primary_cta",
                         createdNode,
@@ -3600,6 +3604,45 @@ export default function Page() {
             return node;
           }
 
+          const slotId = parseSlotRegistryField(field);
+
+          if (slotId) {
+            const matchingSlot = node.data.content_config.slots.find(
+              (slot) => slot.id === slotId
+            );
+
+            console.log("[CLP Debug] default node slot write", {
+              nodeId,
+              slotId,
+              newValue: payload.termValue,
+              slotFound: !!matchingSlot,
+            });
+
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                content_config: {
+                  ...node.data.content_config,
+                  slots: node.data.content_config.slots.map((slot) =>
+                    slot.id === slotId
+                      ? {
+                          ...slot,
+                          value: payload.termValue,
+                        }
+                      : slot
+                  ),
+                },
+              },
+            };
+          }
+
+          console.log("[CLP Debug] default node legacy write", {
+            nodeId,
+            field,
+            newValue: payload.termValue,
+          });
+
           return {
             ...node,
             data: {
@@ -3638,7 +3681,6 @@ export default function Page() {
             return {
               ...entry,
               assignedNodeId: null,
-              assignedField: null,
               assignedSlotId: null,
               updatedAt: now,
             };
@@ -3659,7 +3701,6 @@ export default function Page() {
             ...draggedEntry,
             termType: nextTermType,
             assignedNodeId: nodeId,
-            assignedField: field,
             assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
               field,
               targetNode,
@@ -3724,8 +3765,8 @@ export default function Page() {
 
         const now = new Date().toISOString();
         let hasChanges = false;
-        const nextTermType = getRegistryTermTypeFromField(field);
         const targetNode = nodes.find((node) => node.id === nodeId) ?? null;
+        const nextTermType = getRegistryTermTypeFromField(field, targetNode);
         const targetAssignedSlotId = resolveAssignedSlotIdForRegistryAssignment(
           field,
           targetNode,
@@ -3742,7 +3783,6 @@ export default function Page() {
             return {
               ...entry,
               assignedNodeId: null,
-              assignedField: null,
               assignedSlotId: null,
               updatedAt: now,
             };
@@ -3763,7 +3803,6 @@ export default function Page() {
             ...draggedEntry,
             termType: nextTermType,
             assignedNodeId: nodeId,
-            assignedField: field,
             assignedSlotId: targetAssignedSlotId,
             updatedAt: now,
           };
@@ -4098,7 +4137,6 @@ export default function Page() {
             friendlyIdLocked: false,
             termType: field,
             assignedNodeId: pastedNode.id,
-            assignedField: field,
             assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
               field,
               pastedNode,
@@ -4188,7 +4226,6 @@ export default function Page() {
         return {
           ...entry,
           assignedNodeId: null,
-          assignedField: null,
           assignedSlotId: null,
           updatedAt: now,
         };
@@ -5054,7 +5091,6 @@ export default function Page() {
             friendlyIdLocked: false,
             termType: getRegistryTermTypeFromField(field, targetNode),
             assignedNodeId: nodeId,
-            assignedField: field,
             assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
               field,
               targetNode
@@ -5255,12 +5291,11 @@ export default function Page() {
         )
       );
 
-      if (!targetEntry.assignedNodeId || !targetEntry.assignedField) {
+      if (!targetEntry.assignedNodeId) {
         return true;
       }
 
       const assignedNodeId = targetEntry.assignedNodeId;
-      const assignedField = targetEntry.assignedField;
 
       setNodes((currentNodes) =>
         currentNodes.map((node) => {
@@ -5268,69 +5303,26 @@ export default function Page() {
             return node;
           }
 
-          if (isRegistryTrackedField(assignedField)) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                [assignedField]: nextValue,
-              },
-            };
-          }
-
-          const dynamicAssignedField = assignedField as DynamicRegistryTrackedField;
-          const assignedMenuTermId = parseMenuTermRegistryField(dynamicAssignedField);
-
-          if (assignedMenuTermId && node.data.node_type === "menu") {
-            const normalizedMenuConfig = normalizeMenuNodeConfig(
-              node.data.menu_config,
-              node.data.primary_cta,
-              Math.max(
-                MENU_NODE_RIGHT_CONNECTIONS_MIN,
-                node.data.menu_config.max_right_connections
-              )
+          if (targetEntry.assignedSlotId) {
+            const slotIndex = node.data.content_config.slots.findIndex(
+              (slot) => slot.id === targetEntry.assignedSlotId
             );
-
-            const nextMenuConfig = normalizedMenuConfig.terms.map(
-              (menuTerm) =>
-                menuTerm.id === assignedMenuTermId
-                  ? {
-                      ...menuTerm,
-                      term: nextValue,
-                    }
-                  : menuTerm
-            );
-
-            return {
-              ...node,
-              data: applyMenuConfigToNodeData(node.data, {
-                ...normalizedMenuConfig,
-                terms: nextMenuConfig,
-              }),
-            };
-          }
-
-          const assignedRibbonCellField = parseRibbonCellRegistryField(dynamicAssignedField);
-          if (assignedRibbonCellField && node.data.node_type === "ribbon") {
-            const normalizedRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
-
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                ribbon_config: {
-                  ...normalizedRibbonConfig,
-                  cells: normalizedRibbonConfig.cells.map((cell) =>
-                    cell.id === assignedRibbonCellField.cellId
-                      ? {
-                          ...cell,
-                          [assignedRibbonCellField.fieldName]: nextValue,
-                        }
-                      : cell
-                  ),
+            if (slotIndex !== -1) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  content_config: {
+                    ...node.data.content_config,
+                    slots: node.data.content_config.slots.map((slot) =>
+                      slot.id === targetEntry.assignedSlotId
+                        ? { ...slot, value: nextValue }
+                        : slot
+                    ),
+                  },
                 },
-              },
-            };
+              };
+            }
           }
 
           return node;
@@ -5450,7 +5442,6 @@ export default function Page() {
         friendlyIdLocked: false,
         termType: nextTermType,
         assignedNodeId: null,
-        assignedField: null,
         assignedSlotId: null,
         deduplicationSuffix: null,
         createdAt: now,
@@ -5528,6 +5519,61 @@ export default function Page() {
       );
     },
     [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
+  );
+
+  const updateSelectedContentSlotValue = useCallback(
+    (slotId: string, value: string) => {
+      if (!effectiveSelectedNodeId) {
+        return;
+      }
+
+      startTextEditHistoryBurst();
+      queueUndoSnapshot();
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== effectiveSelectedNodeId) {
+            return node;
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              content_config: {
+                ...node.data.content_config,
+                slots: node.data.content_config.slots.map((slot) =>
+                  slot.id === slotId
+                    ? {
+                        ...slot,
+                        value,
+                      }
+                    : slot
+                ),
+              },
+            },
+          };
+        })
+      );
+    },
+    [effectiveSelectedNodeId, queueUndoSnapshot, setNodes, startTextEditHistoryBurst]
+  );
+
+  const commitContentSlotRegistryField = useCallback(
+    (slotId: string, value: string) => {
+      flushTextEditHistoryBurst();
+
+      if (!effectiveSelectedNodeId || selectedNode?.data.node_type === "frame") {
+        return;
+      }
+
+      syncFieldToRegistry(
+        effectiveSelectedNodeId,
+        buildContentSlotRegistryField(slotId),
+        value
+      );
+    },
+    [effectiveSelectedNodeId, flushTextEditHistoryBurst, selectedNode, syncFieldToRegistry]
   );
 
   const updateNodeTypeById = useCallback(
@@ -5897,7 +5943,6 @@ export default function Page() {
             return {
               ...entry,
               assignedNodeId: null,
-              assignedField: null,
               assignedSlotId: null,
               updatedAt: now,
             };
@@ -6316,12 +6361,6 @@ export default function Page() {
         targetTermType
       );
 
-      console.log("[CLP Debug] HMN field assign clicked", {
-        field,
-        entryAssignedSlotId: entry.assignedSlotId,
-        targetAssignedSlotId,
-      });
-
       const assignedToOtherField =
         entry.assignedNodeId !== null &&
         (entry.assignedNodeId !== effectiveSelectedNodeId ||
@@ -6375,7 +6414,6 @@ export default function Page() {
             return {
               ...registryEntry,
               assignedNodeId: null,
-              assignedField: null,
               assignedSlotId: null,
               updatedAt: now,
             };
@@ -6393,7 +6431,6 @@ export default function Page() {
               id: crypto.randomUUID(),
               termType: targetTermType,
               assignedNodeId: effectiveSelectedNodeId,
-              assignedField: field,
               assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
                 field,
                 selectedNode,
@@ -6421,7 +6458,6 @@ export default function Page() {
                 ...existingEntry,
                 termType: targetTermType,
                 assignedNodeId: effectiveSelectedNodeId,
-                assignedField: field,
                 assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
                   field,
                   selectedNode,
@@ -7570,7 +7606,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           friendlyIdLocked: false,
           termType: mappedNodeTypeValue.length > 0 ? mappedNodeTypeValue : null,
           assignedNodeId: hasExplicitValidUnassignedStatus ? null : null,
-          assignedField: null,
           assignedSlotId: null,
           deduplicationSuffix: null,
           createdAt: now,
@@ -11996,55 +12031,77 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         </div>
                       </div>
 
-                      {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => (
-                        <label key={`controlled-language-field:${fieldType}`}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: 8,
-                              marginBottom: 4,
-                            }}
+                      {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => {
+                        const normalizedFieldType = normalizeContentSlotTermType(fieldType);
+                        const matchingSlot = selectedNode.data.content_config.slots.find(
+                          (slot) =>
+                            normalizeContentSlotTermType(slot.termType) === normalizedFieldType
+                        );
+
+                        if (!matchingSlot) {
+                          return null;
+                        }
+
+                        const slotRegistryField = buildContentSlotRegistryField(matchingSlot.id);
+
+                        return (
+                          <label
+                            key={`controlled-language-field:${fieldType}:${matchingSlot.id}`}
                           >
-                            <div style={inspectorFieldLabelStyle}>
-                              {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
-                            </div>
-                            <button
-                              type="button"
-                              style={getInspectorRegistryButtonStyle(
-                                activeInspectorRegistryPickerField === fieldType
-                              )}
-                              title="Open CLP registry"
-                              aria-label="Open CLP registry"
-                              onClick={() =>
-                                toggleInspectorRegistryPickerForField(fieldType)
-                              }
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 8,
+                                marginBottom: 4,
+                              }}
                             >
-                              📋
-                            </button>
-                          </div>
+                              <div style={inspectorFieldLabelStyle}>
+                                {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
+                              </div>
+                              <button
+                                type="button"
+                                style={getInspectorRegistryButtonStyle(
+                                  activeInspectorRegistryPickerField === slotRegistryField
+                                )}
+                                title="Open CLP registry"
+                                aria-label="Open CLP registry"
+                                onClick={() =>
+                                  toggleInspectorRegistryPickerForField(slotRegistryField)
+                                }
+                              >
+                                📋
+                              </button>
+                            </div>
 
-                          <input
-                            style={inputStyle}
-                            value={selectedNode.data[fieldType]}
-                            onChange={(event) =>
-                              updateSelectedField(fieldType, event.target.value)
-                            }
-                            onBlur={(event) =>
-                              commitSelectedRegistryField(fieldType, event.target.value)
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key !== "Enter") {
-                                return;
+                            <input
+                              style={inputStyle}
+                              value={matchingSlot.value}
+                              onChange={(event) =>
+                                updateSelectedContentSlotValue(
+                                  matchingSlot.id,
+                                  event.target.value
+                                )
                               }
+                              onBlur={(event) =>
+                                commitContentSlotRegistryField(
+                                  matchingSlot.id,
+                                  event.target.value
+                                )
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter") {
+                                  return;
+                                }
 
-                              event.preventDefault();
-                              event.currentTarget.blur();
-                            }}
-                          />
-                        </label>
-                      ))}
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                              }}
+                            />
+                          </label>
+                        );
+                      })}
                       
                     </>
                   )}

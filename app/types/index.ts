@@ -223,13 +223,8 @@ export type TermRegistryEntry = {
   /**
    * Assignment: which node and field this term is placed in.
    * Both null if unassigned (term exists in registry but not on canvas).
-   *
-   * For default node fields: assignedField is the field name, e.g. "primary_cta", "title", "body_text"
-   * For menu terms: assignedField is "menu_term:[menuTermId]"
-   * For ribbon cells: assignedField is "ribbon_cell:[cellId]:[fieldName]" where fieldName is "label", "key_command", or "tool_tip"
    */
   assignedNodeId: string | null;
-  assignedField: string | null;
   assignedSlotId?: string | null;
 
   /**

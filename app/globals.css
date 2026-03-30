@@ -18,3 +18,11 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.ribbon-slot-assignable {
+  transition: background-color 120ms ease;
+}
+
+.ribbon-slot-assignable:hover {
+  background: #eff6ff;
+}
