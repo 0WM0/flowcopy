@@ -1036,7 +1036,7 @@ export const normalizeMenuNodeConfig = (
   });
 
   if (normalizedTerms.length === 0) {
-    normalizedTerms.push(createMenuNodeTerm(fallbackPrimaryTerm || "Continue"));
+    normalizedTerms.push(createMenuNodeTerm(fallbackPrimaryTerm || ""));
   }
 
   const terms = normalizedTerms.slice(0, maxRightConnections);
@@ -1184,7 +1184,7 @@ export const createDefaultNodeData = (
     node_type: nodeType,
     menu_config: normalizeMenuNodeConfig(
       overrides.menu_config,
-      overrides.primary_cta ?? "Continue",
+      overrides.primary_cta ?? "",
       1
     ),
     frame_config: normalizeFrameNodeConfig(overrides.frame_config),
@@ -1215,7 +1215,7 @@ export const createDefaultNodeData = (
             : nodeType === "menu" || nodeType === "vertical_multi_term"
               ? migrateMenuToContentConfig(
                   overrides.menu_config,
-                  overrides.primary_cta ?? "Continue",
+                  overrides.primary_cta ?? "",
                   overrides.title ?? ""
                 )
               : nodeType === "ribbon" || nodeType === "horizontal_multi_term"

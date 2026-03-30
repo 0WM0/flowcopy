@@ -3313,7 +3313,7 @@ export default function Page() {
               position,
               data: {
                 node_type: "menu",
-                primary_cta: normalizedPrimaryText || "Continue",
+                primary_cta: normalizedPrimaryText || "",
               },
             }
           : nodeType === "ribbon"
