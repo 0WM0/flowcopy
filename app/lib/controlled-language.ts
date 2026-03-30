@@ -354,6 +354,13 @@ export const replaceTermInNodeTextFields = (
       action_type_name: replaceField(node.data.action_type_name),
       action_type_color: replaceField(node.data.action_type_color),
       card_style: replaceField(node.data.card_style),
+      content_config: {
+        ...node.data.content_config,
+        slots: node.data.content_config.slots.map((slot) => ({
+          ...slot,
+          value: replaceField(slot.value),
+        })),
+      },
       menu_config: {
         ...node.data.menu_config,
         terms: node.data.menu_config.terms.map((menuTerm) => ({

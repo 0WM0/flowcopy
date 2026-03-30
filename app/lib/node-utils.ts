@@ -13,8 +13,6 @@ import type {
   RibbonNodeCell,
   RibbonNodeConfig,
   FrameNodeConfig,
-  PersistableMicrocopyNodeData,
-  DefaultNodeDisplayFieldType,
   NodeContentConfig,
   NodeContentGroup,
   NodeContentLayout,
@@ -47,10 +45,6 @@ import {
   UI_JOURNEY_HIGHLIGHT_STROKE_COLOR,
   UI_JOURNEY_RECALLED_STROKE_COLOR,
 } from "../constants";
-import {
-  isDefaultNodeDisplayFieldType,
-  isNodeControlledLanguageFieldType,
-} from "./controlled-language";
 
 export const isFrameShade = (value: unknown): value is FrameShade =>
   value === "light" || value === "medium" || value === "dark";
@@ -1132,21 +1126,6 @@ export const createDefaultNodeData = (
   overrides: Partial<PersistableMicrocopyNodeData> = {}
 ): MicrocopyNodeData => {
   const nodeType = isNodeType(overrides.node_type) ? overrides.node_type : "default";
-  const displayTermField = isNodeControlledLanguageFieldType(
-    overrides.display_term_field
-  )
-    ? overrides.display_term_field
-    : "primary_cta";
-
-  const displayTermFields = Array.isArray(overrides.display_term_fields)
-    ? Array.from(
-        new Set(
-          overrides.display_term_fields.filter((value): value is DefaultNodeDisplayFieldType =>
-            isDefaultNodeDisplayFieldType(value)
-          )
-        )
-      )
-    : [];
 
   return {
     title: overrides.title ?? "",
@@ -1161,9 +1140,6 @@ export const createDefaultNodeData = (
     secondary_cta: overrides.secondary_cta ?? "",
     helper_text: overrides.helper_text ?? "",
     error_text: overrides.error_text ?? "",
-    display_term_field: displayTermField,
-    display_term_fields:
-      displayTermFields.length > 0 ? displayTermFields : [displayTermField],
     tone: overrides.tone ?? firstOptionOrFallback(globalOptions.tone, "neutral"),
     polarity:
       overrides.polarity ?? firstOptionOrFallback(globalOptions.polarity, "neutral"),
@@ -1517,8 +1493,6 @@ export const serializeNodesForStorage = (
       secondary_cta: node.data.secondary_cta,
       helper_text: node.data.helper_text,
       error_text: node.data.error_text,
-      display_term_field: node.data.display_term_field,
-      display_term_fields: node.data.display_term_fields,
       tone: node.data.tone,
       polarity: node.data.polarity,
       reversibility: node.data.reversibility,
