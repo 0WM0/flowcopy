@@ -237,6 +237,7 @@ import {
   getNodeContentStyle,
   createDefaultNodeData,
   getFallbackNodeSize,
+  migrateDefaultToContentConfig,
   migrateMenuToContentConfig,
   migrateRibbonToContentConfig,
 } from "./lib/node-utils";
@@ -8057,6 +8058,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               const x = toNumeric(row.position_x);
               const y = toNumeric(row.position_y);
               const importedNodeType = isNodeType(row.node_type) ? row.node_type : "default";
+              const hasImportedContentConfigJson =
+                (row.content_config_json ?? "").trim().length > 0;
+              const importedContentConfigRaw = hasImportedContentConfigJson
+                ? safeJsonParse(row.content_config_json ?? "")
+                : null;
               const importedMenuConfigRaw = safeJsonParse(row.menu_config_json ?? "");
               const importedFrameConfigRaw = safeJsonParse(row.frame_config_json ?? "");
               const importedRibbonConfigRaw = (() => {
@@ -8123,6 +8129,57 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 ? row.display_term_field
                 : "primary_cta";
 
+              const shouldPopulateLegacyContentFieldsFromRow =
+                !hasImportedContentConfigJson;
+              const importedBodyText = shouldPopulateLegacyContentFieldsFromRow
+                ? row.body_text ?? ""
+                : "";
+              const importedPrimaryCta = shouldPopulateLegacyContentFieldsFromRow
+                ? row.primary_cta ?? ""
+                : "";
+              const importedSecondaryCta = shouldPopulateLegacyContentFieldsFromRow
+                ? row.secondary_cta ?? ""
+                : "";
+              const importedHelperText = shouldPopulateLegacyContentFieldsFromRow
+                ? row.helper_text ?? ""
+                : "";
+              const importedErrorText = shouldPopulateLegacyContentFieldsFromRow
+                ? row.error_text ?? ""
+                : "";
+
+              const normalizedImportedMenuConfig = normalizeMenuNodeConfig(
+                importedMenuConfigRaw,
+                row.primary_cta ?? ""
+              );
+              const normalizedImportedRibbonConfig =
+                importedNodeType === "ribbon" && importedRibbonConfigRaw
+                  ? normalizeRibbonNodeConfig(importedRibbonConfigRaw)
+                  : null;
+
+              const importedContentConfig = hasImportedContentConfigJson
+                ? importedContentConfigRaw
+                : importedNodeType === "menu"
+                  ? migrateMenuToContentConfig(
+                      normalizedImportedMenuConfig,
+                      row.primary_cta ?? "",
+                      row.title ?? ""
+                    )
+                  : importedNodeType === "ribbon"
+                    ? migrateRibbonToContentConfig(
+                        normalizedImportedRibbonConfig,
+                        row.title ?? ""
+                      )
+                    : migrateDefaultToContentConfig({
+                        title: row.title ?? "",
+                        body_text: row.body_text ?? "",
+                        primary_cta: row.primary_cta ?? "",
+                        secondary_cta: row.secondary_cta ?? "",
+                        helper_text: row.helper_text ?? "",
+                        error_text: row.error_text ?? "",
+                        display_term_field: importedDisplayTermField,
+                        display_term_fields: [importedDisplayTermField],
+                      });
+
               return {
                 id: nodeId,
                 position: {
@@ -8131,11 +8188,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 },
                 data: {
                   title: row.title ?? "",
-                  body_text: row.body_text ?? "",
-                  primary_cta: row.primary_cta ?? "",
-                  secondary_cta: row.secondary_cta ?? "",
-                  helper_text: row.helper_text ?? "",
-                  error_text: row.error_text ?? "",
+                  body_text: importedBodyText,
+                  primary_cta: importedPrimaryCta,
+                  secondary_cta: importedSecondaryCta,
+                  helper_text: importedHelperText,
+                  error_text: importedErrorText,
                   display_term_field: importedDisplayTermField,
                   display_term_fields: [importedDisplayTermField],
                   tone: row.tone ?? "",
@@ -8148,15 +8205,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   card_style: row.card_style ?? "",
                   node_shape: isNodeShape(row.node_shape) ? row.node_shape : "rectangle",
                   node_type: importedNodeType,
-                  menu_config: normalizeMenuNodeConfig(
-                    importedMenuConfigRaw,
-                    row.primary_cta ?? ""
-                  ),
+                  menu_config: normalizedImportedMenuConfig,
                   frame_config: normalizeFrameNodeConfig(importedFrameConfigRaw),
-                  ribbon_config:
-                    importedNodeType === "ribbon" && importedRibbonConfigRaw
-                      ? normalizeRibbonNodeConfig(importedRibbonConfigRaw)
-                      : null,
+                  ribbon_config: normalizedImportedRibbonConfig,
+                  content_config: importedContentConfig,
                 },
               };
             }
@@ -8850,7 +8902,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             <button
               type="button"
               style={TRANSFER_PAIR_BUTTON_STYLE}
-              onClick={() => openTransferModal("import", "project")}
+              onClick={triggerImportPicker}
             >
               Import Project
             </button>
@@ -9391,7 +9443,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             <button
               type="button"
               style={TRANSFER_PAIR_BUTTON_STYLE}
-              onClick={() => openTransferModal("import", "project")}
+              onClick={triggerImportPicker}
             >
               Import Project
             </button>

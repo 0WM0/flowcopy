@@ -888,12 +888,7 @@ export const createFlatExportRows = ({
       position_x: node ? String(node.position.x) : "",
       position_y: node ? String(node.position.y) : "",
       title: node?.data.title ?? "",
-      body_text: node?.data.body_text ?? "",
-      primary_cta: node?.data.primary_cta ?? "",
-      secondary_cta: node?.data.secondary_cta ?? "",
-      helper_text: node?.data.helper_text ?? "",
-      error_text: node?.data.error_text ?? "",
-      display_term_field: node?.data.display_term_field ?? "",
+      content_config_json: node ? JSON.stringify(node.data.content_config) : "",
       tone: node?.data.tone ?? "",
       polarity: node?.data.polarity ?? "",
       reversibility: node?.data.reversibility ?? "",
@@ -904,12 +899,7 @@ export const createFlatExportRows = ({
       card_style: node?.data.card_style ?? "",
       node_shape: node?.data.node_shape ?? "",
       node_type: node?.data.node_type ?? "default",
-      menu_config_json: node ? JSON.stringify(node.data.menu_config) : "",
       frame_config_json: node ? JSON.stringify(node.data.frame_config) : "",
-      ribbon_cells_json:
-        node?.data.node_type === "ribbon"
-          ? JSON.stringify(node.data.ribbon_config?.cells ?? [])
-          : "",
       project_admin_options_json: adminOptionsJson,
       project_controlled_language_json: controlledLanguageJson,
       project_term_registry_json: termRegistryJson,
