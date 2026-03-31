@@ -30,6 +30,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import type {
   NodeShape,
+  NodeContentConfig,
   EdgeKind,
   EdgeLineStyle,
   FrameShade,
@@ -5933,8 +5934,8 @@ export default function Page() {
           const nextRegistry = currentRegistry.map((entry) => {
             if (
               entry.assignedNodeId !== nodeId ||
-              entry.assignedSlotId === null ||
-              !removedMenuTermSlotIdSet.has(entry.assignedSlotId)
+              entry.assignedSlotId == null ||
+              !removedMenuTermSlotIdSet.has(entry.assignedSlotId ?? "")
             ) {
               return entry;
             }
@@ -8176,8 +8177,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         secondary_cta: row.secondary_cta ?? "",
                         helper_text: row.helper_text ?? "",
                         error_text: row.error_text ?? "",
-                        display_term_field: importedDisplayTermField,
-                        display_term_fields: [importedDisplayTermField],
                       });
 
               return {
@@ -8208,7 +8207,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   menu_config: normalizedImportedMenuConfig,
                   frame_config: normalizeFrameNodeConfig(importedFrameConfigRaw),
                   ribbon_config: normalizedImportedRibbonConfig,
-                  content_config: importedContentConfig,
+                  content_config: importedContentConfig as NodeContentConfig,
                 },
               };
             }

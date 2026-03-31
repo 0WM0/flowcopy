@@ -102,8 +102,6 @@ export type MicrocopyNodeData = {
   secondary_cta: string;
   helper_text: string;
   error_text: string;
-  display_term_field: NodeControlledLanguageFieldType;
-  display_term_fields: DefaultNodeDisplayFieldType[];
   tone: string;
   polarity: string;
   reversibility: string;
@@ -138,8 +136,6 @@ export type EditableMicrocopyField = Exclude<
   | "ribbon_config"
   | "content_config"
   | "node_type"
-  | "display_term_field"
-  | "display_term_fields"
 >;
 
 export type GlobalOptionConfig = {

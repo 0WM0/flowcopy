@@ -3,6 +3,7 @@ import type {
   FlowNode,
   FlowEdge,
   MicrocopyNodeData,
+  PersistableMicrocopyNodeData,
   SerializableFlowNode,
   GlobalOptionConfig,
   NodeShape,

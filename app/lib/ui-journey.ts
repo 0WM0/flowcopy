@@ -291,7 +291,7 @@ export const buildUiJourneyConversationFields = (
 
   const normalizedContentConfig = normalizeNodeContentConfig(
     nodeData.content_config,
-    "default"
+    "single"
   );
 
   const sortedGroups = [...normalizedContentConfig.groups].sort((a, b) => {

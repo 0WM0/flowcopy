@@ -46,7 +46,7 @@ import {
   sanitizePersistedNodes,
   serializeNodesForStorage,
 } from "../node-utils";
-import { isNodeControlledLanguageFieldType, sanitizeControlledLanguageGlossary } from "../controlled-language";
+import { sanitizeControlledLanguageGlossary } from "../controlled-language";
 import {
   getEdgeKind,
   normalizeEdgeData,
@@ -189,7 +189,6 @@ const buildCanonicalFixture = (): CanonicalFixture => {
       friendlyIdLocked: true,
       termType: "primary_cta",
       assignedNodeId: defaultNodeId,
-      assignedField: "primary_cta",
       deduplicationSuffix: null,
       createdAt,
       updatedAt: createdAt,
@@ -201,7 +200,6 @@ const buildCanonicalFixture = (): CanonicalFixture => {
       friendlyIdLocked: false,
       termType: "menu_term",
       assignedNodeId: menuNodeId,
-      assignedField: `menu_term:${menuTermPrimaryId}`,
       deduplicationSuffix: null,
       createdAt,
       updatedAt: createdAt,
@@ -219,7 +217,6 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         secondary_cta: "Cancel",
         helper_text: "You can review this later",
         error_text: "We could not save your changes",
-        display_term_field: "primary_cta",
         tone: "friendly",
         polarity: "neutral",
         reversibility: "reversible",
@@ -254,7 +251,6 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         secondary_cta: "Need help",
         helper_text: "Pick one of the terms",
         error_text: "Could not open menu",
-        display_term_field: "secondary_cta",
         tone: "formal",
         polarity: "positive",
         reversibility: "reversible",
@@ -293,7 +289,6 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         secondary_cta: "Abort",
         helper_text: "Ribbon helper",
         error_text: "Ribbon error",
-        display_term_field: "helper_text",
         tone: "urgent",
         polarity: "neutral",
         reversibility: "irreversible",
@@ -382,7 +377,6 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         secondary_cta: "",
         helper_text: "",
         error_text: "",
-        display_term_field: "primary_cta",
         tone: "neutral",
         polarity: "neutral",
         reversibility: "reversible",
@@ -641,9 +635,6 @@ const importProjectFromFlatPayload = (
         secondary_cta: row.secondary_cta ?? "",
         helper_text: row.helper_text ?? "",
         error_text: row.error_text ?? "",
-        display_term_field: isNodeControlledLanguageFieldType(row.display_term_field)
-          ? row.display_term_field
-          : "primary_cta",
         tone: row.tone ?? "",
         polarity: row.polarity ?? "",
         reversibility: row.reversibility ?? "",
