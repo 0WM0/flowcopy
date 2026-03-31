@@ -50,7 +50,7 @@ const getUiJourneyConversationTitle = (nodeData: MicrocopyNodeData): string => {
   return normalizedTitle.length > 0 ? normalizedTitle : "Untitled";
 };
 
-const normalizeConversationSlotTermTypeLabel = (
+export const normalizeConversationSlotTermTypeLabel = (
   termType: string | null
 ): string => {
   if (typeof termType !== "string") {

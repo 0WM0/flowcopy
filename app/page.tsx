@@ -156,6 +156,7 @@ import {
   buildUiJourneyConversationEntries,
   buildUiJourneySnapshotCapture,
   cloneUiJourneyConversationEntries,
+  normalizeConversationSlotTermTypeLabel,
   sanitizeUiJourneySnapshotPresets,
   cloneUiJourneySnapshotPresets,
   createUiJourneySnapshotPresetId,
@@ -216,8 +217,10 @@ import {
   computeNodesBoundingRect,
   normalizeFrameNodeConfig,
   normalizeMenuNodeConfig,
+  normalizeNodeContentConfig,
   normalizeRibbonNodeConfig,
-  createRibbonNodeCell,
+  createContentGroupId,
+  createContentSlotId,
   pruneFrameNodeMembership,
   applyFrameMovementToMemberNodes,
   constrainNodesToFrameMembershipBounds,
@@ -253,7 +256,7 @@ import {
   getEdgeKind,
   isSequentialEdge,
   syncSequentialEdgesForMenuNode,
-  syncSequentialEdgesForRibbonNode,
+  syncSequentialEdgesForContentConfig,
   assignSequentialEdgesToMenuHandles,
   remapMenuSequentialEdgesToDefaultHandle,
   hasNonSelectionNodeChanges,
@@ -1404,16 +1407,19 @@ const getSlotTermTypeForNode = (node: FlowNode | null, slotId: string): string |
 };
 
 const getSlotFieldLabelForNode = (node: FlowNode | null, slotId: string): string => {
-  const slotTermType = getSlotTermTypeForNode(node, slotId);
-  if (!slotTermType) {
+  if (!node) {
     return "Slot";
   }
 
-  return (
-    TERM_REGISTRY_TERM_TYPE_LABELS[slotTermType] ??
-    TERM_REGISTRY_TERM_TYPE_LABELS[slotTermType.toLowerCase()] ??
-    slotTermType
+  const slot = node.data.content_config.slots.find(
+    (candidateSlot) => candidateSlot.id === slotId
   );
+
+  if (!slot) {
+    return "Slot";
+  }
+
+  return normalizeConversationSlotTermTypeLabel(slot.termType);
 };
 
 const getRegistryTermTypeFromField = (
@@ -1536,6 +1542,33 @@ const getContentSlotInspectorLabel = (termType: string | null | undefined): stri
     TERM_REGISTRY_TERM_TYPE_LABELS[normalizedTermType.toLowerCase()] ??
     normalizedTermType
   );
+};
+
+const sortContentGroupsByRowColumn = (
+  groupA: { row: number; column: number },
+  groupB: { row: number; column: number }
+): number => (groupA.row === groupB.row ? groupA.column - groupB.column : groupA.row - groupB.row);
+
+const sortContentSlotsByPosition = (
+  slotA: { position: number },
+  slotB: { position: number }
+): number => slotA.position - slotB.position;
+
+const getMenuTermSlotValueFromContentConfig = (
+  contentConfig: NodeContentConfig,
+  groupId: string
+): string => {
+  const groupSlots = contentConfig.slots
+    .filter((slot) => slot.groupId === groupId)
+    .sort(sortContentSlotsByPosition);
+
+  const menuTermSlot =
+    groupSlots.find((slot) => normalizeContentSlotTermType(slot.termType) === "menu_term") ??
+    groupSlots.find((slot) => slot.position === 0) ??
+    groupSlots[0] ??
+    null;
+
+  return menuTermSlot?.value ?? "";
 };
 
 const createEmptyProjectData = (): Record<string, unknown> =>
@@ -2019,10 +2052,10 @@ export default function Page() {
   const createFrameFromSelectionRef = useRef<
     (selectedNodesForFrameCreation?: FlowNode[]) => void
   >(() => undefined);
-  const updateMenuNodeConfigByIdRef = useRef<
+  const updateVerticalContentConfigByIdRef = useRef<
     (
       nodeId: string,
-      updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig,
+      updater: (currentConfig: NodeContentConfig) => NodeContentConfig,
       historyCaptureMode?: "discrete" | "text"
     ) => void
   >(() => undefined);
@@ -5159,8 +5192,8 @@ export default function Page() {
     [flushTextEditHistoryBurst, syncSelectedRegistryFieldOnBlur]
   );
 
-  const commitSelectedMenuTermRegistryField = useCallback(
-    (menuTermId: string, value: string) => {
+  const commitSelectedMenuSlotRegistryField = useCallback(
+    (slotId: string, value: string) => {
       flushTextEditHistoryBurst();
 
       if (!effectiveSelectedNodeId || selectedNode?.data.node_type !== "menu") {
@@ -5169,7 +5202,7 @@ export default function Page() {
 
       syncFieldToRegistry(
         effectiveSelectedNodeId,
-        buildMenuTermRegistryField(menuTermId),
+        buildContentSlotRegistryField(slotId),
         value
       );
     },
@@ -5864,35 +5897,60 @@ export default function Page() {
     [effectiveSelectedNodeId, updateNodeTypeById]
   );
 
-  const updateMenuNodeConfigById = useCallback(
+  const updateVerticalContentConfigById = useCallback(
     (
       nodeId: string,
-      updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig,
+      updater: (currentConfig: NodeContentConfig) => NodeContentConfig,
       historyCaptureMode: "discrete" | "text" = "discrete"
     ) => {
       const targetNode = nodes.find((node) => node.id === nodeId);
-      if (!targetNode || targetNode.data.node_type !== "menu") {
+      if (
+        !targetNode ||
+        (targetNode.data.node_type !== "menu" &&
+          targetNode.data.node_type !== "vertical_multi_term")
+      ) {
         return;
       }
 
-      const currentMenuConfig = normalizeMenuNodeConfig(
-        targetNode.data.menu_config,
-        targetNode.data.primary_cta,
-        Math.max(
-          MENU_NODE_RIGHT_CONNECTIONS_MIN,
-          targetNode.data.menu_config.max_right_connections
-        )
+      const currentContentConfig = normalizeNodeContentConfig(
+        targetNode.data.content_config,
+        "vertical"
+      );
+      const requestedNextContentConfig = updater(currentContentConfig);
+      const normalizedNextContentConfig = normalizeNodeContentConfig(
+        requestedNextContentConfig,
+        "vertical"
       );
 
-      const requestedNextMenuConfig = updater(currentMenuConfig);
-      const normalizedNextMenuConfig = normalizeMenuNodeConfig(
-        requestedNextMenuConfig,
-        targetNode.data.primary_cta,
-        Math.max(
-          MENU_NODE_RIGHT_CONNECTIONS_MIN,
-          requestedNextMenuConfig.max_right_connections
-        )
+      const sortedNextGroups = [...normalizedNextContentConfig.groups].sort((groupA, groupB) =>
+        groupA.row === groupB.row ? groupA.column - groupB.column : groupA.row - groupB.row
       );
+
+      const getGroupMenuTermValue = (groupId: string, fallbackValue: string): string => {
+        const groupSlots = normalizedNextContentConfig.slots
+          .filter((slot) => slot.groupId === groupId)
+          .sort((slotA, slotB) => slotA.position - slotB.position);
+        const primaryMenuTermSlot =
+          groupSlots.find(
+            (slot) =>
+              normalizeContentSlotTermType(slot.termType) === "menu_term" && slot.position === 0
+          ) ??
+          groupSlots.find(
+            (slot) => normalizeContentSlotTermType(slot.termType) === "menu_term"
+          ) ??
+          null;
+
+        return primaryMenuTermSlot?.value ?? fallbackValue;
+      };
+
+      const nextPrimaryCta =
+        sortedNextGroups.length > 0
+          ? getGroupMenuTermValue(sortedNextGroups[0]!.id, targetNode.data.primary_cta)
+          : targetNode.data.primary_cta;
+      const nextSecondaryCta =
+        sortedNextGroups.length > 1
+          ? getGroupMenuTermValue(sortedNextGroups[1]!.id, targetNode.data.secondary_cta)
+          : targetNode.data.secondary_cta;
 
       if (historyCaptureMode === "text") {
         startTextEditHistoryBurst();
@@ -5908,24 +5966,35 @@ export default function Page() {
 
           return {
             ...node,
-            data: applyMenuConfigToNodeData(node.data, normalizedNextMenuConfig),
+            data: {
+              ...node.data,
+              content_config: normalizedNextContentConfig,
+              primary_cta: nextPrimaryCta,
+              secondary_cta: nextSecondaryCta,
+            },
           };
         })
       );
 
       setEdges((currentEdges) =>
-        syncSequentialEdgesForMenuNode(currentEdges, nodeId, normalizedNextMenuConfig)
+        syncSequentialEdgesForContentConfig(currentEdges, nodeId, normalizedNextContentConfig)
       );
 
-      const removedMenuTermIds = currentMenuConfig.terms
-        .map((menuTerm) => menuTerm.id)
+      const removedGroupIds = currentContentConfig.groups
+        .map((group) => group.id)
         .filter(
-          (menuTermId) =>
-            !normalizedNextMenuConfig.terms.some((menuTerm) => menuTerm.id === menuTermId)
+          (groupId) => !normalizedNextContentConfig.groups.some((group) => group.id === groupId)
         );
 
-      if (removedMenuTermIds.length > 0) {
-        const removedMenuTermSlotIdSet = new Set(removedMenuTermIds);
+      if (removedGroupIds.length > 0) {
+        const removedGroupIdSet = new Set(removedGroupIds);
+        const removedSlotIdSet = new Set(
+          currentContentConfig.slots
+            .filter(
+              (slot) => slot.groupId !== null && removedGroupIdSet.has(slot.groupId)
+            )
+            .map((slot) => slot.id)
+        );
 
         setTermRegistry((currentRegistry) => {
           const now = new Date().toISOString();
@@ -5935,7 +6004,7 @@ export default function Page() {
             if (
               entry.assignedNodeId !== nodeId ||
               entry.assignedSlotId == null ||
-              !removedMenuTermSlotIdSet.has(entry.assignedSlotId ?? "")
+              !removedSlotIdSet.has(entry.assignedSlotId ?? "")
             ) {
               return entry;
             }
@@ -5959,12 +6028,12 @@ export default function Page() {
           return current;
         }
 
-        const menuTermId = parseMenuTermRegistryField(current);
+        const menuTermId = current ? parseMenuTermRegistryField(current) : null;
         if (!menuTermId) {
           return current;
         }
 
-        return normalizedNextMenuConfig.terms.some((term) => term.id === menuTermId)
+        return normalizedNextContentConfig.groups.some((group) => group.id === menuTermId)
           ? current
           : null;
       });
@@ -5972,19 +6041,12 @@ export default function Page() {
     [nodes, queueUndoSnapshot, setEdges, setNodes, setTermRegistry, startTextEditHistoryBurst]
   );
 
-  const selectedMenuNodeConfig = useMemo(() => {
+  const selectedVerticalContentConfig = useMemo(() => {
     if (!selectedNode || selectedNode.data.node_type !== "menu") {
       return null;
     }
 
-    return normalizeMenuNodeConfig(
-      selectedNode.data.menu_config,
-      selectedNode.data.primary_cta,
-      Math.max(
-        MENU_NODE_RIGHT_CONNECTIONS_MIN,
-        selectedNode.data.menu_config.max_right_connections
-      )
-    );
+    return normalizeNodeContentConfig(selectedNode.data.content_config, "vertical");
   }, [selectedNode]);
 
   const selectedFrameNodeConfig = useMemo(() => {
@@ -5995,35 +6057,83 @@ export default function Page() {
     return normalizeFrameNodeConfig(selectedNode.data.frame_config);
   }, [selectedNode]);
 
-  const selectedRibbonNodeConfig = useMemo(() => {
+  const selectedHorizontalContentConfig = useMemo(() => {
     if (!selectedNode || selectedNode.data.node_type !== "ribbon") {
       return null;
     }
 
-    return normalizeRibbonNodeConfig(selectedNode.data.ribbon_config);
+    return normalizeNodeContentConfig(selectedNode.data.content_config, "horizontal");
   }, [selectedNode]);
 
   const updateSelectedMenuMaxRightConnections = useCallback(
     (nextValue: number) => {
-      if (!effectiveSelectedNodeId || !selectedMenuNodeConfig) {
+      if (!effectiveSelectedNodeId || !selectedVerticalContentConfig) {
         return;
       }
 
-      updateMenuNodeConfigById(effectiveSelectedNodeId, (currentConfig) => {
+      updateVerticalContentConfigById(effectiveSelectedNodeId, (currentConfig) => {
+        const sortedGroups = [...currentConfig.groups].sort((groupA, groupB) =>
+          groupA.row === groupB.row ? groupA.column - groupB.column : groupA.row - groupB.row
+        );
         const nextMax = clampMenuRightConnections(nextValue);
-        const nextTerms = currentConfig.terms.slice(0, nextMax);
+        let nextGroups = [...currentConfig.groups];
+        let nextSlots = [...currentConfig.slots];
 
-        while (nextTerms.length < nextMax) {
-          nextTerms.push(createMenuNodeTerm(""));
+        if (nextMax > sortedGroups.length) {
+          for (let nextColumnIndex = sortedGroups.length; nextColumnIndex < nextMax; nextColumnIndex += 1) {
+            const groupId = createContentGroupId();
+
+            nextGroups = [
+              ...nextGroups,
+              {
+                id: groupId,
+                row: 0,
+                column: nextColumnIndex,
+              },
+            ];
+
+            nextSlots = [
+              ...nextSlots,
+              ...(["menu_term", "key_command", "tool_tip"] as const).map((termType, index) => ({
+                id: createContentSlotId(),
+                value: "",
+                termType,
+                groupId,
+                position: index,
+              })),
+            ];
+          }
+        } else if (nextMax < sortedGroups.length) {
+          const groupsToRemove = sortedGroups.slice(nextMax);
+          const removedGroupIdSet = new Set(groupsToRemove.map((group) => group.id));
+
+          nextGroups = nextGroups.filter((group) => !removedGroupIdSet.has(group.id));
+          nextSlots = nextSlots.filter(
+            (slot) => slot.groupId === null || !removedGroupIdSet.has(slot.groupId)
+          );
         }
 
-        return {
-          max_right_connections: nextMax,
-          terms: nextTerms,
-        };
+        const sortedNextGroups = [...nextGroups].sort((groupA, groupB) =>
+          groupA.row === groupB.row ? groupA.column - groupB.column : groupA.row - groupB.row
+        );
+
+        return normalizeNodeContentConfig(
+          {
+            ...currentConfig,
+            rows: 1,
+            columns: Math.max(1, nextMax),
+            groups: sortedNextGroups.map((group, index) => ({
+              ...group,
+              row: 0,
+              column: index,
+            })),
+            slots: nextSlots,
+          },
+          "vertical"
+        );
       });
     },
-    [effectiveSelectedNodeId, selectedMenuNodeConfig, updateMenuNodeConfigById]
+    [effectiveSelectedNodeId, selectedVerticalContentConfig, updateVerticalContentConfigById]
   );
 
   const updateSelectedFrameShade = useCallback(
@@ -6073,37 +6183,62 @@ export default function Page() {
         return;
       }
 
-      const currentRibbonConfig = normalizeRibbonNodeConfig(targetNode.data.ribbon_config);
-      const nextColumns = Math.max(
-        RIBBON_NODE_MIN_COLUMNS,
-        currentRibbonConfig.columns + delta
+      const currentContentConfig = normalizeNodeContentConfig(
+        targetNode.data.content_config,
+        "horizontal"
       );
+      const sortedCurrentGroups = [...currentContentConfig.groups].sort((groupA, groupB) =>
+        groupA.row === groupB.row ? groupA.column - groupB.column : groupA.row - groupB.row
+      );
+      const nextColumns = Math.max(RIBBON_NODE_MIN_COLUMNS, sortedCurrentGroups.length + delta);
 
-      if (nextColumns === currentRibbonConfig.columns) {
+      if (nextColumns === sortedCurrentGroups.length) {
         return;
       }
 
-      let nextCells = [...currentRibbonConfig.cells];
+      let nextGroups = [...currentContentConfig.groups];
+      let nextSlots = [...currentContentConfig.slots];
 
-      if (nextColumns > currentRibbonConfig.columns) {
-        for (let row = 0; row < currentRibbonConfig.rows; row += 1) {
-          for (
-            let column = currentRibbonConfig.columns;
-            column < nextColumns;
-            column += 1
-          ) {
-            nextCells.push(createRibbonNodeCell(row, column));
-          }
-        }
+      if (nextColumns > sortedCurrentGroups.length) {
+        const groupId = createContentGroupId();
+        const nextGroup = {
+          id: groupId,
+          row: 0,
+          column: sortedCurrentGroups.length,
+        };
+
+        const nextGroupSlots = (["cell_label", "key_command", "tool_tip"] as const).map(
+          (termType, index) => ({
+            id: createContentSlotId(),
+            value: "",
+            termType,
+            groupId,
+            position: index,
+          })
+        );
+
+        nextGroups = [...nextGroups, nextGroup];
+        nextSlots = [...nextSlots, ...nextGroupSlots];
       } else {
-        nextCells = nextCells.filter((cell) => cell.column < nextColumns);
+        const lastGroup = sortedCurrentGroups[sortedCurrentGroups.length - 1];
+        if (!lastGroup) {
+          return;
+        }
+
+        nextGroups = nextGroups.filter((group) => group.id !== lastGroup.id);
+        nextSlots = nextSlots.filter((slot) => slot.groupId !== lastGroup.id);
       }
 
-      const nextRibbonConfig = normalizeRibbonNodeConfig({
-        ...currentRibbonConfig,
-        columns: nextColumns,
-        cells: nextCells,
-      });
+      const nextContentConfig = normalizeNodeContentConfig(
+        {
+          ...currentContentConfig,
+          rows: 1,
+          columns: nextColumns,
+          groups: nextGroups,
+          slots: nextSlots,
+        },
+        "horizontal"
+      );
 
       queueUndoSnapshot();
 
@@ -6114,7 +6249,7 @@ export default function Page() {
                 ...node,
                 data: {
                   ...node.data,
-                  ribbon_config: nextRibbonConfig,
+                  content_config: nextContentConfig,
                 },
               }
             : node
@@ -6122,7 +6257,7 @@ export default function Page() {
       );
 
       setEdges((currentEdges) =>
-        syncSequentialEdgesForRibbonNode(targetNode.id, nextRibbonConfig, currentEdges)
+        syncSequentialEdgesForContentConfig(currentEdges, targetNode.id, nextContentConfig)
       );
 
       setOpenControlledLanguageFieldType((current) => {
@@ -6135,7 +6270,7 @@ export default function Page() {
           return current;
         }
 
-        return nextRibbonConfig.cells.some((cell) => cell.id === ribbonField.cellId)
+        return nextContentConfig.groups.some((group) => group.id === ribbonField.cellId)
           ? current
           : null;
       });
@@ -6144,11 +6279,7 @@ export default function Page() {
   );
 
   const updateRibbonCellField = useCallback(
-    (
-      cellId: string,
-      fieldName: "label" | "key_command" | "tool_tip",
-      value: string
-    ) => {
+    (slotId: string, value: string) => {
       if (!effectiveSelectedNodeId || !selectedNode || selectedNode.data.node_type !== "ribbon") {
         return;
       }
@@ -6158,22 +6289,28 @@ export default function Page() {
         return;
       }
 
-      const currentRibbonConfig = normalizeRibbonNodeConfig(selectedNode.data.ribbon_config);
-      if (!currentRibbonConfig.cells.some((cell) => cell.id === cellId)) {
+      const currentContentConfig = normalizeNodeContentConfig(
+        targetNode.data.content_config,
+        "horizontal"
+      );
+      if (!currentContentConfig.slots.some((slot) => slot.id === slotId)) {
         return;
       }
 
-      const nextRibbonConfig = normalizeRibbonNodeConfig({
-        ...currentRibbonConfig,
-        cells: currentRibbonConfig.cells.map((cell) =>
-          cell.id === cellId
+      const nextContentConfig = normalizeNodeContentConfig(
+        {
+          ...currentContentConfig,
+          slots: currentContentConfig.slots.map((slot) =>
+            slot.id === slotId
             ? {
-                ...cell,
-                [fieldName]: value,
+                ...slot,
+                value,
               }
-            : cell
-        ),
-      });
+            : slot
+          ),
+        },
+        "horizontal"
+      );
 
       startTextEditHistoryBurst();
       queueUndoSnapshot();
@@ -6185,7 +6322,7 @@ export default function Page() {
                 ...node,
                 data: {
                   ...node.data,
-                  ribbon_config: nextRibbonConfig,
+                  content_config: nextContentConfig,
                 },
               }
             : node
@@ -6211,65 +6348,119 @@ export default function Page() {
         : MENU_NODE_RIGHT_CONNECTIONS_MIN
     );
 
-    if (!selectedMenuNodeConfig) {
+    if (!selectedVerticalContentConfig) {
       return String(nextValue);
     }
 
-    if (nextValue !== selectedMenuNodeConfig.max_right_connections) {
+    const currentGroupCount = selectedVerticalContentConfig.groups.length;
+
+    if (nextValue !== currentGroupCount) {
       updateSelectedMenuMaxRightConnections(nextValue);
     }
 
     return String(nextValue);
-  }, [selectedMenuNodeConfig, updateSelectedMenuMaxRightConnections]);
+  }, [selectedVerticalContentConfig, updateSelectedMenuMaxRightConnections]);
 
   const addSelectedMenuTerm = useCallback(() => {
-    if (!effectiveSelectedNodeId || !selectedMenuNodeConfig) {
+    if (!effectiveSelectedNodeId || !selectedVerticalContentConfig) {
       return;
     }
 
-    updateMenuNodeConfigById(effectiveSelectedNodeId, (currentConfig) => ({
-      max_right_connections: clampMenuRightConnections(
-        currentConfig.max_right_connections + 1
-      ),
-      terms: [...currentConfig.terms, createMenuNodeTerm("")],
-    }));
-  }, [effectiveSelectedNodeId, selectedMenuNodeConfig, updateMenuNodeConfigById]);
+    updateVerticalContentConfigById(effectiveSelectedNodeId, (currentConfig) => {
+      const sortedGroups = [...currentConfig.groups].sort((groupA, groupB) =>
+        groupA.row === groupB.row ? groupA.column - groupB.column : groupA.row - groupB.row
+      );
+      const nextColumnIndex = sortedGroups.length;
+      const groupId = createContentGroupId();
 
-  const updateSelectedMenuTermById = useCallback(
-    (termId: string, term: string) => {
-      if (!effectiveSelectedNodeId || !selectedMenuNodeConfig) {
+      return {
+        ...currentConfig,
+        rows: 1,
+        columns: nextColumnIndex + 1,
+        groups: [
+          ...currentConfig.groups,
+          {
+            id: groupId,
+            row: 0,
+            column: nextColumnIndex,
+          },
+        ],
+        slots: [
+          ...currentConfig.slots,
+          ...(["menu_term", "key_command", "tool_tip"] as const).map((termType, index) => ({
+            id: createContentSlotId(),
+            value: "",
+            termType,
+            groupId,
+            position: index,
+          })),
+        ],
+      };
+    });
+  }, [effectiveSelectedNodeId, selectedVerticalContentConfig, updateVerticalContentConfigById]);
+
+  const updateSelectedMenuSlotValueById = useCallback(
+    (slotId: string, value: string) => {
+      if (!effectiveSelectedNodeId || !selectedVerticalContentConfig) {
         return;
       }
 
-      updateMenuNodeConfigById(effectiveSelectedNodeId, (currentConfig) => ({
-        ...currentConfig,
-        terms: currentConfig.terms.map((menuTerm) =>
-          menuTerm.id === termId
-            ? {
-                ...menuTerm,
-                term,
-              }
-            : menuTerm
-        ),
-      }), "text");
+      updateVerticalContentConfigById(
+        effectiveSelectedNodeId,
+        (currentConfig) => {
+          if (!currentConfig.slots.some((slot) => slot.id === slotId)) {
+            return currentConfig;
+          }
+
+          return {
+            ...currentConfig,
+            slots: currentConfig.slots.map((slot) =>
+              slot.id === slotId
+                ? {
+                    ...slot,
+                    value,
+                  }
+                : slot
+            ),
+          };
+        },
+        "text"
+      );
     },
-    [effectiveSelectedNodeId, selectedMenuNodeConfig, updateMenuNodeConfigById]
+    [effectiveSelectedNodeId, selectedVerticalContentConfig, updateVerticalContentConfigById]
   );
 
   const deleteSelectedMenuTermById = useCallback(
     (termId: string) => {
-      if (!effectiveSelectedNodeId || !selectedMenuNodeConfig) {
+      if (!effectiveSelectedNodeId || !selectedVerticalContentConfig) {
         return;
       }
 
-      if (selectedMenuNodeConfig.terms.length <= MENU_NODE_RIGHT_CONNECTIONS_MIN) {
+      if (selectedVerticalContentConfig.groups.length <= MENU_NODE_RIGHT_CONNECTIONS_MIN) {
         showMenuTermDeleteBlockedMessage();
         return;
       }
 
-      const termToDelete = selectedMenuNodeConfig.terms.find(
-        (term) => term.id === termId
+      const termToDeleteGroup = selectedVerticalContentConfig.groups.find(
+        (group) => group.id === termId
       );
+      const termToDeleteSlot =
+        selectedVerticalContentConfig?.slots.find(
+          (slot) =>
+            slot.groupId === termId &&
+            normalizeContentSlotTermType(slot.termType) === "menu_term" &&
+            slot.position === 0
+        ) ??
+        selectedVerticalContentConfig?.slots.find(
+          (slot) =>
+            slot.groupId === termId && normalizeContentSlotTermType(slot.termType) === "menu_term"
+        ) ??
+        null;
+      const termToDelete = {
+        id: termToDeleteGroup?.id,
+        term: termToDeleteSlot?.value ?? "",
+      };
+
       if (!termToDelete) {
         return;
       }
@@ -6282,17 +6473,26 @@ export default function Page() {
         return;
       }
 
-      updateMenuNodeConfigById(effectiveSelectedNodeId, (currentConfig) => {
-        const filteredTerms = currentConfig.terms.filter(
-          (term) => term.id !== termId
-        );
-        const nextMax = clampMenuRightConnections(
-          Math.max(filteredTerms.length, MENU_NODE_RIGHT_CONNECTIONS_MIN)
+      updateVerticalContentConfigById(effectiveSelectedNodeId, (currentConfig) => {
+        const filteredGroups = currentConfig.groups
+          .filter((group) => group.id !== termId)
+          .sort((groupA, groupB) =>
+            groupA.row === groupB.row ? groupA.column - groupB.column : groupA.row - groupB.row
+          );
+        const nextColumns = clampMenuRightConnections(
+          Math.max(filteredGroups.length, MENU_NODE_RIGHT_CONNECTIONS_MIN)
         );
 
         return {
-          max_right_connections: nextMax,
-          terms: filteredTerms,
+          ...currentConfig,
+          rows: 1,
+          columns: nextColumns,
+          groups: filteredGroups.map((group, index) => ({
+            ...group,
+            row: 0,
+            column: index,
+          })),
+          slots: currentConfig.slots.filter((slot) => slot.groupId !== termId),
         };
       });
 
@@ -6301,15 +6501,22 @@ export default function Page() {
           return current;
         }
 
+        const slotId = parseSlotRegistryField(current);
+        if (slotId) {
+          return selectedVerticalContentConfig.slots.some((slot) => slot.id === slotId)
+            ? current
+            : null;
+        }
+
         const menuTermId = parseMenuTermRegistryField(current);
         return menuTermId === termId ? null : current;
       });
     },
     [
       effectiveSelectedNodeId,
-      selectedMenuNodeConfig,
+      selectedVerticalContentConfig,
       showMenuTermDeleteBlockedMessage,
-      updateMenuNodeConfigById,
+      updateVerticalContentConfigById,
     ]
   );
 
@@ -6385,17 +6592,43 @@ export default function Page() {
       if (isRegistryTrackedField(field)) {
         updateSelectedField(field, entry.value);
       } else {
+        const slotId = parseSlotRegistryField(field);
         const menuTermId = parseMenuTermRegistryField(field);
         const ribbonCellField = parseRibbonCellRegistryField(field);
 
-        if (menuTermId) {
-          updateSelectedMenuTermById(menuTermId, entry.value);
+        if (slotId) {
+          if (selectedNode?.data.node_type === "menu") {
+            updateSelectedMenuSlotValueById(slotId, entry.value);
+          } else {
+            updateSelectedContentSlotValue(slotId, entry.value);
+          }
+        } else if (menuTermId) {
+          const menuSlot =
+            selectedVerticalContentConfig?.slots
+              .filter((slot) => slot.groupId === menuTermId)
+              .sort(sortContentSlotsByPosition)
+              .find(
+                (slot) => normalizeContentSlotTermType(slot.termType) === "menu_term"
+              ) ?? null;
+
+          if (menuSlot) {
+            updateSelectedMenuSlotValueById(menuSlot.id, entry.value);
+          }
         } else if (ribbonCellField) {
-          updateRibbonCellField(
-            ribbonCellField.cellId,
-            ribbonCellField.fieldName,
-            entry.value
-          );
+          const targetRibbonSlotTermType =
+            ribbonCellField.fieldName === "label"
+              ? "cell_label"
+              : ribbonCellField.fieldName;
+          const targetRibbonSlot =
+            selectedHorizontalContentConfig?.slots.find(
+              (slot) =>
+                slot.groupId === ribbonCellField.cellId &&
+                normalizeContentSlotTermType(slot.termType) === targetRibbonSlotTermType
+            ) ?? null;
+
+          if (targetRibbonSlot) {
+            updateRibbonCellField(targetRibbonSlot.id, entry.value);
+          }
         }
       }
 
@@ -6480,8 +6713,11 @@ export default function Page() {
       pushToHistory,
       setTermRegistry,
       updateRibbonCellField,
+      updateSelectedContentSlotValue,
       updateSelectedField,
-      updateSelectedMenuTermById,
+      updateSelectedMenuSlotValueById,
+      selectedHorizontalContentConfig,
+      selectedVerticalContentConfig,
     ]
   );
 
@@ -6500,7 +6736,7 @@ export default function Page() {
         return null;
       }
 
-      return selectedMenuNodeConfig?.terms.some((term) => term.id === menuTermId)
+      return selectedVerticalContentConfig?.groups.some((group) => group.id === menuTermId)
         ? openControlledLanguageFieldType
         : null;
     }
@@ -6511,7 +6747,16 @@ export default function Page() {
         return null;
       }
 
-      return selectedRibbonNodeConfig?.cells.some((cell) => cell.id === ribbonCellField.cellId)
+      return selectedHorizontalContentConfig?.groups.some(
+        (group) => group.id === ribbonCellField.cellId
+      )
+        ? openControlledLanguageFieldType
+        : null;
+    }
+
+    const slotId = parseSlotRegistryField(openControlledLanguageFieldType);
+    if (slotId) {
+      return selectedNode.data.content_config.slots.some((slot) => slot.id === slotId)
         ? openControlledLanguageFieldType
         : null;
     }
@@ -6520,9 +6765,9 @@ export default function Page() {
   }, [
     effectiveSelectedNodeId,
     openControlledLanguageFieldType,
-    selectedMenuNodeConfig,
+    selectedVerticalContentConfig,
     selectedNode,
-    selectedRibbonNodeConfig,
+    selectedHorizontalContentConfig,
   ]);
 
   const inspectorRegistryPickerFieldLabel = useMemo(() => {
@@ -6536,9 +6781,11 @@ export default function Page() {
 
     const menuTermId = parseMenuTermRegistryField(clpRegistryFieldFilter);
     if (menuTermId) {
-      const menuTermIndex = selectedMenuNodeConfig?.terms.findIndex(
-        (term) => term.id === menuTermId
-      );
+      const menuTermIndex = [...(selectedVerticalContentConfig?.groups ?? [])]
+        .sort((groupA, groupB) =>
+          groupA.row === groupB.row ? groupA.column - groupB.column : groupA.row - groupB.row
+        )
+        .findIndex((group) => group.id === menuTermId);
       return typeof menuTermIndex === "number" && menuTermIndex >= 0
         ? `Menu Term ${menuTermIndex + 1}`
         : "Menu Term";
@@ -6564,9 +6811,9 @@ export default function Page() {
     return clpRegistryFieldFilter;
   }, [
     clpRegistryFieldFilter,
-    selectedMenuNodeConfig,
+    selectedVerticalContentConfig,
     selectedNode,
-    selectedRibbonNodeConfig,
+    selectedHorizontalContentConfig,
   ]);
 
   const inspectorRegistryPickerTargetTermType = useMemo(() => {
@@ -6707,8 +6954,8 @@ export default function Page() {
   );
 
   useEffect(() => {
-    updateMenuNodeConfigByIdRef.current = updateMenuNodeConfigById;
-  }, [updateMenuNodeConfigById]);
+    updateVerticalContentConfigByIdRef.current = updateVerticalContentConfigById;
+  }, [updateVerticalContentConfigById]);
 
   useEffect(() => {
     createFrameFromSelectionRef.current = createFrameFromSelection;
@@ -6727,13 +6974,13 @@ export default function Page() {
     flushTextEditHistoryBurstRef.current();
   }, []);
 
-  const handleFlowCopyNodeMenuConfigChange = useCallback(
+  const handleFlowCopyNodeVerticalContentConfigChange = useCallback(
     (
       nodeId: string,
-      updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig,
+      updater: (currentConfig: NodeContentConfig) => NodeContentConfig,
       historyCaptureMode: "discrete" | "text" = "discrete"
     ) => {
-      updateMenuNodeConfigByIdRef.current(nodeId, updater, historyCaptureMode);
+      updateVerticalContentConfigByIdRef.current(nodeId, updater, historyCaptureMode);
     },
     []
   );
@@ -6747,7 +6994,7 @@ const nodeCallbacksRef = useRef({
   resolveDroppedRegistryTerm,
   handleAssignPendingRibbonTermToField,
   showMenuTermDeleteBlockedMessage,
-  handleFlowCopyNodeMenuConfigChange,
+  handleFlowCopyNodeVerticalContentConfigChange,
 });
 nodeCallbacksRef.current = {
   handleFlowCopyNodeBeforeChange,
@@ -6759,7 +7006,7 @@ nodeCallbacksRef.current = {
   resolveDroppedRegistryTerm,
   handleAssignPendingRibbonTermToField,
   showMenuTermDeleteBlockedMessage,
-  handleFlowCopyNodeMenuConfigChange,
+  handleFlowCopyNodeVerticalContentConfigChange,
 };
  const nodeTypes = useMemo(
   () => ({
@@ -6778,7 +7025,9 @@ nodeCallbacksRef.current = {
         glossaryHighlightedNodeIds={glossaryHighlightedNodeIdSet}
         showNodeId={showNodeIdsOnCanvas}
         onMenuTermDeleteBlocked={nodeCallbacksRef.current.showMenuTermDeleteBlockedMessage}
-        onMenuNodeConfigChange={nodeCallbacksRef.current.handleFlowCopyNodeMenuConfigChange}
+        onVerticalContentConfigChange={
+          nodeCallbacksRef.current.handleFlowCopyNodeVerticalContentConfigChange
+        }
       />
     ),
   }),
@@ -6867,7 +7116,11 @@ nodeCallbacksRef.current = {
   );
 
   const menuTermColumnIndexes = useMemo(
-    () => Array.from({ length: maxMenuTermColumnCount }, (_, menuTermIndex) => menuTermIndex),
+    () =>
+      Array.from(
+        { length: Math.max(0, maxMenuTermColumnCount) },
+        (_, menuTermIndex) => menuTermIndex
+      ),
     [maxMenuTermColumnCount]
   );
 
@@ -6887,7 +7140,7 @@ nodeCallbacksRef.current = {
   const ribbonCellColumnIndexes = useMemo(
     () =>
       Array.from(
-        { length: maxRibbonCellColumnCount },
+        { length: Math.max(0, maxRibbonCellColumnCount) },
         (_, ribbonCellIndex) => ribbonCellIndex
       ),
     [maxRibbonCellColumnCount]
@@ -11341,7 +11594,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   <div style={inspectorFieldLabelStyle}>Menu Terms</div>
                   <input
                     key={`menu-right-connections:${selectedNode.id}:${
-                      selectedMenuNodeConfig?.max_right_connections ??
+                      selectedVerticalContentConfig?.groups.length ??
                       MENU_NODE_RIGHT_CONNECTIONS_MIN
                     }`}
                     style={inputStyle}
@@ -11349,7 +11602,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     inputMode="numeric"
                     pattern="[0-9]*"
                     defaultValue={
-                      selectedMenuNodeConfig?.max_right_connections ??
+                      selectedVerticalContentConfig?.groups.length ??
                       MENU_NODE_RIGHT_CONNECTIONS_MIN
                     }
                     onInput={(event) => {
@@ -11414,13 +11667,13 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         color: "#1d4ed8",
                         borderColor: "#93c5fd",
                         opacity:
-                          (selectedMenuNodeConfig?.max_right_connections ??
+                          (selectedVerticalContentConfig?.groups.length ??
                             MENU_NODE_RIGHT_CONNECTIONS_MAX) >=
                           MENU_NODE_RIGHT_CONNECTIONS_MAX
                             ? 0.45
                             : 1,
                         cursor:
-                          (selectedMenuNodeConfig?.max_right_connections ??
+                          (selectedVerticalContentConfig?.groups.length ??
                             MENU_NODE_RIGHT_CONNECTIONS_MAX) >=
                           MENU_NODE_RIGHT_CONNECTIONS_MAX
                             ? "not-allowed"
@@ -11430,7 +11683,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       aria-label="Add menu term"
                       onClick={addSelectedMenuTerm}
                       disabled={
-                        (selectedMenuNodeConfig?.max_right_connections ??
+                        (selectedVerticalContentConfig?.groups.length ??
                           MENU_NODE_RIGHT_CONNECTIONS_MAX) >=
                         MENU_NODE_RIGHT_CONNECTIONS_MAX
                       }
@@ -11439,14 +11692,20 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     </button>
                   </div>
 
-                  {(selectedMenuNodeConfig?.terms ?? []).map((menuTerm, index) => {
-                    const menuTermRegistryField = buildMenuTermRegistryField(menuTerm.id);
-                    const isRegistryPickerOpen =
-                      activeInspectorRegistryPickerField === menuTermRegistryField;
+                  {[...(selectedVerticalContentConfig?.groups ?? [])]
+                    .sort((groupA, groupB) =>
+                      groupA.row === groupB.row
+                        ? groupA.column - groupB.column
+                        : groupA.row - groupB.row
+                    )
+                    .map((menuGroup) => {
+                    const groupSlots = (selectedVerticalContentConfig?.slots ?? [])
+                      .filter((slot) => slot.groupId === menuGroup.id)
+                      .sort(sortContentSlotsByPosition);
 
                     return (
                       <div
-                        key={`inspector-menu-term:${menuTerm.id}`}
+                        key={`inspector-menu-term:${menuGroup.id}`}
                         style={{
                           border: "1px solid #bfdbfe",
                           borderRadius: 6,
@@ -11456,8 +11715,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           background: "#fff",
                         }}
                       >
-
-
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <button
                             type="button"
@@ -11470,46 +11727,96 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                               flexShrink: 0,
                             }}
                             title="Delete this term"
-                            onClick={() => deleteSelectedMenuTermById(menuTerm.id)}
+                            onClick={() => deleteSelectedMenuTermById(menuGroup.id)}
                           >
                             X
                           </button>
-
-                          <input
-                            style={inputStyle}
-                            value={menuTerm.term}
-                            placeholder="Add term"
-                            onChange={(event) =>
-                              updateSelectedMenuTermById(menuTerm.id, event.target.value)
-                            }
-                            onBlur={(event) =>
-                              commitSelectedMenuTermRegistryField(
-                                menuTerm.id,
-                                event.currentTarget.value
-                              )
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key !== "Enter") {
-                                return;
-                              }
-
-                              event.preventDefault();
-                              event.currentTarget.blur();
-                            }}
-                          />
-
-                          <button
-                            type="button"
-                            style={getInspectorRegistryButtonStyle(isRegistryPickerOpen)}
-                            title="Open CLP registry"
-                            aria-label="Open CLP registry"
-                            onClick={() =>
-                              toggleInspectorRegistryPickerForField(menuTermRegistryField)
-                            }
-                          >
-                            📋
-                          </button>
                         </div>
+
+                        {groupSlots.map((slot) => {
+                          const slotRegistryField = buildContentSlotRegistryField(slot.id);
+                          const isRegistryPickerOpen =
+                            activeInspectorRegistryPickerField === slotRegistryField;
+                          const normalizedTermType = normalizeContentSlotTermType(slot.termType);
+                          const isLongField = normalizedTermType === "tool_tip";
+
+                          return (
+                            <label
+                              key={`inspector-menu-slot:${menuGroup.id}:${slot.id}`}
+                              style={{ display: "grid", gap: 4 }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  color: "#334155",
+                                }}
+                              >
+                                {normalizeConversationSlotTermTypeLabel(slot.termType)}
+                              </div>
+
+                              <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                                {isLongField ? (
+                                  <textarea
+                                    style={{ ...inputStyle, minHeight: 60, resize: "vertical" }}
+                                    value={slot.value ?? ""}
+                                    placeholder="Add value"
+                                    onChange={(event) =>
+                                      updateSelectedMenuSlotValueById(
+                                        slot.id,
+                                        event.target.value
+                                      )
+                                    }
+                                    onBlur={(event) =>
+                                      commitSelectedMenuSlotRegistryField(
+                                        slot.id,
+                                        event.currentTarget.value
+                                      )
+                                    }
+                                  />
+                                ) : (
+                                  <input
+                                    style={inputStyle}
+                                    value={slot.value ?? ""}
+                                    placeholder="Add value"
+                                    onChange={(event) =>
+                                      updateSelectedMenuSlotValueById(
+                                        slot.id,
+                                        event.target.value
+                                      )
+                                    }
+                                    onBlur={(event) =>
+                                      commitSelectedMenuSlotRegistryField(
+                                        slot.id,
+                                        event.currentTarget.value
+                                      )
+                                    }
+                                    onKeyDown={(event) => {
+                                      if (event.key !== "Enter") {
+                                        return;
+                                      }
+
+                                      event.preventDefault();
+                                      event.currentTarget.blur();
+                                    }}
+                                  />
+                                )}
+
+                                <button
+                                  type="button"
+                                  style={getInspectorRegistryButtonStyle(isRegistryPickerOpen)}
+                                  title="Open CLP registry"
+                                  aria-label="Open CLP registry"
+                                  onClick={() =>
+                                    toggleInspectorRegistryPickerForField(slotRegistryField)
+                                  }
+                                >
+                                  📋
+                                </button>
+                              </div>
+                            </label>
+                          );
+                        })}
                       </div>
                     );
                   })}
@@ -11710,7 +12017,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   </div>
                 </div>
 
-                {selectedNode.data.node_type === "ribbon" && selectedRibbonNodeConfig && (
+                {selectedNode.data.node_type === "ribbon" && selectedHorizontalContentConfig && (
                   <div
                     style={{
                       border: "1px solid #dbeafe",
@@ -11722,7 +12029,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     }}
                   >
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#1e40af" }}>
-                      Ribbon Cells
+                      Horizontal Cells
                     </div>
 
                     <div
@@ -11734,7 +12041,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       }}
                     >
                       <div style={{ fontSize: 12, color: "#334155", fontWeight: 600 }}>
-                        Columns: {selectedRibbonNodeConfig.columns}
+                        Columns: {selectedHorizontalContentConfig.groups.length}
                       </div>
                       <div style={{ display: "flex", gap: 6 }}>
                         <button
@@ -11749,8 +12056,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             lineHeight: 1,
                           }}
                           onClick={() => updateRibbonColumns(1)}
-                          aria-label="Add ribbon column"
-                          title="Add ribbon column"
+                          aria-label="Add column"
+                          title="Add column"
                         >
                           +
                         </button>
@@ -11765,18 +12072,23 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             fontWeight: 700,
                             lineHeight: 1,
                             opacity:
-                              selectedRibbonNodeConfig.columns <= RIBBON_NODE_MIN_COLUMNS
+                              selectedHorizontalContentConfig.groups.length <=
+                              RIBBON_NODE_MIN_COLUMNS
                                 ? 0.45
                                 : 1,
                             cursor:
-                              selectedRibbonNodeConfig.columns <= RIBBON_NODE_MIN_COLUMNS
+                              selectedHorizontalContentConfig.groups.length <=
+                              RIBBON_NODE_MIN_COLUMNS
                                 ? "not-allowed"
                                 : "pointer",
                           }}
                           onClick={() => updateRibbonColumns(-1)}
-                          disabled={selectedRibbonNodeConfig.columns <= RIBBON_NODE_MIN_COLUMNS}
-                          aria-label="Remove ribbon column"
-                          title="Remove ribbon column"
+                          disabled={
+                            selectedHorizontalContentConfig.groups.length <=
+                            RIBBON_NODE_MIN_COLUMNS
+                          }
+                          aria-label="Remove column"
+                          title="Remove column"
                         >
                           -
                         </button>
@@ -11784,15 +12096,20 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     </div>
 
                     <div style={{ marginTop: 2 }}>
-                      {[...selectedRibbonNodeConfig.cells]
-                        .sort((cellA, cellB) =>
-                          cellA.column === cellB.column
-                            ? cellA.row - cellB.row
-                            : cellA.column - cellB.column
+                      {[...selectedHorizontalContentConfig.groups]
+                        .sort((groupA, groupB) =>
+                          groupA.row === groupB.row
+                            ? groupA.column - groupB.column
+                            : groupA.row - groupB.row
                         )
-                        .map((cell) => (
+                        .map((group) => {
+                          const groupSlots = selectedHorizontalContentConfig.slots
+                            .filter((slot) => slot.groupId === group.id)
+                            .sort(sortContentSlotsByPosition);
+
+                          return (
                           <div
-                            key={`inspector-ribbon-cell:${cell.id}`}
+                            key={`inspector-ribbon-cell:${group.id}`}
                             style={{
                               border: "1px solid #e2e8f0",
                               borderRadius: 6,
@@ -11808,190 +12125,100 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                 marginBottom: 6,
                               }}
                             >
-                              Cell {cell.column + 1}
+                              Cell {group.column + 1}
                             </div>
 
                             <div style={{ display: "grid", gap: 6 }}>
-                              <div>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    gap: 8,
-                                    marginBottom: 4,
-                                  }}
-                                >
-                                  <div style={{ fontSize: 11, color: "#334155", fontWeight: 700 }}>
-                                    Label
-                                  </div>
-                                  <button
-                                    type="button"
-                                    style={getInspectorRegistryButtonStyle(
-                                      activeInspectorRegistryPickerField ===
-                                        buildRibbonCellRegistryField(cell.id, "label")
-                                    )}
-                                    title="Open CLP registry"
-                                    aria-label="Open CLP registry"
-                                    onClick={() =>
-                                      toggleInspectorRegistryPickerForField(
-                                        buildRibbonCellRegistryField(cell.id, "label")
-                                      )
-                                    }
+                              {groupSlots.map((slot) => {
+                                const slotRegistryField = buildContentSlotRegistryField(slot.id);
+                                const isRegistryPickerOpen =
+                                  activeInspectorRegistryPickerField === slotRegistryField;
+                                const normalizedTermType = normalizeContentSlotTermType(slot.termType);
+                                const isLongField = normalizedTermType === "tool_tip";
+
+                                return (
+                                  <label
+                                    key={`inspector-ribbon-slot:${group.id}:${slot.id}`}
+                                    style={{ display: "grid", gap: 4 }}
                                   >
-                                    📋
-                                  </button>
-                                </div>
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        gap: 8,
+                                      }}
+                                    >
+                                      <div style={{ fontSize: 11, color: "#334155", fontWeight: 700 }}>
+                                        {normalizeConversationSlotTermTypeLabel(slot.termType)}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        style={getInspectorRegistryButtonStyle(isRegistryPickerOpen)}
+                                        title="Open CLP registry"
+                                        aria-label="Open CLP registry"
+                                        onClick={() =>
+                                          toggleInspectorRegistryPickerForField(slotRegistryField)
+                                        }
+                                      >
+                                        📋
+                                      </button>
+                                    </div>
 
-                                <input
-                                  style={{ ...inputStyle, fontSize: 11 }}
-                                  value={cell.label}
-                                  placeholder="Label"
-                                  onChange={(event) =>
-                                    updateRibbonCellField(cell.id, "label", event.target.value)
-                                  }
-                                  onBlur={(event) =>
-                                    commitSelectedRibbonCellRegistryField(
-                                      cell.id,
-                                      "label",
-                                      event.currentTarget.value
-                                    )
-                                  }
-                                  onKeyDown={(event) => {
-                                    if (event.key !== "Enter") {
-                                      return;
-                                    }
+                                    {isLongField ? (
+                                      <textarea
+                                        style={{ ...inputStyle, fontSize: 11 }}
+                                        value={slot.value ?? ""}
+                                        placeholder="Add value"
+                                        rows={2}
+                                        onChange={(event) =>
+                                          updateRibbonCellField(slot.id, event.target.value)
+                                        }
+                                        onBlur={(event) =>
+                                          commitContentSlotRegistryField(
+                                            slot.id,
+                                            event.currentTarget.value
+                                          )
+                                        }
+                                      />
+                                    ) : (
+                                      <input
+                                        style={{
+                                          ...inputStyle,
+                                          fontSize: 11,
+                                          fontFamily:
+                                            normalizedTermType === "key_command"
+                                              ? "monospace"
+                                              : undefined,
+                                        }}
+                                        value={slot.value ?? ""}
+                                        placeholder="Add value"
+                                        onChange={(event) =>
+                                          updateRibbonCellField(slot.id, event.target.value)
+                                        }
+                                        onBlur={(event) =>
+                                          commitContentSlotRegistryField(
+                                            slot.id,
+                                            event.currentTarget.value
+                                          )
+                                        }
+                                        onKeyDown={(event) => {
+                                          if (event.key !== "Enter") {
+                                            return;
+                                          }
 
-                                    event.preventDefault();
-                                    event.currentTarget.blur();
-                                  }}
-                                />
-                              </div>
-
-                              <div>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    gap: 8,
-                                    marginBottom: 4,
-                                  }}
-                                >
-                                  <div style={{ fontSize: 11, color: "#334155", fontWeight: 700 }}>
-                                    Key Command
-                                  </div>
-                                  <button
-                                    type="button"
-                                    style={getInspectorRegistryButtonStyle(
-                                      activeInspectorRegistryPickerField ===
-                                        buildRibbonCellRegistryField(cell.id, "key_command")
+                                          event.preventDefault();
+                                          event.currentTarget.blur();
+                                        }}
+                                      />
                                     )}
-                                    title="Open CLP registry"
-                                    aria-label="Open CLP registry"
-                                    onClick={() =>
-                                      toggleInspectorRegistryPickerForField(
-                                        buildRibbonCellRegistryField(cell.id, "key_command")
-                                      )
-                                    }
-                                  >
-                                    📋
-                                  </button>
-                                </div>
-
-                                <input
-                                  style={{
-                                    ...inputStyle,
-                                    fontSize: 11,
-                                    fontFamily: "monospace",
-                                  }}
-                                  value={cell.key_command}
-                                  placeholder="Key Command"
-                                  maxLength={24}
-                                  onChange={(event) =>
-                                    updateRibbonCellField(
-                                      cell.id,
-                                      "key_command",
-                                      event.target.value
-                                    )
-                                  }
-                                  onBlur={(event) =>
-                                    commitSelectedRibbonCellRegistryField(
-                                      cell.id,
-                                      "key_command",
-                                      event.currentTarget.value
-                                    )
-                                  }
-                                  onKeyDown={(event) => {
-                                    if (event.key !== "Enter") {
-                                      return;
-                                    }
-
-                                    event.preventDefault();
-                                    event.currentTarget.blur();
-                                  }}
-                                />
-                              </div>
-
-                              <div>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    gap: 8,
-                                    fontSize: 11,
-                                    color: "#334155",
-                                    fontWeight: 700,
-                                    marginBottom: 4,
-                                  }}
-                                >
-                                  <span>Tool Tip</span>
-                                  <button
-                                    type="button"
-                                    style={getInspectorRegistryButtonStyle(
-                                      activeInspectorRegistryPickerField ===
-                                        buildRibbonCellRegistryField(cell.id, "tool_tip")
-                                    )}
-                                    title="Open CLP registry"
-                                    aria-label="Open CLP registry"
-                                    onClick={() =>
-                                      toggleInspectorRegistryPickerForField(
-                                        buildRibbonCellRegistryField(cell.id, "tool_tip")
-                                      )
-                                    }
-                                  >
-                                    📋
-                                  </button>
-                                </div>
-                                <textarea
-                                  style={{ ...inputStyle, fontSize: 11 }}
-                                  value={cell.tool_tip}
-                                  placeholder="Tool Tip"
-                                  rows={2}
-                                  onChange={(event) =>
-                                    updateRibbonCellField(cell.id, "tool_tip", event.target.value)
-                                  }
-                                  onBlur={(event) =>
-                                    commitSelectedRibbonCellRegistryField(
-                                      cell.id,
-                                      "tool_tip",
-                                      event.currentTarget.value
-                                    )
-                                  }
-                                  onKeyDown={(event) => {
-                                    if (event.key !== "Enter") {
-                                      return;
-                                    }
-
-                                    event.preventDefault();
-                                    event.currentTarget.blur();
-                                  }}
-                                />
-                              </div>
+                                  </label>
+                                );
+                              })}
                             </div>
                           </div>
-                        ))}
+                        );
+                        })}
                     </div>
                   </div>
                 )}

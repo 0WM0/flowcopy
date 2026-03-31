@@ -634,6 +634,20 @@ export const buildMenuSourceHandleId = (termId: string): string =>
 export const buildMenuSourceHandleIds = (menuConfig: MenuNodeConfig): string[] =>
   menuConfig.terms.map((term) => buildMenuSourceHandleId(term.id));
 
+export const buildContentConfigSourceHandleIds = (
+  contentConfig: NodeContentConfig
+): string[] => {
+  const layout = contentConfig.layout;
+  const prefix =
+    layout === "horizontal" ? RIBBON_SOURCE_HANDLE_PREFIX : MENU_SOURCE_HANDLE_PREFIX;
+  const sortedGroups = [...contentConfig.groups].sort((a, b) => {
+    if (a.row !== b.row) return a.row - b.row;
+    return a.column - b.column;
+  });
+
+  return sortedGroups.map((group) => `${prefix}${group.id}`);
+};
+
 export const isMenuSourceHandleId = (value: string | null | undefined): value is string =>
   typeof value === "string" && value.startsWith(MENU_SOURCE_HANDLE_PREFIX);
 

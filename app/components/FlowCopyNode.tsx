@@ -15,7 +15,6 @@ import type {
   EditableMicrocopyField,
   FlowEdge,
   FlowNode,
-  MenuNodeConfig,
   NodeContentConfig,
   NodeContentGroup,
   NodeContentSlot,
@@ -48,7 +47,6 @@ import {
 import {
   normalizeFrameNodeConfig,
   normalizeNodeContentConfig,
-  clampMenuRightConnections,
   createContentGroupId,
   createContentSlotId,
   buildMenuSourceHandleId,
@@ -61,7 +59,7 @@ import {
   getFallbackNodeSize,
   getNodeVisualSize,
 } from "../lib/node-utils";
-import { syncSequentialEdgesForMenuNode } from "../lib/edge-utils";
+import { syncSequentialEdgesForContentConfig } from "../lib/edge-utils";
 
 function BodyTextPreview({ value }: { value: string }) {
   if (value.trim().length === 0) {
@@ -116,9 +114,9 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   glossaryHighlightedNodeIds: ReadonlySet<string>;
   showNodeId: boolean;
   onMenuTermDeleteBlocked: () => void;
-  onMenuNodeConfigChange: (
+  onVerticalContentConfigChange: (
     nodeId: string,
-    updater: (currentConfig: MenuNodeConfig) => MenuNodeConfig,
+    updater: (currentConfig: NodeContentConfig) => NodeContentConfig,
     historyCaptureMode?: "discrete" | "text"
   ) => void;
   onCanDropRegistryEntry: (dataTransfer: DataTransfer | null) => boolean;
@@ -449,7 +447,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   glossaryHighlightedNodeIds,
   showNodeId,
   onMenuTermDeleteBlocked,
-  onMenuNodeConfigChange,
+  onVerticalContentConfigChange,
   onCanDropRegistryEntry,
   onDropRegistryEntryOnField,
   onResolveDroppedRegistryTerm,
@@ -849,7 +847,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
       onBeforeChange();
 
-      let nextMenuConfigForEdges: MenuNodeConfig | null = null;
+      let nextContentConfigForEdges: NodeContentConfig | null = null;
 
       setNodes((currentNodes) =>
         currentNodes.map((node) => {
@@ -893,15 +891,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               ? getPrimaryGroupSlotValue(sortedGroups[1]!.id)
               : node.data.secondary_cta;
 
-          nextMenuConfigForEdges = {
-            max_right_connections: clampMenuRightConnections(
-              Math.max(MENU_NODE_RIGHT_CONNECTIONS_MIN, sortedGroups.length)
-            ),
-            terms: sortedGroups.map((group) => ({
-              id: group.id,
-              term: getPrimaryGroupSlotValue(group.id),
-            })),
-          };
+          nextContentConfigForEdges = nextContentConfig;
 
           return {
             ...node,
@@ -917,8 +907,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
       if (isMenuNode) {
         setEdges((currentEdges) =>
-          nextMenuConfigForEdges
-            ? syncSequentialEdgesForMenuNode(currentEdges, id, nextMenuConfigForEdges)
+          nextContentConfigForEdges
+            ? syncSequentialEdgesForContentConfig(currentEdges, id, nextContentConfigForEdges)
             : currentEdges
         );
       }

@@ -8,6 +8,7 @@ import type {
   EdgeDirection,
   MenuNodeConfig,
   RibbonNodeConfig,
+  NodeContentConfig,
 } from "../types";
 import {
   EDGE_STROKE_COLOR,
@@ -22,6 +23,7 @@ import {
 import type { EdgeChange, NodeChange } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
 import {
+  buildContentConfigSourceHandleIds,
   buildMenuSourceHandleIds,
   isMenuSourceHandleId,
   buildRibbonSourceHandleIds,
@@ -82,6 +84,43 @@ export const syncSequentialEdgesForRibbonNode = (
     if (!edge.sourceHandle) return true;
     if (!isRibbonSourceHandleId(edge.sourceHandle)) return true;
     return allowedHandleIdSet.has(edge.sourceHandle);
+  });
+};
+
+export const syncSequentialEdgesForContentConfig = (
+  edges: FlowEdge[],
+  nodeId: string,
+  contentConfig: NodeContentConfig
+): FlowEdge[] => {
+  const allowedHandleIds = buildContentConfigSourceHandleIds(contentConfig);
+  const allowedHandleIdSet = new Set(allowedHandleIds);
+  const fallbackHandleId = allowedHandleIds[0] ?? null;
+
+  return edges.flatMap((edge) => {
+    if (edge.source !== nodeId || !isSequentialEdge(edge)) {
+      return [edge];
+    }
+
+    if (!fallbackHandleId) {
+      return [];
+    }
+
+    const isMenuHandle = isMenuSourceHandleId(edge.sourceHandle);
+    const isRibbonHandle = edge.sourceHandle ? isRibbonSourceHandleId(edge.sourceHandle) : false;
+
+    if (isMenuHandle || isRibbonHandle) {
+      if (allowedHandleIdSet.has(edge.sourceHandle!)) {
+        return [edge];
+      }
+      return [];
+    }
+
+    return [
+      {
+        ...edge,
+        sourceHandle: fallbackHandleId,
+      },
+    ];
   });
 };
 
