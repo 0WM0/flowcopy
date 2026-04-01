@@ -229,6 +229,7 @@ import {
   createMenuNodeTerm,
   buildMenuSourceHandleId,
   buildMenuSourceHandleIds,
+  buildContentConfigSourceHandleIds,
   isNodeShape,
   isNodeType,
   getPrimaryMenuTermValue,
@@ -3174,36 +3175,31 @@ export default function Page() {
 
       let nextSourceHandle = params.sourceHandle;
 
-      if (sourceNode?.data.node_type === "menu" && nextEdgeKind === "sequential") {
-        const menuConfig = normalizeMenuNodeConfig(
-          sourceNode.data.menu_config,
-          sourceNode.data.primary_cta,
-          Math.max(
-            MENU_NODE_RIGHT_CONNECTIONS_MIN,
-            sourceNode.data.menu_config.max_right_connections
-          )
-        );
-
+      if (
+        (sourceNode?.data.node_type === "menu" ||
+          sourceNode?.data.node_type === "ribbon") &&
+        nextEdgeKind === "sequential"
+      ) {
         if (
-          !isMenuSequentialConnectionAllowed(
+          !isContentConfigConnectionAllowed(
             edges,
             sourceNode.id,
-            menuConfig,
+            sourceNode.data.content_config,
             nextSourceHandle
           )
         ) {
-          nextSourceHandle = getFirstAvailableMenuSourceHandleId(
+          nextSourceHandle = getFirstAvailableContentConfigSourceHandleId(
             edges,
             sourceNode.id,
-            menuConfig
+            sourceNode.data.content_config
           );
         }
 
         if (
-          !isMenuSequentialConnectionAllowed(
+          !isContentConfigConnectionAllowed(
             edges,
             sourceNode.id,
-            menuConfig,
+            sourceNode.data.content_config,
             nextSourceHandle
           )
         ) {
@@ -5853,20 +5849,11 @@ export default function Page() {
       );
 
       setEdges((currentEdges) => {
-        if (nextType === "menu") {
+        if (nextType === "menu" || nextType === "ribbon") {
           return assignSequentialEdgesToMenuHandles(
             currentEdges,
             nodeId,
-            buildMenuSourceHandleIds(
-              normalizeMenuNodeConfig(
-                targetNode.data.menu_config,
-                targetNode.data.primary_cta,
-                Math.max(
-                  MENU_NODE_RIGHT_CONNECTIONS_MIN,
-                  targetNode.data.menu_config.max_right_connections
-                )
-              )
-            )
+            buildContentConfigSourceHandleIds(targetNode.data.content_config)
           );
         }
 

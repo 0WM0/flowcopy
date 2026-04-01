@@ -2370,7 +2370,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                     }}
                     style={{
                       position: "relative",
-                      overflow: "hidden",
                       borderWidth: 1,
                       borderStyle: "solid",
                       borderColor: isRibbonDropTargetActive ? "#60a5fa" : "#cbd5e1",
@@ -2896,7 +2895,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   display: "grid",
                   flex: 1,
                   minWidth: 0,
-                  overflow: "hidden",
                   gap: 3,
                 }}
               >
@@ -2928,6 +2926,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         }
                       }}
                       style={{
+                        position: "relative",
                         border: `1px solid ${
                           isVerticalDropTargetActive || isEditingRow
                             ? "#60a5fa"
@@ -2956,7 +2955,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                             flex: 1,
                             minWidth: 0,
                             maxWidth: "100%",
-                            overflow: "hidden",
                           }}
                         >
                           <div
@@ -2998,24 +2996,24 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                               ▾
                             </span>
                           </div>
-
-                          <Handle
-                            type="source"
-                            position={Position.Right}
-                            id={buildMenuSourceHandleId(row.group.id)}
-                            style={{
-                              top: "50%",
-                              right: -9,
-                              transform: "translateY(-50%)",
-                              width: 10,
-                              height: 10,
-                              borderRadius: 999,
-                              background: "#2563eb",
-                              border: "2px solid #fff",
-                            }}
-                          />
                         </div>
                       </div>
+
+                      <Handle
+                        type="source"
+                        position={Position.Right}
+                        id={buildMenuSourceHandleId(row.group.id)}
+                        style={{
+                          top: "50%",
+                          right: -9,
+                          transform: "translateY(-50%)",
+                          width: 10,
+                          height: 10,
+                          borderRadius: 999,
+                          background: "#2563eb",
+                          border: "2px solid #fff",
+                        }}
+                      />
                     </div>
                   );
                 })}
