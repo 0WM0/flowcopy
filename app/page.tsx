@@ -5685,43 +5685,29 @@ export default function Page() {
               };
             }
 
-            const normalizedMenuConfig = normalizeMenuNodeConfig(
-              node.data.menu_config,
-              node.data.primary_cta,
-              Math.max(
-                MENU_NODE_RIGHT_CONNECTIONS_MIN,
-                node.data.menu_config.max_right_connections
-              )
-            );
-
-            const nextMenuConfig: MenuNodeConfig = {
-              ...normalizedMenuConfig,
-              terms: normalizedMenuConfig.terms.map((menuTerm, termIndex) =>
-                termIndex === 0
-                  ? {
-                      ...menuTerm,
-                      term: node.data.primary_cta,
-                    }
-                  : menuTerm
-              ),
-            };
+            const existingGroups = node.data.content_config?.groups ?? [];
+            const newContentConfig: NodeContentConfig =
+              existingGroups.length > 0
+                ? { ...node.data.content_config, layout: "vertical" as const }
+                : migrateMenuToContentConfig(
+                    normalizeMenuNodeConfig(
+                      node.data.menu_config,
+                      node.data.primary_cta,
+                      Math.max(
+                        MENU_NODE_RIGHT_CONNECTIONS_MIN,
+                        node.data.menu_config.max_right_connections
+                      )
+                    ),
+                    node.data.primary_cta,
+                    node.data.title ?? ""
+                  );
 
             return {
               ...node,
               data: {
                 ...node.data,
                 node_type: "menu",
-                menu_config: nextMenuConfig,
-                primary_cta: getPrimaryMenuTermValue(nextMenuConfig, node.data.primary_cta),
-                secondary_cta: getSecondaryMenuTermValue(
-                  nextMenuConfig,
-                  node.data.secondary_cta
-                ),
-                content_config: migrateMenuToContentConfig(
-                  nextMenuConfig,
-                  node.data.primary_cta,
-                  node.data.title ?? ""
-                ),
+                content_config: newContentConfig,
               },
             };
           }
