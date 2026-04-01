@@ -265,6 +265,8 @@ import {
   isEdgeKind,
   getEdgeDirection,
   getFirstAvailableMenuSourceHandleId,
+  getFirstAvailableContentConfigSourceHandleId,
+  isContentConfigConnectionAllowed,
   isMenuSequentialConnectionAllowed,
 } from "./lib/edge-utils";
 
@@ -3240,38 +3242,33 @@ export default function Page() {
 
       let nextSourceHandle = newConnection.sourceHandle;
 
-      if (sourceNode?.data.node_type === "menu" && nextEdgeKind === "sequential") {
-        const menuConfig = normalizeMenuNodeConfig(
-          sourceNode.data.menu_config,
-          sourceNode.data.primary_cta,
-          Math.max(
-            MENU_NODE_RIGHT_CONNECTIONS_MIN,
-            sourceNode.data.menu_config.max_right_connections
-          )
-        );
-
+      if (
+        (sourceNode?.data.node_type === "menu" ||
+          sourceNode?.data.node_type === "ribbon") &&
+        nextEdgeKind === "sequential"
+      ) {
         if (
-          !isMenuSequentialConnectionAllowed(
+          !isContentConfigConnectionAllowed(
             edges,
             sourceNode.id,
-            menuConfig,
+            sourceNode.data.content_config,
             nextSourceHandle,
             { ignoreEdgeId: oldEdge.id }
           )
         ) {
-          nextSourceHandle = getFirstAvailableMenuSourceHandleId(
+          nextSourceHandle = getFirstAvailableContentConfigSourceHandleId(
             edges,
             sourceNode.id,
-            menuConfig,
+            sourceNode.data.content_config,
             { ignoreEdgeId: oldEdge.id }
           );
         }
 
         if (
-          !isMenuSequentialConnectionAllowed(
+          !isContentConfigConnectionAllowed(
             edges,
             sourceNode.id,
-            menuConfig,
+            sourceNode.data.content_config,
             nextSourceHandle,
             { ignoreEdgeId: oldEdge.id }
           )
