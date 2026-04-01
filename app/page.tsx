@@ -5734,14 +5734,8 @@ export default function Page() {
               data: {
                 ...node.data,
                 node_type: "frame",
-                primary_cta: getPrimaryMenuTermValue(
-                  node.data.menu_config,
-                  node.data.primary_cta
-                ),
-                secondary_cta: getSecondaryMenuTermValue(
-                  node.data.menu_config,
-                  node.data.secondary_cta
-                ),
+                primary_cta: node.data.primary_cta,
+                secondary_cta: node.data.secondary_cta,
                 frame_config: {
                   ...normalizedFrameConfig,
                   member_node_ids: normalizedFrameConfig.member_node_ids.filter(
@@ -5835,14 +5829,8 @@ export default function Page() {
             data: {
               ...node.data,
               node_type: "default",
-              primary_cta: getPrimaryMenuTermValue(
-                node.data.menu_config,
-                node.data.primary_cta
-              ),
-              secondary_cta: getSecondaryMenuTermValue(
-                node.data.menu_config,
-                node.data.secondary_cta
-              ),
+              primary_cta: node.data.primary_cta,
+              secondary_cta: node.data.secondary_cta,
             },
           };
         }))
