@@ -239,6 +239,47 @@ export const isMenuSequentialConnectionAllowed = (
   return true;
 };
 
+export const isContentConfigConnectionAllowed = (
+  edges: FlowEdge[],
+  nodeId: string,
+  contentConfig: NodeContentConfig,
+  sourceHandle: string | null | undefined,
+  options: { ignoreEdgeId?: string } = {}
+): boolean => {
+  const allowedHandleIds = new Set(buildContentConfigSourceHandleIds(contentConfig));
+  if (!sourceHandle || !allowedHandleIds.has(sourceHandle)) {
+    return false;
+  }
+
+  const outgoingSequentialEdges = getSequentialOutgoingEdgesForNode(
+    edges,
+    nodeId,
+    options
+  );
+
+  if (outgoingSequentialEdges.some((edge) => edge.sourceHandle === sourceHandle)) {
+    return false;
+  }
+
+  return true;
+};
+
+export const getFirstAvailableContentConfigSourceHandleId = (
+  edges: FlowEdge[],
+  nodeId: string,
+  contentConfig: NodeContentConfig,
+  options: { ignoreEdgeId?: string } = {}
+): string | null => {
+  const validHandleIds = buildContentConfigSourceHandleIds(contentConfig);
+  const usedHandleIds = new Set(
+    getSequentialOutgoingEdgesForNode(edges, nodeId, options)
+      .map((edge) => edge.sourceHandle)
+      .filter((handleId): handleId is string => typeof handleId === "string")
+  );
+
+  return validHandleIds.find((handleId) => !usedHandleIds.has(handleId)) ?? null;
+};
+
 export const isRibbonSequentialConnectionAllowed = (
   nodeId: string,
   handleId: string,
