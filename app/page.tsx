@@ -13397,7 +13397,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         {visibleFields.length > 0 ? (
                           visibleFields.map((field) => (
                             <div
-                              key={`${entry.nodeId}:${field.label}`}
+                              key={`${entry.nodeId}:${field.id ?? field.label}`}
                               style={{
                                 display: "grid",
                                 gap: 2,
@@ -13551,7 +13551,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         {visibleFields.length > 0 ? (
                           visibleFields.map((field) => (
                             <div
-                              key={`${entry.nodeId}:${field.label}`}
+                              key={`${entry.nodeId}:${field.id ?? field.label}`}
                               style={{
                                 display: "grid",
                                 gridTemplateColumns: "110px 1fr",
