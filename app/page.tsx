@@ -11433,7 +11433,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   const currentNodeType = selectedNode.data.node_type;
                   const isEnabled =
                     isActive ||
-                    currentNodeType === "default" ||
                     ((currentNodeType === "menu" || currentNodeType === "ribbon") &&
                       (nodeTypeOption === "menu" || nodeTypeOption === "ribbon"));
 
