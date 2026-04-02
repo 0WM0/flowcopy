@@ -3349,7 +3349,6 @@ export default function Page() {
                 position,
                 data: {
                   node_type: "ribbon",
-                  ribbon_config: normalizeRibbonNodeConfig(null),
                   ...(normalizedPrimaryText.length > 0
                     ? { primary_cta: normalizedPrimaryText }
                     : {}),
