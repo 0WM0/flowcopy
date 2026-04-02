@@ -39,9 +39,10 @@ import {
   buildRibbonSourceHandleId,
   isNodeShape,
   isNodeType,
+  migrateMenuToContentConfig,
+  migrateRibbonToContentConfig,
+  normalizeAndMigrateNodeContentConfig,
   normalizeFrameNodeConfig,
-  normalizeMenuNodeConfig,
-  normalizeRibbonNodeConfig,
   pruneFrameNodeMembership,
   sanitizePersistedNodes,
   serializeNodesForStorage,
@@ -227,17 +228,12 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         card_style: "default",
         node_shape: "rounded",
         node_type: "default",
-        menu_config: {
-          max_right_connections: 1,
-          terms: [{ id: "default-menu-term", term: "Continue" }],
-        },
         frame_config: {
           shade: "medium",
           member_node_ids: [],
           width: 260,
           height: 180,
         },
-        ribbon_config: null,
         parallel_group_id: null,
       },
     },
@@ -261,21 +257,24 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         card_style: "subtle",
         node_shape: "rectangle",
         node_type: "menu",
-        menu_config: {
-          max_right_connections: 3,
-          terms: [
-            { id: menuTermPrimaryId, term: "Open dashboard" },
-            { id: menuTermSecondaryId, term: "Try again" },
-            { id: menuTermTertiaryId, term: "Contact support" },
-          ],
-        },
+        content_config: migrateMenuToContentConfig(
+          {
+            max_right_connections: 3,
+            terms: [
+              { id: menuTermPrimaryId, term: "Open dashboard" },
+              { id: menuTermSecondaryId, term: "Try again" },
+              { id: menuTermTertiaryId, term: "Contact support" },
+            ],
+          },
+          "Open dashboard",
+          "Menu Node"
+        ),
         frame_config: {
           shade: "medium",
           member_node_ids: [],
           width: 260,
           height: 180,
         },
-        ribbon_config: null,
         parallel_group_id: null,
       },
     },
@@ -299,70 +298,69 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         card_style: "contrast",
         node_shape: "rectangle",
         node_type: "ribbon",
-        menu_config: {
-          max_right_connections: 1,
-          terms: [{ id: "ribbon-menu-term", term: "Execute" }],
-        },
+        content_config: migrateRibbonToContentConfig(
+          {
+            rows: 2,
+            columns: 3,
+            ribbon_style: "compact",
+            cells: [
+              {
+                id: ribbonCell00Id,
+                row: 0,
+                column: 0,
+                label: "Quick Actions",
+                key_command: "Ctrl+Shift+P",
+                tool_tip: "Shows advanced shortcuts",
+              },
+              {
+                id: ribbonCell01Id,
+                row: 0,
+                column: 1,
+                label: "Search",
+                key_command: "Ctrl+K",
+                tool_tip: "Find command",
+              },
+              {
+                id: ribbonCell02Id,
+                row: 0,
+                column: 2,
+                label: "",
+                key_command: "",
+                tool_tip: "",
+              },
+              {
+                id: ribbonCell10Id,
+                row: 1,
+                column: 0,
+                label: "Refresh",
+                key_command: "F5",
+                tool_tip: "Reload table",
+              },
+              {
+                id: ribbonCell11Id,
+                row: 1,
+                column: 1,
+                label: "Export",
+                key_command: "Ctrl+E",
+                tool_tip: "Export current view",
+              },
+              {
+                id: ribbonCell12Id,
+                row: 1,
+                column: 2,
+                label: "Settings",
+                key_command: "Ctrl,",
+                tool_tip: "Open preferences",
+              },
+            ],
+          },
+          "Ribbon Node"
+        ),
         frame_config: {
           shade: "medium",
           member_node_ids: [],
           width: 260,
           height: 180,
-        },
-        ribbon_config: {
-          rows: 2,
-          columns: 3,
-          ribbon_style: "compact",
-          cells: [
-            {
-              id: ribbonCell00Id,
-              row: 0,
-              column: 0,
-              label: "Quick Actions",
-              key_command: "Ctrl+Shift+P",
-              tool_tip: "Shows advanced shortcuts",
-            },
-            {
-              id: ribbonCell01Id,
-              row: 0,
-              column: 1,
-              label: "Search",
-              key_command: "Ctrl+K",
-              tool_tip: "Find command",
-            },
-            {
-              id: ribbonCell02Id,
-              row: 0,
-              column: 2,
-              label: "",
-              key_command: "",
-              tool_tip: "",
-            },
-            {
-              id: ribbonCell10Id,
-              row: 1,
-              column: 0,
-              label: "Refresh",
-              key_command: "F5",
-              tool_tip: "Reload table",
-            },
-            {
-              id: ribbonCell11Id,
-              row: 1,
-              column: 1,
-              label: "Export",
-              key_command: "Ctrl+E",
-              tool_tip: "Export current view",
-            },
-            {
-              id: ribbonCell12Id,
-              row: 1,
-              column: 2,
-              label: "Settings",
-              key_command: "Ctrl+,",
-              tool_tip: "Open preferences",
-            },
-          ],
         },
         parallel_group_id: null,
       },
@@ -387,17 +385,12 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         card_style: "default",
         node_shape: "rectangle",
         node_type: "frame",
-        menu_config: {
-          max_right_connections: 1,
-          terms: [{ id: "frame-menu-term", term: "" }],
-        },
         frame_config: {
           shade: "dark",
           member_node_ids: [defaultNodeId, menuNodeId, ribbonNodeId],
           width: 860,
           height: 420,
         },
-        ribbon_config: null,
         parallel_group_id: null,
       },
     },
@@ -566,6 +559,7 @@ const importProjectFromFlatPayload = (
     const x = toNumeric(row.position_x);
     const y = toNumeric(row.position_y);
     const importedNodeType = isNodeType(row.node_type) ? row.node_type : "default";
+    const importedContentConfigRaw = safeJsonParse(row.content_config_json ?? "");
     const importedMenuConfigRaw = safeJsonParse(row.menu_config_json ?? "");
     const importedFrameConfigRaw = safeJsonParse(row.frame_config_json ?? "");
 
@@ -645,12 +639,19 @@ const importProjectFromFlatPayload = (
         card_style: row.card_style ?? "",
         node_shape: isNodeShape(row.node_shape) ? row.node_shape : "rectangle",
         node_type: importedNodeType,
-        menu_config: normalizeMenuNodeConfig(importedMenuConfigRaw, row.primary_cta ?? ""),
+        content_config: normalizeAndMigrateNodeContentConfig(importedContentConfigRaw, {
+          node_type: importedNodeType,
+          title: row.title,
+          body_text: row.body_text,
+          primary_cta: row.primary_cta,
+          secondary_cta: row.secondary_cta,
+          helper_text: row.helper_text,
+          error_text: row.error_text,
+          notes: row.notes,
+          menu_config: importedMenuConfigRaw,
+          ribbon_config: importedRibbonConfigRaw,
+        }),
         frame_config: normalizeFrameNodeConfig(importedFrameConfigRaw),
-        ribbon_config:
-          importedNodeType === "ribbon" && importedRibbonConfigRaw
-            ? normalizeRibbonNodeConfig(importedRibbonConfigRaw)
-            : null,
       },
     };
   });
@@ -763,10 +764,29 @@ const normalizeProjectForContract = (project: ProjectRecord): ProjectContractSha
   const menuTermsByNodeId = Object.fromEntries(
     serializedNodes
       .filter((node) => node.data?.node_type === "menu")
-      .map((node) => [
-        node.id,
-        (node.data?.menu_config?.terms ?? []).map((menuTerm) => menuTerm.term),
-      ] as const)
+      .map((node) => {
+        const contentConfig = node.data?.content_config;
+        const groups = [...(contentConfig?.groups ?? [])].sort((a, b) => {
+          if (a.row !== b.row) {
+            return a.row - b.row;
+          }
+          return a.column - b.column;
+        });
+
+        const terms = groups.map((group) => {
+          const slot = (contentConfig?.slots ?? []).find((candidate) => {
+            return (
+              candidate.groupId === group.id &&
+              typeof candidate.termType === "string" &&
+              candidate.termType.toLowerCase() === "menu_term"
+            );
+          });
+
+          return slot?.value ?? "";
+        });
+
+        return [node.id, terms] as const;
+      })
       .sort((a, b) => a[0].localeCompare(b[0]))
   );
 
@@ -781,21 +801,43 @@ const normalizeProjectForContract = (project: ProjectRecord): ProjectContractSha
     serializedNodes
       .filter((node) => node.data?.node_type === "ribbon")
       .map((node) => {
-        const ribbonConfig = node.data?.ribbon_config;
+        const contentConfig = node.data?.content_config;
+        const groups = [...(contentConfig?.groups ?? [])].sort((a, b) => {
+          if (a.row !== b.row) {
+            return a.row - b.row;
+          }
+          return a.column - b.column;
+        });
+        const slots = contentConfig?.slots ?? [];
+
+        const getSlotValue = (groupId: string, termType: string): string => {
+          const slot = slots.find((candidate) => {
+            return (
+              candidate.groupId === groupId &&
+              typeof candidate.termType === "string" &&
+              candidate.termType.toLowerCase() === termType
+            );
+          });
+
+          return slot?.value ?? "";
+        };
 
         return [
           node.id,
           {
-            rows: ribbonConfig?.rows ?? 0,
-            columns: ribbonConfig?.columns ?? 0,
-            ribbon_style: ribbonConfig?.ribbon_style ?? "",
-            cells: (ribbonConfig?.cells ?? []).map((cell) => ({
-              id: cell.id,
-              row: cell.row,
-              column: cell.column,
-              label: cell.label,
-              key_command: cell.key_command,
-              tool_tip: cell.tool_tip,
+            rows: groups.reduce((maxRow, group) => Math.max(maxRow, group.row + 1), 0),
+            columns: groups.reduce(
+              (maxColumn, group) => Math.max(maxColumn, group.column + 1),
+              0
+            ),
+            ribbon_style: contentConfig?.style ?? "",
+            cells: groups.map((group) => ({
+              id: group.id,
+              row: group.row,
+              column: group.column,
+              label: getSlotValue(group.id, "cell_label"),
+              key_command: getSlotValue(group.id, "key_command"),
+              tool_tip: getSlotValue(group.id, "tool_tip"),
             })),
           },
         ] as const;
