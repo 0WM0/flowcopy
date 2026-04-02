@@ -9,10 +9,6 @@ import type {
   NodeShape,
   NodeType,
   FrameShade,
-  MenuNodeConfig,
-  MenuNodeTerm,
-  RibbonNodeCell,
-  RibbonNodeConfig,
   FrameNodeConfig,
   NodeContentConfig,
   NodeContentGroup,
@@ -27,13 +23,7 @@ import {
   FRAME_NODE_PADDING,
   FRAME_SHADE_STYLES,
   DIAMOND_CLIP_PATH,
-  MENU_NODE_RIGHT_CONNECTIONS_MIN,
-  MENU_NODE_RIGHT_CONNECTIONS_MAX,
   MENU_SOURCE_HANDLE_PREFIX,
-  RIBBON_NODE_MAX_ROWS,
-  RIBBON_NODE_MIN_COLUMNS,
-  RIBBON_NODE_DEFAULT_COLUMNS,
-  RIBBON_NODE_DEFAULT_ROWS,
   RIBBON_SOURCE_HANDLE_PREFIX,
   NODE_CONTENT_DEFAULT_LAYOUT,
   NODE_CONTENT_DEFAULT_ROWS,
@@ -59,8 +49,6 @@ type NodeContentMigrationSource = {
   helper_text?: unknown;
   error_text?: unknown;
   notes?: unknown;
-  menu_config?: unknown;
-  ribbon_config?: unknown;
 };
 
 export const isNodeType = (value: unknown): value is NodeType =>
@@ -240,15 +228,14 @@ const migrateMultiTermNodeContentConfig = (
   source: NodeContentMigrationSource,
   layout: Extract<NodeContentLayout, "vertical" | "horizontal">
 ): NodeContentConfig => {
-  const normalizedMenuConfig = normalizeMenuNodeConfig(
-    source.menu_config,
-    toSanitizedString(source.primary_cta) || "Continue",
-    1
-  );
+  const values = [toSanitizedString(source.primary_cta), toSanitizedString(source.secondary_cta)]
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  const fallbackValues = values.length > 0 ? values : ["Continue"];
 
-  const slots: NodeContentSlot[] = normalizedMenuConfig.terms.map((term, index) => ({
-    id: term.id,
-    value: term.term,
+  const slots: NodeContentSlot[] = fallbackValues.map((value, index) => ({
+    id: createContentSlotId(),
+    value,
     termType: "menu_term",
     groupId: null,
     position: index,
@@ -268,10 +255,6 @@ export const migrateLegacyNodeContentConfig = (
   source: NodeContentMigrationSource
 ): NodeContentConfig => {
   const nodeType = isNodeType(source.node_type) ? source.node_type : "default";
-
-  if (nodeType === "ribbon") {
-    return migrateRibbonToContentConfig(source.ribbon_config, toSanitizedString(source.title));
-  }
 
   if (nodeType === "menu" || nodeType === "vertical_multi_term") {
     return migrateMultiTermNodeContentConfig(source, "vertical");
@@ -607,35 +590,8 @@ export const createMenuTermId = (): string =>
     ? `menu-${crypto.randomUUID()}`
     : `menu-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 
-export const createMenuNodeTerm = (term: string): MenuNodeTerm => ({
-  id: createMenuTermId(),
-  term,
-});
-
-export const clampMenuRightConnections = (
-  value: number,
-  minimum: number = MENU_NODE_RIGHT_CONNECTIONS_MIN
-): number => {
-  const sanitizedMinimum = Math.min(
-    MENU_NODE_RIGHT_CONNECTIONS_MAX,
-    Math.max(MENU_NODE_RIGHT_CONNECTIONS_MIN, Math.round(minimum))
-  );
-
-  if (!Number.isFinite(value)) {
-    return sanitizedMinimum;
-  }
-
-  return Math.min(
-    MENU_NODE_RIGHT_CONNECTIONS_MAX,
-    Math.max(sanitizedMinimum, Math.round(value))
-  );
-};
-
 export const buildMenuSourceHandleId = (termId: string): string =>
   `${MENU_SOURCE_HANDLE_PREFIX}${termId}`;
-
-export const buildMenuSourceHandleIds = (menuConfig: MenuNodeConfig): string[] =>
-  menuConfig.terms.map((term) => buildMenuSourceHandleId(term.id));
 
 export const buildContentConfigSourceHandleIds = (
   contentConfig: NodeContentConfig
@@ -656,166 +612,6 @@ export const isMenuSourceHandleId = (value: string | null | undefined): value is
 
 export const createRibbonCellId = (): string =>
   `rc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-
-export const createRibbonNodeCell = (
-  row: number,
-  column: number
-): RibbonNodeCell => ({
-  id: createRibbonCellId(),
-  row,
-  column,
-  label: "",
-  key_command: "",
-  tool_tip: "",
-});
-
-export const normalizeRibbonNodeConfig = (value: unknown): RibbonNodeConfig => {
-  const source =
-    value && typeof value === "object" ? (value as Partial<RibbonNodeConfig>) : undefined;
-
-  const requestedRows =
-    typeof source?.rows === "number" ? source.rows : RIBBON_NODE_DEFAULT_ROWS;
-  const requestedColumns =
-    typeof source?.columns === "number" ? source.columns : RIBBON_NODE_DEFAULT_COLUMNS;
-
-  const rows = Number.isFinite(requestedRows)
-    ? Math.min(RIBBON_NODE_MAX_ROWS, Math.max(1, Math.round(requestedRows)))
-    : RIBBON_NODE_DEFAULT_ROWS;
-  const columns = Number.isFinite(requestedColumns)
-    ? Math.max(RIBBON_NODE_MIN_COLUMNS, Math.round(requestedColumns))
-    : RIBBON_NODE_DEFAULT_COLUMNS;
-
-  const usedCellIds = new Set<string>();
-  const occupiedPositions = new Set<string>();
-  const normalizedCells: RibbonNodeCell[] = [];
-  const sourceCells = Array.isArray(source?.cells) ? source.cells : [];
-  const sourceCellCoordinates = sourceCells.flatMap((cellValue) => {
-    if (!cellValue || typeof cellValue !== "object") {
-      return [];
-    }
-
-    const sourceCell = cellValue as Partial<RibbonNodeCell>;
-    if (
-      typeof sourceCell.row !== "number" ||
-      !Number.isFinite(sourceCell.row) ||
-      typeof sourceCell.column !== "number" ||
-      !Number.isFinite(sourceCell.column)
-    ) {
-      return [];
-    }
-
-    return [
-      {
-        row: Math.round(sourceCell.row),
-        column: Math.round(sourceCell.column),
-      },
-    ];
-  });
-  const shouldNormalizeRowsFromOneBased =
-    sourceCellCoordinates.length > 0 &&
-    !sourceCellCoordinates.some((coordinate) => coordinate.row === 0) &&
-    sourceCellCoordinates.every(
-      (coordinate) => coordinate.row >= 1 && coordinate.row <= rows
-    );
-  const shouldNormalizeColumnsFromOneBased =
-    sourceCellCoordinates.length > 0 &&
-    !sourceCellCoordinates.some((coordinate) => coordinate.column === 0) &&
-    sourceCellCoordinates.every(
-      (coordinate) => coordinate.column >= 1 && coordinate.column <= columns
-    );
-
-  sourceCells.forEach((cellValue) => {
-    if (!cellValue || typeof cellValue !== "object") {
-      return;
-    }
-
-    const sourceCell = cellValue as Partial<RibbonNodeCell>;
-    const rawRow =
-      typeof sourceCell.row === "number" && Number.isFinite(sourceCell.row)
-        ? Math.round(sourceCell.row)
-        : Number.NaN;
-    const rawColumn =
-      typeof sourceCell.column === "number" && Number.isFinite(sourceCell.column)
-        ? Math.round(sourceCell.column)
-        : Number.NaN;
-
-    if (!Number.isFinite(rawRow) || !Number.isFinite(rawColumn)) {
-      return;
-    }
-
-    const row = shouldNormalizeRowsFromOneBased ? rawRow - 1 : rawRow;
-    const column = shouldNormalizeColumnsFromOneBased ? rawColumn - 1 : rawColumn;
-
-    if (row < 0 || row >= rows || column < 0 || column >= columns) {
-      return;
-    }
-
-    const positionKey = `${row}:${column}`;
-    if (occupiedPositions.has(positionKey)) {
-      return;
-    }
-
-    let nextCellId =
-      typeof sourceCell.id === "string" && sourceCell.id.trim().length > 0
-        ? sourceCell.id.trim()
-        : createRibbonCellId();
-
-    while (usedCellIds.has(nextCellId)) {
-      nextCellId = createRibbonCellId();
-    }
-
-    usedCellIds.add(nextCellId);
-    occupiedPositions.add(positionKey);
-
-    normalizedCells.push({
-      id: nextCellId,
-      row,
-      column,
-      label: typeof sourceCell.label === "string" ? sourceCell.label : "",
-      key_command:
-        typeof sourceCell.key_command === "string" ? sourceCell.key_command : "",
-      tool_tip: typeof sourceCell.tool_tip === "string" ? sourceCell.tool_tip : "",
-    });
-  });
-
-  for (let row = 0; row < rows; row += 1) {
-    for (let column = 0; column < columns; column += 1) {
-      const positionKey = `${row}:${column}`;
-
-      if (occupiedPositions.has(positionKey)) {
-        continue;
-      }
-
-      let nextCell = createRibbonNodeCell(row, column);
-
-      while (usedCellIds.has(nextCell.id)) {
-        nextCell = {
-          ...nextCell,
-          id: createRibbonCellId(),
-        };
-      }
-
-      usedCellIds.add(nextCell.id);
-      occupiedPositions.add(positionKey);
-      normalizedCells.push(nextCell);
-    }
-  }
-
-  normalizedCells.sort((a, b) => {
-    if (a.row !== b.row) {
-      return a.row - b.row;
-    }
-
-    return a.column - b.column;
-  });
-
-  return {
-    rows,
-    columns,
-    cells: normalizedCells,
-    ribbon_style: typeof source?.ribbon_style === "string" ? source.ribbon_style : "",
-  };
-};
 
 export const migrateDefaultToContentConfig = (
   data: Partial<PersistableMicrocopyNodeData>
@@ -869,104 +665,6 @@ export const migrateDefaultToContentConfig = (
   };
 };
 
-export const migrateMenuToContentConfig = (
-  menuConfig: unknown,
-  fallbackPrimaryTerm: string,
-  title: string
-): NodeContentConfig => {
-  const normalized = normalizeMenuNodeConfig(menuConfig, fallbackPrimaryTerm);
-  const groups: NodeContentGroup[] = [];
-  const slots: NodeContentSlot[] = [];
-  const menuSlotTermTypes = [
-    resolveCanonicalRegistryTermType("menu_term", "menu_term"),
-    resolveCanonicalRegistryTermType("key_command", "key_command"),
-    resolveCanonicalRegistryTermType("tool_tip", "tool_tip"),
-  ];
-
-  if (title) {
-    slots.push({
-      id: createContentSlotId(),
-      value: title,
-      termType: "Title",
-      groupId: null,
-      position: 0,
-    });
-  }
-
-  normalized.terms.forEach((term, index) => {
-    const groupId = createContentGroupId();
-    groups.push({ id: groupId, row: index, column: 0 });
-
-    menuSlotTermTypes.forEach((slotTermType, slotIndex) => {
-      slots.push({
-        id: createContentSlotId(),
-        value: slotIndex === 0 ? term.term : "",
-        termType: slotTermType,
-        groupId,
-        position: slotIndex,
-      });
-    });
-  });
-
-  return {
-    layout: "vertical",
-    rows: groups.length,
-    columns: 1,
-    groups,
-    slots,
-    style: "",
-  };
-};
-
-export const migrateRibbonToContentConfig = (
-  ribbonConfig: unknown,
-  title: string
-): NodeContentConfig => {
-  const normalized = normalizeRibbonNodeConfig(ribbonConfig);
-  const groups: NodeContentGroup[] = [];
-  const slots: NodeContentSlot[] = [];
-
-  if (title) {
-    slots.push({
-      id: createContentSlotId(),
-      value: title,
-      termType: "Title",
-      groupId: null,
-      position: 0,
-    });
-  }
-
-  normalized.cells.forEach((cell) => {
-    const groupId = createContentGroupId();
-    groups.push({ id: groupId, row: cell.row, column: cell.column });
-
-    const cellFields: [string, string][] = [
-      [resolveCanonicalRegistryTermType("cell_label", "cell_label"), cell.label],
-      [resolveCanonicalRegistryTermType("key_command", "key_command"), cell.key_command],
-      [resolveCanonicalRegistryTermType("tool_tip", "tool_tip"), cell.tool_tip],
-    ];
-
-    cellFields.forEach(([slotTermType, value], slotIndex) => {
-      slots.push({
-        id: createContentSlotId(),
-        value,
-        termType: slotTermType,
-        groupId,
-        position: slotIndex,
-      });
-    });
-  });
-
-  return {
-    layout: "horizontal",
-    rows: normalized.rows,
-    columns: normalized.columns,
-    groups,
-    slots,
-    style: normalized.ribbon_style,
-  };
-};
-
 export const migrateFrameToContentConfig = (title: string): NodeContentConfig => {
   return {
     layout: "single",
@@ -989,97 +687,8 @@ export const migrateFrameToContentConfig = (title: string): NodeContentConfig =>
 export const buildRibbonSourceHandleId = (cellId: string): string =>
   `${RIBBON_SOURCE_HANDLE_PREFIX}${cellId}`;
 
-export const buildRibbonSourceHandleIds = (config: RibbonNodeConfig): string[] =>
-  config.cells.map((cell) => buildRibbonSourceHandleId(cell.id));
-
 export const isRibbonSourceHandleId = (handleId: string): boolean =>
   handleId.startsWith(RIBBON_SOURCE_HANDLE_PREFIX);
-
-export const applyRibbonConfigToNodeData = (
-  nodeData: MicrocopyNodeData,
-  config: RibbonNodeConfig
-): MicrocopyNodeData => ({
-  ...nodeData,
-});
-
-export const normalizeMenuNodeConfig = (
-  value: unknown,
-  fallbackPrimaryTerm: string,
-  minimumConnections: number = MENU_NODE_RIGHT_CONNECTIONS_MIN
-): MenuNodeConfig => {
-  const source =
-    value && typeof value === "object" ? (value as Partial<MenuNodeConfig>) : undefined;
-
-  const requestedMax =
-    typeof source?.max_right_connections === "number"
-      ? source.max_right_connections
-      : Array.isArray(source?.terms)
-        ? source.terms.length
-        : minimumConnections;
-
-  const maxRightConnections = clampMenuRightConnections(requestedMax, minimumConnections);
-
-  const normalizedTerms: MenuNodeTerm[] = [];
-  const usedTermIds = new Set<string>();
-  const sourceTerms = Array.isArray(source?.terms) ? source.terms : [];
-
-  sourceTerms.forEach((termValue) => {
-    if (!termValue || typeof termValue !== "object") {
-      return;
-    }
-
-    const sourceTerm = termValue as Partial<MenuNodeTerm>;
-    const term = typeof sourceTerm.term === "string" ? sourceTerm.term : "";
-
-    const rawTermId = typeof sourceTerm.id === "string" ? sourceTerm.id.trim() : "";
-    let nextTermId = rawTermId.length > 0 ? rawTermId : createMenuTermId();
-
-    while (usedTermIds.has(nextTermId)) {
-      nextTermId = createMenuTermId();
-    }
-
-    usedTermIds.add(nextTermId);
-
-    normalizedTerms.push({
-      id: nextTermId,
-      term,
-    });
-  });
-
-  if (normalizedTerms.length === 0) {
-    normalizedTerms.push(createMenuNodeTerm(fallbackPrimaryTerm || ""));
-  }
-
-  const terms = normalizedTerms.slice(0, maxRightConnections);
-
-  while (terms.length < maxRightConnections) {
-    terms.push(createMenuNodeTerm(""));
-  }
-
-  return {
-    max_right_connections: maxRightConnections,
-    terms,
-  };
-};
-
-export const getPrimaryMenuTermValue = (
-  menuConfig: MenuNodeConfig,
-  fallbackValue: string
-): string => menuConfig.terms[0]?.term ?? fallbackValue;
-
-export const getSecondaryMenuTermValue = (
-  menuConfig: MenuNodeConfig,
-  fallbackValue: string
-): string => menuConfig.terms[1]?.term ?? fallbackValue;
-
-export const applyMenuConfigToNodeData = (
-  nodeData: MicrocopyNodeData,
-  nextMenuConfig: MenuNodeConfig
-): MicrocopyNodeData => ({
-  ...nodeData,
-  primary_cta: getPrimaryMenuTermValue(nextMenuConfig, nodeData.primary_cta),
-  secondary_cta: getSecondaryMenuTermValue(nextMenuConfig, nodeData.secondary_cta),
-});
 
 export const createNodeId = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -1141,10 +750,6 @@ export const createDefaultNodeData = (
   globalOptions: GlobalOptionConfig,
   overrides: Partial<PersistableMicrocopyNodeData> = {}
 ): MicrocopyNodeData => {
-  const legacyOverrides = overrides as {
-    menu_config?: unknown;
-    ribbon_config?: unknown;
-  };
   const nodeType = isNodeType(overrides.node_type) ? overrides.node_type : "default";
 
   return {
@@ -1179,7 +784,6 @@ export const createDefaultNodeData = (
     node_shape: isNodeShape(overrides.node_shape) ? overrides.node_shape : "rectangle",
     node_type: nodeType,
     frame_config: normalizeFrameNodeConfig(overrides.frame_config),
-    ...((() => { if (nodeType === "ribbon" || nodeType === "horizontal_multi_term") { console.log("CREATE_DEFAULT DEBUG", { nodeType, hasRibbonConfig: !!legacyOverrides?.ribbon_config, ribbonCells: legacyOverrides?.ribbon_config ? (legacyOverrides.ribbon_config as any).cells?.length : "no config" }); } return {}; })()),
     content_config:
       (() => {
         if (
@@ -1198,22 +802,16 @@ export const createDefaultNodeData = (
           }
         }
         return null;
-      })() ?? (nodeType === "default"
-          ? migrateDefaultToContentConfig(overrides)
-          : nodeType === "frame"
-            ? migrateFrameToContentConfig(overrides.title ?? "")
-            : nodeType === "menu" || nodeType === "vertical_multi_term"
-              ? migrateMenuToContentConfig(
-                  legacyOverrides?.menu_config,
-                  overrides.primary_cta ?? "",
-                  overrides.title ?? ""
-                )
-              : nodeType === "ribbon" || nodeType === "horizontal_multi_term"
-                ? migrateRibbonToContentConfig(
-                    legacyOverrides?.ribbon_config,
-                    overrides.title ?? ""
-                  )
-                : migrateDefaultToContentConfig(overrides)),
+      })() ??
+      migrateDefaultToContentConfig({
+        title: overrides.title,
+        body_text: overrides.body_text,
+        primary_cta: overrides.primary_cta,
+        secondary_cta: overrides.secondary_cta,
+        helper_text: overrides.helper_text,
+        error_text: overrides.error_text,
+        notes: overrides.notes,
+      }),
     parallel_group_id:
       typeof overrides.parallel_group_id === "string" &&
       overrides.parallel_group_id.trim().length > 0
