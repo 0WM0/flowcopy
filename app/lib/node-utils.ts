@@ -1141,6 +1141,10 @@ export const createDefaultNodeData = (
   globalOptions: GlobalOptionConfig,
   overrides: Partial<PersistableMicrocopyNodeData> = {}
 ): MicrocopyNodeData => {
+  const legacyOverrides = overrides as {
+    menu_config?: unknown;
+    ribbon_config?: unknown;
+  };
   const nodeType = isNodeType(overrides.node_type) ? overrides.node_type : "default";
 
   return {
@@ -1174,14 +1178,8 @@ export const createDefaultNodeData = (
       overrides.card_style ?? firstOptionOrFallback(globalOptions.card_style, "default"),
     node_shape: isNodeShape(overrides.node_shape) ? overrides.node_shape : "rectangle",
     node_type: nodeType,
-    menu_config: normalizeMenuNodeConfig(
-      overrides.menu_config,
-      overrides.primary_cta ?? "",
-      1
-    ),
     frame_config: normalizeFrameNodeConfig(overrides.frame_config),
-    ...((() => { if (nodeType === "ribbon" || nodeType === "horizontal_multi_term") { console.log("CREATE_DEFAULT DEBUG", { nodeType, hasRibbonConfig: !!overrides.ribbon_config, ribbonCells: overrides.ribbon_config ? (overrides.ribbon_config as any).cells?.length : "no config" }); } return {}; })()),
-    ribbon_config: null,
+    ...((() => { if (nodeType === "ribbon" || nodeType === "horizontal_multi_term") { console.log("CREATE_DEFAULT DEBUG", { nodeType, hasRibbonConfig: !!legacyOverrides?.ribbon_config, ribbonCells: legacyOverrides?.ribbon_config ? (legacyOverrides.ribbon_config as any).cells?.length : "no config" }); } return {}; })()),
     content_config:
       (() => {
         if (
@@ -1206,13 +1204,13 @@ export const createDefaultNodeData = (
             ? migrateFrameToContentConfig(overrides.title ?? "")
             : nodeType === "menu" || nodeType === "vertical_multi_term"
               ? migrateMenuToContentConfig(
-                  overrides.menu_config,
+                  legacyOverrides?.menu_config,
                   overrides.primary_cta ?? "",
                   overrides.title ?? ""
                 )
               : nodeType === "ribbon" || nodeType === "horizontal_multi_term"
                 ? migrateRibbonToContentConfig(
-                    overrides.ribbon_config,
+                    legacyOverrides?.ribbon_config,
                     overrides.title ?? ""
                   )
                 : migrateDefaultToContentConfig(overrides)),
@@ -1241,10 +1239,6 @@ export const normalizeNode = (
     position: node.position ?? { x: 0, y: 0 },
     data: {
       ...defaultData,
-      ribbon_config:
-        defaultData.node_type === "ribbon"
-          ? normalizeRibbonNodeConfig(sourceData.ribbon_config)
-          : null,
       content_config: (() => {
         if (
           sourceData.content_config &&
@@ -1519,18 +1513,7 @@ export const serializeNodesForStorage = (
       card_style: node.data.card_style,
       node_shape: node.data.node_shape,
       node_type: node.data.node_type,
-      menu_config: normalizeMenuNodeConfig(
-        node.data.menu_config,
-        node.data.primary_cta,
-        node.data.node_type === "menu"
-          ? node.data.menu_config.max_right_connections
-          : 1
-      ),
       frame_config: normalizeFrameNodeConfig(node.data.frame_config),
-      ribbon_config:
-        node.data.node_type === "ribbon"
-          ? normalizeRibbonNodeConfig(node.data.ribbon_config)
-          : null,
       content_config: node.data.content_config,
       parallel_group_id:
         parallelGroupByNodeId[node.id] ?? node.data.parallel_group_id ?? null,
