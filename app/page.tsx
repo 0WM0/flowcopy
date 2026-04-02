@@ -223,13 +223,9 @@ import {
   clampFrameDimension,
   clampMenuRightConnections,
   buildMenuSourceHandleId,
-  buildMenuSourceHandleIds,
   buildContentConfigSourceHandleIds,
   isNodeShape,
   isNodeType,
-  getPrimaryMenuTermValue,
-  getSecondaryMenuTermValue,
-  applyMenuConfigToNodeData,
   resolveNodeHighlightColor,
   getNodeShapeStyle,
   getDiamondBorderLayerStyle,
@@ -238,8 +234,6 @@ import {
   createDefaultNodeData,
   getFallbackNodeSize,
   migrateDefaultToContentConfig,
-  migrateMenuToContentConfig,
-  migrateRibbonToContentConfig,
 } from "./lib/node-utils";
 
 import {
@@ -251,7 +245,6 @@ import {
   inferEdgeKindFromHandles,
   getEdgeKind,
   isSequentialEdge,
-  syncSequentialEdgesForMenuNode,
   syncSequentialEdgesForContentConfig,
   assignSequentialEdgesToMenuHandles,
   remapMenuSequentialEdgesToDefaultHandle,
@@ -260,10 +253,8 @@ import {
   isEditableEventTarget,
   isEdgeKind,
   getEdgeDirection,
-  getFirstAvailableMenuSourceHandleId,
   getFirstAvailableContentConfigSourceHandleId,
   isContentConfigConnectionAllowed,
-  isMenuSequentialConnectionAllowed,
 } from "./lib/edge-utils";
 
 import {
