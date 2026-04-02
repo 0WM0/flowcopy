@@ -26,37 +26,11 @@ export type ControlledLanguageFieldType =
   | "tool_tip"
   | "cell_label";
 
-export type MenuNodeTerm = {
-  id: string;
-  term: string;
-};
-
-export type MenuNodeConfig = {
-  max_right_connections: number;
-  terms: MenuNodeTerm[];
-};
-
 export type FrameNodeConfig = {
   shade: FrameShade;
   member_node_ids: string[];
   width: number;
   height: number;
-};
-
-export type RibbonNodeCell = {
-  id: string;
-  row: number;
-  column: number;
-  label: string;
-  key_command: string;
-  tool_tip: string;
-};
-
-export type RibbonNodeConfig = {
-  rows: number;
-  columns: number;
-  cells: RibbonNodeCell[];
-  ribbon_style: string;
 };
 
 export type NodeContentLayout = "single" | "vertical" | "horizontal";
@@ -129,9 +103,7 @@ export type EditableMicrocopyField = Exclude<
   keyof PersistableMicrocopyNodeData,
   | "parallel_group_id"
   | "showTitle"
-  | "menu_config"
   | "frame_config"
-  | "ribbon_config"
   | "content_config"
   | "node_type"
 >;
