@@ -112,9 +112,7 @@ export type MicrocopyNodeData = {
   card_style: string;
   node_shape: NodeShape;
   node_type: NodeType;
-  menu_config: MenuNodeConfig;
   frame_config: FrameNodeConfig;
-  ribbon_config: RibbonNodeConfig | null;
   content_config: NodeContentConfig;
   parallel_group_id: string | null;
   sequence_index: number | null;
