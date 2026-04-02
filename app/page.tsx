@@ -8108,121 +8108,18 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               const importedContentConfigRaw = hasImportedContentConfigJson
                 ? safeJsonParse(row.content_config_json ?? "")
                 : null;
-              const importedMenuConfigRaw = safeJsonParse(row.menu_config_json ?? "");
               const importedFrameConfigRaw = safeJsonParse(row.frame_config_json ?? "");
-              const importedRibbonConfigRaw = (() => {
-                const rawRibbonCellsJson = row.ribbon_cells_json ?? "";
-                if (rawRibbonCellsJson.trim().length === 0) {
-                  return null;
-                }
-
-                try {
-                  const parsedRibbonCells = JSON.parse(rawRibbonCellsJson);
-
-                  if (!Array.isArray(parsedRibbonCells)) {
-                    return null;
-                  }
-
-                  const inferredRows = parsedRibbonCells.reduce((maxRows, cellValue) => {
-                    if (!cellValue || typeof cellValue !== "object") {
-                      return maxRows;
-                    }
-
-                    const sourceCell = cellValue as { row?: unknown };
-                    if (
-                      typeof sourceCell.row !== "number" ||
-                      !Number.isFinite(sourceCell.row)
-                    ) {
-                      return maxRows;
-                    }
-
-                    return Math.max(maxRows, Math.round(sourceCell.row) + 1);
-                  }, 1);
-
-                  const inferredColumns = parsedRibbonCells.reduce(
-                    (maxColumns, cellValue) => {
-                      if (!cellValue || typeof cellValue !== "object") {
-                        return maxColumns;
-                      }
-
-                      const sourceCell = cellValue as { column?: unknown };
-                      if (
-                        typeof sourceCell.column !== "number" ||
-                        !Number.isFinite(sourceCell.column)
-                      ) {
-                        return maxColumns;
-                      }
-
-                      return Math.max(maxColumns, Math.round(sourceCell.column) + 1);
-                    },
-                    RIBBON_NODE_MIN_COLUMNS
-                  );
-
-                  return {
-                    rows: inferredRows,
-                    columns: inferredColumns,
-                    cells: parsedRibbonCells,
-                  };
-                } catch {
-                  return null;
-                }
-              })();
-
-              const importedDisplayTermField = isNodeControlledLanguageFieldType(
-                row.display_term_field
-              )
-                ? row.display_term_field
-                : "primary_cta";
-
-              const shouldPopulateLegacyContentFieldsFromRow =
-                !hasImportedContentConfigJson;
-              const importedBodyText = shouldPopulateLegacyContentFieldsFromRow
-                ? row.body_text ?? ""
-                : "";
-              const importedPrimaryCta = shouldPopulateLegacyContentFieldsFromRow
-                ? row.primary_cta ?? ""
-                : "";
-              const importedSecondaryCta = shouldPopulateLegacyContentFieldsFromRow
-                ? row.secondary_cta ?? ""
-                : "";
-              const importedHelperText = shouldPopulateLegacyContentFieldsFromRow
-                ? row.helper_text ?? ""
-                : "";
-              const importedErrorText = shouldPopulateLegacyContentFieldsFromRow
-                ? row.error_text ?? ""
-                : "";
-
-              const normalizedImportedMenuConfig = normalizeMenuNodeConfig(
-                importedMenuConfigRaw,
-                row.primary_cta ?? ""
-              );
-              const normalizedImportedRibbonConfig =
-                importedNodeType === "ribbon" && importedRibbonConfigRaw
-                  ? normalizeRibbonNodeConfig(importedRibbonConfigRaw)
-                  : null;
-
-              const importedContentConfig = hasImportedContentConfigJson
-                ? importedContentConfigRaw
-                : importedNodeType === "menu"
-                  ? migrateMenuToContentConfig(
-                      normalizedImportedMenuConfig,
-                      row.primary_cta ?? "",
-                      row.title ?? ""
-                    )
-                  : importedNodeType === "ribbon"
-                    ? migrateRibbonToContentConfig(
-                        normalizedImportedRibbonConfig,
-                        row.title ?? ""
-                      )
-                    : migrateDefaultToContentConfig({
-                        title: row.title ?? "",
-                        body_text: row.body_text ?? "",
-                        primary_cta: row.primary_cta ?? "",
-                        secondary_cta: row.secondary_cta ?? "",
-                        helper_text: row.helper_text ?? "",
-                        error_text: row.error_text ?? "",
-                      });
-
+              
+              const importedContentConfig: NodeContentConfig = hasImportedContentConfigJson
+                ? (importedContentConfigRaw as NodeContentConfig)
+                : migrateDefaultToContentConfig({
+                    title: row.title ?? "",
+                    body_text: row.body_text ?? "",
+                    primary_cta: row.primary_cta ?? "",
+                    secondary_cta: row.secondary_cta ?? "",
+                    helper_text: row.helper_text ?? "",
+                    error_text: row.error_text ?? "",
+                  });
               return {
                 id: nodeId,
                 position: {
@@ -8231,13 +8128,13 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 },
                 data: {
                   title: row.title ?? "",
-                  body_text: importedBodyText,
-                  primary_cta: importedPrimaryCta,
-                  secondary_cta: importedSecondaryCta,
-                  helper_text: importedHelperText,
-                  error_text: importedErrorText,
-                  display_term_field: importedDisplayTermField,
-                  display_term_fields: [importedDisplayTermField],
+                  body_text: row.body_text ?? "",
+                  primary_cta: row.primary_cta ?? "",
+                  secondary_cta: row.secondary_cta ?? "",
+                  helper_text: row.helper_text ?? "",
+                  error_text: row.error_text ?? "",
+                  display_term_field: "primary_cta",
+                  display_term_fields: ["primary_cta"],
                   tone: row.tone ?? "",
                   polarity: row.polarity ?? "",
                   reversibility: row.reversibility ?? "",
@@ -8248,10 +8145,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   card_style: row.card_style ?? "",
                   node_shape: isNodeShape(row.node_shape) ? row.node_shape : "rectangle",
                   node_type: importedNodeType,
-                  menu_config: normalizedImportedMenuConfig,
+                  menu_config: normalizeMenuNodeConfig(null, row.primary_cta ?? ""),
                   frame_config: normalizeFrameNodeConfig(importedFrameConfigRaw),
-                  ribbon_config: normalizedImportedRibbonConfig,
-                  content_config: importedContentConfig as NodeContentConfig,
+                  ribbon_config: normalizeRibbonNodeConfig(null),
+                  content_config: importedContentConfig,
                 },
               };
             }
