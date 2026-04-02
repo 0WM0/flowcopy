@@ -85,14 +85,14 @@ import {
   FRAME_SHADE_OPTIONS,
   FRAME_SHADE_LABELS,
   FRAME_SHADE_STYLES,
-  MENU_NODE_RIGHT_CONNECTIONS_MIN,
-  MENU_NODE_RIGHT_CONNECTIONS_MAX,
-  MENU_SOURCE_HANDLE_PREFIX,
-  MENU_NODE_MINIMUM_TERM_ERROR_MESSAGE,
+  VMN_GROUPS_MIN,
+  VMN_GROUPS_MAX,
+  VMN_SOURCE_HANDLE_PREFIX,
+  VMN_MINIMUM_TERM_ERROR_MESSAGE,
   FRAME_NODE_MIN_WIDTH,
   FRAME_NODE_MIN_HEIGHT,
   FRAME_NODE_PADDING,
-  RIBBON_NODE_MIN_COLUMNS,
+  HMN_MIN_COLUMNS,
   EDGE_STROKE_COLOR,
   PARALLEL_EDGE_STROKE_COLOR,
   EDGE_LINE_STYLE_OPTIONS,
@@ -237,12 +237,12 @@ import {
 
 const clampMenuRightConnections = (value: number): number => {
   if (!Number.isFinite(value)) {
-    return MENU_NODE_RIGHT_CONNECTIONS_MIN;
+    return VMN_GROUPS_MIN;
   }
 
   return Math.min(
-    MENU_NODE_RIGHT_CONNECTIONS_MAX,
-    Math.max(MENU_NODE_RIGHT_CONNECTIONS_MIN, Math.round(value))
+    VMN_GROUPS_MAX,
+    Math.max(VMN_GROUPS_MIN, Math.round(value))
   );
 };
 
@@ -2175,7 +2175,7 @@ export default function Page() {
 
   const showMenuTermDeleteBlockedMessage = useCallback(() => {
     clearMenuTermDeleteError();
-    setMenuTermDeleteError(MENU_NODE_MINIMUM_TERM_ERROR_MESSAGE);
+    setMenuTermDeleteError(VMN_MINIMUM_TERM_ERROR_MESSAGE);
 
     menuTermDeleteErrorTimeoutRef.current = window.setTimeout(() => {
       setMenuTermDeleteError(null);
@@ -5976,7 +5976,7 @@ export default function Page() {
       const sortedCurrentGroups = [...currentContentConfig.groups].sort((groupA, groupB) =>
         groupA.row === groupB.row ? groupA.column - groupB.column : groupA.row - groupB.row
       );
-      const nextColumns = Math.max(RIBBON_NODE_MIN_COLUMNS, sortedCurrentGroups.length + delta);
+      const nextColumns = Math.max(HMN_MIN_COLUMNS, sortedCurrentGroups.length + delta);
 
       if (nextColumns === sortedCurrentGroups.length) {
         return;
@@ -6131,7 +6131,7 @@ export default function Page() {
     const nextValue = clampMenuRightConnections(
       Number.isFinite(parsedValue)
         ? parsedValue
-        : MENU_NODE_RIGHT_CONNECTIONS_MIN
+        : VMN_GROUPS_MIN
     );
 
     if (!selectedVerticalContentConfig) {
@@ -6222,7 +6222,7 @@ export default function Page() {
         return;
       }
 
-      if (selectedVerticalContentConfig.groups.length <= MENU_NODE_RIGHT_CONNECTIONS_MIN) {
+      if (selectedVerticalContentConfig.groups.length <= VMN_GROUPS_MIN) {
         showMenuTermDeleteBlockedMessage();
         return;
       }
@@ -6266,7 +6266,7 @@ export default function Page() {
             groupA.row === groupB.row ? groupA.column - groupB.column : groupA.row - groupB.row
           );
         const nextColumns = clampMenuRightConnections(
-          Math.max(filteredGroups.length, MENU_NODE_RIGHT_CONNECTIONS_MIN)
+          Math.max(filteredGroups.length, VMN_GROUPS_MIN)
         );
 
         return {
@@ -11265,7 +11265,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   <input
                     key={`menu-right-connections:${selectedNode.id}:${
                       selectedVerticalContentConfig?.groups.length ??
-                      MENU_NODE_RIGHT_CONNECTIONS_MIN
+                      VMN_GROUPS_MIN
                     }`}
                     style={inputStyle}
                     type="text"
@@ -11273,7 +11273,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     pattern="[0-9]*"
                     defaultValue={
                       selectedVerticalContentConfig?.groups.length ??
-                      MENU_NODE_RIGHT_CONNECTIONS_MIN
+                      VMN_GROUPS_MIN
                     }
                     onInput={(event) => {
                       const nextValue = event.currentTarget.value.replace(/[^\d]/g, "");
@@ -11338,14 +11338,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         borderColor: "#93c5fd",
                         opacity:
                           (selectedVerticalContentConfig?.groups.length ??
-                            MENU_NODE_RIGHT_CONNECTIONS_MAX) >=
-                          MENU_NODE_RIGHT_CONNECTIONS_MAX
+                            VMN_GROUPS_MAX) >=
+                          VMN_GROUPS_MAX
                             ? 0.45
                             : 1,
                         cursor:
                           (selectedVerticalContentConfig?.groups.length ??
-                            MENU_NODE_RIGHT_CONNECTIONS_MAX) >=
-                          MENU_NODE_RIGHT_CONNECTIONS_MAX
+                            VMN_GROUPS_MAX) >=
+                          VMN_GROUPS_MAX
                             ? "not-allowed"
                             : "pointer",
                       }}
@@ -11354,8 +11354,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       onClick={addSelectedMenuTerm}
                       disabled={
                         (selectedVerticalContentConfig?.groups.length ??
-                          MENU_NODE_RIGHT_CONNECTIONS_MAX) >=
-                        MENU_NODE_RIGHT_CONNECTIONS_MAX
+                          VMN_GROUPS_MAX) >=
+                        VMN_GROUPS_MAX
                       }
                     >
                       +
@@ -11743,19 +11743,19 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             lineHeight: 1,
                             opacity:
                               selectedHorizontalContentConfig.groups.length <=
-                              RIBBON_NODE_MIN_COLUMNS
+                              HMN_MIN_COLUMNS
                                 ? 0.45
                                 : 1,
                             cursor:
                               selectedHorizontalContentConfig.groups.length <=
-                              RIBBON_NODE_MIN_COLUMNS
+                              HMN_MIN_COLUMNS
                                 ? "not-allowed"
                                 : "pointer",
                           }}
                           onClick={() => updateRibbonColumns(-1)}
                           disabled={
                             selectedHorizontalContentConfig.groups.length <=
-                            RIBBON_NODE_MIN_COLUMNS
+                            HMN_MIN_COLUMNS
                           }
                           aria-label="Remove column"
                           title="Remove column"

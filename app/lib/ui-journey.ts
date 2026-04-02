@@ -9,7 +9,7 @@ import type {
   UiJourneySnapshotPreset,
 } from "../types";
 import {
-  RIBBON_SOURCE_HANDLE_PREFIX,
+  HMN_SOURCE_HANDLE_PREFIX,
   TERM_REGISTRY_TERM_TYPE_LABELS,
 } from "../constants";
 import { computeFlowOrdering } from "./flow-ordering";
@@ -747,7 +747,7 @@ export const buildUiJourneyConversationEntries = ({
 
         const ribbonCellEntries: UiJourneyConversationEntry[] = sortedGroups
           .filter((group) => {
-            const cellSourceHandlePrefix = `${RIBBON_SOURCE_HANDLE_PREFIX}${group.id}`;
+            const cellSourceHandlePrefix = `${HMN_SOURCE_HANDLE_PREFIX}${group.id}`;
 
             return edges.some((edge) => {
               if (edge.source !== nodeId) {

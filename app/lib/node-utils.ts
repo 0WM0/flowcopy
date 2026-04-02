@@ -23,8 +23,8 @@ import {
   FRAME_NODE_PADDING,
   FRAME_SHADE_STYLES,
   DIAMOND_CLIP_PATH,
-  MENU_SOURCE_HANDLE_PREFIX,
-  RIBBON_SOURCE_HANDLE_PREFIX,
+  VMN_SOURCE_HANDLE_PREFIX,
+  HMN_SOURCE_HANDLE_PREFIX,
   NODE_CONTENT_DEFAULT_LAYOUT,
   NODE_CONTENT_DEFAULT_ROWS,
   NODE_CONTENT_DEFAULT_COLUMNS,
@@ -591,14 +591,14 @@ export const createMenuTermId = (): string =>
     : `menu-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 
 export const buildMenuSourceHandleId = (termId: string): string =>
-  `${MENU_SOURCE_HANDLE_PREFIX}${termId}`;
+  `${VMN_SOURCE_HANDLE_PREFIX}${termId}`;
 
 export const buildContentConfigSourceHandleIds = (
   contentConfig: NodeContentConfig
 ): string[] => {
   const layout = contentConfig.layout;
   const prefix =
-    layout === "horizontal" ? RIBBON_SOURCE_HANDLE_PREFIX : MENU_SOURCE_HANDLE_PREFIX;
+    layout === "horizontal" ? HMN_SOURCE_HANDLE_PREFIX : VMN_SOURCE_HANDLE_PREFIX;
   const sortedGroups = [...contentConfig.groups].sort((a, b) => {
     if (a.row !== b.row) return a.row - b.row;
     return a.column - b.column;
@@ -608,7 +608,7 @@ export const buildContentConfigSourceHandleIds = (
 };
 
 export const isMenuSourceHandleId = (value: string | null | undefined): value is string =>
-  typeof value === "string" && value.startsWith(MENU_SOURCE_HANDLE_PREFIX);
+  typeof value === "string" && value.startsWith(VMN_SOURCE_HANDLE_PREFIX);
 
 export const createRibbonCellId = (): string =>
   `rc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -685,10 +685,10 @@ export const migrateFrameToContentConfig = (title: string): NodeContentConfig =>
 };
 
 export const buildRibbonSourceHandleId = (cellId: string): string =>
-  `${RIBBON_SOURCE_HANDLE_PREFIX}${cellId}`;
+  `${HMN_SOURCE_HANDLE_PREFIX}${cellId}`;
 
 export const isRibbonSourceHandleId = (handleId: string): boolean =>
-  handleId.startsWith(RIBBON_SOURCE_HANDLE_PREFIX);
+  handleId.startsWith(HMN_SOURCE_HANDLE_PREFIX);
 
 export const createNodeId = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto

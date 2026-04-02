@@ -23,11 +23,11 @@ import type {
 } from "../types";
 
 import {
-  MENU_NODE_RIGHT_CONNECTIONS_MIN,
-  MENU_NODE_RIGHT_CONNECTIONS_MAX,
-  MENU_SOURCE_HANDLE_PREFIX,
-  RIBBON_SOURCE_HANDLE_PREFIX,
-  RIBBON_CELL_MAX_KEY_COMMAND_LENGTH,
+  VMN_GROUPS_MIN,
+  VMN_GROUPS_MAX,
+  VMN_SOURCE_HANDLE_PREFIX,
+  HMN_SOURCE_HANDLE_PREFIX,
+  HMN_CELL_MAX_KEY_COMMAND_LENGTH,
   FRAME_SHADE_STYLES,
   SEQUENTIAL_SOURCE_HANDLE_ID,
   SEQUENTIAL_TARGET_HANDLE_ID,
@@ -986,7 +986,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
         return;
       }
 
-      if (verticalTermRows.length <= MENU_NODE_RIGHT_CONNECTIONS_MIN) {
+      if (verticalTermRows.length <= VMN_GROUPS_MIN) {
         onMenuTermDeleteBlocked();
         return;
       }
@@ -1503,7 +1503,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       (slot) => slot.groupId === lastVerticalGroupId && slot.value.trim().length > 0
     );
   const canRemoveVerticalGroup =
-    verticalTermRows.length > MENU_NODE_RIGHT_CONNECTIONS_MIN && !lastVerticalGroupHasData;
+    verticalTermRows.length > VMN_GROUPS_MIN && !lastVerticalGroupHasData;
 
   const removeLastVerticalTermGroup = useCallback(() => {
     if (!isVerticalTermsNode || !canRemoveVerticalGroup) {
@@ -2081,7 +2081,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     return (
       <div
         ref={ribbonContainerRef}
-        data-ribbon-source-prefix={RIBBON_SOURCE_HANDLE_PREFIX}
+        data-ribbon-source-prefix={HMN_SOURCE_HANDLE_PREFIX}
         style={{
           display: "flex",
           flexDirection: "row",

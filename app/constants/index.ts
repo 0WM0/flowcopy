@@ -91,24 +91,24 @@ export const FRAME_SHADE_LABELS: Record<FrameShade, string> = {
   dark: "Dark",
 };
 
-export const MENU_NODE_RIGHT_CONNECTIONS_MIN = 1;
-export const MENU_NODE_RIGHT_CONNECTIONS_MAX = 12;
-export const MENU_SOURCE_HANDLE_PREFIX = "menu-src-";
-export const MENU_NODE_MINIMUM_TERM_ERROR_MESSAGE =
+export const VMN_GROUPS_MIN = 1;
+export const VMN_GROUPS_MAX = 12;
+export const VMN_SOURCE_HANDLE_PREFIX = "menu-src-";
+export const VMN_MINIMUM_TERM_ERROR_MESSAGE =
   "You must have at least 1 menu term for this note type. You can change the term if you like.";
 
 export const FRAME_NODE_MIN_WIDTH = 260;
 export const FRAME_NODE_MIN_HEIGHT = 180;
 export const FRAME_NODE_PADDING = 28;
 
-export const RIBBON_NODE_MAX_ROWS = 3;
-export const RIBBON_NODE_MIN_COLUMNS = 1;
-export const RIBBON_NODE_DEFAULT_COLUMNS = 1;
-export const RIBBON_NODE_DEFAULT_ROWS = 1;
-export const RIBBON_CELL_MAX_KEY_COMMAND_LENGTH = 24;
-export const RIBBON_SOURCE_HANDLE_PREFIX = "ribbon-cell-";
-export const RIBBON_TOP_HANDLE_ID = "ribbon-top";
-export const RIBBON_BOTTOM_HANDLE_ID = "ribbon-bottom";
+export const HMN_MAX_ROWS = 3;
+export const HMN_MIN_COLUMNS = 1;
+export const HMN_DEFAULT_COLUMNS = 1;
+export const HMN_DEFAULT_ROWS = 1;
+export const HMN_CELL_MAX_KEY_COMMAND_LENGTH = 24;
+export const HMN_SOURCE_HANDLE_PREFIX = "ribbon-cell-";
+export const HMN_TOP_HANDLE_ID = "ribbon-top";
+export const HMN_BOTTOM_HANDLE_ID = "ribbon-bottom";
 
 export const NODE_CONTENT_LAYOUT_OPTIONS: NodeContentLayout[] = [
   "single",
