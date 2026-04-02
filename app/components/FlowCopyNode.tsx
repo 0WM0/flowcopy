@@ -18,7 +18,6 @@ import type {
   NodeContentConfig,
   NodeContentGroup,
   NodeContentSlot,
-  RibbonNodeCell,
   NodeType,
   PersistableMicrocopyNodeData,
 } from "../types";
@@ -162,6 +161,15 @@ type PendingRibbonRegistryTerm = {
   entryId: string;
   termValue: string;
   referenceKey: string | null;
+};
+
+type HorizontalCellView = {
+  id: string;
+  row: number;
+  column: number;
+  label: string;
+  key_command: string;
+  tool_tip: string;
 };
 
 type VerticalTermRow = {
@@ -508,7 +516,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     () => normalizeFrameNodeConfig(data.frame_config),
     [data.frame_config]
   );
-  const sortedRibbonCells = useMemo<RibbonNodeCell[]>(() => {
+  const sortedRibbonCells = useMemo<HorizontalCellView[]>(() => {
     if (!isRibbonNode) {
       return [];
     }
@@ -1301,10 +1309,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   );
 
   const updateRibbonCellField = useCallback(
-    <K extends keyof Pick<RibbonNodeCell, "label" | "key_command" | "tool_tip">>(
+    <K extends keyof Pick<HorizontalCellView, "label" | "key_command" | "tool_tip">>(
       cellId: string,
       field: K,
-      value: RibbonNodeCell[K]
+      value: HorizontalCellView[K]
     ) => {
       onBeforeChange();
 
