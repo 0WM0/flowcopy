@@ -20,7 +20,6 @@ import {
   FULL_PROJECT_EXPORT_SCHEMA_VERSION,
   PARALLEL_SOURCE_HANDLE_ID,
   PARALLEL_TARGET_HANDLE_ID,
-  RIBBON_NODE_MIN_COLUMNS,
   SEQUENTIAL_SOURCE_HANDLE_ID,
   SEQUENTIAL_TARGET_HANDLE_ID,
 } from "../../constants";
@@ -39,8 +38,6 @@ import {
   buildRibbonSourceHandleId,
   isNodeShape,
   isNodeType,
-  migrateMenuToContentConfig,
-  migrateRibbonToContentConfig,
   normalizeAndMigrateNodeContentConfig,
   normalizeFrameNodeConfig,
   pruneFrameNodeMembership,
@@ -257,18 +254,82 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         card_style: "subtle",
         node_shape: "rectangle",
         node_type: "menu",
-        content_config: migrateMenuToContentConfig(
-          {
-            max_right_connections: 3,
-            terms: [
-              { id: menuTermPrimaryId, term: "Open dashboard" },
-              { id: menuTermSecondaryId, term: "Try again" },
-              { id: menuTermTertiaryId, term: "Contact support" },
-            ],
-          },
-          "Open dashboard",
-          "Menu Node"
-        ),
+        content_config: {
+          layout: "vertical",
+          rows: 1,
+          columns: 3,
+          style: "",
+          groups: [
+            { id: menuTermPrimaryId, row: 0, column: 0 },
+            { id: menuTermSecondaryId, row: 0, column: 1 },
+            { id: menuTermTertiaryId, row: 0, column: 2 },
+          ],
+          slots: [
+            {
+              id: "menu-slot-primary-term",
+              value: "Open dashboard",
+              termType: "menu_term",
+              groupId: menuTermPrimaryId,
+              position: 0,
+            },
+            {
+              id: "menu-slot-primary-key",
+              value: "",
+              termType: "key_command",
+              groupId: menuTermPrimaryId,
+              position: 1,
+            },
+            {
+              id: "menu-slot-primary-tooltip",
+              value: "",
+              termType: "tool_tip",
+              groupId: menuTermPrimaryId,
+              position: 2,
+            },
+            {
+              id: "menu-slot-secondary-term",
+              value: "Try again",
+              termType: "menu_term",
+              groupId: menuTermSecondaryId,
+              position: 0,
+            },
+            {
+              id: "menu-slot-secondary-key",
+              value: "",
+              termType: "key_command",
+              groupId: menuTermSecondaryId,
+              position: 1,
+            },
+            {
+              id: "menu-slot-secondary-tooltip",
+              value: "",
+              termType: "tool_tip",
+              groupId: menuTermSecondaryId,
+              position: 2,
+            },
+            {
+              id: "menu-slot-tertiary-term",
+              value: "Contact support",
+              termType: "menu_term",
+              groupId: menuTermTertiaryId,
+              position: 0,
+            },
+            {
+              id: "menu-slot-tertiary-key",
+              value: "",
+              termType: "key_command",
+              groupId: menuTermTertiaryId,
+              position: 1,
+            },
+            {
+              id: "menu-slot-tertiary-tooltip",
+              value: "",
+              termType: "tool_tip",
+              groupId: menuTermTertiaryId,
+              position: 2,
+            },
+          ],
+        },
         frame_config: {
           shade: "medium",
           member_node_ids: [],
@@ -298,64 +359,148 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         card_style: "contrast",
         node_shape: "rectangle",
         node_type: "ribbon",
-        content_config: migrateRibbonToContentConfig(
-          {
-            rows: 2,
-            columns: 3,
-            ribbon_style: "compact",
-            cells: [
-              {
-                id: ribbonCell00Id,
-                row: 0,
-                column: 0,
-                label: "Quick Actions",
-                key_command: "Ctrl+Shift+P",
-                tool_tip: "Shows advanced shortcuts",
-              },
-              {
-                id: ribbonCell01Id,
-                row: 0,
-                column: 1,
-                label: "Search",
-                key_command: "Ctrl+K",
-                tool_tip: "Find command",
-              },
-              {
-                id: ribbonCell02Id,
-                row: 0,
-                column: 2,
-                label: "",
-                key_command: "",
-                tool_tip: "",
-              },
-              {
-                id: ribbonCell10Id,
-                row: 1,
-                column: 0,
-                label: "Refresh",
-                key_command: "F5",
-                tool_tip: "Reload table",
-              },
-              {
-                id: ribbonCell11Id,
-                row: 1,
-                column: 1,
-                label: "Export",
-                key_command: "Ctrl+E",
-                tool_tip: "Export current view",
-              },
-              {
-                id: ribbonCell12Id,
-                row: 1,
-                column: 2,
-                label: "Settings",
-                key_command: "Ctrl,",
-                tool_tip: "Open preferences",
-              },
-            ],
-          },
-          "Ribbon Node"
-        ),
+        content_config: {
+          layout: "horizontal",
+          rows: 2,
+          columns: 3,
+          style: "compact",
+          groups: [
+            { id: ribbonCell00Id, row: 0, column: 0 },
+            { id: ribbonCell01Id, row: 0, column: 1 },
+            { id: ribbonCell02Id, row: 0, column: 2 },
+            { id: ribbonCell10Id, row: 1, column: 0 },
+            { id: ribbonCell11Id, row: 1, column: 1 },
+            { id: ribbonCell12Id, row: 1, column: 2 },
+          ],
+          slots: [
+            {
+              id: "ribbon-slot-00-label",
+              value: "Quick Actions",
+              termType: "cell_label",
+              groupId: ribbonCell00Id,
+              position: 0,
+            },
+            {
+              id: "ribbon-slot-00-key",
+              value: "Ctrl+Shift+P",
+              termType: "key_command",
+              groupId: ribbonCell00Id,
+              position: 1,
+            },
+            {
+              id: "ribbon-slot-00-tooltip",
+              value: "Shows advanced shortcuts",
+              termType: "tool_tip",
+              groupId: ribbonCell00Id,
+              position: 2,
+            },
+            {
+              id: "ribbon-slot-01-label",
+              value: "Search",
+              termType: "cell_label",
+              groupId: ribbonCell01Id,
+              position: 0,
+            },
+            {
+              id: "ribbon-slot-01-key",
+              value: "Ctrl+K",
+              termType: "key_command",
+              groupId: ribbonCell01Id,
+              position: 1,
+            },
+            {
+              id: "ribbon-slot-01-tooltip",
+              value: "Find command",
+              termType: "tool_tip",
+              groupId: ribbonCell01Id,
+              position: 2,
+            },
+            {
+              id: "ribbon-slot-02-label",
+              value: "",
+              termType: "cell_label",
+              groupId: ribbonCell02Id,
+              position: 0,
+            },
+            {
+              id: "ribbon-slot-02-key",
+              value: "",
+              termType: "key_command",
+              groupId: ribbonCell02Id,
+              position: 1,
+            },
+            {
+              id: "ribbon-slot-02-tooltip",
+              value: "",
+              termType: "tool_tip",
+              groupId: ribbonCell02Id,
+              position: 2,
+            },
+            {
+              id: "ribbon-slot-10-label",
+              value: "Refresh",
+              termType: "cell_label",
+              groupId: ribbonCell10Id,
+              position: 0,
+            },
+            {
+              id: "ribbon-slot-10-key",
+              value: "F5",
+              termType: "key_command",
+              groupId: ribbonCell10Id,
+              position: 1,
+            },
+            {
+              id: "ribbon-slot-10-tooltip",
+              value: "Reload table",
+              termType: "tool_tip",
+              groupId: ribbonCell10Id,
+              position: 2,
+            },
+            {
+              id: "ribbon-slot-11-label",
+              value: "Export",
+              termType: "cell_label",
+              groupId: ribbonCell11Id,
+              position: 0,
+            },
+            {
+              id: "ribbon-slot-11-key",
+              value: "Ctrl+E",
+              termType: "key_command",
+              groupId: ribbonCell11Id,
+              position: 1,
+            },
+            {
+              id: "ribbon-slot-11-tooltip",
+              value: "Export current view",
+              termType: "tool_tip",
+              groupId: ribbonCell11Id,
+              position: 2,
+            },
+            {
+              id: "ribbon-slot-12-label",
+              value: "Settings",
+              termType: "cell_label",
+              groupId: ribbonCell12Id,
+              position: 0,
+            },
+            {
+              id: "ribbon-slot-12-key",
+              value: "Ctrl,",
+              termType: "key_command",
+              groupId: ribbonCell12Id,
+              position: 1,
+            },
+            {
+              id: "ribbon-slot-12-tooltip",
+              value: "Open preferences",
+              termType: "tool_tip",
+              groupId: ribbonCell12Id,
+              position: 2,
+            },
+          ],
+        },
         frame_config: {
           shade: "medium",
           member_node_ids: [],
@@ -560,61 +705,7 @@ const importProjectFromFlatPayload = (
     const y = toNumeric(row.position_y);
     const importedNodeType = isNodeType(row.node_type) ? row.node_type : "default";
     const importedContentConfigRaw = safeJsonParse(row.content_config_json ?? "");
-    const importedMenuConfigRaw = safeJsonParse(row.menu_config_json ?? "");
     const importedFrameConfigRaw = safeJsonParse(row.frame_config_json ?? "");
-
-    const importedRibbonConfigRaw = (() => {
-      const rawRibbonCellsJson = row.ribbon_cells_json ?? "";
-      if (rawRibbonCellsJson.trim().length === 0) {
-        return null;
-      }
-
-      try {
-        const parsedRibbonCells = JSON.parse(rawRibbonCellsJson);
-
-        if (!Array.isArray(parsedRibbonCells)) {
-          return null;
-        }
-
-        const inferredRows = parsedRibbonCells.reduce((maxRows, cellValue) => {
-          if (!cellValue || typeof cellValue !== "object") {
-            return maxRows;
-          }
-
-          const sourceCell = cellValue as { row?: unknown };
-          if (typeof sourceCell.row !== "number" || !Number.isFinite(sourceCell.row)) {
-            return maxRows;
-          }
-
-          return Math.max(maxRows, Math.round(sourceCell.row) + 1);
-        }, 1);
-
-        const inferredColumns = parsedRibbonCells.reduce((maxColumns, cellValue) => {
-          if (!cellValue || typeof cellValue !== "object") {
-            return maxColumns;
-          }
-
-          const sourceCell = cellValue as { column?: unknown };
-          if (
-            typeof sourceCell.column !== "number" ||
-            !Number.isFinite(sourceCell.column)
-          ) {
-            return maxColumns;
-          }
-
-          return Math.max(maxColumns, Math.round(sourceCell.column) + 1);
-        }, RIBBON_NODE_MIN_COLUMNS);
-
-        return {
-          rows: inferredRows,
-          columns: inferredColumns,
-          ribbon_style: row.ribbon_style ?? "",
-          cells: parsedRibbonCells,
-        };
-      } catch {
-        return null;
-      }
-    })();
 
     return {
       id: nodeId,
@@ -648,8 +739,6 @@ const importProjectFromFlatPayload = (
           helper_text: row.helper_text,
           error_text: row.error_text,
           notes: row.notes,
-          menu_config: importedMenuConfigRaw,
-          ribbon_config: importedRibbonConfigRaw,
         }),
         frame_config: normalizeFrameNodeConfig(importedFrameConfigRaw),
       },

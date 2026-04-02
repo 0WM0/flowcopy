@@ -221,7 +221,6 @@ import {
   applyFrameMovementToMemberNodes,
   constrainNodesToFrameMembershipBounds,
   clampFrameDimension,
-  clampMenuRightConnections,
   buildMenuSourceHandleId,
   buildContentConfigSourceHandleIds,
   isNodeShape,
@@ -235,6 +234,17 @@ import {
   getFallbackNodeSize,
   migrateDefaultToContentConfig,
 } from "./lib/node-utils";
+
+const clampMenuRightConnections = (value: number): number => {
+  if (!Number.isFinite(value)) {
+    return MENU_NODE_RIGHT_CONNECTIONS_MIN;
+  }
+
+  return Math.min(
+    MENU_NODE_RIGHT_CONNECTIONS_MAX,
+    Math.max(MENU_NODE_RIGHT_CONNECTIONS_MIN, Math.round(value))
+  );
+};
 
 import {
   normalizeEdgeData,
