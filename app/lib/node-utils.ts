@@ -381,10 +381,13 @@ export const getFallbackNodeSize = (node: FlowNode): { width: number; height: nu
   }
 
   if (node.data.node_type === "menu") {
-    const menuConfig = normalizeMenuNodeConfig(node.data.menu_config, node.data.primary_cta);
+    const menuConfig = normalizeNodeContentConfig(
+      node.data.content_config,
+      "vertical"
+    );
     return {
       width: 260,
-      height: Math.max(170, 120 + menuConfig.terms.length * 56),
+      height: Math.max(170, 120 + Math.max(1, menuConfig.groups.length) * 56),
     };
   }
 
@@ -997,7 +1000,6 @@ export const applyRibbonConfigToNodeData = (
   config: RibbonNodeConfig
 ): MicrocopyNodeData => ({
   ...nodeData,
-  ribbon_config: config,
 });
 
 export const normalizeMenuNodeConfig = (
@@ -1075,7 +1077,6 @@ export const applyMenuConfigToNodeData = (
   nextMenuConfig: MenuNodeConfig
 ): MicrocopyNodeData => ({
   ...nodeData,
-  menu_config: nextMenuConfig,
   primary_cta: getPrimaryMenuTermValue(nextMenuConfig, nodeData.primary_cta),
   secondary_cta: getSecondaryMenuTermValue(nextMenuConfig, nodeData.secondary_cta),
 });
