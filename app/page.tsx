@@ -6892,16 +6892,8 @@ nodeCallbacksRef.current = {
           return maxCount;
         }
 
-        const normalizedMenuConfig = normalizeMenuNodeConfig(
-          node.data.menu_config,
-          node.data.primary_cta,
-          Math.max(
-            MENU_NODE_RIGHT_CONNECTIONS_MIN,
-            node.data.menu_config.max_right_connections
-          )
-        );
-
-        return Math.max(maxCount, normalizedMenuConfig.terms.length);
+        const groupCount = node.data.content_config?.groups?.length ?? 0;
+        return Math.max(maxCount, groupCount);
       }, 0),
     [projectTableRows]
   );
@@ -6922,8 +6914,8 @@ nodeCallbacksRef.current = {
           return maxCount;
         }
 
-        const normalizedRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
-        return Math.max(maxCount, normalizedRibbonConfig.cells.length);
+        const groupCount = node.data.content_config?.groups?.length ?? 0;
+        return Math.max(maxCount, groupCount);
       }, 0),
     [projectTableRows]
   );
@@ -8962,49 +8954,47 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 </tr>
               ) : (
                 projectTableRows.map(({ node, sequenceIndex, parallelGroupId }) => {
+                  const sortedGroups = [...(node.data.content_config?.groups ?? [])].sort((a, b) => {
+                    if (a.row !== b.row) return a.row - b.row;
+                    return a.column - b.column;
+                  });
+                  const contentSlots = node.data.content_config?.slots ?? [];
                   const menuTermValues =
                     node.data.node_type === "menu"
-                      ? normalizeMenuNodeConfig(
-                          node.data.menu_config,
-                          node.data.primary_cta,
-                          Math.max(
-                            MENU_NODE_RIGHT_CONNECTIONS_MIN,
-                            node.data.menu_config.max_right_connections
-                          )
-                        ).terms.map((menuTerm) => menuTerm.term)
+                      ? sortedGroups.map((group) => {
+                          const primarySlot = contentSlots
+                            .filter((slot) => slot.groupId === group.id)
+                            .sort((a, b) => a.position - b.position)[0];
+                          return primarySlot?.value ?? "";
+                        })
                       : [];
-
-                  const normalizedRibbonConfig =
+                  const ribbonCellValues =
                     node.data.node_type === "ribbon"
-                      ? normalizeRibbonNodeConfig(node.data.ribbon_config)
-                      : null;
-
-                  const ribbonCellValues = normalizedRibbonConfig
-                    ? normalizedRibbonConfig.cells.map((cell) => ({
-                        label: cell.label,
-                        keyCommand: cell.key_command,
-                        toolTip: cell.tool_tip,
-                      }))
-                    : [];
-
+                      ? sortedGroups.map((group) => {
+                          const groupSlots = contentSlots
+                            .filter((slot) => slot.groupId === group.id)
+                            .sort((a, b) => a.position - b.position);
+                          return {
+                            label: groupSlots[0]?.value ?? "",
+                            keyCommand: groupSlots[1]?.value ?? "",
+                            toolTip: groupSlots[2]?.value ?? "",
+                          };
+                        })
+                      : [];
                   const ribbonCellSummary =
-                    normalizedRibbonConfig
+                    node.data.node_type === "ribbon"
                       ? (() => {
-                          if (normalizedRibbonConfig.cells.length === 0) {
+                          if (sortedGroups.length === 0) {
                             return "0 cells";
                           }
-
-                          const ribbonCellSummaryValues = normalizedRibbonConfig.cells.map((cell) => {
+                          const ribbonCellSummaryValues = ribbonCellValues.map((cell) => {
                             const label = cell.label.trim();
                             if (label.length > 0) {
                               return label;
                             }
-
-                            const keyCommand = cell.key_command.trim();
-                            return keyCommand.length > 0 ? keyCommand : "—";
+                            return cell.keyCommand.trim().length > 0 ? cell.keyCommand : "—";
                           });
-
-                          return `${normalizedRibbonConfig.cells.length} cells: ${ribbonCellSummaryValues.join(", ")}`;
+                          return `${sortedGroups.length} cells: ${ribbonCellSummaryValues.join(", ")}`;
                         })()
                       : "";
 
