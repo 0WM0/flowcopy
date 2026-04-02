@@ -6,8 +6,6 @@ import type {
   EdgeKind,
   EdgeLineStyle,
   EdgeDirection,
-  MenuNodeConfig,
-  RibbonNodeConfig,
   NodeContentConfig,
 } from "../types";
 import {
@@ -24,9 +22,7 @@ import type { EdgeChange, NodeChange } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
 import {
   buildContentConfigSourceHandleIds,
-  buildMenuSourceHandleIds,
   isMenuSourceHandleId,
-  buildRibbonSourceHandleIds,
   isRibbonSourceHandleId,
 } from "./node-utils";
 
@@ -35,57 +31,6 @@ export const isEdgeKind = (value: unknown): value is EdgeKind =>
 
 export const isEdgeLineStyle = (value: unknown): value is EdgeLineStyle =>
   value === "solid" || value === "dashed" || value === "dotted";
-
-export const syncSequentialEdgesForMenuNode = (
-  edges: FlowEdge[],
-  nodeId: string,
-  menuConfig: MenuNodeConfig
-): FlowEdge[] => {
-  const allowedHandleIds = buildMenuSourceHandleIds(menuConfig);
-  const allowedHandleIdSet = new Set(allowedHandleIds);
-  const fallbackHandleId = allowedHandleIds[0] ?? null;
-
-  return edges.flatMap((edge) => {
-    if (edge.source !== nodeId || !isSequentialEdge(edge)) {
-      return [edge];
-    }
-
-    if (!fallbackHandleId) {
-      return [];
-    }
-
-    if (isMenuSourceHandleId(edge.sourceHandle)) {
-      if (allowedHandleIdSet.has(edge.sourceHandle)) {
-        return [edge];
-      }
-
-      return [];
-    }
-
-    return [
-      {
-        ...edge,
-        sourceHandle: fallbackHandleId,
-      },
-    ];
-  });
-};
-
-export const syncSequentialEdgesForRibbonNode = (
-  nodeId: string,
-  config: RibbonNodeConfig,
-  edges: FlowEdge[]
-): FlowEdge[] => {
-  const allowedHandleIds = buildRibbonSourceHandleIds(config);
-  const allowedHandleIdSet = new Set(allowedHandleIds);
-
-  return edges.filter((edge) => {
-    if (edge.source !== nodeId) return true;
-    if (!edge.sourceHandle) return true;
-    if (!isRibbonSourceHandleId(edge.sourceHandle)) return true;
-    return allowedHandleIdSet.has(edge.sourceHandle);
-  });
-};
 
 export const syncSequentialEdgesForContentConfig = (
   edges: FlowEdge[],
@@ -187,58 +132,6 @@ export const getSequentialOutgoingEdgesForNode = (
       isSequentialEdge(edge)
   );
 
-export const getFirstAvailableMenuSourceHandleId = (
-  edges: FlowEdge[],
-  nodeId: string,
-  menuConfig: MenuNodeConfig,
-  options: { ignoreEdgeId?: string } = {}
-): string | null => {
-  const usedHandleIds = new Set(
-    getSequentialOutgoingEdgesForNode(edges, nodeId, options)
-      .map((edge) => edge.sourceHandle)
-      .filter((handleId): handleId is string => isMenuSourceHandleId(handleId))
-  );
-
-  return (
-    buildMenuSourceHandleIds(menuConfig).find(
-      (handleId) => !usedHandleIds.has(handleId)
-    ) ?? null
-  );
-};
-
-export const isMenuSequentialConnectionAllowed = (
-  edges: FlowEdge[],
-  nodeId: string,
-  menuConfig: MenuNodeConfig,
-  sourceHandle: string | null | undefined,
-  options: { ignoreEdgeId?: string } = {}
-): boolean => {
-  if (!isMenuSourceHandleId(sourceHandle)) {
-    return false;
-  }
-
-  const allowedHandleIds = new Set(buildMenuSourceHandleIds(menuConfig));
-  if (!allowedHandleIds.has(sourceHandle)) {
-    return false;
-  }
-
-  const outgoingSequentialEdges = getSequentialOutgoingEdgesForNode(
-    edges,
-    nodeId,
-    options
-  );
-
-  if (outgoingSequentialEdges.length >= menuConfig.max_right_connections) {
-    return false;
-  }
-
-  if (outgoingSequentialEdges.some((edge) => edge.sourceHandle === sourceHandle)) {
-    return false;
-  }
-
-  return true;
-};
-
 export const isContentConfigConnectionAllowed = (
   edges: FlowEdge[],
   nodeId: string,
@@ -278,24 +171,6 @@ export const getFirstAvailableContentConfigSourceHandleId = (
   );
 
   return validHandleIds.find((handleId) => !usedHandleIds.has(handleId)) ?? null;
-};
-
-export const isRibbonSequentialConnectionAllowed = (
-  nodeId: string,
-  handleId: string,
-  config: RibbonNodeConfig,
-  edges: FlowEdge[]
-): boolean => {
-  if (!isRibbonSourceHandleId(handleId)) return false;
-
-  const allowedHandleIds = new Set(buildRibbonSourceHandleIds(config));
-  if (!allowedHandleIds.has(handleId)) return false;
-
-  const existing = edges.filter(
-    (edge) => edge.source === nodeId && edge.sourceHandle === handleId
-  );
-
-  return existing.length === 0;
 };
 
 export const getDefaultEdgeStrokeColor = (edgeKind: EdgeKind): string =>
