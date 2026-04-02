@@ -361,24 +361,6 @@ export const replaceTermInNodeTextFields = (
           value: replaceField(slot.value),
         })),
       },
-      menu_config: {
-        ...node.data.menu_config,
-        terms: node.data.menu_config.terms.map((menuTerm) => ({
-          ...menuTerm,
-          term: replaceField(menuTerm.term),
-        })),
-      },
-      ribbon_config: node.data.ribbon_config
-        ? {
-            ...node.data.ribbon_config,
-            cells: node.data.ribbon_config.cells.map((cell) => ({
-              ...cell,
-              label: replaceField(cell.label),
-              key_command: replaceField(cell.key_command),
-              tool_tip: replaceField(cell.tool_tip),
-            })),
-          }
-        : node.data.ribbon_config,
     },
   };
 
