@@ -5616,232 +5616,65 @@ export default function Page() {
       }
 
       const currentNodeType = targetNode.data.node_type;
-      const isCurrentHorizontalOrVertical =
-        currentNodeType === "menu" || currentNodeType === "ribbon";
+      const isMenuOrRibbon = currentNodeType === "menu" || currentNodeType === "ribbon";
+      const targetIsMenuOrRibbon = nextType === "menu" || nextType === "ribbon";
 
-      if (nextType === "default" && isCurrentHorizontalOrVertical) {
-        const confirmed = window.confirm(
-          "Switching to Default will discard Horizontal/Vertical slot structure data. Continue?"
-        );
-
-        if (!confirmed) {
-          return;
-        }
+      if (!isMenuOrRibbon || !targetIsMenuOrRibbon) {
+        return;
       }
 
       pushToHistory();
 
       setNodes((currentNodes) =>
-        pruneFrameNodeMembership(currentNodes.map((node) => {
+        currentNodes.map((node) => {
           if (node.id !== nodeId) {
             return node;
           }
 
-          if (nextType === "menu") {
-            if (node.data.node_type === "ribbon") {
-              const sortedContentGroups = [...node.data.content_config.groups].sort((a, b) => {
-                if (a.row !== b.row) {
-                  return a.row - b.row;
-                }
-
-                return a.column - b.column;
-              });
-
-              const derivedMenuTerms: MenuNodeTerm[] = sortedContentGroups.map((group) => {
-                const primarySlot = node.data.content_config.slots
-                  .filter((slot) => slot.groupId === group.id)
-                  .sort((a, b) => a.position - b.position)[0];
-
-                return {
-                  id: group.id,
-                  term: primarySlot?.value ?? "",
-                };
-              });
-
-              const minimumConnections = Math.max(
-                MENU_NODE_RIGHT_CONNECTIONS_MIN,
-                derivedMenuTerms.length
-              );
-              const nextMenuConfig = normalizeMenuNodeConfig(
-                {
-                  max_right_connections: minimumConnections,
-                  terms: derivedMenuTerms,
-                },
-                node.data.primary_cta,
-                minimumConnections
-              );
-
-              return {
-                ...node,
-                data: {
-                  ...applyMenuConfigToNodeData(node.data, nextMenuConfig),
-                  node_type: "menu",
-                  menu_config: nextMenuConfig,
-                  content_config: {
-                    ...node.data.content_config,
-                    layout: "vertical",
-                  },
-                },
-              };
-            }
-
-            const existingGroups = node.data.content_config?.groups ?? [];
-            const newContentConfig: NodeContentConfig =
-              existingGroups.length > 0
-                ? { ...node.data.content_config, layout: "vertical" as const }
-                : migrateMenuToContentConfig(
-                    normalizeMenuNodeConfig(
-                      node.data.menu_config,
-                      node.data.primary_cta,
-                      Math.max(
-                        MENU_NODE_RIGHT_CONNECTIONS_MIN,
-                        node.data.menu_config.max_right_connections
-                      )
-                    ),
-                    node.data.primary_cta,
-                    node.data.title ?? ""
-                  );
-
+          if (nextType === "menu" && node.data.node_type === "ribbon") {
             return {
               ...node,
               data: {
                 ...node.data,
                 node_type: "menu",
-                content_config: newContentConfig,
-              },
-            };
-          }
-
-          if (nextType === "frame") {
-            const normalizedFrameConfig = normalizeFrameNodeConfig(node.data.frame_config);
-
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                node_type: "frame",
-                primary_cta: node.data.primary_cta,
-                secondary_cta: node.data.secondary_cta,
-                frame_config: {
-                  ...normalizedFrameConfig,
-                  member_node_ids: normalizedFrameConfig.member_node_ids.filter(
-                    (memberNodeId) => memberNodeId !== node.id
-                  ),
+                content_config: {
+                  ...node.data.content_config,
+                  layout: "vertical" as const,
                 },
               },
             };
           }
 
-          if (nextType === "ribbon") {
-            if (node.data.node_type === "menu") {
-              const sortedContentGroups = [...node.data.content_config.groups].sort((a, b) => {
-                if (a.row !== b.row) {
-                  return a.row - b.row;
-                }
-
-                return a.column - b.column;
-              });
-
-              const derivedRibbonCells = sortedContentGroups.map((group) => {
-                const sortedGroupSlots = node.data.content_config.slots
-                  .filter((slot) => slot.groupId === group.id)
-                  .sort((a, b) => a.position - b.position);
-
-                return {
-                  id: group.id,
-                  row: group.row,
-                  column: group.column,
-                  label: sortedGroupSlots.find((slot) => slot.position === 0)?.value ?? "",
-                  key_command:
-                    sortedGroupSlots.find((slot) => slot.position === 1)?.value ?? "",
-                  tool_tip: sortedGroupSlots.find((slot) => slot.position === 2)?.value ?? "",
-                };
-              });
-
-              const fallbackRibbonConfig = normalizeRibbonNodeConfig(node.data.ribbon_config);
-              const nextRibbonConfig = normalizeRibbonNodeConfig({
-                rows:
-                  Math.max(
-                    1,
-                    ...derivedRibbonCells.map((cell) => cell.row + 1)
-                  ) || 1,
-                columns:
-                  Math.max(
-                    1,
-                    ...derivedRibbonCells.map((cell) => cell.column + 1)
-                  ) || 1,
-                cells: derivedRibbonCells,
-                ribbon_style: fallbackRibbonConfig.ribbon_style,
-              });
-
-              return {
-                ...node,
-                data: {
-                  ...node.data,
-                  node_type: "ribbon",
-                  ribbon_config: nextRibbonConfig,
-                  content_config: {
-                    ...node.data.content_config,
-                    layout: "horizontal",
-                  },
-                },
-              };
-            }
-
+          if (nextType === "ribbon" && node.data.node_type === "menu") {
             return {
               ...node,
               data: {
                 ...node.data,
                 node_type: "ribbon",
-                primary_cta: getPrimaryMenuTermValue(
-                  node.data.menu_config,
-                  node.data.primary_cta
-                ),
-                secondary_cta: getSecondaryMenuTermValue(
-                  node.data.menu_config,
-                  node.data.secondary_cta
-                ),
-                ribbon_config: normalizeRibbonNodeConfig(node.data.ribbon_config),
-                content_config: migrateRibbonToContentConfig(
-                  normalizeRibbonNodeConfig(node.data.ribbon_config),
-                  node.data.title ?? ""
-                ),
+                content_config: {
+                  ...node.data.content_config,
+                  layout: "horizontal" as const,
+                },
               },
             };
           }
 
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              node_type: "default",
-              primary_cta: node.data.primary_cta,
-              secondary_cta: node.data.secondary_cta,
-            },
-          };
-        }))
+          return node;
+        })
       );
 
       setEdges((currentEdges) => {
-        if (nextType === "menu" || nextType === "ribbon") {
-          return assignSequentialEdgesToMenuHandles(
-            currentEdges,
-            nodeId,
-            buildContentConfigSourceHandleIds(targetNode.data.content_config)
-          );
-        }
-
-        return remapMenuSequentialEdgesToDefaultHandle(currentEdges, nodeId);
+        return assignSequentialEdgesToMenuHandles(
+          currentEdges,
+          nodeId,
+          buildContentConfigSourceHandleIds(targetNode.data.content_config)
+        );
       });
-
-      if (nextType !== "menu") {
-        clearMenuTermDeleteError();
-      }
 
       setOpenControlledLanguageFieldType(null);
       setInspectorRegistryPickerSearchQuery("");
     },
-    [clearMenuTermDeleteError, nodes, pushToHistory, setEdges, setNodes]
+    [nodes, pushToHistory, setEdges, setNodes]
   );
 
   const updateSelectedNodeType = useCallback(

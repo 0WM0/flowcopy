@@ -1,0 +1,193 @@
+{selectedEdge && normalizedSelectedEdgeData && !hasSelectedNodes ? (
+          <section
+            style={{
+              border: "1px solid #cbd5e1",
+              borderRadius: 8,
+              padding: 10,
+              display: "grid",
+              gap: 8,
+              background: "#f8fafc",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 14 }}>Edge Inspector</h3>
+              <button type="button" style={buttonStyle} onClick={handleDeleteSelection}>
+                Delete Edge
+              </button>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#334155" }}>
+              <strong>Edge ID:</strong> {selectedEdge.id}
+              <br />
+              <strong>Source → Target:</strong> {selectedEdge.source} → {selectedEdge.target}
+            </div>
+
+            <label>
+              <div style={inspectorFieldLabelStyle}>Kind</div>
+              <input
+                style={inputStyle}
+                value={
+                  normalizedSelectedEdgeData.edge_kind === "sequential"
+                    ? "Sequential"
+                    : "Parallel"
+                }
+                readOnly
+              />
+            </label>
+
+            <label>
+              <div style={inspectorFieldLabelStyle}>Color</div>
+              <input
+                style={inputStyle}
+                type="color"
+                value={normalizedSelectedEdgeData.stroke_color ?? "#1d4ed8"}
+                onChange={(event) => {
+                  const nextColor = event.target.value;
+                  updateSelectedEdgeData((currentData) => ({
+                    ...currentData,
+                    stroke_color: nextColor,
+                  }));
+                }}
+              />
+            </label>
+
+            <label>
+              <div style={inspectorFieldLabelStyle}>Line style</div>
+              <select
+                style={inputStyle}
+                value={normalizedSelectedEdgeData.line_style ?? "solid"}
+                onChange={(event) => {
+                  const nextStyle =
+                    (event.target.value as EdgeLineStyle) ?? "solid";
+                  updateSelectedEdgeData((currentData) => ({
+                    ...currentData,
+                    line_style: nextStyle,
+                  }));
+                }}
+              >
+                {EDGE_LINE_STYLE_OPTIONS.map((option) => (
+                  <option key={`edge-line-style:${option}`} value={option}>
+                    {option.charAt(0).toUpperCase() + option.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {normalizedSelectedEdgeData.edge_kind === "sequential" && (
+              <label>
+                <div style={inspectorFieldLabelStyle}>Direction</div>
+                <select
+                  style={inputStyle}
+                  value={
+                    normalizedSelectedEdgeData.is_reversed ? "reversed" : "forward"
+                  }
+                  onChange={(event) => {
+                    const nextDirection =
+                      (event.target.value as EdgeDirection) ?? "forward";
+                    updateSelectedEdgeData((currentData) => ({
+                      ...currentData,
+                      is_reversed: nextDirection === "reversed",
+                    }));
+                  }}
+                >
+                  <option value="forward">Forward</option>
+                  <option value="reversed">Reversed</option>
+                </select>
+              </label>
+            )}
+
+            <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
+              Tip: press Delete / Backspace to remove this edge.
+            </p>
+          </section>
+        ) : hasMultipleSelectedNodes ? (
+          <p style={{ fontSize: 13, color: "#71717a" }}>
+            Multiple nodes selected. Select a single node to edit its data.
+          </p>
+        ) : !hasExactlyOneSelectedNode || !selectedNode ? (
+          <p style={{ fontSize: 13, color: "#71717a" }}>
+            No selection. Click a node or edge on the canvas.
+          </p>
+        ) : (
+          <div style={{ display: "grid", gap: 10 }}>
+            <div
+              style={{
+                borderTop: "2px solid #cbd5e1",
+                marginTop: 4,
+                marginBottom: 4,
+                paddingTop: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.8,
+                }}
+              >
+                NODE IDENTITY
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#52525b" }}>
+              <strong>Node ID:</strong> {selectedNode.id}
+              <br />
+              <strong>Sequence:</strong> {ordering.sequenceByNodeId[selectedNode.id] ?? "-"}
+              <br />
+              <strong>X position:</strong> {Math.round(selectedNode.position.x)}
+              <br />
+              <strong>Y position:</strong> {Math.round(selectedNode.position.y)}
+            </div>
+
+            <div>
+              <div style={inspectorFieldLabelStyle}>Node type</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {NODE_TYPE_OPTIONS.map((nodeTypeOption) => {
+                  const isActive = selectedNode.data.node_type === nodeTypeOption;
+                  const currentNodeType = selectedNode.data.node_type;
+                  const isEnabled =
+                    isActive ||
+                    currentNodeType === "default" ||
+                    ((currentNodeType === "menu" || currentNodeType === "ribbon") &&
+                      (nodeTypeOption === "menu" || nodeTypeOption === "ribbon"));
+
+                  return (
+                    <button
+                      key={`inspector-node-type:${nodeTypeOption}`}
+                      type="button"
+                      style={{
+                        ...buttonStyle,
+                        fontSize: 11,
+                        padding: "4px 8px",
+                        borderColor: isActive ? "#1d4ed8" : "#d4d4d8",
+                        background: isActive ? "#dbeafe" : isEnabled ? "#fff" : "#f4f4f5",
+                        color: isActive ? "#1e3a8a" : isEnabled ? "#334155" : "#a1a1aa",
+                        fontWeight: isActive ? 700 : 600,
+                        cursor: isEnabled ? "pointer" : "not-allowed",
+                        opacity: isEnabled ? 1 : 0.7,
+                      }}
+                      disabled={!isEnabled}
+                      aria-pressed={isActive}
+                      onClick={() => {
+                        if (!isEnabled || !isNodeType(nodeTypeOption)) {
+                          return;
+                        }
+
+                        updateSelectedNodeType(nodeTypeOption);
+                      }}
+                    >
+                      {NODE_TYPE_LABELS[nodeTypeOption]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
