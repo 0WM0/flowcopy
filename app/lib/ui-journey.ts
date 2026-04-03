@@ -391,6 +391,12 @@ export const cloneUiJourneyConversationEntries = (
     },
     bodyText: entry.bodyText,
     notes: entry.notes,
+    concept: entry.concept,
+    tone: entry.tone,
+    polarity: entry.polarity,
+    reversibility: entry.reversibility,
+    actionTypeName: entry.actionTypeName,
+    actionTypeColor: entry.actionTypeColor,
   }));
 
 export const sanitizeUniqueStringArray = (value: unknown): string[] => {
@@ -744,6 +750,12 @@ export const buildUiJourneyConversationEntries = ({
           fields: buildUiJourneyConversationRibbonHeaderFields(nodeId, node.data),
           bodyText: "",
           notes: "",
+          concept: (node.data.concept ?? "").trim(),
+          tone: (node.data.tone ?? "").trim(),
+          polarity: (node.data.polarity ?? "").trim(),
+          reversibility: (node.data.reversibility ?? "").trim(),
+          actionTypeName: (node.data.action_type_name ?? "").trim(),
+          actionTypeColor: (node.data.action_type_color ?? "").trim(),
           connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
         };
 
@@ -824,6 +836,12 @@ export const buildUiJourneyConversationEntries = ({
               }),
               bodyText: "",
               notes: "",
+              concept: (node.data.concept ?? "").trim(),
+              tone: (node.data.tone ?? "").trim(),
+              polarity: (node.data.polarity ?? "").trim(),
+              reversibility: (node.data.reversibility ?? "").trim(),
+              actionTypeName: (node.data.action_type_name ?? "").trim(),
+              actionTypeColor: (node.data.action_type_color ?? "").trim(),
               connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
             };
           });
@@ -843,6 +861,12 @@ export const buildUiJourneyConversationEntries = ({
           fields: buildUiJourneyConversationVmnHeaderFields(nodeId, node.data),
           bodyText: "",
           notes: "",
+          concept: (node.data.concept ?? "").trim(),
+          tone: (node.data.tone ?? "").trim(),
+          polarity: (node.data.polarity ?? "").trim(),
+          reversibility: (node.data.reversibility ?? "").trim(),
+          actionTypeName: (node.data.action_type_name ?? "").trim(),
+          actionTypeColor: (node.data.action_type_color ?? "").trim(),
           connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
         };
 
@@ -921,6 +945,12 @@ export const buildUiJourneyConversationEntries = ({
               }),
               bodyText: "",
               notes: "",
+              concept: (node.data.concept ?? "").trim(),
+              tone: (node.data.tone ?? "").trim(),
+              polarity: (node.data.polarity ?? "").trim(),
+              reversibility: (node.data.reversibility ?? "").trim(),
+              actionTypeName: (node.data.action_type_name ?? "").trim(),
+              actionTypeColor: (node.data.action_type_color ?? "").trim(),
               connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
             };
           });
@@ -940,6 +970,12 @@ export const buildUiJourneyConversationEntries = ({
         fields: buildUiJourneyConversationFields(nodeId, node.data),
         bodyText: (node.data.body_text ?? "").trim(),
         notes: (node.data.notes ?? "").trim(),
+        concept: (node.data.concept ?? "").trim(),
+        tone: (node.data.tone ?? "").trim(),
+        polarity: (node.data.polarity ?? "").trim(),
+        reversibility: (node.data.reversibility ?? "").trim(),
+        actionTypeName: (node.data.action_type_name ?? "").trim(),
+        actionTypeColor: (node.data.action_type_color ?? "").trim(),
         connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
       },
       ];

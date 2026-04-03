@@ -318,6 +318,12 @@ export type UiJourneyConversationEntry = {
   connectionMeta: UiJourneyConversationConnectionMeta;
   bodyText: string;
   notes: string;
+  concept?: string;
+  tone?: string;
+  polarity?: string;
+  reversibility?: string;
+  actionTypeName?: string;
+  actionTypeColor?: string;
 };
 
 export type UiJourneySnapshotPreset = {
