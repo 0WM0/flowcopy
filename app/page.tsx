@@ -3173,7 +3173,7 @@ export default function Page() {
 
       if (
         (sourceNode?.data.node_type === "vertical_multi_term" ||
-          sourceNode?.data.node_type === "ribbon") &&
+          sourceNode?.data.node_type === "horizontal_multi_term") &&
         nextEdgeKind === "sequential"
       ) {
         if (
@@ -3236,7 +3236,7 @@ export default function Page() {
 
       if (
         (sourceNode?.data.node_type === "vertical_multi_term" ||
-          sourceNode?.data.node_type === "ribbon") &&
+          sourceNode?.data.node_type === "horizontal_multi_term") &&
         nextEdgeKind === "sequential"
       ) {
         if (
@@ -3312,7 +3312,7 @@ export default function Page() {
   const addNodeAtClientPosition = useCallback(
     (
       clientPosition: { x: number; y: number },
-      nodeType: "default" | "vertical_multi_term" | "ribbon" | "frame" = "default",
+      nodeType: "default" | "vertical_multi_term" | "horizontal_multi_term" | "frame" = "default",
       options?: {
         primaryTextValue?: string;
         onNodeCreated?: (nodeId: string, createdNode: FlowNode) => void;
@@ -3339,12 +3339,12 @@ export default function Page() {
                 primary_cta: normalizedPrimaryText || "",
               },
             }
-          : nodeType === "ribbon"
+          : nodeType === "horizontal_multi_term"
             ? {
                 id,
                 position,
                 data: {
-                  node_type: "ribbon",
+                  node_type: "horizontal_multi_term",
                   ...(normalizedPrimaryText.length > 0
                     ? { primary_cta: normalizedPrimaryText }
                     : {}),
@@ -3391,7 +3391,7 @@ export default function Page() {
   const addNodeAtEvent = useCallback(
     (
       event: React.MouseEvent,
-      nodeType: "default" | "vertical_multi_term" | "ribbon" = "default"
+      nodeType: "default" | "vertical_multi_term" | "horizontal_multi_term" = "default"
     ) => {
       addNodeAtClientPosition(
         {
@@ -3405,7 +3405,7 @@ export default function Page() {
   );
 
   const handleQuickAddFromSideTab = useCallback(
-    (nodeType: "default" | "vertical_multi_term" | "ribbon") => {
+    (nodeType: "default" | "vertical_multi_term" | "horizontal_multi_term") => {
       addNodeAtClientPosition(getCanvasFallbackClientPosition(), nodeType);
     },
     [addNodeAtClientPosition, getCanvasFallbackClientPosition]
@@ -3539,8 +3539,8 @@ export default function Page() {
         return;
       }
 
-      const droppedNodeType: "default" | "vertical_multi_term" | "ribbon" =
-        payload.nodeType === "vertical_multi_term" || payload.nodeType === "ribbon"
+      const droppedNodeType: "default" | "vertical_multi_term" | "horizontal_multi_term" =
+        payload.nodeType === "vertical_multi_term" || payload.nodeType === "horizontal_multi_term"
           ? payload.nodeType
           : "default";
 
@@ -4437,7 +4437,7 @@ export default function Page() {
           lastCanvasPointerClientPositionRef.current ??
           getCanvasFallbackClientPosition();
 
-        addNodeAtClientPosition(clientPosition, "ribbon");
+        addNodeAtClientPosition(clientPosition, "horizontal_multi_term");
         return;
       }
 
@@ -4695,7 +4695,7 @@ export default function Page() {
 
   const selectedNodeIsDefaultInspectorNode =
     selectedNode !== null &&
-    selectedNode.data.node_type !== "ribbon" &&
+    selectedNode.data.node_type !== "horizontal_multi_term" &&
     selectedNode.data.node_type !== "vertical_multi_term" &&
     selectedNode.data.node_type !== "frame";
 
@@ -5206,7 +5206,7 @@ export default function Page() {
     (cellId: string, fieldName: RibbonCellRegistryFieldName, value: string) => {
       flushTextEditHistoryBurst();
 
-      if (!effectiveSelectedNodeId || selectedNode?.data.node_type !== "ribbon") {
+      if (!effectiveSelectedNodeId || selectedNode?.data.node_type !== "horizontal_multi_term") {
         return;
       }
 
@@ -5611,8 +5611,8 @@ export default function Page() {
       }
 
       const currentNodeType = targetNode.data.node_type;
-      const isMenuOrRibbon = currentNodeType === "vertical_multi_term" || currentNodeType === "ribbon";
-      const targetIsMenuOrRibbon = nextType === "vertical_multi_term" || nextType === "ribbon";
+      const isMenuOrRibbon = currentNodeType === "vertical_multi_term" || currentNodeType === "horizontal_multi_term";
+      const targetIsMenuOrRibbon = nextType === "vertical_multi_term" || nextType === "horizontal_multi_term";
 
       if (!isMenuOrRibbon || !targetIsMenuOrRibbon) {
         return;
@@ -5626,7 +5626,7 @@ export default function Page() {
             return node;
           }
 
-          if (nextType === "vertical_multi_term" && node.data.node_type === "ribbon") {
+          if (nextType === "vertical_multi_term" && node.data.node_type === "horizontal_multi_term") {
             return {
               ...node,
               data: {
@@ -5640,12 +5640,12 @@ export default function Page() {
             };
           }
 
-          if (nextType === "ribbon" && node.data.node_type === "vertical_multi_term") {
+          if (nextType === "horizontal_multi_term" && node.data.node_type === "vertical_multi_term") {
             return {
               ...node,
               data: {
                 ...node.data,
-                node_type: "ribbon",
+                node_type: "horizontal_multi_term",
                 content_config: {
                   ...node.data.content_config,
                   layout: "horizontal" as const,
@@ -5843,7 +5843,7 @@ export default function Page() {
   }, [selectedNode]);
 
   const selectedHorizontalContentConfig = useMemo(() => {
-    if (!selectedNode || selectedNode.data.node_type !== "ribbon") {
+    if (!selectedNode || selectedNode.data.node_type !== "horizontal_multi_term") {
       return null;
     }
 
@@ -5964,7 +5964,7 @@ export default function Page() {
       }
 
       const targetNode = nodes.find((node) => node.id === effectiveSelectedNodeId);
-      if (!targetNode || targetNode.data.node_type !== "ribbon") {
+      if (!targetNode || targetNode.data.node_type !== "horizontal_multi_term") {
         return;
       }
 
@@ -6065,12 +6065,12 @@ export default function Page() {
 
   const updateRibbonCellField = useCallback(
     (slotId: string, value: string) => {
-      if (!effectiveSelectedNodeId || !selectedNode || selectedNode.data.node_type !== "ribbon") {
+      if (!effectiveSelectedNodeId || !selectedNode || selectedNode.data.node_type !== "horizontal_multi_term") {
         return;
       }
 
       const targetNode = nodes.find((node) => node.id === effectiveSelectedNodeId);
-      if (!targetNode || targetNode.data.node_type !== "ribbon") {
+      if (!targetNode || targetNode.data.node_type !== "horizontal_multi_term") {
         return;
       }
 
@@ -6528,7 +6528,7 @@ export default function Page() {
 
     const ribbonCellField = parseRibbonCellRegistryField(openControlledLanguageFieldType);
     if (ribbonCellField) {
-      if (selectedNode.data.node_type !== "ribbon") {
+      if (selectedNode.data.node_type !== "horizontal_multi_term") {
         return null;
       }
 
@@ -6904,7 +6904,7 @@ nodeCallbacksRef.current = {
   const maxRibbonCellColumnCount = useMemo(
     () =>
       projectTableRows.reduce((maxCount, { node }) => {
-        if (node.data.node_type !== "ribbon") {
+        if (node.data.node_type !== "horizontal_multi_term") {
           return maxCount;
         }
 
@@ -8961,7 +8961,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         })
                       : [];
                   const ribbonCellValues =
-                    node.data.node_type === "ribbon"
+                    node.data.node_type === "horizontal_multi_term"
                       ? sortedGroups.map((group) => {
                           const groupSlots = contentSlots
                             .filter((slot) => slot.groupId === group.id)
@@ -8974,7 +8974,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         })
                       : [];
                   const ribbonCellSummary =
-                    node.data.node_type === "ribbon"
+                    node.data.node_type === "horizontal_multi_term"
                       ? (() => {
                           if (sortedGroups.length === 0) {
                             return "0 cells";
@@ -8992,7 +8992,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                   const shouldDisableShoehornedFields =
                     node.data.node_type === "vertical_multi_term" ||
-                    node.data.node_type === "ribbon" ||
+                    node.data.node_type === "horizontal_multi_term" ||
                     node.data.node_type === "frame";
 
                   return (
@@ -9262,7 +9262,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
         {[
           { key: "default", label: "D", title: "Add Default node" },
-          { key: "ribbon", label: "H", title: "Add Horizontal node" },
+          { key: "horizontal_multi_term", label: "H", title: "Add Horizontal node" },
           { key: "vertical_multi_term", label: "V", title: "Add Vertical node" },
         ].map((item) => (
           <button
@@ -9289,7 +9289,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             }}
             onClick={() =>
               handleQuickAddFromSideTab(
-                item.key as "default" | "vertical_multi_term" | "ribbon"
+                item.key as "default" | "vertical_multi_term" | "horizontal_multi_term"
               )
             }
           >
@@ -11145,8 +11145,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   const currentNodeType = selectedNode.data.node_type;
                   const isEnabled =
                     isActive ||
-                    ((currentNodeType === "vertical_multi_term" || currentNodeType === "ribbon") &&
-                      (nodeTypeOption === "vertical_multi_term" || nodeTypeOption === "ribbon"));
+                    ((currentNodeType === "vertical_multi_term" || currentNodeType === "horizontal_multi_term") &&
+                      (nodeTypeOption === "vertical_multi_term" || nodeTypeOption === "horizontal_multi_term"));
 
                   return (
                     <button
@@ -11624,7 +11624,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               <>
                 {/* hidden for beta */}
                 {false &&
-                  selectedNode?.data.node_type !== "ribbon" && (
+                  selectedNode?.data.node_type !== "horizontal_multi_term" && (
                     <label>
                       <div style={inspectorFieldLabelStyle}>Node shape</div>
                       <select
@@ -11686,7 +11686,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   </div>
                 </div>
 
-                {selectedNode.data.node_type === "ribbon" && selectedHorizontalContentConfig && (
+                {selectedNode.data.node_type === "horizontal_multi_term" && selectedHorizontalContentConfig && (
                   <div
                     style={{
                       border: "1px solid #dbeafe",
@@ -12944,7 +12944,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   const regularHeading = entry.title || "Untitled";
                   const isFrameEntry = entry.nodeType === "frame";
                   const isCenteredHeaderEntry =
-                    entry.nodeType === "frame" || entry.nodeType === "ribbon";
+                    entry.nodeType === "frame" || entry.nodeType === "horizontal_multi_term";
                   const isOrphanEntry = entry.connectionMeta.isOrphan;
                   const headingColor = isOrphanEntry ? "#dc2626" : "#2B6CB0";
                   const contentColor = isOrphanEntry ? "#7f1d1d" : "#1A365D";

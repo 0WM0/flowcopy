@@ -358,7 +358,7 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         action_type_color: "#0ea5e9",
         card_style: "contrast",
         node_shape: "rectangle",
-        node_type: "ribbon",
+        node_type: "horizontal_multi_term",
         content_config: {
           layout: "horizontal",
           rows: 2,
@@ -888,7 +888,7 @@ const normalizeProjectForContract = (project: ProjectRecord): ProjectContractSha
 
   const ribbonConfigByNodeId = Object.fromEntries(
     serializedNodes
-      .filter((node) => node.data?.node_type === "ribbon")
+      .filter((node) => node.data?.node_type === "horizontal_multi_term")
       .map((node) => {
         const contentConfig = node.data?.content_config;
         const groups = [...(contentConfig?.groups ?? [])].sort((a, b) => {

@@ -55,7 +55,6 @@ export const isNodeType = (value: unknown): value is NodeType =>
   value === "default" ||
   value === "vertical_multi_term" ||
   value === "frame" ||
-  value === "ribbon" ||
   value === "horizontal_multi_term";
 
 export const isNodeContentLayout = (value: unknown): value is NodeContentLayout =>
@@ -282,7 +281,7 @@ export const normalizeAndMigrateNodeContentConfig = (
   const layout: NodeContentLayout =
     nodeType === "vertical_multi_term"
       ? "vertical"
-      : nodeType === "ribbon" || nodeType === "horizontal_multi_term"
+      : nodeType === "horizontal_multi_term"
         ? "horizontal"
         : "single";
 
@@ -373,7 +372,7 @@ export const getFallbackNodeSize = (node: FlowNode): { width: number; height: nu
     };
   }
 
-  if (node.data.node_type === "ribbon") {
+  if (node.data.node_type === "horizontal_multi_term") {
     return {
       width: 300,
       height: 120,
@@ -423,7 +422,7 @@ export const getNodeVisualSize = (node: FlowNode): { width: number; height: numb
     };
   }
 
-  if (node.data.node_type === "ribbon") {
+  if (node.data.node_type === "horizontal_multi_term") {
     return getFallbackNodeSize(node);
   }
 
@@ -792,7 +791,7 @@ export const createDefaultNodeData = (
         ) {
           const ccLayout: NodeContentLayout =
             nodeType === "vertical_multi_term" ? "vertical"
-            : nodeType === "horizontal_multi_term" || nodeType === "ribbon" ? "horizontal"
+            : nodeType === "horizontal_multi_term" ? "horizontal"
             : "single";
           const candidate = normalizeNodeContentConfig(overrides.content_config, ccLayout);
           const needsGroups = ccLayout === "vertical" || ccLayout === "horizontal";
@@ -845,7 +844,7 @@ export const normalizeNode = (
           const ccLayout: NodeContentLayout =
             defaultData.node_type === "vertical_multi_term"
               ? "vertical"
-              : defaultData.node_type === "horizontal_multi_term" || defaultData.node_type === "ribbon"
+              : defaultData.node_type === "horizontal_multi_term"
                 ? "horizontal"
                 : "single";
           const candidate = normalizeNodeContentConfig(sourceData.content_config, ccLayout);

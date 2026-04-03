@@ -503,7 +503,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const isVerticalMultiTermNode = data.node_type === "vertical_multi_term";
   const isVerticalTermsNode = isMenuNode || isVerticalMultiTermNode;
   const isFrameNode = data.node_type === "frame";
-  const isRibbonNode = data.node_type === "ribbon";
+  const isRibbonNode = data.node_type === "horizontal_multi_term";
   const contentConfig = useMemo(
     () =>
       normalizeNodeContentConfig(
@@ -1317,7 +1317,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
       setNodes((currentNodes) =>
         currentNodes.map((node) => {
-          if (node.id !== id || node.data.node_type !== "ribbon") {
+          if (node.id !== id || node.data.node_type !== "horizontal_multi_term") {
             return node;
           }
 
@@ -1389,7 +1389,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
       setNodes((currentNodes) =>
         currentNodes.map((node) => {
-          if (node.id !== id || node.data.node_type !== "ribbon") {
+          if (node.id !== id || node.data.node_type !== "horizontal_multi_term") {
             return node;
           }
 
@@ -1542,7 +1542,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
       setNodes((currentNodes) =>
         currentNodes.map((node) => {
-          if (node.id !== id || node.data.node_type !== "ribbon") {
+          if (node.id !== id || node.data.node_type !== "horizontal_multi_term") {
             return node;
           }
 

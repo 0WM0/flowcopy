@@ -589,7 +589,7 @@ export const buildUiJourneyConversationHtmlExport = (
 
   const entriesHtml = normalizedEntries
     .map(({ entry, stepLabel, visibleFields, bodyText, notes }) => {
-      const isCenteredEntry = entry.nodeType === "frame" || entry.nodeType === "ribbon";
+      const isCenteredEntry = entry.nodeType === "frame" || entry.nodeType === "horizontal_multi_term";
       const isOrphanEntry = entry.connectionMeta.isOrphan;
       const headingText = escapeXmlText(buildUiJourneyConversationHeading(entry));
       const headingColor = isOrphanEntry ? "#dc2626" : "#64748b";
@@ -722,7 +722,7 @@ export const buildUiJourneyConversationRtfExport = (
   lines.push("\\par");
 
   normalizedEntries.forEach(({ entry, stepLabel, visibleFields, bodyText, notes }, index) => {
-    const isCenteredEntry = entry.nodeType === "frame" || entry.nodeType === "ribbon";
+    const isCenteredEntry = entry.nodeType === "frame" || entry.nodeType === "horizontal_multi_term";
     const heading = escapeRtfText(buildUiJourneyConversationHeading(entry));
     const headingWithOrphan = entry.connectionMeta.isOrphan ? `${heading} (Orphaned)` : heading;
 

@@ -716,13 +716,13 @@ export const buildUiJourneyConversationEntries = ({
         isOrphan: true,
       };
 
-      if (node.data.node_type === "ribbon") {
+      if (node.data.node_type === "horizontal_multi_term") {
         const ribbonHeaderEntry: UiJourneyConversationEntry = {
           entryId: buildUiJourneyConversationEntryId(nodeId, sequence),
           nodeInstanceId: nodeId,
           titleFieldId: buildUiJourneyConversationTitleFieldId(nodeId),
           nodeId,
-          nodeType: "ribbon",
+          nodeType: "horizontal_multi_term",
           sequence,
           title: getUiJourneyConversationTitle(node.data),
           fields: buildUiJourneyConversationRibbonHeaderFields(nodeId, node.data),

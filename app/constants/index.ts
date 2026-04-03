@@ -65,7 +65,7 @@ export const NODE_SHAPE_OPTIONS = [
   "diamond",
 ];
 
-export const NODE_TYPE_OPTIONS = ["default", "vertical_multi_term", "ribbon"];
+export const NODE_TYPE_OPTIONS = ["default", "vertical_multi_term", "horizontal_multi_term"];
 export const NODE_TYPE_LABELS: Record<(typeof NODE_TYPE_OPTIONS)[number], string> = {
   default: "Default",
   vertical_multi_term: "Vertical",
