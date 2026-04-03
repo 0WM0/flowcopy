@@ -7241,12 +7241,54 @@ nodeCallbacksRef.current = {
             };
           }
 
+          const nextNodeData = {
+            ...node.data,
+            [field]: value,
+          };
+
+          const shouldDualWriteDefaultContentSlot =
+            node.data.node_type === "default" &&
+            (field === "title" ||
+              field === "primary_cta" ||
+              field === "secondary_cta" ||
+              field === "helper_text" ||
+              field === "error_text" ||
+              field === "body_text" ||
+              field === "notes");
+
+          if (shouldDualWriteDefaultContentSlot) {
+            const normalizedContentConfig = normalizeNodeContentConfig(
+              node.data.content_config,
+              "single"
+            );
+            const matchingSlotIndex = normalizedContentConfig.slots.findIndex(
+              (slot) => slot.termType === field
+            );
+
+            if (matchingSlotIndex !== -1) {
+              return {
+                ...node,
+                data: {
+                  ...nextNodeData,
+                  content_config: {
+                    ...normalizedContentConfig,
+                    slots: normalizedContentConfig.slots.map((slot, slotIndex) =>
+                      slotIndex === matchingSlotIndex
+                        ? {
+                            ...slot,
+                            value,
+                          }
+                        : slot
+                    ),
+                  },
+                },
+              };
+            }
+          }
+
           return {
             ...node,
-            data: {
-              ...node.data,
-              [field]: value,
-            },
+            data: nextNodeData,
           };
         })
       );
