@@ -248,7 +248,6 @@ export const buildUiJourneyConversationFields = (
   nodeData: MicrocopyNodeData
 ): UiJourneyConversationField[] => {
   if (
-    nodeData.node_type === "menu" ||
     nodeData.node_type === "vertical_multi_term" ||
     nodeData.node_type === "horizontal_multi_term"
   ) {

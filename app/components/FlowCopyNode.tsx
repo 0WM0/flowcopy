@@ -499,7 +499,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   });
   const isGlossaryHighlighted = glossaryHighlightedNodeIds.has(id);
 
-  const isMenuNode = data.node_type === "menu";
+  const isMenuNode = data.node_type === "vertical_multi_term";
   const isVerticalMultiTermNode = data.node_type === "vertical_multi_term";
   const isVerticalTermsNode = isMenuNode || isVerticalMultiTermNode;
   const isFrameNode = data.node_type === "frame";
@@ -864,7 +864,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           }
 
           if (
-            node.data.node_type !== "menu" &&
             node.data.node_type !== "vertical_multi_term"
           ) {
             return node;

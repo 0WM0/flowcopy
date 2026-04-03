@@ -253,7 +253,7 @@ const buildCanonicalFixture = (): CanonicalFixture => {
         action_type_color: "#047857",
         card_style: "subtle",
         node_shape: "rectangle",
-        node_type: "menu",
+        node_type: "vertical_multi_term",
         content_config: {
           layout: "vertical",
           rows: 1,
@@ -852,7 +852,7 @@ const normalizeProjectForContract = (project: ProjectRecord): ProjectContractSha
 
   const menuTermsByNodeId = Object.fromEntries(
     serializedNodes
-      .filter((node) => node.data?.node_type === "menu")
+      .filter((node) => node.data?.node_type === "vertical_multi_term")
       .map((node) => {
         const contentConfig = node.data?.content_config;
         const groups = [...(contentConfig?.groups ?? [])].sort((a, b) => {

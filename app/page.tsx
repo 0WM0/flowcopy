@@ -3172,7 +3172,7 @@ export default function Page() {
       let nextSourceHandle = params.sourceHandle;
 
       if (
-        (sourceNode?.data.node_type === "menu" ||
+        (sourceNode?.data.node_type === "vertical_multi_term" ||
           sourceNode?.data.node_type === "ribbon") &&
         nextEdgeKind === "sequential"
       ) {
@@ -3235,7 +3235,7 @@ export default function Page() {
       let nextSourceHandle = newConnection.sourceHandle;
 
       if (
-        (sourceNode?.data.node_type === "menu" ||
+        (sourceNode?.data.node_type === "vertical_multi_term" ||
           sourceNode?.data.node_type === "ribbon") &&
         nextEdgeKind === "sequential"
       ) {
@@ -3312,7 +3312,7 @@ export default function Page() {
   const addNodeAtClientPosition = useCallback(
     (
       clientPosition: { x: number; y: number },
-      nodeType: "default" | "menu" | "ribbon" | "frame" = "default",
+      nodeType: "default" | "vertical_multi_term" | "ribbon" | "frame" = "default",
       options?: {
         primaryTextValue?: string;
         onNodeCreated?: (nodeId: string, createdNode: FlowNode) => void;
@@ -3330,12 +3330,12 @@ export default function Page() {
       const normalizedPrimaryText = options?.primaryTextValue?.trim() ?? "";
 
       const nodeToCreate: SerializableFlowNode =
-        nodeType === "menu"
+        nodeType === "vertical_multi_term"
           ? {
               id,
               position,
               data: {
-                node_type: "menu",
+                node_type: "vertical_multi_term",
                 primary_cta: normalizedPrimaryText || "",
               },
             }
@@ -3391,7 +3391,7 @@ export default function Page() {
   const addNodeAtEvent = useCallback(
     (
       event: React.MouseEvent,
-      nodeType: "default" | "menu" | "ribbon" = "default"
+      nodeType: "default" | "vertical_multi_term" | "ribbon" = "default"
     ) => {
       addNodeAtClientPosition(
         {
@@ -3405,7 +3405,7 @@ export default function Page() {
   );
 
   const handleQuickAddFromSideTab = useCallback(
-    (nodeType: "default" | "menu" | "ribbon") => {
+    (nodeType: "default" | "vertical_multi_term" | "ribbon") => {
       addNodeAtClientPosition(getCanvasFallbackClientPosition(), nodeType);
     },
     [addNodeAtClientPosition, getCanvasFallbackClientPosition]
@@ -3539,8 +3539,8 @@ export default function Page() {
         return;
       }
 
-      const droppedNodeType: "default" | "menu" | "ribbon" =
-        payload.nodeType === "menu" || payload.nodeType === "ribbon"
+      const droppedNodeType: "default" | "vertical_multi_term" | "ribbon" =
+        payload.nodeType === "vertical_multi_term" || payload.nodeType === "ribbon"
           ? payload.nodeType
           : "default";
 
@@ -4403,7 +4403,7 @@ export default function Page() {
 
         addNodeAtClientPosition(
           clientPosition,
-          event.shiftKey ? "menu" : "default"
+          event.shiftKey ? "vertical_multi_term" : "default"
         );
         return;
       }
@@ -4696,7 +4696,7 @@ export default function Page() {
   const selectedNodeIsDefaultInspectorNode =
     selectedNode !== null &&
     selectedNode.data.node_type !== "ribbon" &&
-    selectedNode.data.node_type !== "menu" &&
+    selectedNode.data.node_type !== "vertical_multi_term" &&
     selectedNode.data.node_type !== "frame";
 
   const selectedInspectorNodeIds = useMemo(() => {
@@ -5184,7 +5184,7 @@ export default function Page() {
     (slotId: string, value: string) => {
       flushTextEditHistoryBurst();
 
-      if (!effectiveSelectedNodeId || selectedNode?.data.node_type !== "menu") {
+      if (!effectiveSelectedNodeId || selectedNode?.data.node_type !== "vertical_multi_term") {
         return;
       }
 
@@ -5611,8 +5611,8 @@ export default function Page() {
       }
 
       const currentNodeType = targetNode.data.node_type;
-      const isMenuOrRibbon = currentNodeType === "menu" || currentNodeType === "ribbon";
-      const targetIsMenuOrRibbon = nextType === "menu" || nextType === "ribbon";
+      const isMenuOrRibbon = currentNodeType === "vertical_multi_term" || currentNodeType === "ribbon";
+      const targetIsMenuOrRibbon = nextType === "vertical_multi_term" || nextType === "ribbon";
 
       if (!isMenuOrRibbon || !targetIsMenuOrRibbon) {
         return;
@@ -5626,12 +5626,12 @@ export default function Page() {
             return node;
           }
 
-          if (nextType === "menu" && node.data.node_type === "ribbon") {
+          if (nextType === "vertical_multi_term" && node.data.node_type === "ribbon") {
             return {
               ...node,
               data: {
                 ...node.data,
-                node_type: "menu",
+                node_type: "vertical_multi_term",
                 content_config: {
                   ...node.data.content_config,
                   layout: "vertical" as const,
@@ -5640,7 +5640,7 @@ export default function Page() {
             };
           }
 
-          if (nextType === "ribbon" && node.data.node_type === "menu") {
+          if (nextType === "ribbon" && node.data.node_type === "vertical_multi_term") {
             return {
               ...node,
               data: {
@@ -5692,8 +5692,7 @@ export default function Page() {
       const targetNode = nodes.find((node) => node.id === nodeId);
       if (
         !targetNode ||
-        (targetNode.data.node_type !== "menu" &&
-          targetNode.data.node_type !== "vertical_multi_term")
+        targetNode.data.node_type !== "vertical_multi_term"
       ) {
         return;
       }
@@ -5828,7 +5827,7 @@ export default function Page() {
   );
 
   const selectedVerticalContentConfig = useMemo(() => {
-    if (!selectedNode || selectedNode.data.node_type !== "menu") {
+    if (!selectedNode || selectedNode.data.node_type !== "vertical_multi_term") {
       return null;
     }
 
@@ -6383,7 +6382,7 @@ export default function Page() {
         const ribbonCellField = parseRibbonCellRegistryField(field);
 
         if (slotId) {
-          if (selectedNode?.data.node_type === "menu") {
+          if (selectedNode?.data.node_type === "vertical_multi_term") {
             updateSelectedMenuSlotValueById(slotId, entry.value);
           } else {
             updateSelectedContentSlotValue(slotId, entry.value);
@@ -6518,7 +6517,7 @@ export default function Page() {
 
     const menuTermId = parseMenuTermRegistryField(openControlledLanguageFieldType);
     if (menuTermId) {
-      if (selectedNode.data.node_type !== "menu") {
+      if (selectedNode.data.node_type !== "vertical_multi_term") {
         return null;
       }
 
@@ -6883,7 +6882,7 @@ nodeCallbacksRef.current = {
   const maxMenuTermColumnCount = useMemo(
     () =>
       projectTableRows.reduce((maxCount, { node }) => {
-        if (node.data.node_type !== "menu") {
+        if (node.data.node_type !== "vertical_multi_term") {
           return maxCount;
         }
 
@@ -8953,7 +8952,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   });
                   const contentSlots = node.data.content_config?.slots ?? [];
                   const menuTermValues =
-                    node.data.node_type === "menu"
+                    node.data.node_type === "vertical_multi_term"
                       ? sortedGroups.map((group) => {
                           const primarySlot = contentSlots
                             .filter((slot) => slot.groupId === group.id)
@@ -8992,7 +8991,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       : "";
 
                   const shouldDisableShoehornedFields =
-                    node.data.node_type === "menu" ||
+                    node.data.node_type === "vertical_multi_term" ||
                     node.data.node_type === "ribbon" ||
                     node.data.node_type === "frame";
 
@@ -9264,7 +9263,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         {[
           { key: "default", label: "D", title: "Add Default node" },
           { key: "ribbon", label: "H", title: "Add Horizontal node" },
-          { key: "menu", label: "V", title: "Add Vertical node" },
+          { key: "vertical_multi_term", label: "V", title: "Add Vertical node" },
         ].map((item) => (
           <button
             key={`side-tab-add:${item.key}`}
@@ -9290,7 +9289,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             }}
             onClick={() =>
               handleQuickAddFromSideTab(
-                item.key as "default" | "menu" | "ribbon"
+                item.key as "default" | "vertical_multi_term" | "ribbon"
               )
             }
           >
@@ -9682,7 +9681,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           </button>
         )}
 
-        {hasExactlyOneSelectedNode && selectedNode?.data.node_type === "menu" && (
+        {hasExactlyOneSelectedNode && selectedNode?.data.node_type === "vertical_multi_term" && (
           <>
             <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
               Menu node mode: edit Menu Terms below. These
@@ -11146,8 +11145,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   const currentNodeType = selectedNode.data.node_type;
                   const isEnabled =
                     isActive ||
-                    ((currentNodeType === "menu" || currentNodeType === "ribbon") &&
-                      (nodeTypeOption === "menu" || nodeTypeOption === "ribbon"));
+                    ((currentNodeType === "vertical_multi_term" || currentNodeType === "ribbon") &&
+                      (nodeTypeOption === "vertical_multi_term" || nodeTypeOption === "ribbon"));
 
                   return (
                     <button
@@ -11202,7 +11201,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </div>
             </div>
 
-            {selectedNode.data.node_type === "menu" ? (
+            {selectedNode.data.node_type === "vertical_multi_term" ? (
               <>
                 <label>
                   <div style={inspectorFieldLabelStyle}>Title</div>

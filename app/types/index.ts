@@ -6,10 +6,9 @@ export type EdgeLineStyle = "solid" | "dashed" | "dotted";
 export type FrameShade = "light" | "medium" | "dark";
 export type NodeType =
   | "default"
-  | "menu"
+  | "vertical_multi_term"
   | "frame"
   | "ribbon"
-  | "vertical_multi_term"
   | "horizontal_multi_term";
 export type NodeControlledLanguageFieldType =
   | "primary_cta"

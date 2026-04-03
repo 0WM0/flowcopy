@@ -53,10 +53,9 @@ type NodeContentMigrationSource = {
 
 export const isNodeType = (value: unknown): value is NodeType =>
   value === "default" ||
-  value === "menu" ||
+  value === "vertical_multi_term" ||
   value === "frame" ||
   value === "ribbon" ||
-  value === "vertical_multi_term" ||
   value === "horizontal_multi_term";
 
 export const isNodeContentLayout = (value: unknown): value is NodeContentLayout =>
@@ -256,7 +255,7 @@ export const migrateLegacyNodeContentConfig = (
 ): NodeContentConfig => {
   const nodeType = isNodeType(source.node_type) ? source.node_type : "default";
 
-  if (nodeType === "menu" || nodeType === "vertical_multi_term") {
+  if (nodeType === "vertical_multi_term") {
     return migrateMultiTermNodeContentConfig(source, "vertical");
   }
 
@@ -281,7 +280,7 @@ export const normalizeAndMigrateNodeContentConfig = (
 ): NodeContentConfig => {
   const nodeType = isNodeType(source.node_type) ? source.node_type : "default";
   const layout: NodeContentLayout =
-    nodeType === "menu" || nodeType === "vertical_multi_term"
+    nodeType === "vertical_multi_term"
       ? "vertical"
       : nodeType === "ribbon" || nodeType === "horizontal_multi_term"
         ? "horizontal"
@@ -363,7 +362,7 @@ export const getFallbackNodeSize = (node: FlowNode): { width: number; height: nu
     };
   }
 
-  if (node.data.node_type === "menu") {
+  if (node.data.node_type === "vertical_multi_term") {
     const menuConfig = normalizeNodeContentConfig(
       node.data.content_config,
       "vertical"
@@ -755,7 +754,7 @@ export const createDefaultNodeData = (
   return {
     title: overrides.title ?? "",
     showTitle:
-      nodeType === "default" || nodeType === "menu"
+      nodeType === "default" || nodeType === "vertical_multi_term"
         ? false
         : typeof overrides.showTitle === "boolean"
           ? overrides.showTitle
@@ -792,7 +791,7 @@ export const createDefaultNodeData = (
           Array.isArray((overrides.content_config as Partial<NodeContentConfig>).slots)
         ) {
           const ccLayout: NodeContentLayout =
-            nodeType === "vertical_multi_term" || nodeType === "menu" ? "vertical"
+            nodeType === "vertical_multi_term" ? "vertical"
             : nodeType === "horizontal_multi_term" || nodeType === "ribbon" ? "horizontal"
             : "single";
           const candidate = normalizeNodeContentConfig(overrides.content_config, ccLayout);
@@ -844,7 +843,7 @@ export const normalizeNode = (
           Array.isArray((sourceData.content_config as Partial<NodeContentConfig>).slots)
         ) {
           const ccLayout: NodeContentLayout =
-            defaultData.node_type === "vertical_multi_term" || defaultData.node_type === "menu"
+            defaultData.node_type === "vertical_multi_term"
               ? "vertical"
               : defaultData.node_type === "horizontal_multi_term" || defaultData.node_type === "ribbon"
                 ? "horizontal"

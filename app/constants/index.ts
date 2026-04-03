@@ -65,10 +65,10 @@ export const NODE_SHAPE_OPTIONS = [
   "diamond",
 ];
 
-export const NODE_TYPE_OPTIONS = ["default", "menu", "ribbon"];
+export const NODE_TYPE_OPTIONS = ["default", "vertical_multi_term", "ribbon"];
 export const NODE_TYPE_LABELS: Record<(typeof NODE_TYPE_OPTIONS)[number], string> = {
   default: "Default",
-  menu: "Vertical",
+  vertical_multi_term: "Vertical",
   ribbon: "Horizontal",
 };
 export const UNIFIED_NODE_TYPE_OPTIONS = [
