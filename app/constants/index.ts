@@ -69,7 +69,7 @@ export const NODE_TYPE_OPTIONS = ["default", "vertical_multi_term", "horizontal_
 export const NODE_TYPE_LABELS: Record<(typeof NODE_TYPE_OPTIONS)[number], string> = {
   default: "Default",
   vertical_multi_term: "Vertical",
-  ribbon: "Horizontal",
+  horizontal_multi_term: "Horizontal",
 };
 export const UNIFIED_NODE_TYPE_OPTIONS = [
   "default",
