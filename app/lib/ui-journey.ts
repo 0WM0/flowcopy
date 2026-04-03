@@ -10,6 +10,7 @@ import type {
 } from "../types";
 import {
   HMN_SOURCE_HANDLE_PREFIX,
+  VMN_SOURCE_HANDLE_PREFIX,
   TERM_REGISTRY_TERM_TYPE_LABELS,
 } from "../constants";
 import { computeFlowOrdering } from "./flow-ordering";
@@ -313,6 +314,32 @@ export const buildUiJourneyConversationFields = (
 };
 
 const buildUiJourneyConversationRibbonHeaderFields = (
+  nodeId: string,
+  nodeData: MicrocopyNodeData
+): UiJourneyConversationField[] => {
+  const fields: UiJourneyConversationField[] = [];
+
+  const addField = (label: string, sourceKey: string, value: string) => {
+    const normalizedValue = value.trim();
+    if (!normalizedValue) {
+      return;
+    }
+
+    fields.push({
+      id: buildUiJourneyConversationFieldId(nodeId, sourceKey),
+      sourceKey,
+      label,
+      value: normalizedValue,
+    });
+  };
+
+  addField("Concept", "concept", nodeData.concept);
+  addField("Notes", "notes", nodeData.notes);
+
+  return fields;
+};
+
+const buildUiJourneyConversationVmnHeaderFields = (
   nodeId: string,
   nodeData: MicrocopyNodeData
 ): UiJourneyConversationField[] => {
@@ -802,6 +829,103 @@ export const buildUiJourneyConversationEntries = ({
           });
 
         return [ribbonHeaderEntry, ...ribbonCellEntries];
+      }
+
+      if (node.data.node_type === "vertical_multi_term") {
+        const vmnHeaderEntry: UiJourneyConversationEntry = {
+          entryId: buildUiJourneyConversationEntryId(nodeId, sequence),
+          nodeInstanceId: nodeId,
+          titleFieldId: buildUiJourneyConversationTitleFieldId(nodeId),
+          nodeId,
+          nodeType: "vertical_multi_term",
+          sequence,
+          title: getUiJourneyConversationTitle(node.data),
+          fields: buildUiJourneyConversationVmnHeaderFields(nodeId, node.data),
+          bodyText: "",
+          notes: "",
+          connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
+        };
+
+        const normalizedContentConfig = normalizeNodeContentConfig(
+          node.data.content_config,
+          "vertical"
+        );
+
+        const sortedGroups = [...normalizedContentConfig.groups].sort((a, b) => {
+          if (a.row !== b.row) {
+            return a.row - b.row;
+          }
+
+          return a.column - b.column;
+        });
+
+        const vmnGroupEntries: UiJourneyConversationEntry[] = sortedGroups
+          .filter((group) => {
+            const groupSourceHandlePrefix = `${VMN_SOURCE_HANDLE_PREFIX}${group.id}`;
+
+            return edges.some((edge) => {
+              if (edge.source !== nodeId) {
+                return false;
+              }
+
+              if (!isSequentialEdge(edge)) {
+                return false;
+              }
+
+              if (!includedNodeIds.has(edge.target)) {
+                return false;
+              }
+
+              return (
+                typeof edge.sourceHandle === "string" &&
+                edge.sourceHandle.startsWith(groupSourceHandlePrefix)
+              );
+            });
+          })
+          .map((group) => {
+            const groupScopedNodeId = `${nodeId}:cell:${group.id}`;
+            const groupSlots = normalizedContentConfig.slots
+              .filter((slot) => slot.groupId === group.id)
+              .sort((a, b) => a.position - b.position);
+            const primarySlot = groupSlots.find((slot) => slot.position === 0);
+            const normalizedPrimarySlotValue = (primarySlot?.value ?? "").trim();
+
+            return {
+              entryId: buildUiJourneyConversationRibbonCellEntryId(nodeId, group.id, sequence),
+              nodeInstanceId: groupScopedNodeId,
+              titleFieldId: buildUiJourneyConversationTitleFieldId(groupScopedNodeId),
+              nodeId,
+              nodeType: "default",
+              sequence,
+              title:
+                normalizedPrimarySlotValue.length > 0
+                  ? normalizedPrimarySlotValue
+                  : `Term ${group.column + 1}`,
+              fields: groupSlots.flatMap((slot) => {
+                const normalizedValue = slot.value.trim();
+                if (!normalizedValue) {
+                  return [];
+                }
+
+                return [
+                  {
+                    id: buildUiJourneyConversationFieldId(
+                      nodeId,
+                      `content_slot:${slot.id}`
+                    ),
+                    sourceKey: `content_slot:${slot.id}`,
+                    label: normalizeConversationSlotTermTypeLabel(slot.termType),
+                    value: normalizedValue,
+                  },
+                ];
+              }),
+              bodyText: "",
+              notes: "",
+              connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
+            };
+          });
+
+        return [vmnHeaderEntry, ...vmnGroupEntries];
       }
 
       return [
