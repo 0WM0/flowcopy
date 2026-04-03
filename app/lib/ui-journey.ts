@@ -293,34 +293,23 @@ export const buildUiJourneyConversationFields = (
     "single"
   );
 
-  const sortedGroups = [...normalizedContentConfig.groups].sort((a, b) => {
-    if (a.row !== b.row) {
-      return a.row - b.row;
-    }
+  return [...normalizedContentConfig.slots]
+    .sort((a, b) => a.position - b.position)
+    .flatMap((slot) => {
+      const normalizedValue = slot.value.trim();
+      if (!normalizedValue) {
+        return [];
+      }
 
-    return a.column - b.column;
-  });
-
-  return sortedGroups.flatMap((group) =>
-    normalizedContentConfig.slots
-      .filter((slot) => slot.groupId === group.id)
-      .sort((a, b) => a.position - b.position)
-      .flatMap((slot) => {
-        const normalizedValue = slot.value.trim();
-        if (!normalizedValue) {
-          return [];
-        }
-
-        return [
-          {
-            id: buildUiJourneyConversationFieldId(nodeId, `content_slot:${slot.id}`),
-            sourceKey: `content_slot:${slot.id}`,
-            label: normalizeConversationSlotTermTypeLabel(slot.termType),
-            value: normalizedValue,
-          },
-        ];
-      })
-  );
+      return [
+        {
+          id: buildUiJourneyConversationFieldId(nodeId, `content_slot:${slot.id}`),
+          sourceKey: `content_slot:${slot.id}`,
+          label: normalizeConversationSlotTermTypeLabel(slot.termType),
+          value: normalizedValue,
+        },
+      ];
+    });
 };
 
 const buildUiJourneyConversationRibbonHeaderFields = (
