@@ -256,8 +256,8 @@ import {
   getEdgeKind,
   isSequentialEdge,
   syncSequentialEdgesForContentConfig,
-  assignSequentialEdgesToMenuHandles,
-  remapMenuSequentialEdgesToDefaultHandle,
+  assignSequentialEdgesToGroupHandles,
+  remapGroupEdgesToDefaultHandle,
   hasNonSelectionNodeChanges,
   hasNonSelectionEdgeChanges,
   isEditableEventTarget,
@@ -5659,7 +5659,7 @@ export default function Page() {
       );
 
       setEdges((currentEdges) => {
-        return assignSequentialEdgesToMenuHandles(
+        return assignSequentialEdgesToGroupHandles(
           currentEdges,
           nodeId,
           buildContentConfigSourceHandleIds(targetNode.data.content_config)

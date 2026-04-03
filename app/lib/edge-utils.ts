@@ -22,8 +22,8 @@ import type { EdgeChange, NodeChange } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
 import {
   buildContentConfigSourceHandleIds,
-  isMenuSourceHandleId,
-  isRibbonSourceHandleId,
+  isVmnSourceHandleId,
+  isHmnSourceHandleId,
 } from "./node-utils";
 
 export const isEdgeKind = (value: unknown): value is EdgeKind =>
@@ -50,8 +50,8 @@ export const syncSequentialEdgesForContentConfig = (
       return [];
     }
 
-    const isMenuHandle = isMenuSourceHandleId(edge.sourceHandle);
-    const isRibbonHandle = edge.sourceHandle ? isRibbonSourceHandleId(edge.sourceHandle) : false;
+    const isMenuHandle = isVmnSourceHandleId(edge.sourceHandle);
+    const isRibbonHandle = edge.sourceHandle ? isHmnSourceHandleId(edge.sourceHandle) : false;
 
     if (isMenuHandle || isRibbonHandle) {
       if (allowedHandleIdSet.has(edge.sourceHandle!)) {
@@ -69,7 +69,7 @@ export const syncSequentialEdgesForContentConfig = (
   });
 };
 
-export const assignSequentialEdgesToMenuHandles = (
+export const assignSequentialEdgesToGroupHandles = (
   edges: FlowEdge[],
   nodeId: string,
   menuHandleIds: string[]
@@ -101,7 +101,7 @@ export const assignSequentialEdgesToMenuHandles = (
   });
 };
 
-export const remapMenuSequentialEdgesToDefaultHandle = (
+export const remapGroupEdgesToDefaultHandle = (
   edges: FlowEdge[],
   nodeId: string
 ): FlowEdge[] =>
@@ -109,7 +109,7 @@ export const remapMenuSequentialEdgesToDefaultHandle = (
     if (
       edge.source !== nodeId ||
       !isSequentialEdge(edge) ||
-      !isMenuSourceHandleId(edge.sourceHandle)
+      !isVmnSourceHandleId(edge.sourceHandle)
     ) {
       return edge;
     }

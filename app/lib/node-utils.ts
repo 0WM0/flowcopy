@@ -607,7 +607,7 @@ export const buildContentConfigSourceHandleIds = (
   return sortedGroups.map((group) => `${prefix}${group.id}`);
 };
 
-export const isMenuSourceHandleId = (value: string | null | undefined): value is string =>
+export const isVmnSourceHandleId = (value: string | null | undefined): value is string =>
   typeof value === "string" && value.startsWith(VMN_SOURCE_HANDLE_PREFIX);
 
 export const createRibbonCellId = (): string =>
@@ -687,7 +687,7 @@ export const migrateFrameToContentConfig = (title: string): NodeContentConfig =>
 export const buildRibbonSourceHandleId = (cellId: string): string =>
   `${HMN_SOURCE_HANDLE_PREFIX}${cellId}`;
 
-export const isRibbonSourceHandleId = (handleId: string): boolean =>
+export const isHmnSourceHandleId = (handleId: string): boolean =>
   handleId.startsWith(HMN_SOURCE_HANDLE_PREFIX);
 
 export const createNodeId = (): string =>
