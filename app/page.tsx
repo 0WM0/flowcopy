@@ -4871,6 +4871,100 @@ export default function Page() {
     setIsUiJourneyConversationOpen(false);
   }, []);
 
+  const {
+    frameChildNodeIds,
+    childEntryIds,
+    entryFrameParentId,
+    entryMultiTermParentId,
+  } = useMemo(() => {
+    const frameChildNodeIds = new Map<string, string[]>();
+    const childEntryIds = new Set<string>();
+    const entryFrameParentId = new Map<string, string>();
+    const entryMultiTermParentId = new Map<string, string>();
+
+    const snapshotEntryNodeIds = new Set(
+      uiJourneyConversationSnapshot.map((entry) => entry.nodeId)
+    );
+    const snapshotEntriesByNodeId = new Map<string, UiJourneyConversationEntry[]>();
+
+    for (const entry of uiJourneyConversationSnapshot) {
+      const existingEntries = snapshotEntriesByNodeId.get(entry.nodeId);
+      if (existingEntries) {
+        existingEntries.push(entry);
+      } else {
+        snapshotEntriesByNodeId.set(entry.nodeId, [entry]);
+      }
+
+      if (entry.entryId.includes(":cell:")) {
+        childEntryIds.add(entry.entryId);
+      }
+    }
+
+    const frameNodes = nodes.filter((node) => node.data.node_type === "frame");
+
+    for (const frameNode of frameNodes) {
+      const frameConfig = normalizeFrameNodeConfig(frameNode.data.frame_config);
+      const filteredMemberNodeIds = frameConfig.member_node_ids.filter(
+        (memberNodeId) => snapshotEntryNodeIds.has(memberNodeId)
+      );
+
+      frameChildNodeIds.set(frameNode.id, filteredMemberNodeIds);
+    }
+
+    for (const [frameNodeId, memberNodeIds] of frameChildNodeIds.entries()) {
+      const frameEntry = uiJourneyConversationSnapshot.find(
+        (entry) => entry.nodeId === frameNodeId && entry.nodeType === "frame"
+      );
+
+      if (!frameEntry) {
+        continue;
+      }
+
+      for (const memberNodeId of memberNodeIds) {
+        const matchingEntries = snapshotEntriesByNodeId.get(memberNodeId) ?? [];
+
+        for (const matchingEntry of matchingEntries) {
+          if (matchingEntry.nodeType === "frame") {
+            continue;
+          }
+
+          childEntryIds.add(matchingEntry.entryId);
+          entryFrameParentId.set(matchingEntry.entryId, frameEntry.entryId);
+        }
+      }
+    }
+
+    const currentMultiTermHeaderByNodeId = new Map<string, string>();
+
+    for (const entry of uiJourneyConversationSnapshot) {
+      const isMultiTermHeader =
+        (entry.nodeType === "horizontal_multi_term" ||
+          entry.nodeType === "vertical_multi_term") &&
+        !entry.entryId.includes(":cell:");
+
+      if (isMultiTermHeader) {
+        currentMultiTermHeaderByNodeId.set(entry.nodeId, entry.entryId);
+        continue;
+      }
+
+      if (!entry.entryId.includes(":cell:")) {
+        continue;
+      }
+
+      const parentHeaderEntryId = currentMultiTermHeaderByNodeId.get(entry.nodeId);
+      if (parentHeaderEntryId) {
+        entryMultiTermParentId.set(entry.entryId, parentHeaderEntryId);
+      }
+    }
+
+    return {
+      frameChildNodeIds,
+      childEntryIds,
+      entryFrameParentId,
+      entryMultiTermParentId,
+    };
+  }, [uiJourneyConversationSnapshot, nodes]);
+
   const openTransferModal = useCallback(
     (mode: TransferModalMode, context: TransferModalContext) => {
       setTransferModalState({ mode, context });
