@@ -1843,10 +1843,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             top: "50%",
             left: -3,
             transform: "translateY(-50%)",
-            width: 6,
-            height: 6,
+            width: 10,
+            height: 10,
             borderRadius: "50%",
-            background: "#64748b",
+            background: "#2563eb",
+            border: "2px solid #fff",
           }}
         />
         <Handle
@@ -2021,6 +2022,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           type="source"
           position={Position.Right}
           id={SEQUENTIAL_SOURCE_HANDLE_ID}
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            background: "#2563eb",
+            border: "2px solid #fff",
+          }}
         />
         <Handle
           type="source"
@@ -2106,10 +2114,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             top: "50%",
             left: -3,
             transform: "translateY(-50%)",
-            width: 6,
-            height: 6,
+            width: 10,
+            height: 10,
             borderRadius: "50%",
-            background: "#64748b",
+            background: "#2563eb",
+            border: "2px solid #fff",
           }}
         />
         <Handle
@@ -2424,10 +2433,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         top: "calc(100% + 2px)",
                         left: "50%",
                         transform: "translateX(-50%) translateY(0%) !important" as any,
-                        width: 8,
-                        height: 8,
-                        background: "#3b82f6",
-                        border: "2px solid #ffffff",
+                        width: 10,
+                        height: 10,
+                        background: "#2563eb",
+                        border: "2px solid #fff",
                         borderRadius: "50%",
                         zIndex: 5,
                       }}
@@ -2685,10 +2694,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           top: "50%",
           left: -3,
           transform: "translateY(-50%)",
-          width: 6,
-          height: 6,
+          width: 10,
+          height: 10,
           borderRadius: "50%",
-          background: "#64748b",
+          background: "#2563eb",
+          border: "2px solid #fff",
         }}
       />
       <Handle
@@ -3334,7 +3344,14 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
         type="source"
         position={Position.Right}
         id={SEQUENTIAL_SOURCE_HANDLE_ID}
-        style={{ opacity: isMenuNode ? 0 : 1 }}
+        style={{
+          opacity: isMenuNode ? 0 : 1,
+          width: 10,
+          height: 10,
+          borderRadius: "50%",
+          background: "#2563eb",
+          border: "2px solid #fff",
+        }}
         isConnectable={!isMenuNode}
       />
 
