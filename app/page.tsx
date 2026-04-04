@@ -12006,7 +12006,24 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                       <div>
                         <div style={{ fontSize: 12, marginBottom: 4, color: "#334155" }}>
-                          Body text preview (markdown)
+                          Body Text
+                        </div>
+                        <textarea
+                          style={{
+                            ...inputStyle,
+                            width: "100%",
+                            minHeight: 70,
+                            resize: "vertical",
+                            marginBottom: 8,
+                          }}
+                          value={selectedNode.data.body_text ?? ""}
+                          placeholder="Add body text"
+                          onChange={(event) =>
+                            updateNodeFieldById(selectedNode.id, "body_text", event.target.value)
+                          }
+                        />
+                        <div style={{ fontSize: 11, marginBottom: 4, color: "#94a3b8" }}>
+                          Preview (markdown)
                         </div>
                         <div
                           style={{
@@ -12016,7 +12033,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             padding: 8,
                           }}
                         >
-                          <BodyTextPreview value={selectedNode.data.body_text} />
+                          <BodyTextPreview value={selectedNode.data.body_text ?? ""} />
                         </div>
                       </div>
 
