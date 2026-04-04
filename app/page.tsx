@@ -13093,8 +13093,13 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 </div>
 
                 {uiJourneyConversationSnapshot.map((entry, entryIndex) => {
-                  const centeredHeading = entry.title || "Untitled";
-                  const regularHeading = entry.title || "Untitled";
+                  const isMultiTermHeader =
+                    (entry.nodeType === "horizontal_multi_term" || entry.nodeType === "vertical_multi_term") &&
+                    !entry.entryId.includes(":cell:");
+                  const isMultiTermChild = entry.entryId.includes(":cell:");
+                  const hasTitle = entry.title && entry.title.trim().length > 0 && entry.title.trim() !== "Untitled";
+                  const centeredHeading = hasTitle ? entry.title.trim() : "";
+                  const regularHeading = hasTitle ? entry.title.trim() : "";
                   const isFrameEntry = entry.nodeType === "frame";
                   const isCenteredHeaderEntry =
                     entry.nodeType === "frame" || entry.nodeType === "horizontal_multi_term";
