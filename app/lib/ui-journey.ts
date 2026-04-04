@@ -40,6 +40,12 @@ export const buildUiJourneyConversationFieldId = (
   sourceKey: string
 ): string => `field:${nodeId}:${sourceKey}`;
 
+const buildUiJourneyConversationRibbonCellEntryId = (
+  nodeId: string,
+  cellId: string,
+  sequence: number | null
+): string => `entry:${nodeId}:cell:${cellId}:seq-${sequence ?? "x"}`;
+
 const getUiJourneyConversationTitle = (nodeData: MicrocopyNodeData): string => {
   const normalizedTitle = nodeData.title.trim();
   return normalizedTitle.length > 0 ? normalizedTitle : "Untitled";
@@ -305,6 +311,58 @@ export const buildUiJourneyConversationFields = (
         },
       ];
     });
+};
+
+const buildUiJourneyConversationRibbonHeaderFields = (
+  nodeId: string,
+  nodeData: MicrocopyNodeData
+): UiJourneyConversationField[] => {
+  const fields: UiJourneyConversationField[] = [];
+
+  const addField = (label: string, sourceKey: string, value: string) => {
+    const normalizedValue = value.trim();
+    if (!normalizedValue) {
+      return;
+    }
+
+    fields.push({
+      id: buildUiJourneyConversationFieldId(nodeId, sourceKey),
+      sourceKey,
+      label,
+      value: normalizedValue,
+    });
+  };
+
+  addField("Concept", "concept", nodeData.concept);
+  addField("Notes", "notes", nodeData.notes);
+
+  return fields;
+};
+
+const buildUiJourneyConversationVmnHeaderFields = (
+  nodeId: string,
+  nodeData: MicrocopyNodeData
+): UiJourneyConversationField[] => {
+  const fields: UiJourneyConversationField[] = [];
+
+  const addField = (label: string, sourceKey: string, value: string) => {
+    const normalizedValue = value.trim();
+    if (!normalizedValue) {
+      return;
+    }
+
+    fields.push({
+      id: buildUiJourneyConversationFieldId(nodeId, sourceKey),
+      sourceKey,
+      label,
+      value: normalizedValue,
+    });
+  };
+
+  addField("Concept", "concept", nodeData.concept);
+  addField("Notes", "notes", nodeData.notes);
+
+  return fields;
 };
 
 export const cloneUiJourneyConversationEntries = (
@@ -681,6 +739,26 @@ export const buildUiJourneyConversationEntries = ({
       };
 
       if (node.data.node_type === "horizontal_multi_term") {
+        const ribbonHeaderEntry: UiJourneyConversationEntry = {
+          entryId: buildUiJourneyConversationEntryId(nodeId, sequence),
+          nodeInstanceId: nodeId,
+          titleFieldId: buildUiJourneyConversationTitleFieldId(nodeId),
+          nodeId,
+          nodeType: "horizontal_multi_term",
+          sequence,
+          title: getUiJourneyConversationTitle(node.data),
+          fields: buildUiJourneyConversationRibbonHeaderFields(nodeId, node.data),
+          bodyText: "",
+          notes: "",
+          concept: (node.data.concept ?? "").trim(),
+          tone: (node.data.tone ?? "").trim(),
+          polarity: (node.data.polarity ?? "").trim(),
+          reversibility: (node.data.reversibility ?? "").trim(),
+          actionTypeName: (node.data.action_type_name ?? "").trim(),
+          actionTypeColor: (node.data.action_type_color ?? "").trim(),
+          connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
+        };
+
         const normalizedContentConfig = normalizeNodeContentConfig(
           node.data.content_config,
           "horizontal"
@@ -694,7 +772,7 @@ export const buildUiJourneyConversationEntries = ({
           return a.column - b.column;
         });
 
-        const connectedGroups = sortedGroups
+        const ribbonCellEntries: UiJourneyConversationEntry[] = sortedGroups
           .filter((group) => {
             const cellSourceHandlePrefix = `${HMN_SOURCE_HANDLE_PREFIX}${group.id}`;
 
@@ -716,21 +794,29 @@ export const buildUiJourneyConversationEntries = ({
                 edge.sourceHandle.startsWith(cellSourceHandlePrefix)
               );
             });
-          });
-
-        const hmnEntry: UiJourneyConversationEntry = {
-          entryId: buildUiJourneyConversationEntryId(nodeId, sequence),
-          nodeInstanceId: nodeId,
-          titleFieldId: buildUiJourneyConversationTitleFieldId(nodeId),
-          nodeId,
-          nodeType: "horizontal_multi_term",
-          sequence,
-          title: getUiJourneyConversationTitle(node.data),
-          fields: connectedGroups.flatMap((group) =>
-            normalizedContentConfig.slots
+          })
+          .map((group) => {
+            const cellScopedNodeId = `${nodeId}:cell:${group.id}`;
+            const groupSlots = normalizedContentConfig.slots
               .filter((slot) => slot.groupId === group.id)
-              .sort((a, b) => a.position - b.position)
-              .flatMap((slot) => {
+              .sort((a, b) => a.position - b.position);
+            const labelSlot = groupSlots.find(
+              (slot) => slot.termType?.trim().toLowerCase() === "cell_label"
+            );
+            const normalizedCellLabel = (labelSlot?.value ?? "").trim();
+
+            return {
+              entryId: buildUiJourneyConversationRibbonCellEntryId(nodeId, group.id, sequence),
+              nodeInstanceId: cellScopedNodeId,
+              titleFieldId: buildUiJourneyConversationTitleFieldId(cellScopedNodeId),
+              nodeId,
+              nodeType: "default",
+              sequence,
+              title:
+                normalizedCellLabel.length > 0
+                  ? normalizedCellLabel
+                  : `Cell ${group.column + 1}`,
+              fields: groupSlots.flatMap((slot) => {
                 const normalizedValue = slot.value.trim();
                 if (!normalizedValue) {
                   return [];
@@ -747,10 +833,34 @@ export const buildUiJourneyConversationEntries = ({
                     value: normalizedValue,
                   },
                 ];
-              })
-          ),
-          bodyText: (node.data.body_text ?? "").trim(),
-          notes: (node.data.notes ?? "").trim(),
+              }),
+              bodyText: "",
+              notes: "",
+              concept: (node.data.concept ?? "").trim(),
+              tone: (node.data.tone ?? "").trim(),
+              polarity: (node.data.polarity ?? "").trim(),
+              reversibility: (node.data.reversibility ?? "").trim(),
+              actionTypeName: (node.data.action_type_name ?? "").trim(),
+              actionTypeColor: (node.data.action_type_color ?? "").trim(),
+              connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
+            };
+          });
+
+        return [ribbonHeaderEntry, ...ribbonCellEntries];
+      }
+
+      if (node.data.node_type === "vertical_multi_term") {
+        const vmnHeaderEntry: UiJourneyConversationEntry = {
+          entryId: buildUiJourneyConversationEntryId(nodeId, sequence),
+          nodeInstanceId: nodeId,
+          titleFieldId: buildUiJourneyConversationTitleFieldId(nodeId),
+          nodeId,
+          nodeType: "vertical_multi_term",
+          sequence,
+          title: getUiJourneyConversationTitle(node.data),
+          fields: buildUiJourneyConversationVmnHeaderFields(nodeId, node.data),
+          bodyText: "",
+          notes: "",
           concept: (node.data.concept ?? "").trim(),
           tone: (node.data.tone ?? "").trim(),
           polarity: (node.data.polarity ?? "").trim(),
@@ -760,10 +870,6 @@ export const buildUiJourneyConversationEntries = ({
           connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
         };
 
-        return [hmnEntry];
-      }
-
-      if (node.data.node_type === "vertical_multi_term") {
         const normalizedContentConfig = normalizeNodeContentConfig(
           node.data.content_config,
           "vertical"
@@ -777,7 +883,7 @@ export const buildUiJourneyConversationEntries = ({
           return a.column - b.column;
         });
 
-        const connectedGroups = sortedGroups
+        const vmnGroupEntries: UiJourneyConversationEntry[] = sortedGroups
           .filter((group) => {
             const groupSourceHandlePrefix = `${VMN_SOURCE_HANDLE_PREFIX}${group.id}`;
 
@@ -799,21 +905,27 @@ export const buildUiJourneyConversationEntries = ({
                 edge.sourceHandle.startsWith(groupSourceHandlePrefix)
               );
             });
-          });
-
-        const vmnEntry: UiJourneyConversationEntry = {
-          entryId: buildUiJourneyConversationEntryId(nodeId, sequence),
-          nodeInstanceId: nodeId,
-          titleFieldId: buildUiJourneyConversationTitleFieldId(nodeId),
-          nodeId,
-          nodeType: "vertical_multi_term",
-          sequence,
-          title: getUiJourneyConversationTitle(node.data),
-          fields: connectedGroups.flatMap((group) =>
-            normalizedContentConfig.slots
+          })
+          .map((group) => {
+            const groupScopedNodeId = `${nodeId}:cell:${group.id}`;
+            const groupSlots = normalizedContentConfig.slots
               .filter((slot) => slot.groupId === group.id)
-              .sort((a, b) => a.position - b.position)
-              .flatMap((slot) => {
+              .sort((a, b) => a.position - b.position);
+            const primarySlot = groupSlots.find((slot) => slot.position === 0);
+            const normalizedPrimarySlotValue = (primarySlot?.value ?? "").trim();
+
+            return {
+              entryId: buildUiJourneyConversationRibbonCellEntryId(nodeId, group.id, sequence),
+              nodeInstanceId: groupScopedNodeId,
+              titleFieldId: buildUiJourneyConversationTitleFieldId(groupScopedNodeId),
+              nodeId,
+              nodeType: "default",
+              sequence,
+              title:
+                normalizedPrimarySlotValue.length > 0
+                  ? normalizedPrimarySlotValue
+                  : `Term ${group.column + 1}`,
+              fields: groupSlots.flatMap((slot) => {
                 const normalizedValue = slot.value.trim();
                 if (!normalizedValue) {
                   return [];
@@ -830,20 +942,20 @@ export const buildUiJourneyConversationEntries = ({
                     value: normalizedValue,
                   },
                 ];
-              })
-          ),
-          bodyText: (node.data.body_text ?? "").trim(),
-          notes: (node.data.notes ?? "").trim(),
-          concept: (node.data.concept ?? "").trim(),
-          tone: (node.data.tone ?? "").trim(),
-          polarity: (node.data.polarity ?? "").trim(),
-          reversibility: (node.data.reversibility ?? "").trim(),
-          actionTypeName: (node.data.action_type_name ?? "").trim(),
-          actionTypeColor: (node.data.action_type_color ?? "").trim(),
-          connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
-        };
+              }),
+              bodyText: "",
+              notes: "",
+              concept: (node.data.concept ?? "").trim(),
+              tone: (node.data.tone ?? "").trim(),
+              polarity: (node.data.polarity ?? "").trim(),
+              reversibility: (node.data.reversibility ?? "").trim(),
+              actionTypeName: (node.data.action_type_name ?? "").trim(),
+              actionTypeColor: (node.data.action_type_color ?? "").trim(),
+              connectionMeta: connectionMetaByNodeId[nodeId] ?? fallbackConnectionMeta,
+            };
+          });
 
-        return [vmnEntry];
+        return [vmnHeaderEntry, ...vmnGroupEntries];
       }
 
       return [
