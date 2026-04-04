@@ -1594,10 +1594,16 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             "single"
           );
 
+          const matchingSlot = node.data.content_config.slots.find(
+            (s) => s.id === slotId
+          );
+          const topLevelField = matchingSlot?.termType;
+
           return {
             ...node,
             data: {
               ...node.data,
+              ...(topLevelField ? { [topLevelField]: value } : {}),
               content_config: nextContentConfig,
             },
           };
