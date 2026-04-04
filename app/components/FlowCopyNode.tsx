@@ -2086,7 +2086,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           style={{
             position: "absolute",
             top: "50%",
-            left: -3,
+            left: -7,
             transform: "translateY(-50%)",
             width: 10,
             height: 10,
@@ -2666,7 +2666,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
         style={{
           position: "absolute",
           top: "50%",
-          left: -3,
+          left: -7,
           transform: "translateY(-50%)",
           width: 10,
           height: 10,
