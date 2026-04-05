@@ -772,8 +772,21 @@ export const buildUiJourneyConversationEntries = ({
           return a.column - b.column;
         });
 
+        const hasAnyOutgoingSequentialEdge = edges.some(
+          (edge) =>
+            edge.source === nodeId &&
+            isSequentialEdge(edge) &&
+            includedNodeIds.has(edge.target) &&
+            typeof edge.sourceHandle === "string" &&
+            edge.sourceHandle.startsWith(HMN_SOURCE_HANDLE_PREFIX)
+        );
+
         const ribbonCellEntries: UiJourneyConversationEntry[] = sortedGroups
           .filter((group) => {
+            if (!hasAnyOutgoingSequentialEdge) {
+              return true;
+            }
+
             const cellSourceHandlePrefix = `${HMN_SOURCE_HANDLE_PREFIX}${group.id}`;
 
             return edges.some((edge) => {
@@ -883,8 +896,21 @@ export const buildUiJourneyConversationEntries = ({
           return a.column - b.column;
         });
 
+        const hasAnyOutgoingSequentialEdge = edges.some(
+          (edge) =>
+            edge.source === nodeId &&
+            isSequentialEdge(edge) &&
+            includedNodeIds.has(edge.target) &&
+            typeof edge.sourceHandle === "string" &&
+            edge.sourceHandle.startsWith(VMN_SOURCE_HANDLE_PREFIX)
+        );
+
         const vmnGroupEntries: UiJourneyConversationEntry[] = sortedGroups
           .filter((group) => {
+            if (!hasAnyOutgoingSequentialEdge) {
+              return true;
+            }
+
             const groupSourceHandlePrefix = `${VMN_SOURCE_HANDLE_PREFIX}${group.id}`;
 
             return edges.some((edge) => {
