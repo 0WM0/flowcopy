@@ -13092,412 +13092,406 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   </div>
                 </div>
 
-                {uiJourneyConversationSnapshot.map((entry, entryIndex) => {
-                  const isMultiTermHeader =
-                    (entry.nodeType === "horizontal_multi_term" || entry.nodeType === "vertical_multi_term") &&
-                    !entry.entryId.includes(":cell:");
-                  const isMultiTermChild = entry.entryId.includes(":cell:");
-                  const hasTitle = entry.title && entry.title.trim().length > 0 && entry.title.trim() !== "Untitled";
-                  const centeredHeading = hasTitle ? entry.title.trim() : "";
-                  const regularHeading = hasTitle ? entry.title.trim() : "";
-                  const isFrameEntry = entry.nodeType === "frame";
-                  const isOrphanEntry = entry.connectionMeta.isOrphan;
-                  const headingColor = isOrphanEntry ? "#dc2626" : "#2B6CB0";
-                  const contentColor = isOrphanEntry ? "#7f1d1d" : "#1A365D";
-                  const labelColor = isOrphanEntry ? "#b91c1c" : "#5A7FA3";
-                  const conversationFieldLabelStyle: React.CSSProperties = {
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: labelColor,
-                    opacity: isOrphanEntry ? 0.82 : 1,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.7,
-                    lineHeight: 1.3,
-                  };
-                  const conversationFieldValueStyle: React.CSSProperties = {
-                    fontSize: 15,
-                    fontWeight: 500,
-                    color: contentColor,
-                    lineHeight: 1.45,
-                  };
-                  const regularFieldLabelStyle: React.CSSProperties = {
-                    fontSize: 11,
-                    color: "#5A7FA3",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                  };
-                  const regularFieldValueStyle: React.CSSProperties = {
-                    fontSize: 14,
-                    color: "#1A365D",
-                    fontWeight: 600,
-                  };
-                  const hasNonEmptyConversationValue = (
-                    value: string | null | undefined
-                  ): value is string =>
-                    typeof value === "string" && value.trim().length > 0;
-                  const visibleFields = entry.fields.filter((field) =>
-                    hasNonEmptyConversationValue(field.value)
-                  );
-                  const hasBodyText = hasNonEmptyConversationValue(entry.bodyText);
-                  const hasNotes = hasNonEmptyConversationValue(entry.notes);
-                  const trimmedBodyText = hasBodyText ? entry.bodyText.trim() : "";
-                  const trimmedNotes = hasNotes ? entry.notes.trim() : "";
+                {(() => {
+                  const groupedEntries: { frame: typeof uiJourneyConversationSnapshot[0] | null; entries: typeof uiJourneyConversationSnapshot }[] = [];
+                  const consumedEntryIds = new Set<string>();
 
-                  if (isFrameEntry) {
-                    return (
-                      <div
-                        key={`ui-journey-conversation:${entry.entryId}`}
-                        style={{ display: "flex", gap: 16, alignItems: "stretch" }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            gap: 0,
-                            alignSelf: "stretch",
-                            flexShrink: 0,
-                            width: 28,
-                            paddingTop: 0,
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: "50%",
-                              marginTop: 2,
-                              background: "#2B6CB0",
-                              color: "#fff",
-                              fontSize: 12,
-                              fontWeight: 700,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {entryIndex + 1}
-                          </div>
-                          {entryIndex < uiJourneyConversationSnapshot.length - 1 && (
-                            <div
-                              style={{
-                                width: 2,
-                                flex: 1,
-                                background: "#2B6CB0",
-                                margin: "0 auto",
-                                minHeight: 8,
-                              }}
-                            />
-                          )}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              border: "2px solid #2B6CB0",
-                              borderRadius: 12,
-                              padding: "10px 14px 6px 14px",
-                              background: "#f0f5fa",
-                              marginTop: 4,
-                            }}
-                          >
-                            {hasTitle && (
-                              <div
-                                style={{
-                                  textAlign: "center",
-                                  fontWeight: 700,
-                                  fontSize: 14,
-                                  color: "#2B6CB0",
-                                  marginBottom: 2,
-                                }}
-                              >
-                                {centeredHeading}
-                              </div>
-                            )}
-                            {visibleFields.length > 0 && (
-                              <div style={{ textAlign: "center", fontSize: 12, color: "#5A7FA3", marginBottom: 4 }}>
-                                {visibleFields.map((field) => field.value.trim()).filter(Boolean).join(" · ")}
-                              </div>
-                            )}
-                            {hasNotes && (
-                              <div style={{ textAlign: "center", fontSize: 11, color: "#5A7FA3", fontStyle: "italic" }}>
-                                {trimmedNotes}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
+                  for (let i = 0; i < uiJourneyConversationSnapshot.length; i++) {
+                    const entry = uiJourneyConversationSnapshot[i];
+                    if (consumedEntryIds.has(entry.entryId)) continue;
+
+                    if (entry.nodeType === "frame") {
+                      const memberNodeIds = frameChildNodeIds.get(entry.nodeId) ?? [];
+                      const children = uiJourneyConversationSnapshot.filter(
+                        (e) => memberNodeIds.includes(e.nodeId) && e.nodeType !== "frame" && !consumedEntryIds.has(e.entryId)
+                      );
+                      children.forEach((c) => consumedEntryIds.add(c.entryId));
+                      consumedEntryIds.add(entry.entryId);
+                      groupedEntries.push({ frame: entry, entries: children });
+                    } else {
+                      consumedEntryIds.add(entry.entryId);
+                      groupedEntries.push({ frame: null, entries: [entry] });
+                    }
                   }
 
-                  if (isMultiTermHeader) {
-                    return (
-                      <div
-                        key={`ui-journey-conversation:${entry.entryId}`}
-                        style={{ display: "flex", gap: 16, alignItems: "stretch" }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            gap: 0,
-                            alignSelf: "stretch",
-                            flexShrink: 0,
-                            width: 28,
-                            paddingTop: 0,
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: "50%",
-                              marginTop: 2,
-                              background: "#2B6CB0",
-                              color: "#fff",
-                              fontSize: 12,
-                              fontWeight: 700,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {entryIndex + 1}
-                          </div>
-                          {entryIndex < uiJourneyConversationSnapshot.length - 1 && (
+                  let globalEntryIndex = 0;
+
+                  return groupedEntries.map((group, groupIndex) => {
+                    if (group.frame) {
+                      const frameEntry = group.frame;
+                      const frameHasTitle = frameEntry.title && frameEntry.title.trim().length > 0 && frameEntry.title.trim() !== "Untitled";
+                      const frameSequenceIndex = globalEntryIndex;
+                      globalEntryIndex++;
+
+                      const frameVisibleFields = frameEntry.fields.filter(
+                        (field) => typeof field.value === "string" && field.value.trim().length > 0
+                      );
+                      const frameHasNotes = typeof frameEntry.notes === "string" && frameEntry.notes.trim().length > 0;
+
+                      return (
+                        <div key={`ui-journey-frame-group:${frameEntry.entryId}`}>
+                          {/* Frame header with sequence number */}
+                          <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
                             <div
                               style={{
-                                width: 2,
-                                flex: 1,
-                                background: "#2B6CB0",
-                                margin: "0 auto",
-                                minHeight: 8,
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: 0,
+                                alignSelf: "stretch",
+                                flexShrink: 0,
+                                width: 28,
+                                paddingTop: 0,
                               }}
-                            />
-                          )}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              background: "#2B6CB0",
-                              borderRadius: 8,
-                              padding: "8px 14px",
-                              marginTop: 4,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 8,
-                            }}
-                          >
-                            {hasTitle && (
-                              <span
-                                style={{
-                                  fontWeight: 700,
-                                  fontSize: 13,
-                                  color: "#ffffff",
-                                }}
-                              >
-                                {regularHeading}
-                              </span>
-                            )}
-                            {!hasTitle && visibleFields.length === 0 && (
-                              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", fontStyle: "italic" }}>
-                                No title
-                              </span>
-                            )}
-                          </div>
-                          {visibleFields.length > 0 && (
-                            <div style={{ marginTop: 4, display: "grid", gap: 4 }}>
-                              {visibleFields.map((field) => (
-                                <div
-                                  key={`${entry.nodeId}:${field.id ?? field.label}`}
-                                  style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 4, alignItems: "baseline" }}
-                                >
-                                  <div style={regularFieldLabelStyle}>{field.label}</div>
-                                  <div style={regularFieldValueStyle}>{field.value.trim()}</div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={`ui-journey-conversation:${entry.entryId}`}
-                      style={{ display: "flex", gap: 16, alignItems: "stretch" }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          gap: 0,
-                          alignSelf: "stretch",
-                          flexShrink: 0,
-                          width: 28,
-                          paddingTop: 0,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: "50%",
-                            marginTop: 2,
-                            background: "#2B6CB0",
-                            color: "#fff",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {entryIndex + 1}
-                        </div>
-                        {entryIndex < uiJourneyConversationSnapshot.length - 1 && (
-                          <div
-                            style={{
-                              width: 2,
-                              flex: 1,
-                              background: "#2B6CB0",
-                              margin: "0 auto",
-                              minHeight: 8,
-                            }}
-                          />
-                        )}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0, ...(isMultiTermChild ? { marginLeft: 24 } : {}) }}>
-                        {hasTitle && (
-                          <div
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 700,
-                              color: "#1A365D",
-                              marginTop: 8,
-                              marginBottom: 4,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <span>{regularHeading}</span>
-                            {isOrphanEntry && (
-                              <span
-                                style={{
-                                  fontSize: 9,
-                                  fontWeight: 700,
-                                  color: "#b91c1c",
-                                  border: "1px solid #fecaca",
-                                  borderRadius: 999,
-                                  background: "#fee2e2",
-                                  padding: "1px 6px",
-                                  lineHeight: 1.35,
-                                }}
-                              >
-                                (Orphaned)
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        <section
-                          style={{
-                            border: isOrphanEntry
-                              ? "1px solid #fecaca"
-                              : isMultiTermChild
-                                ? "1px solid rgba(43,108,176,0.25)"
-                                : "1px solid rgba(43,108,176,0.15)",
-                            borderRadius: 10,
-                            background: isOrphanEntry ? "#fef2f2" : isMultiTermChild ? "#f8fbff" : "#ffffff",
-                            padding: "10px 12px",
-                            width: "100%",
-                          }}
-                        >
-                          <div style={{ display: "grid", gap: 6 }}>
-                            {visibleFields.length > 0 ? (
-                              visibleFields.map((field) => (
-                                <div
-                                  key={`${entry.nodeId}:${field.id ?? field.label}`}
-                                  style={{
-                                    display: "grid",
-                                    gridTemplateColumns: "110px 1fr",
-                                    gap: 4,
-                                    alignItems: "baseline",
-                                  }}
-                                >
-                                  <div style={regularFieldLabelStyle}>{field.label}</div>
-                                  <div style={regularFieldValueStyle}>{field.value.trim()}</div>
-                                </div>
-                              ))
-                            ) : (
+                            >
                               <div
                                 style={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: "50%",
+                                  marginTop: 2,
+                                  background: "#2B6CB0",
+                                  color: "#fff",
                                   fontSize: 12,
-                                  color: isOrphanEntry ? "#b91c1c" : "#94a3b8",
-                                  textAlign: "left",
-                                  fontStyle: "italic",
+                                  fontWeight: 700,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  flexShrink: 0,
                                 }}
                               >
-                                No copy fields provided.
+                                {frameSequenceIndex + 1}
                               </div>
-                            )}
-                            {hasBodyText && (
                               <div
                                 style={{
-                                  display: "grid",
-                                  gridTemplateColumns: "110px 1fr",
-                                  gap: 4,
-                                  alignItems: "baseline",
+                                  width: 2,
+                                  flex: 1,
+                                  background: "#2B6CB0",
+                                  margin: "0 auto",
+                                  minHeight: 8,
                                 }}
-                              >
-                                <div style={regularFieldLabelStyle}>Body</div>
-                                <div
-                                  style={{
-                                    ...regularFieldValueStyle,
-                                    fontSize: 14,
-                                    textAlign: "left",
-                                    whiteSpace: "pre-wrap",
-                                  }}
-                                >
-                                  {trimmedBodyText}
-                                </div>
-                              </div>
-                            )}
-                            {hasNotes && (
+                              />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
                               <div
                                 style={{
-                                  display: "grid",
-                                  gridTemplateColumns: "110px 1fr",
-                                  gap: 4,
-                                  alignItems: "baseline",
+                                  border: "2px solid #2B6CB0",
+                                  borderRadius: 12,
+                                  padding: "12px 14px 8px 14px",
+                                  background: "#f0f5fa",
+                                  marginTop: 4,
+                                  marginBottom: 4,
                                 }}
                               >
-                                <div style={regularFieldLabelStyle}>Notes</div>
-                                <div
-                                  style={{
-                                    ...regularFieldValueStyle,
-                                    fontSize: 14,
-                                    textAlign: "left",
-                                    whiteSpace: "pre-wrap",
-                                  }}
-                                >
-                                  {trimmedNotes}
+                                {frameHasTitle && (
+                                  <div
+                                    style={{
+                                      textAlign: "center",
+                                      fontWeight: 700,
+                                      fontSize: 14,
+                                      color: "#2B6CB0",
+                                      marginBottom: 4,
+                                    }}
+                                  >
+                                    {frameEntry.title.trim()}
+                                  </div>
+                                )}
+                                {frameVisibleFields.length > 0 && (
+                                  <div style={{ textAlign: "center", fontSize: 12, color: "#5A7FA3", marginBottom: 4 }}>
+                                    {frameVisibleFields.map((field) => field.value.trim()).filter(Boolean).join(" · ")}
+                                  </div>
+                                )}
+                                {frameHasNotes && (
+                                  <div style={{ textAlign: "center", fontSize: 11, color: "#5A7FA3", fontStyle: "italic", marginBottom: 4 }}>
+                                    {frameEntry.notes.trim()}
+                                  </div>
+                                )}
+
+                                {/* Children rendered INSIDE the frame boundary */}
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                  {group.entries.map((entry) => {
+                                    const currentIndex = globalEntryIndex;
+                                    globalEntryIndex++;
+                                    const isMultiTermHeader =
+                                      (entry.nodeType === "horizontal_multi_term" || entry.nodeType === "vertical_multi_term") &&
+                                      !entry.entryId.includes(":cell:");
+                                    const isMultiTermChild = entry.entryId.includes(":cell:");
+                                    const hasTitle = entry.title && entry.title.trim().length > 0 && entry.title.trim() !== "Untitled";
+                                    const isOrphanEntry = entry.connectionMeta.isOrphan;
+                                    const visibleFields = entry.fields.filter(
+                                      (field) => typeof field.value === "string" && field.value.trim().length > 0
+                                    );
+                                    const hasBodyText = typeof entry.bodyText === "string" && entry.bodyText.trim().length > 0;
+                                    const hasNotes = typeof entry.notes === "string" && entry.notes.trim().length > 0;
+                                    const regularFieldLabelStyle: React.CSSProperties = {
+                                      fontSize: 11, color: "#5A7FA3", fontWeight: 600, textTransform: "uppercase",
+                                    };
+                                    const regularFieldValueStyle: React.CSSProperties = {
+                                      fontSize: 14, color: "#1A365D", fontWeight: 600,
+                                    };
+
+                                    if (isMultiTermHeader) {
+                                      return (
+                                        <div key={`ui-journey-conversation:${entry.entryId}`} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                                          <div
+                                            style={{
+                                              width: 24, height: 24, borderRadius: "50%", background: "#2B6CB0",
+                                              color: "#fff", fontSize: 11, fontWeight: 700, display: "flex",
+                                              alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 4,
+                                            }}
+                                          >
+                                            {currentIndex + 1}
+                                          </div>
+                                          <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div
+                                              style={{
+                                                background: "#2B6CB0", borderRadius: 8, padding: "8px 14px",
+                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                              }}
+                                            >
+                                              {hasTitle && (
+                                                <span style={{ fontWeight: 700, fontSize: 13, color: "#ffffff" }}>
+                                                  {entry.title.trim()}
+                                                </span>
+                                              )}
+                                              {!hasTitle && visibleFields.length === 0 && (
+                                                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", fontStyle: "italic" }}>
+                                                  No title
+                                                </span>
+                                              )}
+                                            </div>
+                                            {visibleFields.length > 0 && (
+                                              <div style={{ marginTop: 4, display: "grid", gap: 4 }}>
+                                                {visibleFields.map((field) => (
+                                                  <div key={`${entry.nodeId}:${field.id ?? field.label}`} style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 4, alignItems: "baseline" }}>
+                                                    <div style={regularFieldLabelStyle}>{field.label}</div>
+                                                    <div style={regularFieldValueStyle}>{field.value.trim()}</div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+
+                                    return (
+                                      <div key={`ui-journey-conversation:${entry.entryId}`} style={{ display: "flex", gap: 12, alignItems: "flex-start", ...(isMultiTermChild ? { marginLeft: 24 } : {}) }}>
+                                        <div
+                                          style={{
+                                            width: 24, height: 24, borderRadius: "50%", background: "#2B6CB0",
+                                            color: "#fff", fontSize: 11, fontWeight: 700, display: "flex",
+                                            alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 4,
+                                          }}
+                                        >
+                                          {currentIndex + 1}
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                          {hasTitle && (
+                                            <div style={{ fontSize: 14, fontWeight: 700, color: "#1A365D", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                                              <span>{entry.title.trim()}</span>
+                                            </div>
+                                          )}
+                                          <section
+                                            style={{
+                                              border: isMultiTermChild ? "1px solid rgba(43,108,176,0.25)" : "1px solid rgba(43,108,176,0.15)",
+                                              borderRadius: 10,
+                                              background: isMultiTermChild ? "#f8fbff" : "#ffffff",
+                                              padding: "10px 12px",
+                                              width: "100%",
+                                            }}
+                                          >
+                                            <div style={{ display: "grid", gap: 6 }}>
+                                              {visibleFields.length > 0 ? (
+                                                visibleFields.map((field) => (
+                                                  <div key={`${entry.nodeId}:${field.id ?? field.label}`} style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 4, alignItems: "baseline" }}>
+                                                    <div style={regularFieldLabelStyle}>{field.label}</div>
+                                                    <div style={regularFieldValueStyle}>{field.value.trim()}</div>
+                                                  </div>
+                                                ))
+                                              ) : (
+                                                <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "left", fontStyle: "italic" }}>
+                                                  No copy fields provided.
+                                                </div>
+                                              )}
+                                              {hasBodyText && (
+                                                <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 4, alignItems: "baseline" }}>
+                                                  <div style={regularFieldLabelStyle}>Body</div>
+                                                  <div style={{ ...regularFieldValueStyle, fontSize: 14, textAlign: "left", whiteSpace: "pre-wrap" }}>
+                                                    {entry.bodyText.trim()}
+                                                  </div>
+                                                </div>
+                                              )}
+                                              {hasNotes && (
+                                                <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 4, alignItems: "baseline" }}>
+                                                  <div style={regularFieldLabelStyle}>Notes</div>
+                                                  <div style={{ ...regularFieldValueStyle, fontSize: 14, textAlign: "left", whiteSpace: "pre-wrap" }}>
+                                                    {entry.notes.trim()}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </section>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Non-frame entries (standalone)
+                    return group.entries.map((entry) => {
+                      const currentIndex = globalEntryIndex;
+                      globalEntryIndex++;
+                      const isMultiTermHeader =
+                        (entry.nodeType === "horizontal_multi_term" || entry.nodeType === "vertical_multi_term") &&
+                        !entry.entryId.includes(":cell:");
+                      const isMultiTermChild = entry.entryId.includes(":cell:");
+                      const hasTitle = entry.title && entry.title.trim().length > 0 && entry.title.trim() !== "Untitled";
+                      const isOrphanEntry = entry.connectionMeta.isOrphan;
+                      const visibleFields = entry.fields.filter(
+                        (field) => typeof field.value === "string" && field.value.trim().length > 0
+                      );
+                      const hasBodyText = typeof entry.bodyText === "string" && entry.bodyText.trim().length > 0;
+                      const hasNotes = typeof entry.notes === "string" && entry.notes.trim().length > 0;
+                      const isLastEntry = currentIndex === uiJourneyConversationSnapshot.length - 1;
+                      const regularFieldLabelStyle: React.CSSProperties = {
+                        fontSize: 11, color: "#5A7FA3", fontWeight: 600, textTransform: "uppercase",
+                      };
+                      const regularFieldValueStyle: React.CSSProperties = {
+                        fontSize: 14, color: "#1A365D", fontWeight: 600,
+                      };
+
+                      if (isMultiTermHeader) {
+                        return (
+                          <div key={`ui-journey-conversation:${entry.entryId}`} style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
+                            <div
+                              style={{
+                                display: "flex", flexDirection: "column", alignItems: "center",
+                                gap: 0, alignSelf: "stretch", flexShrink: 0, width: 28, paddingTop: 0,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 28, height: 28, borderRadius: "50%", marginTop: 2,
+                                  background: "#2B6CB0", color: "#fff", fontSize: 12, fontWeight: 700,
+                                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                                }}
+                              >
+                                {currentIndex + 1}
+                              </div>
+                              {!isLastEntry && (
+                                <div style={{ width: 2, flex: 1, background: "#2B6CB0", margin: "0 auto", minHeight: 8 }} />
+                              )}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div
+                                style={{
+                                  background: "#2B6CB0", borderRadius: 8, padding: "8px 14px", marginTop: 4,
+                                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                                }}
+                              >
+                                {hasTitle && (
+                                  <span style={{ fontWeight: 700, fontSize: 13, color: "#ffffff" }}>{entry.title.trim()}</span>
+                                )}
+                                {!hasTitle && visibleFields.length === 0 && (
+                                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", fontStyle: "italic" }}>No title</span>
+                                )}
+                              </div>
+                              {visibleFields.length > 0 && (
+                                <div style={{ marginTop: 4, display: "grid", gap: 4 }}>
+                                  {visibleFields.map((field) => (
+                                    <div key={`${entry.nodeId}:${field.id ?? field.label}`} style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 4, alignItems: "baseline" }}>
+                                      <div style={regularFieldLabelStyle}>{field.label}</div>
+                                      <div style={regularFieldValueStyle}>{field.value.trim()}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={`ui-journey-conversation:${entry.entryId}`} style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
+                          <div
+                            style={{
+                              display: "flex", flexDirection: "column", alignItems: "center",
+                              gap: 0, alignSelf: "stretch", flexShrink: 0, width: 28, paddingTop: 0,
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 28, height: 28, borderRadius: "50%", marginTop: 2,
+                                background: "#2B6CB0", color: "#fff", fontSize: 12, fontWeight: 700,
+                                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                              }}
+                            >
+                              {currentIndex + 1}
+                            </div>
+                            {!isLastEntry && (
+                              <div style={{ width: 2, flex: 1, background: "#2B6CB0", margin: "0 auto", minHeight: 8 }} />
                             )}
                           </div>
-                        </section>
-                      </div>
-                    </div>
-                  );
-                })}
+                          <div style={{ flex: 1, minWidth: 0, ...(isMultiTermChild ? { marginLeft: 24 } : {}) }}>
+                            {hasTitle && (
+                              <div style={{ fontSize: 14, fontWeight: 700, color: "#1A365D", marginTop: 8, marginBottom: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                <span>{entry.title.trim()}</span>
+                                {isOrphanEntry && (
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#b91c1c", border: "1px solid #fecaca", borderRadius: 999, background: "#fee2e2", padding: "1px 6px", lineHeight: 1.35 }}>
+                                    (Orphaned)
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            <section
+                              style={{
+                                border: isOrphanEntry ? "1px solid #fecaca" : isMultiTermChild ? "1px solid rgba(43,108,176,0.25)" : "1px solid rgba(43,108,176,0.15)",
+                                borderRadius: 10,
+                                background: isOrphanEntry ? "#fef2f2" : isMultiTermChild ? "#f8fbff" : "#ffffff",
+                                padding: "10px 12px",
+                                width: "100%",
+                              }}
+                            >
+                              <div style={{ display: "grid", gap: 6 }}>
+                                {visibleFields.length > 0 ? (
+                                  visibleFields.map((field) => (
+                                    <div key={`${entry.nodeId}:${field.id ?? field.label}`} style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 4, alignItems: "baseline" }}>
+                                      <div style={regularFieldLabelStyle}>{field.label}</div>
+                                      <div style={regularFieldValueStyle}>{field.value.trim()}</div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div style={{ fontSize: 12, color: isOrphanEntry ? "#b91c1c" : "#94a3b8", textAlign: "left", fontStyle: "italic" }}>
+                                    No copy fields provided.
+                                  </div>
+                                )}
+                                {hasBodyText && (
+                                  <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 4, alignItems: "baseline" }}>
+                                    <div style={regularFieldLabelStyle}>Body</div>
+                                    <div style={{ ...regularFieldValueStyle, fontSize: 14, textAlign: "left", whiteSpace: "pre-wrap" }}>{entry.bodyText.trim()}</div>
+                                  </div>
+                                )}
+                                {hasNotes && (
+                                  <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 4, alignItems: "baseline" }}>
+                                    <div style={regularFieldLabelStyle}>Notes</div>
+                                    <div style={{ ...regularFieldValueStyle, fontSize: 14, textAlign: "left", whiteSpace: "pre-wrap" }}>{entry.notes.trim()}</div>
+                                  </div>
+                                )}
+                              </div>
+                            </section>
+                          </div>
+                        </div>
+                      );
+                    });
+                  });
+                })()}
 
                 <div
                   style={{
