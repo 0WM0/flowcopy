@@ -836,7 +836,7 @@ export const buildUiJourneyConversationEntries = ({
                 normalizedCellLabel.length > 0
                   ? normalizedCellLabel
                   : `Cell ${group.column + 1}`,
-              fields: groupSlots.flatMap((slot) => {
+              fields: groupSlots.filter((slot) => slot.position !== 0).flatMap((slot) => {
                 const normalizedTermType = slot.termType?.trim().toLowerCase();
                 if (
                   normalizedTermType === "body_text" ||
@@ -966,7 +966,7 @@ export const buildUiJourneyConversationEntries = ({
                 normalizedPrimarySlotValue.length > 0
                   ? normalizedPrimarySlotValue
                   : `Term ${group.column + 1}`,
-              fields: groupSlots.flatMap((slot) => {
+              fields: groupSlots.filter((slot) => slot.position !== 0).flatMap((slot) => {
                 const normalizedTermType = slot.termType?.trim().toLowerCase();
                 if (
                   normalizedTermType === "body_text" ||
