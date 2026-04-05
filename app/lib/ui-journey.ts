@@ -248,6 +248,11 @@ export const buildUiJourneyConversationFields = (
   nodeId: string,
   nodeData: MicrocopyNodeData
 ): UiJourneyConversationField[] => {
+  const isConversationDuplicateSlot = (termType: string | null): boolean => {
+    const normalizedTermType = termType?.trim().toLowerCase();
+    return normalizedTermType === "body_text" || normalizedTermType === "notes";
+  };
+
   if (
     nodeData.node_type === "vertical_multi_term" ||
     nodeData.node_type === "horizontal_multi_term"
@@ -270,6 +275,7 @@ export const buildUiJourneyConversationFields = (
     return sortedGroups.flatMap((group) =>
       normalizedContentConfig.slots
         .filter((slot) => slot.groupId === group.id)
+        .filter((slot) => !isConversationDuplicateSlot(slot.termType))
         .sort((a, b) => a.position - b.position)
         .flatMap((slot) => {
           const normalizedValue = slot.value.trim();
@@ -295,6 +301,7 @@ export const buildUiJourneyConversationFields = (
   );
 
   return [...normalizedContentConfig.slots]
+    .filter((slot) => !isConversationDuplicateSlot(slot.termType))
     .sort((a, b) => a.position - b.position)
     .flatMap((slot) => {
       const normalizedValue = slot.value.trim();
@@ -830,6 +837,14 @@ export const buildUiJourneyConversationEntries = ({
                   ? normalizedCellLabel
                   : `Cell ${group.column + 1}`,
               fields: groupSlots.flatMap((slot) => {
+                const normalizedTermType = slot.termType?.trim().toLowerCase();
+                if (
+                  normalizedTermType === "body_text" ||
+                  normalizedTermType === "notes"
+                ) {
+                  return [];
+                }
+
                 const normalizedValue = slot.value.trim();
                 if (!normalizedValue) {
                   return [];
@@ -952,6 +967,14 @@ export const buildUiJourneyConversationEntries = ({
                   ? normalizedPrimarySlotValue
                   : `Term ${group.column + 1}`,
               fields: groupSlots.flatMap((slot) => {
+                const normalizedTermType = slot.termType?.trim().toLowerCase();
+                if (
+                  normalizedTermType === "body_text" ||
+                  normalizedTermType === "notes"
+                ) {
+                  return [];
+                }
+
                 const normalizedValue = slot.value.trim();
                 if (!normalizedValue) {
                   return [];
