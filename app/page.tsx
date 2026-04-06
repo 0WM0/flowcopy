@@ -13237,12 +13237,32 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                         <div key={`ui-journey-conversation:${entry.entryId}`} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                                           <div
                                             style={{
-                                              width: 24, height: 24, borderRadius: "50%", background: "#2B6CB0",
-                                              color: "#fff", fontSize: 11, fontWeight: 700, display: "flex",
-                                              alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 4,
+                                              display: "flex",
+                                              flexDirection: "column",
+                                              alignItems: "center",
+                                              alignSelf: "stretch",
+                                              flexShrink: 0,
+                                              width: 24,
                                             }}
                                           >
-                                            {currentIndex + 1}
+                                            <div
+                                              style={{
+                                                width: 24, height: 24, borderRadius: "50%", background: "#2B6CB0",
+                                                color: "#fff", fontSize: 11, fontWeight: 700, display: "flex",
+                                                alignItems: "center", justifyContent: "center", flexShrink: 0,
+                                              }}
+                                            >
+                                              {currentIndex + 1}
+                                            </div>
+                                            <div
+                                              style={{
+                                                width: 2,
+                                                flex: 1,
+                                                background: "#2B6CB0",
+                                                margin: "0 auto",
+                                                minHeight: 4,
+                                              }}
+                                            />
                                           </div>
                                           <div style={{ flex: 1, minWidth: 0 }}>
                                             <div
@@ -13289,12 +13309,32 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                       <div key={`ui-journey-conversation:${entry.entryId}`} style={{ display: "flex", gap: 12, alignItems: "flex-start", ...(isMultiTermChild ? { marginLeft: 24 } : {}) }}>
                                         <div
                                           style={{
-                                            width: 24, height: 24, borderRadius: "50%", background: "#2B6CB0",
-                                            color: "#fff", fontSize: 11, fontWeight: 700, display: "flex",
-                                            alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 4,
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            alignItems: "center",
+                                            alignSelf: "stretch",
+                                            flexShrink: 0,
+                                            width: 24,
                                           }}
                                         >
-                                          {currentIndex + 1}
+                                          <div
+                                            style={{
+                                              width: 24, height: 24, borderRadius: "50%", background: "#2B6CB0",
+                                              color: "#fff", fontSize: 11, fontWeight: 700, display: "flex",
+                                              alignItems: "center", justifyContent: "center", flexShrink: 0,
+                                            }}
+                                          >
+                                            {currentIndex + 1}
+                                          </div>
+                                          <div
+                                            style={{
+                                              width: 2,
+                                              flex: 1,
+                                              background: "#2B6CB0",
+                                              margin: "0 auto",
+                                              minHeight: 4,
+                                            }}
+                                          />
                                         </div>
                                         <div style={{ flex: 1, minWidth: 0 }}>
                                           {hasTitle && (
