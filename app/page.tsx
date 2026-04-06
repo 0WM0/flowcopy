@@ -11711,6 +11711,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     value={selectedNode.data.concept}
                     onChange={(event) => updateSelectedField("concept", event.target.value)}
                   >
+                    <option value="">—</option>
                     {buildSelectOptions(
                       adminOptions.concept,
                       selectedNode.data.concept,
@@ -12297,6 +12298,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     value={selectedNode.data.concept}
                     onChange={(event) => updateSelectedField("concept", event.target.value)}
                   >
+                    <option value="">—</option>
                     {buildSelectOptions(
                       adminOptions.concept,
                       selectedNode.data.concept,
@@ -13249,9 +13251,17 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                                 display: "flex", alignItems: "center", justifyContent: "center",
                                               }}
                                             >
-                                              {hasTitle && (
-                                                <span style={{ fontWeight: 700, fontSize: 13, color: "#ffffff" }}>
-                                                  {entry.title.trim()}
+                                              {(hasTitle || (entry.concept && entry.concept.trim())) && (
+                                                <span style={{ fontWeight: 700, fontSize: 13, color: "#ffffff", display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+                                                  {hasTitle && entry.title.trim()}
+                                                  {hasTitle && entry.concept && entry.concept.trim() && (
+                                                    <span style={{ fontSize: 11, opacity: 0.7 }}>·</span>
+                                                  )}
+                                                  {entry.concept && entry.concept.trim() && (
+                                                    <span style={{ fontWeight: 400, fontSize: 12, opacity: 0.75 }}>
+                                                      {entry.concept.trim()}
+                                                    </span>
+                                                  )}
                                                 </span>
                                               )}
                                               {!hasTitle && visibleFields.length === 0 && (
@@ -13396,8 +13406,18 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                                 }}
                               >
-                                {hasTitle && (
-                                  <span style={{ fontWeight: 700, fontSize: 13, color: "#ffffff" }}>{entry.title.trim()}</span>
+                                {(hasTitle || (entry.concept && entry.concept.trim())) && (
+                                  <span style={{ fontWeight: 700, fontSize: 13, color: "#ffffff", display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+                                    {hasTitle && entry.title.trim()}
+                                    {hasTitle && entry.concept && entry.concept.trim() && (
+                                      <span style={{ fontSize: 11, opacity: 0.7 }}>·</span>
+                                    )}
+                                    {entry.concept && entry.concept.trim() && (
+                                      <span style={{ fontWeight: 400, fontSize: 12, opacity: 0.75 }}>
+                                        {entry.concept.trim()}
+                                      </span>
+                                    )}
+                                  </span>
                                 )}
                                 {!hasTitle && visibleFields.length === 0 && (
                                   <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", fontStyle: "italic" }}>No title</span>

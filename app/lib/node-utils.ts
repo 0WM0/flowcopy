@@ -769,7 +769,7 @@ export const createDefaultNodeData = (
     reversibility:
       overrides.reversibility ??
       firstOptionOrFallback(globalOptions.reversibility, "reversible"),
-    concept: overrides.concept ?? firstOptionOrFallback(globalOptions.concept, ""),
+    concept: overrides.concept ?? "",
     notes: overrides.notes ?? "",
     action_type_name:
       overrides.action_type_name ??

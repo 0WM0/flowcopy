@@ -326,23 +326,6 @@ const buildUiJourneyConversationRibbonHeaderFields = (
 ): UiJourneyConversationField[] => {
   const fields: UiJourneyConversationField[] = [];
 
-  const addField = (label: string, sourceKey: string, value: string) => {
-    const normalizedValue = value.trim();
-    if (!normalizedValue) {
-      return;
-    }
-
-    fields.push({
-      id: buildUiJourneyConversationFieldId(nodeId, sourceKey),
-      sourceKey,
-      label,
-      value: normalizedValue,
-    });
-  };
-
-  addField("Concept", "concept", nodeData.concept);
-  addField("Notes", "notes", nodeData.notes);
-
   return fields;
 };
 
@@ -351,23 +334,6 @@ const buildUiJourneyConversationVmnHeaderFields = (
   nodeData: MicrocopyNodeData
 ): UiJourneyConversationField[] => {
   const fields: UiJourneyConversationField[] = [];
-
-  const addField = (label: string, sourceKey: string, value: string) => {
-    const normalizedValue = value.trim();
-    if (!normalizedValue) {
-      return;
-    }
-
-    fields.push({
-      id: buildUiJourneyConversationFieldId(nodeId, sourceKey),
-      sourceKey,
-      label,
-      value: normalizedValue,
-    });
-  };
-
-  addField("Concept", "concept", nodeData.concept);
-  addField("Notes", "notes", nodeData.notes);
 
   return fields;
 };
