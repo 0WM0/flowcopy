@@ -3923,11 +3923,14 @@ export default function Page() {
   );
 
   const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: FlowNode) => {
+    (event: React.MouseEvent, node: FlowNode) => {
       clearMenuTermDeleteError();
       clearGlossaryHighlights();
       setOpenControlledLanguageFieldType(null);
       setInspectorRegistryPickerSearchQuery("");
+
+      if (event.ctrlKey || event.metaKey) return;
+
       setSelectedNodeId(node.id);
       setSelectedEdgeId(null);
     },
