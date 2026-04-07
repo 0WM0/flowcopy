@@ -13219,7 +13219,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                       !entry.entryId.includes(":cell:");
                                     const isMultiTermChild = entry.entryId.includes(":cell:");
                                     const hasTitle = entry.title && entry.title.trim().length > 0 && entry.title.trim() !== "Untitled";
-                                    const isOrphanEntry = entry.connectionMeta.isOrphan;
+                                    const isOrphanEntry = !isMultiTermChild && entry.connectionMeta.isOrphan;
                                     const visibleFields = entry.fields.filter(
                                       (field) => typeof field.value === "string" && field.value.trim().length > 0
                                     );
