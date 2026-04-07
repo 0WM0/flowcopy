@@ -4593,9 +4593,16 @@ export default function Page() {
     () =>
       nodes.map((node) => {
         const nodeId = node.id;
+        const isFrame = node.data.node_type === "frame";
+        const frameArea = isFrame
+          ? (node.data.frame_config?.width ?? 0) * (node.data.frame_config?.height ?? 0)
+          : null;
 
         return {
           ...node,
+          ...(isFrame && frameArea !== null
+            ? { zIndex: Math.round(10000000 / Math.max(frameArea, 1)) }
+            : {}),
           data: {
             ...node.data,
             sequence_index: ordering.sequenceByNodeId[nodeId] ?? null,
