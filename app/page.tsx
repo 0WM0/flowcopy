@@ -13211,7 +13211,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                                 {/* Children rendered INSIDE the frame boundary */}
                                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                  {group.entries.map((entry) => {
+                                  {group.entries.map((entry, childIndex) => {
                                     const currentIndex = globalEntryIndex;
                                     globalEntryIndex++;
                                     const isMultiTermHeader =
@@ -13254,15 +13254,17 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                             >
                                               {currentIndex + 1}
                                             </div>
-                                            <div
-                                              style={{
-                                                width: 2,
-                                                flex: 1,
-                                                background: "#2B6CB0",
-                                                margin: "0 auto",
-                                                minHeight: 4,
-                                              }}
-                                            />
+                                            {childIndex < group.entries.length - 1 && (
+                                              <div
+                                                style={{
+                                                  width: 2,
+                                                  flex: 1,
+                                                  background: "#2B6CB0",
+                                                  margin: "0 auto",
+                                                  minHeight: 4,
+                                                }}
+                                              />
+                                            )}
                                           </div>
                                           <div style={{ flex: 1, minWidth: 0 }}>
                                             <div
@@ -13326,15 +13328,17 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                           >
                                             {currentIndex + 1}
                                           </div>
-                                          <div
-                                            style={{
-                                              width: 2,
-                                              flex: 1,
-                                              background: "#2B6CB0",
-                                              margin: "0 auto",
-                                              minHeight: 4,
-                                            }}
-                                          />
+                                          {childIndex < group.entries.length - 1 && (
+                                            <div
+                                              style={{
+                                                width: 2,
+                                                flex: 1,
+                                                background: "#2B6CB0",
+                                                margin: "0 auto",
+                                                minHeight: 4,
+                                              }}
+                                            />
+                                          )}
                                         </div>
                                         <div style={{ flex: 1, minWidth: 0 }}>
                                           {hasTitle && (
@@ -13359,11 +13363,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                                     <div style={regularFieldValueStyle}>{field.value.trim()}</div>
                                                   </div>
                                                 ))
-                                              ) : (
+                                              ) : !isMultiTermChild ? (
                                                 <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "left", fontStyle: "italic" }}>
                                                   No copy fields provided.
                                                 </div>
-                                              )}
+                                              ) : null}
                                               {hasBodyText && (
                                                 <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 4, alignItems: "baseline" }}>
                                                   <div style={regularFieldLabelStyle}>Body</div>
@@ -13527,11 +13531,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                       <div style={regularFieldValueStyle}>{field.value.trim()}</div>
                                     </div>
                                   ))
-                                ) : (
+                                ) : !isMultiTermChild ? (
                                   <div style={{ fontSize: 12, color: isOrphanEntry ? "#b91c1c" : "#94a3b8", textAlign: "left", fontStyle: "italic" }}>
                                     No copy fields provided.
                                   </div>
-                                )}
+                                ) : null}
                                 {hasBodyText && (
                                   <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 4, alignItems: "baseline" }}>
                                     <div style={regularFieldLabelStyle}>Body</div>
