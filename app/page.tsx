@@ -4602,7 +4602,7 @@ export default function Page() {
           ...node,
           ...(isFrame && frameArea !== null
             ? { zIndex: Math.round(10000000 / Math.max(frameArea, 1)) }
-            : {}),
+            : { zIndex: node.selected ? 2000 : 1000 }),
           data: {
             ...node.data,
             sequence_index: ordering.sequenceByNodeId[nodeId] ?? null,
@@ -9345,6 +9345,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       >
         <ReactFlow<FlowNode, FlowEdge>
           nodes={nodesWithSequence}
+          elevateNodesOnSelect={false}
           edges={displayEdges}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
