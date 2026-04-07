@@ -9354,7 +9354,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           onEdgeClick={onEdgeClick}
           onSelectionChange={onSelectionChange}
           onMoveStart={closeAllPopups}
-          onZoom={closeAllPopups}
+          onMoveEnd={closeAllPopups}
           zoomOnDoubleClick={false}
           fitView
           connectionLineStyle={EDGE_BASE_STYLE}
