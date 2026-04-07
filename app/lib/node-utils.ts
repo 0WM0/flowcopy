@@ -682,6 +682,36 @@ export const migrateFrameToContentConfig = (title: string): NodeContentConfig =>
   };
 };
 
+export const createDefaultHmnContentConfig = (): NodeContentConfig => {
+  const groupId = createContentGroupId();
+  return {
+    layout: "horizontal",
+    rows: 1,
+    columns: 1,
+    groups: [{ id: groupId, row: 0, column: 0 }],
+    slots: [
+      { id: createContentSlotId(), value: "", termType: "cell_label", groupId, position: 0 },
+      { id: createContentSlotId(), value: "", termType: "key_command", groupId, position: 1 },
+      { id: createContentSlotId(), value: "", termType: "tool_tip", groupId, position: 2 },
+    ],
+    style: NODE_CONTENT_DEFAULT_STYLE,
+  };
+};
+
+export const createDefaultVmnContentConfig = (): NodeContentConfig => {
+  const groupId = createContentGroupId();
+  return {
+    layout: "vertical",
+    rows: 1,
+    columns: 1,
+    groups: [{ id: groupId, row: 0, column: 0 }],
+    slots: [
+      { id: createContentSlotId(), value: "", termType: "menu_term", groupId, position: 0 },
+    ],
+    style: NODE_CONTENT_DEFAULT_STYLE,
+  };
+};
+
 export const buildRibbonSourceHandleId = (cellId: string): string =>
   `${HMN_SOURCE_HANDLE_PREFIX}${cellId}`;
 
@@ -801,15 +831,19 @@ export const createDefaultNodeData = (
         }
         return null;
       })() ??
-      migrateDefaultToContentConfig({
-        title: overrides.title,
-        body_text: overrides.body_text,
-        primary_cta: overrides.primary_cta,
-        secondary_cta: overrides.secondary_cta,
-        helper_text: overrides.helper_text,
-        error_text: overrides.error_text,
-        notes: overrides.notes,
-      }),
+      (nodeType === "horizontal_multi_term"
+        ? createDefaultHmnContentConfig()
+        : nodeType === "vertical_multi_term"
+          ? createDefaultVmnContentConfig()
+          : migrateDefaultToContentConfig({
+              title: overrides.title,
+              body_text: overrides.body_text,
+              primary_cta: overrides.primary_cta,
+              secondary_cta: overrides.secondary_cta,
+              helper_text: overrides.helper_text,
+              error_text: overrides.error_text,
+              notes: overrides.notes,
+            })),
     parallel_group_id:
       typeof overrides.parallel_group_id === "string" &&
       overrides.parallel_group_id.trim().length > 0
