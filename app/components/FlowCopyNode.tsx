@@ -60,6 +60,7 @@ import {
   getNodeVisualSize,
 } from "../lib/node-utils";
 import { syncSequentialEdgesForContentConfig } from "../lib/edge-utils";
+import { useUiStore } from "../lib/ui-store";
 
 function BodyTextPreview({ value }: { value: string }) {
   if (value.trim().length === 0) {
@@ -462,6 +463,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   onResolveDroppedRegistryTerm,
   onAssignPendingRibbonTermToField,
 }: FlowCopyNodeProps) {
+  const closeAllPopupsTick = useUiStore((state) => state.closeAllPopupsTick);
   const { setNodes, setEdges } = useReactFlow<FlowNode, FlowEdge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const frameTitleInputRef = useRef<HTMLInputElement | null>(null);
@@ -1100,6 +1102,12 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     setPendingRibbonRegistryTerm(null);
     setActiveRibbonDropCellId(null);
   }, []);
+
+  useEffect(() => {
+    if (closeAllPopupsTick === 0) return;
+    closeRibbonCellPopup();
+    closeVerticalTermPopup();
+  }, [closeAllPopupsTick, closeRibbonCellPopup, closeVerticalTermPopup]);
 
   const openRibbonCellEditor = useCallback(
     (

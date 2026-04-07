@@ -300,6 +300,7 @@ import {
 } from "./lib/db";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { createClient } from "@/lib/supabase/client";
+import { useUiStore } from "./lib/ui-store";
 
 
 type ImportFeedback = {
@@ -1934,6 +1935,7 @@ type HistorySnapshot = EditorSnapshot & {
 
 export default function Page() {
   const supabase = useMemo(() => createClient(), []);
+  const closeAllPopups = useUiStore((state) => state.closeAllPopups);
 
   const [store, setStore] = useState<AppStore>(createEmptyStore);
   const [newProjectName, setNewProjectName] = useState("");
@@ -9351,6 +9353,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}
           onSelectionChange={onSelectionChange}
+          onMoveStart={closeAllPopups}
+          onZoom={closeAllPopups}
           zoomOnDoubleClick={false}
           fitView
           connectionLineStyle={EDGE_BASE_STYLE}
