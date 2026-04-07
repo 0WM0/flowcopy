@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Handle,
   Position,
@@ -1083,33 +1084,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
   const openVerticalTermEditor = useCallback(
     (rowElement: HTMLDivElement, groupId: string) => {
-      const containerElement = verticalTermsContainerRef.current;
-
-      if (containerElement) {
-        let offsetX = 0;
-        let offsetY = 0;
-        let currentElement: HTMLElement | null = rowElement;
-
-        while (currentElement && currentElement !== containerElement) {
-          offsetX += currentElement.offsetLeft;
-          offsetY += currentElement.offsetTop;
-
-          const nextOffsetParent: Element | null = currentElement.offsetParent;
-          currentElement =
-            nextOffsetParent instanceof HTMLElement ? nextOffsetParent : null;
-        }
-
-        if (currentElement === containerElement) {
-          setVerticalTermPopupPosition({
-            x: offsetX + 8,
-            y: offsetY + rowElement.offsetHeight + 6,
-          });
-        } else {
-          setVerticalTermPopupPosition({ x: 8, y: 8 });
-        }
-      } else {
-        setVerticalTermPopupPosition({ x: 8, y: 8 });
-      }
+      const rect = rowElement.getBoundingClientRect();
+      setVerticalTermPopupPosition({
+        x: rect.left + 8,
+        y: rect.bottom + 6,
+      });
 
       setEditingVerticalGroupId(groupId);
     },
@@ -1128,33 +1107,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       cellId: string,
       pendingTerm: PendingRibbonRegistryTerm | null = null
     ) => {
-      const containerElement = ribbonContainerRef.current;
-
-      if (containerElement) {
-        let offsetX = 0;
-        let offsetY = 0;
-        let currentElement: HTMLElement | null = cellElement;
-
-        while (currentElement && currentElement !== containerElement) {
-          offsetX += currentElement.offsetLeft;
-          offsetY += currentElement.offsetTop;
-
-          const nextOffsetParent: Element | null = currentElement.offsetParent;
-          currentElement =
-            nextOffsetParent instanceof HTMLElement ? nextOffsetParent : null;
-        }
-
-        if (currentElement === containerElement) {
-          setCellPopupPosition({
-            x: offsetX + 8,
-            y: offsetY + cellElement.offsetHeight + 6,
-          });
-        } else {
-          setCellPopupPosition({ x: 8, y: 8 });
-        }
-      } else {
-        setCellPopupPosition({ x: 8, y: 8 });
-      }
+      const rect = cellElement.getBoundingClientRect();
+      setCellPopupPosition({
+        x: rect.left + 8,
+        y: rect.bottom + 6,
+      });
 
       setEditingCellId(cellId);
       setPendingRibbonRegistryTerm(pendingTerm);
@@ -2442,31 +2399,32 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           )}
         </div>
 
-        {editingRibbonCell && (
-          <div
-            ref={ribbonPopupRef}
-            className="nodrag nopan"
-            onPointerDown={(event) => {
-              event.stopPropagation();
-            }}
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
-            style={{
-              position: "absolute",
-              left: cellPopupPosition.x,
-              top: cellPopupPosition.y,
-              width: 220,
-              background: "#ffffff",
-              border: "1px solid #94a3b8",
-              borderRadius: 8,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-              padding: "8px 10px",
-              zIndex: 10,
-              display: "grid",
-              gap: 6,
-            }}
-          >
+        {editingRibbonCell &&
+          createPortal(
+            <div
+              ref={ribbonPopupRef}
+              className="nodrag nopan"
+              onPointerDown={(event) => {
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+              style={{
+                position: "fixed",
+                left: cellPopupPosition.x,
+                top: cellPopupPosition.y,
+                width: 220,
+                background: "#ffffff",
+                border: "1px solid #94a3b8",
+                borderRadius: 8,
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                padding: "8px 10px",
+                zIndex: 9999,
+                display: "grid",
+                gap: 6,
+              }}
+            >
             {pendingRibbonRegistryTerm && (
               <div
                 style={{
@@ -2609,8 +2567,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 Done
               </button>
             </div>
-          </div>
-        )}
+            </div>,
+            document.body
+          )}
       </div>
     );
   }
@@ -3016,31 +2975,32 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 })}
               </div>
 
-              {editingVerticalRow && (
-                <div
-                  ref={verticalTermPopupRef}
-                  className="nodrag nopan"
-                  onPointerDown={(event) => {
-                    event.stopPropagation();
-                  }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                  }}
-                  style={{
-                    position: "absolute",
-                    left: verticalTermPopupPosition.x,
-                    top: verticalTermPopupPosition.y,
-                    width: 220,
-                    background: "#ffffff",
-                    border: "1px solid #94a3b8",
-                    borderRadius: 8,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                    padding: "8px 10px",
-                    zIndex: 10,
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
+              {editingVerticalRow &&
+                createPortal(
+                  <div
+                    ref={verticalTermPopupRef}
+                    className="nodrag nopan"
+                    onPointerDown={(event) => {
+                      event.stopPropagation();
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                    }}
+                    style={{
+                      position: "fixed",
+                      left: verticalTermPopupPosition.x,
+                      top: verticalTermPopupPosition.y,
+                      width: 220,
+                      background: "#ffffff",
+                      border: "1px solid #94a3b8",
+                      borderRadius: 8,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                      padding: "8px 10px",
+                      zIndex: 9999,
+                      display: "grid",
+                      gap: 6,
+                    }}
+                  >
                   {pendingVerticalRegistryTerm && (
                     <div
                       style={{
@@ -3185,8 +3145,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       Done
                     </button>
                   </div>
-                </div>
-              )}
+                  </div>,
+                  document.body
+                )}
             </div>
           </>
         ) : (
