@@ -1143,15 +1143,15 @@ const FEEDBACK_MAX_MESSAGE_LENGTH = 5000;
 const HELP_CANVAS_SHORTCUTS: HelpShortcutDefinition[] = [
   {
     keys: "Tab",
-    description: "Add a Default node at the pointer position in Canvas mode.",
+    description: "Add a Card at the pointer position in Canvas mode.",
   },
   {
     keys: "Shift + Tab",
-    description: "Add a Menu node at the pointer position in Canvas mode.",
+    description: "Add a Vertical Card at the pointer position in Canvas mode.",
   },
   {
     keys: "Shift + R",
-    description: "Add a Ribbon node at the pointer position in Canvas mode.",
+    description: "Add a Horizontal Card at the pointer position in Canvas mode.",
   },
   {
     keys: "Shift + F",
@@ -1208,10 +1208,6 @@ const HELP_CONTEXT_SHORTCUTS: HelpShortcutDefinition[] = [
     description: "Add a new term from the Term Registry draft value input.",
   },
   {
-    keys: "Enter (Menu right connections)",
-    description: "Commit and normalize menu right-connections value.",
-  },
-  {
     keys: "Enter / Space (Frame title chip)",
     description: "Start frame-title editing.",
   },
@@ -1224,12 +1220,12 @@ const HELP_CONTEXT_SHORTCUTS: HelpShortcutDefinition[] = [
     description: "Exit frame-title editing.",
   },
   {
-    keys: "Enter / Space (Ribbon cell)",
-    description: "Open Ribbon cell editor popup.",
+    keys: "Enter / Space (Vertical Card cell)",
+    description: "Open Vertical Card cell editor popup.",
   },
   {
-    keys: "Escape (Ribbon cell popup)",
-    description: "Close Ribbon cell editor popup.",
+    keys: "Escape (Vertical Card cell popup)",
+    description: "Close Vertical Card cell editor popup.",
   },
 ];
 
@@ -9799,9 +9795,9 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
         <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#52525b" }}>
           Click a node to edit structured fields. Double-click empty canvas to add a
-          default node. Keyboard shortcuts: <strong>Tab</strong> adds Default, and
-          <strong> Shift+Tab</strong> adds Menu at the pointer position.
-          <strong> Shift+R</strong> adds Ribbon at the pointer position.
+          Card. Keyboard shortcuts: <strong>Tab</strong> adds Card, and
+          <strong> Shift+Tab</strong> adds Vertical Card at the pointer position.
+          <strong> Shift+R</strong> adds Horizontal Card at the pointer position.
           <strong> Shift+F</strong> frames selected nodes. <strong>Ctrl/Cmd+C</strong>
           copies selected nodes (including frame members), and
           <strong> Ctrl/Cmd+V</strong> pastes non-destructive duplicates. All changes autosave. Use
@@ -9836,7 +9832,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         {hasExactlyOneSelectedNode && selectedNode?.data.node_type === "vertical_multi_term" && (
           <>
             <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
-              Menu node mode: edit Menu Terms below. These
+              Vertical Card mode: edit term rows below. These
               terms use the Menu Term glossary.
             </p>
 

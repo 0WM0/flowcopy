@@ -15,15 +15,15 @@ type HelpShortcutDefinition = {
 const HELP_CANVAS_SHORTCUTS: HelpShortcutDefinition[] = [
   {
     keys: "Tab",
-    description: "Add a Default node at the pointer position in Canvas mode.",
+    description: "Add a Card at the pointer position in Canvas mode.",
   },
   {
     keys: "Shift + Tab",
-    description: "Add a Menu node at the pointer position in Canvas mode.",
+    description: "Add a Vertical Card at the pointer position in Canvas mode.",
   },
   {
     keys: "Shift + R",
-    description: "Add a Ribbon node at the pointer position in Canvas mode.",
+    description: "Add a Horizontal Card at the pointer position in Canvas mode.",
   },
   {
     keys: "Shift + F",
@@ -80,10 +80,6 @@ const HELP_CONTEXT_SHORTCUTS: HelpShortcutDefinition[] = [
     description: "Add a new term from the Term Registry draft value input.",
   },
   {
-    keys: "Enter (Menu right connections)",
-    description: "Commit and normalize menu right-connections value.",
-  },
-  {
     keys: "Enter / Space (Frame title chip)",
     description: "Start frame-title editing.",
   },
@@ -96,12 +92,12 @@ const HELP_CONTEXT_SHORTCUTS: HelpShortcutDefinition[] = [
     description: "Exit frame-title editing.",
   },
   {
-    keys: "Enter / Space (Ribbon cell)",
-    description: "Open Ribbon cell editor popup.",
+    keys: "Enter / Space (Vertical Card cell)",
+    description: "Open Vertical Card cell editor popup.",
   },
   {
-    keys: "Escape (Ribbon cell popup)",
-    description: "Close Ribbon cell editor popup.",
+    keys: "Escape (Vertical Card cell popup)",
+    description: "Close Vertical Card cell editor popup.",
   },
 ];
 
@@ -220,10 +216,10 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
           </h4>
           <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 12 }}>
             <li>
-              <strong>Create nodes:</strong> double-click empty canvas to add a Default node. Use Tab (child node), Shift+Tab (sibling), or Shift+R (ribbon) for fast creation from a selected node.
+              <strong>Create nodes:</strong> double-click empty canvas to add a Card. Use Tab (Card), Shift+Tab (Vertical Card), or Shift+R (Horizontal Card) for fast creation from a selected node.
             </li>
             <li>
-              <strong>Node types:</strong> Default (text fields for microcopy), Menu (configurable options with right-side connections), Ribbon (multi-cell grid for toolbar-style UI).
+              <strong>Node types:</strong> Card (text fields for microcopy, including an optional body text field for longer copy). Vertical Card (configurable term rows with right-side connections). Horizontal Card (multi-cell grid for toolbar-style UI).
             </li>
             <li>
               <strong>Connect nodes:</strong> drag from a source handle on one node to a target handle on another to create an edge.
@@ -232,7 +228,7 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
               <strong>Edit edges:</strong> click an edge to open the Edge Inspector. Adjust color, style, and direction.
             </li>
             <li>
-              <strong>Frame nodes:</strong> select two or more non-frame nodes and press Shift+F to group them into a frame. Frames represent screens, components, or logical groups. The frame title appears in exports.
+              <strong>Frame nodes:</strong> select two or more nodes and press Shift+F to group them into a frame. Frames represent screens, components, or logical groups. The frame title appears in exports.
             </li>
             <li>
               <strong>Copy and paste:</strong> select node(s), Ctrl/Cmd+C to copy, Ctrl/Cmd+V to paste. Pasted nodes get new IDs. Frame copies include their member nodes.
@@ -272,13 +268,13 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
               <strong>Admin tab:</strong> Global attribute option lists (Tone, Polarity, Reversibility, Concept, Action Type, Card Style). Sequence ID display. Project-level settings.
             </li>
             <li>
-              <strong>Menu nodes:</strong> show configurable menu terms with right-side connections. Each term has its own 📋 registry picker.
+              <strong>Vertical Cards:</strong> show configurable term rows with right-side connections. Each term has its own 📋 registry picker.
             </li>
             <li>
-              <strong>Ribbon nodes:</strong> show a cell grid. Each cell has Label, Key Command, and Tool Tip fields, each with its own 📋 registry picker.
+              <strong>Horizontal Cards:</strong> show a cell grid. Each cell has Label, Key Command, and Tool Tip fields, each with its own 📋 registry picker.
             </li>
             <li>
-              <strong>Body Text:</strong> a multi-line text field on Default nodes for longer copy (instructions, descriptions, onboarding text). Renders as a textarea on the canvas when visible.
+              <strong>Body Text:</strong> a multi-line text field available on all node types for longer copy (instructions, descriptions, onboarding text).
             </li>
           </ul>
         </section>
@@ -306,13 +302,13 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
               <strong>Assign terms:</strong> click the 📋 button on any supported field to open the registry filtered to that field type. Pick a term to assign it. If the term is already assigned elsewhere, you can confirm to create a duplicate assignment.
             </li>
             <li>
-              <strong>Drag from registry:</strong> drag a term from the registry to an empty canvas area to create a new node with that term. Drag to a Default node field to assign it. Drag to a ribbon cell to open the cell editor with the term pre-loaded.
+              <strong>Drag from registry:</strong> drag a term from the registry to an empty canvas area to create a new node with that term. Drag to a Card field to assign it. Drag to a Horizontal Card cell to open the cell editor with the term pre-loaded.
             </li>
             <li>
               <strong>Reference keys:</strong> user-defined identifiers per term (e.g., checkout.confirm.primary_cta). These travel with the export and map to string keys in your codebase. Lock a key once it is confirmed correct.
             </li>
             <li>
-              <strong>Term types:</strong> 8 types for classification — Primary CTA, Secondary CTA, Helper Text, Error Text, Body Text, Menu Term, Key Command, Tool Tip.
+              <strong>Term types:</strong> 12 built-in types — Untyped, Title, Body Text, Primary CTA, Secondary CTA, Helper Text, Error Text, Notes, Menu Term, Key Command, Tool Tip, Cell Label. Additional types can be defined by the user.
             </li>
             <li>
               <strong>Highlighting:</strong> click a term occurrence or assigned registry entry to highlight matching nodes on the canvas. Path highlights and term highlights coexist — dismiss them independently.
@@ -402,7 +398,7 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
               <strong>Term Registry (right panel, Edit+Govern tab):</strong> always visible below the node fields. Add, edit, filter, and manage governed terms.
             </li>
             <li>
-              <strong>Table View:</strong> toggle from the top action bar. Tabular view of all node data with dynamic columns for menu terms and ribbon cells. Useful for scanning and reviewing across nodes.
+              <strong>Table View:</strong> toggle from the top action bar. Tabular view of all node data with dynamic columns for Vertical Card terms and Horizontal Card cells. Useful for scanning and reviewing across nodes.
             </li>
           </ul>
         </section>
