@@ -354,7 +354,7 @@ const CLP_EXPORT_FIELD_OPTIONS: Array<{ key: ClpExportFieldKey; label: string }>
   { key: "title", label: "Title" },
   { key: "termValue", label: "Term value" },
   { key: "referenceKey", label: "Reference key" },
-  { key: "nodeType", label: "Node type" },
+  { key: "nodeType", label: "Card type" },
   { key: "sequenceNumber", label: "Sequence number" },
   { key: "assignmentStatus", label: "Assignment status" },
 ];
@@ -366,7 +366,7 @@ const CLP_IMPORT_FIELD_OPTIONS: Array<{
 }> = [
   { key: "termValue", label: "Term Value", required: true },
   { key: "referenceKey", label: "Reference Key", required: false },
-  { key: "nodeType", label: "Node Type", required: false },
+  { key: "nodeType", label: "Card Type", required: false },
   { key: "sequenceNumber", label: "Sequence Number", required: false },
   { key: "assignmentStatus", label: "Assignment Status", required: false },
 ];
@@ -5531,7 +5531,7 @@ export default function Page() {
       }
 
       const shouldRemove = window.confirm(
-        "Remove this term from the registry? The text in the node field will be kept but will no longer be tracked."
+        "Remove this term from the registry? The text in the card field will be kept but will no longer be tracked."
       );
 
       if (!shouldRemove) {
@@ -9409,9 +9409,9 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         />
 
         {[
-          { key: "default", label: "D", title: "Add Default node" },
-          { key: "horizontal_multi_term", label: "H", title: "Add Horizontal node" },
-          { key: "vertical_multi_term", label: "V", title: "Add Vertical node" },
+          { key: "default", label: "D", title: "Add Card" },
+          { key: "horizontal_multi_term", label: "H", title: "Add Horizontal Card" },
+          { key: "vertical_multi_term", label: "V", title: "Add Vertical Card" },
         ].map((item) => (
           <button
             key={`side-tab-add:${item.key}`}
@@ -10120,10 +10120,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                 }
                                 title={
                                   row.occurrences === 0
-                                    ? "No nodes contain this term"
+                                    ? "No cards contain this term"
                                     : activeGlossaryHighlightKey === rowKey
-                                      ? "Click to clear highlighted nodes"
-                                      : "Highlight nodes containing this term"
+                                      ? "Click to clear highlighted cards"
+                                      : "Highlight cards containing this term"
                                 }
                               >
                                 {row.occurrences}
@@ -10144,7 +10144,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                   onClick={() =>
                                     handleControlledLanguageReplaceAll(row, rowKey)
                                   }
-                                  title="Replace this term across all highlighted nodes"
+                                  title="Replace this term across all highlighted cards"
                                 >
                                   Replace All
                                 </button>
@@ -10453,7 +10453,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       }}
                     >
                       {termRegistry.length === 0
-                        ? "No terms in registry yet. Terms will appear here as you fill in node fields."
+                        ? "No terms in registry yet. Terms will appear here as you fill in card fields."
                         : "No terms match the current filters."}
                     </div>
                   ) : (
@@ -10801,8 +10801,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               disabled={!canOpenUiJourneyConversation}
               title={
                 canOpenUiJourneyConversation
-                  ? "Build conversation from selected nodes"
-                  : "Select at least one node or frame"
+                  ? "Build conversation from selected cards"
+                  : "Select at least one card or frame"
               }
             >
               UI Journey Conversation
@@ -10876,7 +10876,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       title={
                         canSaveUiJourneySnapshotPreset
                           ? "Save selected path as snapshot"
-                          : "Select at least one node or frame first"
+                          : "Select at least one card or frame first"
                       }
                     >
                       Save

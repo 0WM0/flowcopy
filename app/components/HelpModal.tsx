@@ -28,21 +28,21 @@ const HELP_CANVAS_SHORTCUTS: HelpShortcutDefinition[] = [
   {
     keys: "Shift + F",
     description:
-      "Frame selected non-frame nodes (requires at least two selected nodes).",
+      "Frame selected non-frame cards (requires at least two selected cards).",
   },
   {
     keys: "Ctrl/Cmd + C",
     description:
-      "Copy selected nodes in Canvas mode to clipboard (selected frames include their member nodes).",
+      "Copy selected cards in Canvas mode to clipboard (selected frames include their member cards).",
   },
   {
     keys: "Ctrl/Cmd + V",
     description:
-      "Paste copied nodes as non-destructive duplicates (new IDs, internal edges preserved, offset placement).",
+      "Paste copied cards as non-destructive duplicates (new IDs, internal edges preserved, offset placement).",
   },
   {
     keys: "Delete / Backspace",
-    description: "Delete selected node(s) or selected edge.",
+    description: "Delete selected card(s) or selected edge.",
   },
   {
     keys: "Escape",
