@@ -6419,6 +6419,7 @@ export default function Page() {
 
       didJustOpenRegistryPickerRef.current = true;
       setClpActiveView("registry");
+      setActiveSidePanelTab("edit");
       setOpenControlledLanguageFieldType(field);
       setClpRegistryFieldFilter(field);
       setInspectorRegistryPickerSearchQuery("");
@@ -7157,6 +7158,7 @@ nodeCallbacksRef.current = {
 
       setActiveGlossaryHighlightKey(null);
       setActiveRegistryHighlightEntryId(entry.id);
+      setActiveSidePanelTab("edit");
       setGlossaryHighlightedNodeIds([entry.assignedNodeId]);
     },
     [activeRegistryHighlightEntryId, clearGlossaryHighlights]
