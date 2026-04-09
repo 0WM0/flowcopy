@@ -285,6 +285,7 @@ import {
   mergeAdminOptionConfigs,
   syncAdminOptionsWithNodes,
   formatDateTime,
+  type SidePanelSection,
   clampSidePanelWidth,
   readInitialSidePanelWidth,
   isEditorSurfaceMode,
@@ -1986,9 +1987,8 @@ export default function Page() {
   const [pendingOptionInputs, setPendingOptionInputs] = useState<
     Record<GlobalOptionField, string>
   >(createEmptyPendingOptionInputs);
-  const [activeSidePanelTab, setActiveSidePanelTab] = useState<
-    "edit" | "journey" | "admin"
-  >("edit");
+  const [activeSidePanelTab, setActiveSidePanelTab] =
+    useState<SidePanelSection>("card");
   const [isProjectSequencePanelOpen, setIsProjectSequencePanelOpen] = useState(false);
   const [isUiJourneyConversationOpen, setIsUiJourneyConversationOpen] = useState(false);
   const [uiJourneyConversationSnapshot, setUiJourneyConversationSnapshot] = useState<
@@ -2015,7 +2015,9 @@ export default function Page() {
   >(createDefaultClpExportFieldSelection);
   const [transferFeedback, setTransferFeedback] = useState<ImportFeedback | null>(null);
   const [autoSaveChangeCounter, setAutoSaveChangeCounter] = useState(0);
-  const [sidePanelWidth, setSidePanelWidth] = useState<number>(readInitialSidePanelWidth);
+  const [panelWidths, setPanelWidths] = useState<Record<SidePanelSection, number>>(
+    readInitialSidePanelWidth
+  );
   const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
@@ -2072,6 +2074,8 @@ export default function Page() {
   const textEditHistoryBeforeSnapshotRef = useRef<HistorySnapshot | null>(null);
   const textEditHistoryDebounceTimeoutRef = useRef<number | null>(null);
   const didJustOpenRegistryPickerRef = useRef(false);
+
+  const activePanelWidth = panelWidths[activeSidePanelTab];
 
   const updateStore = useCallback((updater: (prev: AppStore) => AppStore) => {
     setStore((prev) => {
@@ -2189,9 +2193,9 @@ export default function Page() {
 
     window.localStorage.setItem(
       SIDE_PANEL_WIDTH_STORAGE_KEY,
-      String(clampSidePanelWidth(sidePanelWidth))
+      JSON.stringify(panelWidths)
     );
-  }, [sidePanelWidth]);
+  }, [panelWidths]);
 
   useEffect(() => {
     if (!isResizingSidePanel) {
@@ -6419,7 +6423,7 @@ export default function Page() {
 
       didJustOpenRegistryPickerRef.current = true;
       setClpActiveView("registry");
-      setActiveSidePanelTab("edit");
+      setActiveSidePanelTab("clp");
       setOpenControlledLanguageFieldType(field);
       setClpRegistryFieldFilter(field);
       setInspectorRegistryPickerSearchQuery("");
@@ -7158,7 +7162,7 @@ nodeCallbacksRef.current = {
 
       setActiveGlossaryHighlightKey(null);
       setActiveRegistryHighlightEntryId(entry.id);
-      setActiveSidePanelTab("edit");
+      setActiveSidePanelTab("clp");
       setGlossaryHighlightedNodeIds([entry.assignedNodeId]);
     },
     [activeRegistryHighlightEntryId, clearGlossaryHighlights]
@@ -8438,9 +8442,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
   const handleSidePanelPointerMove = useCallback((event: PointerEvent) => {
     const deltaX = sidePanelResizeStartXRef.current - event.clientX;
-    const nextWidth = clampSidePanelWidth(sidePanelResizeStartWidthRef.current + deltaX);
-    setSidePanelWidth(nextWidth);
-  }, []);
+    const nextWidth = clampSidePanelWidth({
+      [activeSidePanelTab]: sidePanelResizeStartWidthRef.current + deltaX,
+    })[activeSidePanelTab];
+    setPanelWidths((prev) => ({ ...prev, [activeSidePanelTab]: nextWidth }));
+  }, [activeSidePanelTab]);
 
   const handleSidePanelResizePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -8450,10 +8456,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
       event.preventDefault();
       sidePanelResizeStartXRef.current = event.clientX;
-      sidePanelResizeStartWidthRef.current = sidePanelWidth;
+      sidePanelResizeStartWidthRef.current = panelWidths[activeSidePanelTab];
       setIsResizingSidePanel(true);
     },
-    [sidePanelWidth]
+    [activeSidePanelTab, panelWidths]
   );
 
   useEffect(() => {
@@ -9319,7 +9325,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         width: "100vw",
         height: "100vh",
         display: "grid",
-        gridTemplateColumns: `1fr ${sidePanelWidth}px`,
+        gridTemplateColumns: `1fr ${activePanelWidth}px`,
         position: "relative",
       }}
     >
@@ -9376,7 +9382,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         style={{
           position: "absolute",
           top: "50%",
-          left: `calc(100% - ${sidePanelWidth}px - 11px)`,
+          left: `calc(100% - ${activePanelWidth}px - 11px)`,
           transform: "translateY(-50%)",
           width: 22,
           border: "1px solid #cbd5e1",
@@ -9739,16 +9745,36 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               padding: "8px 12px",
               fontSize: 13,
               cursor: "pointer",
-              fontWeight: activeSidePanelTab === "edit" ? 700 : 400,
-              color: activeSidePanelTab === "edit" ? "#1d4ed8" : "#64748b",
+              fontWeight: activeSidePanelTab === "card" ? 700 : 400,
+              color: activeSidePanelTab === "card" ? "#1d4ed8" : "#64748b",
               borderBottom:
-                activeSidePanelTab === "edit"
+                activeSidePanelTab === "card"
                   ? "2px solid #1d4ed8"
                   : "2px solid transparent",
             }}
-            onClick={() => setActiveSidePanelTab("edit")}
+            onClick={() => setActiveSidePanelTab("card")}
           >
-            Edit + Govern
+            Card Editor
+          </button>
+          <button
+            type="button"
+            style={{
+              border: "none",
+              borderRadius: 0,
+              background: "transparent",
+              padding: "8px 12px",
+              fontSize: 13,
+              cursor: "pointer",
+              fontWeight: activeSidePanelTab === "clp" ? 700 : 400,
+              color: activeSidePanelTab === "clp" ? "#1d4ed8" : "#64748b",
+              borderBottom:
+                activeSidePanelTab === "clp"
+                  ? "2px solid #1d4ed8"
+                  : "2px solid transparent",
+            }}
+            onClick={() => setActiveSidePanelTab("clp")}
+          >
+            CLP
           </button>
           <button
             type="button"
@@ -9792,7 +9818,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           </button>
         </div>
 
-        {activeSidePanelTab === "edit" && (
+        {activeSidePanelTab === "card" && (
           <>
 
         <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#52525b" }}>
@@ -10785,6 +10811,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
           </>
         )}
+
+        {activeSidePanelTab === "clp" && <p>CLP section — Phase 2</p>}
 
         {activeSidePanelTab === "journey" && (
           <>

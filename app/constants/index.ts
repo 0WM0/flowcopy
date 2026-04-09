@@ -428,7 +428,7 @@ export const GLOBAL_OPTION_TO_NODE_FIELD: Record<
 
 export const SIDE_PANEL_MIN_WIDTH = 420;
 export const SIDE_PANEL_MAX_WIDTH = 1440;
-export const SIDE_PANEL_WIDTH_STORAGE_KEY = "flowcopy.editor.canvasSidePanelWidth";
+export const SIDE_PANEL_WIDTH_STORAGE_KEY = "flowcopy.editor.panelWidths";
 
 export const inputStyle: React.CSSProperties = {
   width: "100%",

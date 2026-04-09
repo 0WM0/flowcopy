@@ -24,7 +24,16 @@ import { sanitizeEdgesForStorage } from "./edge-utils";
 import { cleanedOptions, sanitizeSerializableFlowNodes } from "./node-utils";
 import { sanitizeUiJourneySnapshotPresets } from "./ui-journey";
 
-export const clampSidePanelWidth = (value: number): number => {
+export type SidePanelSection = "card" | "clp" | "journey" | "admin";
+
+export const DEFAULT_PANEL_WIDTHS: Record<SidePanelSection, number> = {
+  card: 420,
+  clp: 420,
+  journey: 600,
+  admin: 420,
+};
+
+const clampSingleSidePanelWidth = (value: number): number => {
   const runtimePanelMaxWidth =
     typeof window === "undefined"
       ? SIDE_PANEL_MAX_WIDTH
@@ -38,22 +47,50 @@ export const clampSidePanelWidth = (value: number): number => {
   return Math.min(effectiveMaxWidth, Math.max(SIDE_PANEL_MIN_WIDTH, Math.round(value)));
 };
 
-export const readInitialSidePanelWidth = (): number => {
+export const clampSidePanelWidth = (
+  value: Partial<Record<SidePanelSection, number>> | null | undefined
+): Record<SidePanelSection, number> => ({
+  card: clampSingleSidePanelWidth(value?.card ?? DEFAULT_PANEL_WIDTHS.card),
+  clp: clampSingleSidePanelWidth(value?.clp ?? DEFAULT_PANEL_WIDTHS.clp),
+  journey: clampSingleSidePanelWidth(value?.journey ?? DEFAULT_PANEL_WIDTHS.journey),
+  admin: clampSingleSidePanelWidth(value?.admin ?? DEFAULT_PANEL_WIDTHS.admin),
+});
+
+export const readInitialSidePanelWidth = (): Record<SidePanelSection, number> => {
   if (typeof window === "undefined") {
-    return SIDE_PANEL_MIN_WIDTH;
+    return DEFAULT_PANEL_WIDTHS;
   }
 
-  const rawWidth = window.localStorage.getItem(SIDE_PANEL_WIDTH_STORAGE_KEY);
-  if (!rawWidth) {
-    return SIDE_PANEL_MIN_WIDTH;
+  const rawWidths = window.localStorage.getItem(SIDE_PANEL_WIDTH_STORAGE_KEY);
+  if (!rawWidths) {
+    return DEFAULT_PANEL_WIDTHS;
   }
 
-  const parsedWidth = Number(rawWidth);
-  if (!Number.isFinite(parsedWidth)) {
-    return SIDE_PANEL_MIN_WIDTH;
-  }
+  try {
+    const parsedWidths = JSON.parse(rawWidths) as
+      | Partial<Record<SidePanelSection, unknown>>
+      | null;
 
-  return clampSidePanelWidth(parsedWidth);
+    if (!parsedWidths || typeof parsedWidths !== "object") {
+      return DEFAULT_PANEL_WIDTHS;
+    }
+
+    return clampSidePanelWidth({
+      card:
+        typeof parsedWidths.card === "number" ? parsedWidths.card : DEFAULT_PANEL_WIDTHS.card,
+      clp: typeof parsedWidths.clp === "number" ? parsedWidths.clp : DEFAULT_PANEL_WIDTHS.clp,
+      journey:
+        typeof parsedWidths.journey === "number"
+          ? parsedWidths.journey
+          : DEFAULT_PANEL_WIDTHS.journey,
+      admin:
+        typeof parsedWidths.admin === "number"
+          ? parsedWidths.admin
+          : DEFAULT_PANEL_WIDTHS.admin,
+    });
+  } catch {
+    return DEFAULT_PANEL_WIDTHS;
+  }
 };
 
 export const isEditorSurfaceMode = (value: unknown): value is EditorSurfaceMode =>
