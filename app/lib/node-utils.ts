@@ -707,6 +707,8 @@ export const createDefaultVmnContentConfig = (): NodeContentConfig => {
     groups: [{ id: groupId, row: 0, column: 0 }],
     slots: [
       { id: createContentSlotId(), value: "", termType: "menu_term", groupId, position: 0 },
+      { id: createContentSlotId(), value: "", termType: "key_command", groupId, position: 1 },
+      { id: createContentSlotId(), value: "", termType: "tool_tip", groupId, position: 2 },
     ],
     style: NODE_CONTENT_DEFAULT_STYLE,
   };
