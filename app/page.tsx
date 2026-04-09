@@ -9476,14 +9476,169 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       <aside
         style={{
           position: "relative",
-          padding: 12,
-          overflowY: "auto",
-          display: "grid",
-          alignContent: "start",
-          gridAutoRows: "min-content",
-          gap: 10,
+          display: "flex",
+          flexDirection: "row",
         }}
       >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            padding: "8px 4px",
+            width: 36,
+            minWidth: 36,
+            flexShrink: 0,
+            borderRight: "1px solid #e2e8f0",
+            background: "#f8fafc",
+          }}
+        >
+          <button
+            type="button"
+            title="Card Editor"
+            aria-label="Card Editor"
+            onClick={() => setActiveSidePanelTab("card")}
+            style={{
+              width: 28,
+              height: 28,
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              background: activeSidePanelTab === "card" ? "#dbeafe" : "transparent",
+              color: activeSidePanelTab === "card" ? "#1d4ed8" : "#64748b",
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              fill="none"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            title="Controlled Language"
+            aria-label="Controlled Language"
+            onClick={() => setActiveSidePanelTab("clp")}
+            style={{
+              width: 28,
+              height: 28,
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              background: activeSidePanelTab === "clp" ? "#dbeafe" : "transparent",
+              color: activeSidePanelTab === "clp" ? "#1d4ed8" : "#64748b",
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              fill="none"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            title="Journey"
+            aria-label="Journey"
+            onClick={() => setActiveSidePanelTab("journey")}
+            style={{
+              width: 28,
+              height: 28,
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              background: activeSidePanelTab === "journey" ? "#dbeafe" : "transparent",
+              color: activeSidePanelTab === "journey" ? "#1d4ed8" : "#64748b",
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              fill="none"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="5" r="3" />
+              <line x1="12" y1="8" x2="12" y2="14" />
+              <path d="m5 19 3.5-2 3.5 2 3.5-2 3.5 2" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            title="Admin"
+            aria-label="Admin"
+            onClick={() => setActiveSidePanelTab("admin")}
+            style={{
+              width: 28,
+              height: 28,
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              background: activeSidePanelTab === "admin" ? "#dbeafe" : "transparent",
+              color: activeSidePanelTab === "admin" ? "#1d4ed8" : "#64748b",
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              fill="none"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+            </svg>
+          </button>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            overflow: "auto",
+            minWidth: 0,
+            padding: 12,
+            display: "grid",
+            alignContent: "start",
+            gridAutoRows: "min-content",
+            gap: 10,
+          }}
+        >
         <section
           style={{
             border: "1px solid #d4d4d8",
@@ -9734,89 +9889,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             </>
           )}
         </section>
-
-        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e2e8f0" }}>
-          <button
-            type="button"
-            style={{
-              border: "none",
-              borderRadius: 0,
-              background: "transparent",
-              padding: "8px 12px",
-              fontSize: 13,
-              cursor: "pointer",
-              fontWeight: activeSidePanelTab === "card" ? 700 : 400,
-              color: activeSidePanelTab === "card" ? "#1d4ed8" : "#64748b",
-              borderBottom:
-                activeSidePanelTab === "card"
-                  ? "2px solid #1d4ed8"
-                  : "2px solid transparent",
-            }}
-            onClick={() => setActiveSidePanelTab("card")}
-          >
-            Card Editor
-          </button>
-          <button
-            type="button"
-            style={{
-              border: "none",
-              borderRadius: 0,
-              background: "transparent",
-              padding: "8px 12px",
-              fontSize: 13,
-              cursor: "pointer",
-              fontWeight: activeSidePanelTab === "clp" ? 700 : 400,
-              color: activeSidePanelTab === "clp" ? "#1d4ed8" : "#64748b",
-              borderBottom:
-                activeSidePanelTab === "clp"
-                  ? "2px solid #1d4ed8"
-                  : "2px solid transparent",
-            }}
-            onClick={() => setActiveSidePanelTab("clp")}
-          >
-            CLP
-          </button>
-          <button
-            type="button"
-            style={{
-              border: "none",
-              borderRadius: 0,
-              background: "transparent",
-              padding: "8px 12px",
-              fontSize: 13,
-              cursor: "pointer",
-              fontWeight: activeSidePanelTab === "journey" ? 700 : 400,
-              color: activeSidePanelTab === "journey" ? "#1d4ed8" : "#64748b",
-              borderBottom:
-                activeSidePanelTab === "journey"
-                  ? "2px solid #1d4ed8"
-                  : "2px solid transparent",
-            }}
-            onClick={() => setActiveSidePanelTab("journey")}
-          >
-            Journey
-          </button>
-          <button
-            type="button"
-            style={{
-              border: "none",
-              borderRadius: 0,
-              background: "transparent",
-              padding: "8px 12px",
-              fontSize: 13,
-              cursor: "pointer",
-              fontWeight: activeSidePanelTab === "admin" ? 700 : 400,
-              color: activeSidePanelTab === "admin" ? "#1d4ed8" : "#64748b",
-              borderBottom:
-                activeSidePanelTab === "admin"
-                  ? "2px solid #1d4ed8"
-                  : "2px solid transparent",
-            }}
-            onClick={() => setActiveSidePanelTab("admin")}
-          >
-            Admin
-          </button>
-        </div>
 
         {activeSidePanelTab === "card" && (
           <>
@@ -12411,6 +12483,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             )}
           </div>
         )}
+        </div>
       </aside>
 
       {registryDragPreview && isRegistryDragActive && (
