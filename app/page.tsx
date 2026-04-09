@@ -9401,7 +9401,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             title="Add Card"
             onClick={() => handleQuickAddFromSideTab("default")}
             style={{
-              width: 36,
               height: 32,
               border: "1px solid #e2e8f0",
               borderRadius: 6,
@@ -9432,7 +9431,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             title="Add Vertical Card"
             onClick={() => handleQuickAddFromSideTab("vertical_multi_term")}
             style={{
-              width: 36,
               height: 32,
               border: "1px solid #e2e8f0",
               borderRadius: 6,
@@ -9466,7 +9464,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             title="Add Horizontal Card"
             onClick={() => handleQuickAddFromSideTab("horizontal_multi_term")}
             style={{
-              width: 36,
               height: 32,
               border: "1px solid #e2e8f0",
               borderRadius: 6,
