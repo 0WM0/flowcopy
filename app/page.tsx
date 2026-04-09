@@ -9883,6 +9883,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           </>
         )}
 
+
+          </section>
+
+          </>
+        )}
+
+        {activeSidePanelTab === "clp" && (
+          <>
         <section
             style={{
               border: "1px solid #bfdbfe",
@@ -10806,13 +10814,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </div>
             )}
           </section>
-
-          </section>
-
           </>
         )}
-
-        {activeSidePanelTab === "clp" && <p>CLP section — Phase 2</p>}
 
         {activeSidePanelTab === "journey" && (
           <>
