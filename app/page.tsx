@@ -9340,6 +9340,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         onDragLeave={handleCanvasRegistryDragLeave}
         onDrop={handleCanvasRegistryDrop}
         style={{
+          position: "relative",
           borderRight: "1px solid #e4e4e7",
           transition: "box-shadow 120ms ease, background-color 120ms ease",
           background: isCanvasRegistryDropActive ? "rgba(191, 219, 254, 0.18)" : undefined,
@@ -9376,6 +9377,124 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           <MiniMap />
           <Controls />
         </ReactFlow>
+
+        <div
+          className="nodrag nopan nowheel"
+          style={{
+            position: "absolute",
+            bottom: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "flex",
+            gap: 6,
+            padding: "6px 10px",
+            background: "#ffffff",
+            border: "1px solid #cbd5e1",
+            borderRadius: 10,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+            zIndex: 10,
+            alignItems: "center",
+          }}
+        >
+          <button
+            type="button"
+            title="Add Card"
+            onClick={() => handleQuickAddFromSideTab("default")}
+            style={{
+              width: 36,
+              height: 32,
+              border: "1px solid #e2e8f0",
+              borderRadius: 6,
+              cursor: "pointer",
+              background: "#f8fafc",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 4,
+              padding: "0 8px",
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              fill="none"
+              strokeWidth={2}
+            >
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+            </svg>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>Card</span>
+          </button>
+
+          <button
+            type="button"
+            title="Add Vertical Card"
+            onClick={() => handleQuickAddFromSideTab("vertical_multi_term")}
+            style={{
+              width: 36,
+              height: 32,
+              border: "1px solid #e2e8f0",
+              borderRadius: 6,
+              cursor: "pointer",
+              background: "#f8fafc",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 4,
+              padding: "0 8px",
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              fill="none"
+              strokeWidth={2}
+            >
+              <rect x="5" y="3" width="14" height="7" rx="1.5" />
+              <rect x="5" y="14" width="14" height="7" rx="1.5" />
+            </svg>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>
+              Vertical
+            </span>
+          </button>
+
+          <button
+            type="button"
+            title="Add Horizontal Card"
+            onClick={() => handleQuickAddFromSideTab("horizontal_multi_term")}
+            style={{
+              width: 36,
+              height: 32,
+              border: "1px solid #e2e8f0",
+              borderRadius: 6,
+              cursor: "pointer",
+              background: "#f8fafc",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 4,
+              padding: "0 8px",
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              fill="none"
+              strokeWidth={2}
+            >
+              <rect x="3" y="5" width="7" height="14" rx="1.5" />
+              <rect x="14" y="5" width="7" height="14" rx="1.5" />
+            </svg>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>
+              Horizontal
+            </span>
+          </button>
+        </div>
       </div>
 
       <div
@@ -9415,43 +9534,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             opacity: isResizingSidePanel ? 1 : 0.85,
           }}
         />
-
-        {[
-          { key: "default", label: "D", title: "Add Card" },
-          { key: "horizontal_multi_term", label: "H", title: "Add Horizontal Card" },
-          { key: "vertical_multi_term", label: "V", title: "Add Vertical Card" },
-        ].map((item) => (
-          <button
-            key={`side-tab-add:${item.key}`}
-            type="button"
-            title={item.title}
-            aria-label={item.title}
-            style={{
-              ...buttonStyle,
-              width: 16,
-              minWidth: 16,
-              height: 16,
-              padding: 0,
-              borderRadius: 4,
-              fontSize: 9,
-              fontWeight: 700,
-              lineHeight: 1,
-              color: "#334155",
-              borderColor: "#d4d4d8",
-              background: "#fff",
-            }}
-            onPointerDown={(event) => {
-              event.stopPropagation();
-            }}
-            onClick={() =>
-              handleQuickAddFromSideTab(
-                item.key as "default" | "vertical_multi_term" | "horizontal_multi_term"
-              )
-            }
-          >
-            {item.label}
-          </button>
-        ))}
 
         <div
           role="separator"
