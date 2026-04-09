@@ -9476,6 +9476,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       <aside
         style={{
           position: "relative",
+          height: "100vh",
+          overflow: "hidden",
           display: "flex",
           flexDirection: "row",
         }}
@@ -9631,6 +9633,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           style={{
             flex: 1,
             overflow: "auto",
+            overflowY: "auto",
+            height: "100%",
             minWidth: 0,
             padding: 12,
             display: "grid",
