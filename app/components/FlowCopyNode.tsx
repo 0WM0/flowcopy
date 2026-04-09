@@ -1086,6 +1086,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
   const openVerticalTermEditor = useCallback(
     (rowElement: HTMLDivElement, groupId: string) => {
+      if (editingVerticalGroupId === groupId) {
+        closeVerticalTermPopup();
+        return;
+      }
+
       const rect = rowElement.getBoundingClientRect();
       setVerticalTermPopupPosition({
         x: rect.left + 8,
@@ -1094,7 +1099,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
       setEditingVerticalGroupId(groupId);
     },
-    []
+    [closeVerticalTermPopup, editingVerticalGroupId]
   );
 
   const closeRibbonCellPopup = useCallback(() => {
@@ -1115,6 +1120,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       cellId: string,
       pendingTerm: PendingRibbonRegistryTerm | null = null
     ) => {
+      if (editingCellId === cellId) {
+        closeRibbonCellPopup();
+        return;
+      }
+
       const rect = cellElement.getBoundingClientRect();
       setCellPopupPosition({
         x: rect.left + 8,
@@ -1125,7 +1135,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       setPendingRibbonRegistryTerm(pendingTerm);
       setActiveRibbonDropCellId(null);
     },
-    []
+    [closeRibbonCellPopup, editingCellId]
   );
 
   const handleRibbonCellDragOver = useCallback(
