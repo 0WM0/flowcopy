@@ -9672,20 +9672,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             </button>
             <button
               type="button"
-              style={TRANSFER_PAIR_BUTTON_STYLE}
-              onClick={() => openTransferModal("export", "project")}
-            >
-              Export Project
-            </button>
-            <button
-              type="button"
-              style={TRANSFER_PAIR_BUTTON_STYLE}
-              onClick={triggerImportPicker}
-            >
-              Import Project
-            </button>
-            <button
-              type="button"
               style={{
                 ...buttonStyle,
                 opacity: undoStack.length === 0 ? 0.5 : 1,
@@ -9702,6 +9688,18 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             >
               Redo
             </button>
+            <span
+              style={{
+                fontSize: 11,
+                color: "#64748b",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: 300,
+              }}
+            >
+              {activeProject.name} · Saved {formatDateTime(activeProject.updatedAt)}
+            </span>
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -9770,13 +9768,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             </div>
           )}
 
-          <div style={{ fontSize: 12, color: "#334155" }}>
-            <strong>Project Name:</strong> {activeProject.name}
-            <br />
-            <strong>Project ID:</strong> {activeProject.id}
-            <br />
-            <strong>Last Saved:</strong> {formatDateTime(activeProject.updatedAt)}
-          </div>
         </section>
 
         <section
@@ -11154,6 +11145,23 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             }}
           >
             <h3 style={{ margin: 0, fontSize: 14 }}>Global Attribute Admin</h3>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                style={TRANSFER_PAIR_BUTTON_STYLE}
+                onClick={() => openTransferModal("export", "project")}
+              >
+                Export Project
+              </button>
+              <button
+                type="button"
+                style={TRANSFER_PAIR_BUTTON_STYLE}
+                onClick={triggerImportPicker}
+              >
+                Import Project
+              </button>
+            </div>
 
             {GLOBAL_OPTION_FIELDS.map((field) => (
               <div
