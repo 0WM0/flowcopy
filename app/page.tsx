@@ -131,6 +131,7 @@ import {
   TABLE_FIELD_LABELS,
   TABLE_EDITABLE_FIELDS,
   GLOBAL_OPTION_TO_NODE_FIELD,
+  SIDE_PANEL_MIN_WIDTH,
   SIDE_PANEL_WIDTH_STORAGE_KEY,
   inputStyle,
   buttonStyle,
@@ -284,6 +285,7 @@ import {
   syncAdminOptionsWithNodes,
   formatDateTime,
   type SidePanelSection,
+  clampSidePanelWidth,
   readInitialSidePanelWidth,
   isEditorSurfaceMode,
   ensureArrayOfStrings,
@@ -1730,6 +1732,7 @@ export default function Page() {
   const [panelWidths, setPanelWidths] = useState<Record<SidePanelSection, number>>(
     readInitialSidePanelWidth
   );
+  const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(
@@ -1793,8 +1796,42 @@ export default function Page() {
     originX: number;
     originY: number;
   } | null>(null);
+  const sidePanelResizeStartXRef = useRef(0);
+  const sidePanelResizeStartWidthRef = useRef(SIDE_PANEL_MIN_WIDTH);
 
   const activePanelWidth = panelWidths[activeSidePanelTab];
+
+  const stopSidePanelResize = useCallback(() => {
+    setIsResizingSidePanel(false);
+  }, []);
+
+  const handleSidePanelPointerMove = useCallback(
+    (event: PointerEvent) => {
+      const deltaX = sidePanelResizeStartXRef.current - event.clientX;
+      const nextWidth = clampSidePanelWidth({
+        [activeSidePanelTab]: sidePanelResizeStartWidthRef.current + deltaX,
+      })[activeSidePanelTab];
+
+      setPanelWidths((currentWidths) => ({
+        ...currentWidths,
+        [activeSidePanelTab]: nextWidth,
+      }));
+    },
+    [activeSidePanelTab]
+  );
+
+  const handleSidePanelResizePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      sidePanelResizeStartXRef.current = event.clientX;
+      sidePanelResizeStartWidthRef.current = panelWidths[activeSidePanelTab];
+      setIsResizingSidePanel(true);
+    },
+    [activeSidePanelTab, panelWidths]
+  );
 
   const updateStore = useCallback((updater: (prev: AppStore) => AppStore) => {
     setStore((prev) => {
@@ -1915,6 +1952,22 @@ export default function Page() {
       JSON.stringify(panelWidths)
     );
   }, [panelWidths]);
+
+  useEffect(() => {
+    if (!isResizingSidePanel) {
+      return;
+    }
+
+    window.addEventListener("pointermove", handleSidePanelPointerMove);
+    window.addEventListener("pointerup", stopSidePanelResize);
+    window.addEventListener("pointercancel", stopSidePanelResize);
+
+    return () => {
+      window.removeEventListener("pointermove", handleSidePanelPointerMove);
+      window.removeEventListener("pointerup", stopSidePanelResize);
+      window.removeEventListener("pointercancel", stopSidePanelResize);
+    };
+  }, [handleSidePanelPointerMove, isResizingSidePanel, stopSidePanelResize]);
 
   const activeAccount = useMemo(
     () =>
@@ -9331,12 +9384,27 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       <aside
         style={{
           position: "relative",
+          width: activePanelWidth,
           height: "100vh",
           overflow: "hidden",
           display: "flex",
           flexDirection: "row",
         }}
       >
+        <div
+          onPointerDown={handleSidePanelResizePointerDown}
+          style={{
+            width: 6,
+            height: "100%",
+            cursor: "col-resize",
+            flexShrink: 0,
+            backgroundImage:
+              "radial-gradient(circle, #94a3b8 1px, transparent 1px)",
+            backgroundSize: "4px 4px",
+            backgroundPosition: "center",
+            opacity: isResizingSidePanel ? 1 : 0.4,
+          }}
+        />
         <div
           style={{
             flex: 1,
