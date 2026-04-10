@@ -9445,7 +9445,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             gap: 8,
           }}
         >
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
             <button type="button" style={buttonStyle} onClick={handleBackToDashboard}>
               ← Dashboard
             </button>
@@ -9497,6 +9504,9 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             >
               {activeProject.name} · Saved {formatDateTime(activeProject.updatedAt)}
             </span>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button
               type="button"
               style={{
