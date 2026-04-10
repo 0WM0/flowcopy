@@ -9566,59 +9566,61 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         
         {activeSidePanelTab === "card" && (
           <>
-        <section
-          style={{
-            border: "1px solid #cbd5e1",
-            borderRadius: 8,
-            padding: 10,
-            display: "grid",
-            gap: 10,
-            background: "#ffffff",
-          }}
-        >
-        {canCreateFrameFromSelection && (
-          <button
-            type="button"
-            style={{
-              ...buttonStyle,
-              borderColor: "#94a3b8",
-              background: "#f8fafc",
-              fontWeight: 700,
-            }}
-            onClick={() => createFrameFromSelection()}
-          >
-            Frame selected nodes ({selectedNonFrameNodesForFrameCreation.length})
-          </button>
-        )}
-
-        {hasExactlyOneSelectedNode && selectedNode?.data.node_type === "vertical_multi_term" && (
-          <>
-            <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
-              Vertical Card mode: edit term rows below. These
-              terms use the Menu Term glossary.
-            </p>
-
-            {menuTermDeleteError && (
-              <p
+            {(canCreateFrameFromSelection ||
+              (hasExactlyOneSelectedNode &&
+                selectedNode?.data.node_type === "vertical_multi_term")) && (
+              <section
                 style={{
-                  marginTop: 0,
-                  marginBottom: 0,
-                  fontSize: 11,
-                  color: "#b91c1c",
-                  background: "#fef2f2",
-                  border: "1px solid #fecaca",
-                  borderRadius: 6,
-                  padding: "6px 8px",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: 8,
+                  padding: 10,
+                  display: "grid",
+                  gap: 10,
+                  background: "#ffffff",
                 }}
               >
-                {menuTermDeleteError}
-              </p>
+                {canCreateFrameFromSelection && (
+                  <button
+                    type="button"
+                    style={{
+                      ...buttonStyle,
+                      borderColor: "#94a3b8",
+                      background: "#f8fafc",
+                      fontWeight: 700,
+                    }}
+                    onClick={() => createFrameFromSelection()}
+                  >
+                    Frame selected nodes ({selectedNonFrameNodesForFrameCreation.length})
+                  </button>
+                )}
+
+                {hasExactlyOneSelectedNode && selectedNode?.data.node_type === "vertical_multi_term" && (
+                  <>
+                    <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
+                      Vertical Card mode: edit term rows below. These
+                      terms use the Menu Term glossary.
+                    </p>
+
+                    {menuTermDeleteError && (
+                      <p
+                        style={{
+                          marginTop: 0,
+                          marginBottom: 0,
+                          fontSize: 11,
+                          color: "#b91c1c",
+                          background: "#fef2f2",
+                          border: "1px solid #fecaca",
+                          borderRadius: 6,
+                          padding: "6px 8px",
+                        }}
+                      >
+                        {menuTermDeleteError}
+                      </p>
+                    )}
+                  </>
+                )}
+              </section>
             )}
-          </>
-        )}
-
-
-          </section>
 
           </>
         )}
