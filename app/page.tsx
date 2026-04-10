@@ -11050,36 +11050,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           </p>
         ) : (
           <div style={{ display: "grid", gap: 10 }}>
-            <div
-              style={{
-                borderTop: "2px solid #cbd5e1",
-                marginTop: 4,
-                marginBottom: 4,
-                paddingTop: 8,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: "#64748b",
-                  textTransform: "uppercase",
-                  letterSpacing: 0.8,
-                }}
-              >
-                CARD IDENTITY
-              </div>
-            </div>
-
-            <div style={{ fontSize: 12, color: "#52525b" }}>
-              <strong>Card ID:</strong> {selectedNode.id}
-              <br />
-              <strong>Sequence:</strong> {ordering.sequenceByNodeId[selectedNode.id] ?? "-"}
-              <br />
-              <strong>X position:</strong> {Math.round(selectedNode.position.x)}
-              <br />
-              <strong>Y position:</strong> {Math.round(selectedNode.position.y)}
-            </div>
 
             <div>
               <div style={inspectorFieldLabelStyle}>Card type</div>
@@ -11141,7 +11111,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   letterSpacing: 0.8,
                 }}
               >
-                NODE CONTENT
+                CARD CONTENT
               </div>
             </div>
 
@@ -12172,6 +12142,18 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 </label>
               </>
             )}
+
+            <details style={{ marginTop: 12, borderTop: "1px solid #e2e8f0", paddingTop: 8 }}>
+              <summary style={{ fontSize: 11, color: "#94a3b8", cursor: "pointer", userSelect: "none" }}>
+                Card Identity
+              </summary>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>
+                <strong>Card ID:</strong> {selectedNode.id}<br />
+                <strong>Sequence:</strong> {ordering.sequenceByNodeId[selectedNode.id] ?? "-"}<br />
+                <strong>X:</strong> {Math.round(selectedNode.position.x)}<br />
+                <strong>Y:</strong> {Math.round(selectedNode.position.y)}
+              </div>
+            </details>
           </div>
         )}
         </div>
