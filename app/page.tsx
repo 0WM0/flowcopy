@@ -9447,39 +9447,43 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         >
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="button" style={buttonStyle} onClick={handleBackToDashboard}>
-              ← Back to Dashboard (saves)
+              ← Dashboard
             </button>
             <button
               type="button"
               style={getToggleButtonStyle(true)}
               onClick={() => handleEditorModeChange("canvas")}
             >
-              Canvas View
+              Canvas
             </button>
             <button
               type="button"
               style={getToggleButtonStyle(false)}
               onClick={() => handleEditorModeChange("table")}
             >
-              Table View
+              Table
             </button>
             <button
               type="button"
               style={{
                 ...buttonStyle,
+                fontSize: 16,
                 opacity: undoStack.length === 0 ? 0.5 : 1,
                 cursor: undoStack.length === 0 ? "not-allowed" : "pointer",
               }}
               onClick={undo}
             >
-              Undo
+              ↩
             </button>
             <button
               type="button"
-              style={buttonStyle}
+              style={{
+                ...buttonStyle,
+                fontSize: 16,
+              }}
               onClick={redo}
             >
-              Redo
+              ↪
             </button>
             <span
               style={{
