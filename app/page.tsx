@@ -9024,6 +9024,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             left: "50%",
             transform: "translateX(-50%)",
             display: "flex",
+            flexDirection: "column",
             gap: 6,
             padding: "6px 10px",
             background: "#ffffff",
@@ -9034,101 +9035,239 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             alignItems: "center",
           }}
         >
-          <button
-            type="button"
-            title="Add Card"
-            onClick={() => handleQuickAddFromSideTab("default")}
-            style={{
-              height: 32,
-              border: "1px solid #e2e8f0",
-              borderRadius: 6,
-              cursor: "pointer",
-              background: "#f8fafc",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 4,
-              padding: "0 8px",
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              fill="none"
-              strokeWidth={2}
+          <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+            <button
+              type="button"
+              title="Add Card"
+              onClick={() => handleQuickAddFromSideTab("default")}
+              style={{
+                height: 32,
+                border: "1px solid #e2e8f0",
+                borderRadius: 6,
+                cursor: "pointer",
+                background: "#f8fafc",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+                padding: "0 8px",
+              }}
             >
-              <rect x="4" y="4" width="16" height="16" rx="2" />
-            </svg>
-            <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>Card</span>
-          </button>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                fill="none"
+                strokeWidth={2}
+              >
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+              </svg>
+              <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>Card</span>
+            </button>
 
-          <button
-            type="button"
-            title="Add Vertical Card"
-            onClick={() => handleQuickAddFromSideTab("vertical_multi_term")}
-            style={{
-              height: 32,
-              border: "1px solid #e2e8f0",
-              borderRadius: 6,
-              cursor: "pointer",
-              background: "#f8fafc",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 4,
-              padding: "0 8px",
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              fill="none"
-              strokeWidth={2}
+            <button
+              type="button"
+              title="Add Vertical Card"
+              onClick={() => handleQuickAddFromSideTab("vertical_multi_term")}
+              style={{
+                height: 32,
+                border: "1px solid #e2e8f0",
+                borderRadius: 6,
+                cursor: "pointer",
+                background: "#f8fafc",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+                padding: "0 8px",
+              }}
             >
-              <rect x="5" y="3" width="14" height="7" rx="1.5" />
-              <rect x="5" y="14" width="14" height="7" rx="1.5" />
-            </svg>
-            <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>
-              Vertical
-            </span>
-          </button>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                fill="none"
+                strokeWidth={2}
+              >
+                <rect x="5" y="3" width="14" height="7" rx="1.5" />
+                <rect x="5" y="14" width="14" height="7" rx="1.5" />
+              </svg>
+              <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>
+                Vertical
+              </span>
+            </button>
 
-          <button
-            type="button"
-            title="Add Horizontal Card"
-            onClick={() => handleQuickAddFromSideTab("horizontal_multi_term")}
-            style={{
-              height: 32,
-              border: "1px solid #e2e8f0",
-              borderRadius: 6,
-              cursor: "pointer",
-              background: "#f8fafc",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 4,
-              padding: "0 8px",
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              fill="none"
-              strokeWidth={2}
+            <button
+              type="button"
+              title="Add Horizontal Card"
+              onClick={() => handleQuickAddFromSideTab("horizontal_multi_term")}
+              style={{
+                height: 32,
+                border: "1px solid #e2e8f0",
+                borderRadius: 6,
+                cursor: "pointer",
+                background: "#f8fafc",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+                padding: "0 8px",
+              }}
             >
-              <rect x="3" y="5" width="7" height="14" rx="1.5" />
-              <rect x="14" y="5" width="7" height="14" rx="1.5" />
-            </svg>
-            <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>
-              Horizontal
-            </span>
-          </button>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                fill="none"
+                strokeWidth={2}
+              >
+                <rect x="3" y="5" width="7" height="14" rx="1.5" />
+                <rect x="14" y="5" width="7" height="14" rx="1.5" />
+              </svg>
+              <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>
+                Horizontal
+              </span>
+            </button>
+          </div>
+
+          <div style={{ width: "100%", height: 1, background: "#e2e8f0" }} />
+
+          <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+            <button
+              type="button"
+              title="Card inspector"
+              onClick={() => setActiveSidePanelTab("card")}
+              style={{
+                width: 28,
+                height: 28,
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+                background: activeSidePanelTab === "card" ? "#dbeafe" : "transparent",
+                color: activeSidePanelTab === "card" ? "#1d4ed8" : "#64748b",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                fill="none"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              title="CLP inspector"
+              onClick={() => setActiveSidePanelTab("clp")}
+              style={{
+                width: 28,
+                height: 28,
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+                background: activeSidePanelTab === "clp" ? "#dbeafe" : "transparent",
+                color: activeSidePanelTab === "clp" ? "#1d4ed8" : "#64748b",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                fill="none"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              title="Journey inspector"
+              onClick={() => setActiveSidePanelTab("journey")}
+              style={{
+                width: 28,
+                height: 28,
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+                background: activeSidePanelTab === "journey" ? "#dbeafe" : "transparent",
+                color: activeSidePanelTab === "journey" ? "#1d4ed8" : "#64748b",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                fill="none"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="5" r="3" />
+                <line x1="12" y1="8" x2="12" y2="14" />
+                <path d="m5 19 3.5-2 3.5 2 3.5-2 3.5 2" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              title="Admin inspector"
+              onClick={() => setActiveSidePanelTab("admin")}
+              style={{
+                width: 28,
+                height: 28,
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+                background: activeSidePanelTab === "admin" ? "#dbeafe" : "transparent",
+                color: activeSidePanelTab === "admin" ? "#1d4ed8" : "#64748b",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                fill="none"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
