@@ -11467,12 +11467,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   letterSpacing: 0.8,
                 }}
               >
-                NODE IDENTITY
+                CARD IDENTITY
               </div>
             </div>
 
             <div style={{ fontSize: 12, color: "#52525b" }}>
-              <strong>Node ID:</strong> {selectedNode.id}
+              <strong>Card ID:</strong> {selectedNode.id}
               <br />
               <strong>Sequence:</strong> {ordering.sequenceByNodeId[selectedNode.id] ?? "-"}
               <br />
@@ -11482,7 +11482,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             </div>
 
             <div>
-              <div style={inspectorFieldLabelStyle}>Node type</div>
+              <div style={inspectorFieldLabelStyle}>Card type</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {NODE_TYPE_OPTIONS.map((nodeTypeOption) => {
                   const isActive = selectedNode.data.node_type === nodeTypeOption;
