@@ -1704,6 +1704,7 @@ export default function Page() {
   >(createEmptyPendingOptionInputs);
   const [activeSidePanelTab, setActiveSidePanelTab] =
     useState<SidePanelSection>("card");
+  const [isInspectorVisible, setIsInspectorVisible] = useState(true);
   const [isUiJourneyConversationOpen, setIsUiJourneyConversationOpen] = useState(false);
   const [uiJourneyConversationSnapshot, setUiJourneyConversationSnapshot] = useState<
     UiJourneyConversationEntry[]
@@ -6171,6 +6172,7 @@ export default function Page() {
       didJustOpenRegistryPickerRef.current = true;
       setClpActiveView("registry");
       setActiveSidePanelTab("clp");
+      setIsInspectorVisible(true);
       setOpenControlledLanguageFieldType(field);
       setClpRegistryFieldFilter(field);
       setInspectorRegistryPickerSearchQuery("");
@@ -6910,6 +6912,7 @@ nodeCallbacksRef.current = {
       setActiveGlossaryHighlightKey(null);
       setActiveRegistryHighlightEntryId(entry.id);
       setActiveSidePanelTab("clp");
+      setIsInspectorVisible(true);
       setGlossaryHighlightedNodeIds([entry.assignedNodeId]);
     },
     [activeRegistryHighlightEntryId, clearGlossaryHighlights]
@@ -9026,7 +9029,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         width: "100vw",
         height: "100vh",
         display: "grid",
-        gridTemplateColumns: `1fr ${activePanelWidth}px`,
+        gridTemplateColumns: isInspectorVisible ? `1fr ${activePanelWidth}px` : "1fr",
         position: "relative",
       }}
     >
@@ -9249,7 +9252,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             <button
               type="button"
               title="Card inspector"
-              onClick={() => setActiveSidePanelTab("card")}
+              onClick={() => {
+                if (activeSidePanelTab === "card" && isInspectorVisible) {
+                  setIsInspectorVisible(false);
+                } else {
+                  setActiveSidePanelTab("card");
+                  setIsInspectorVisible(true);
+                }
+              }}
               style={{
                 width: 28,
                 height: 28,
@@ -9260,8 +9270,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 alignItems: "center",
                 justifyContent: "center",
                 padding: 0,
-                background: activeSidePanelTab === "card" ? "#dbeafe" : "transparent",
-                color: activeSidePanelTab === "card" ? "#1d4ed8" : "#64748b",
+                background:
+                  activeSidePanelTab === "card" && isInspectorVisible
+                    ? "#dbeafe"
+                    : "transparent",
+                color:
+                  activeSidePanelTab === "card" && isInspectorVisible
+                    ? "#1d4ed8"
+                    : "#64748b",
               }}
             >
               <svg
@@ -9281,7 +9297,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             <button
               type="button"
               title="CLP inspector"
-              onClick={() => setActiveSidePanelTab("clp")}
+              onClick={() => {
+                if (activeSidePanelTab === "clp" && isInspectorVisible) {
+                  setIsInspectorVisible(false);
+                } else {
+                  setActiveSidePanelTab("clp");
+                  setIsInspectorVisible(true);
+                }
+              }}
               style={{
                 width: 28,
                 height: 28,
@@ -9292,8 +9315,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 alignItems: "center",
                 justifyContent: "center",
                 padding: 0,
-                background: activeSidePanelTab === "clp" ? "#dbeafe" : "transparent",
-                color: activeSidePanelTab === "clp" ? "#1d4ed8" : "#64748b",
+                background:
+                  activeSidePanelTab === "clp" && isInspectorVisible
+                    ? "#dbeafe"
+                    : "transparent",
+                color:
+                  activeSidePanelTab === "clp" && isInspectorVisible
+                    ? "#1d4ed8"
+                    : "#64748b",
               }}
             >
               <svg
@@ -9314,7 +9343,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             <button
               type="button"
               title="Journey inspector"
-              onClick={() => setActiveSidePanelTab("journey")}
+              onClick={() => {
+                if (activeSidePanelTab === "journey" && isInspectorVisible) {
+                  setIsInspectorVisible(false);
+                } else {
+                  setActiveSidePanelTab("journey");
+                  setIsInspectorVisible(true);
+                }
+              }}
               style={{
                 width: 28,
                 height: 28,
@@ -9325,8 +9361,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 alignItems: "center",
                 justifyContent: "center",
                 padding: 0,
-                background: activeSidePanelTab === "journey" ? "#dbeafe" : "transparent",
-                color: activeSidePanelTab === "journey" ? "#1d4ed8" : "#64748b",
+                background:
+                  activeSidePanelTab === "journey" && isInspectorVisible
+                    ? "#dbeafe"
+                    : "transparent",
+                color:
+                  activeSidePanelTab === "journey" && isInspectorVisible
+                    ? "#1d4ed8"
+                    : "#64748b",
               }}
             >
               <svg
@@ -9348,7 +9390,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             <button
               type="button"
               title="Admin inspector"
-              onClick={() => setActiveSidePanelTab("admin")}
+              onClick={() => {
+                if (activeSidePanelTab === "admin" && isInspectorVisible) {
+                  setIsInspectorVisible(false);
+                } else {
+                  setActiveSidePanelTab("admin");
+                  setIsInspectorVisible(true);
+                }
+              }}
               style={{
                 width: 28,
                 height: 28,
@@ -9359,8 +9408,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 alignItems: "center",
                 justifyContent: "center",
                 padding: 0,
-                background: activeSidePanelTab === "admin" ? "#dbeafe" : "transparent",
-                color: activeSidePanelTab === "admin" ? "#1d4ed8" : "#64748b",
+                background:
+                  activeSidePanelTab === "admin" && isInspectorVisible
+                    ? "#dbeafe"
+                    : "transparent",
+                color:
+                  activeSidePanelTab === "admin" && isInspectorVisible
+                    ? "#1d4ed8"
+                    : "#64748b",
               }}
             >
               <svg
@@ -9381,6 +9436,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         </div>
       </div>
 
+      {isInspectorVisible && (
       <aside
         style={{
           position: "relative",
@@ -12142,6 +12198,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         )}
         </div>
       </aside>
+      )}
 
       {registryDragPreview && isRegistryDragActive && (
         <div
