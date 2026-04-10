@@ -9493,9 +9493,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             >
               {activeProject.name} · Saved {formatDateTime(activeProject.updatedAt)}
             </span>
-          </div>
-
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
               type="button"
               style={{
