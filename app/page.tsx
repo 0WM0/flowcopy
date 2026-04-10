@@ -1743,6 +1743,10 @@ export default function Page() {
   const [feedbackSubmitMessage, setFeedbackSubmitMessage] = useState<string | null>(
     null
   );
+  const [floatingToolbarPos, setFloatingToolbarPos] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const rfRef = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1783,6 +1787,12 @@ export default function Page() {
   const textEditHistoryBeforeSnapshotRef = useRef<HistorySnapshot | null>(null);
   const textEditHistoryDebounceTimeoutRef = useRef<number | null>(null);
   const didJustOpenRegistryPickerRef = useRef(false);
+  const floatingToolbarDragRef = useRef<{
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
 
   const activePanelWidth = panelWidths[activeSidePanelTab];
 
@@ -9020,9 +9030,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           className="nodrag nopan nowheel"
           style={{
             position: "absolute",
-            bottom: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
+            bottom: floatingToolbarPos ? "auto" : 20,
+            left: floatingToolbarPos ? floatingToolbarPos.x : "50%",
+            top: floatingToolbarPos ? floatingToolbarPos.y : undefined,
+            transform: floatingToolbarPos ? "none" : "translateX(-50%)",
             display: "flex",
             flexDirection: "column",
             gap: 6,
@@ -9035,6 +9046,52 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             alignItems: "center",
           }}
         >
+          <div
+            style={{
+              width: "100%",
+              height: 6,
+              cursor: "grab",
+              borderRadius: 3,
+              backgroundImage:
+                "radial-gradient(circle, #94a3b8 1px, transparent 1px)",
+              backgroundSize: "4px 4px",
+              backgroundPosition: "center",
+              opacity: 0.6,
+            }}
+            onPointerDown={(event) => {
+              const toolbarRect = event.currentTarget.parentElement?.getBoundingClientRect();
+              if (!toolbarRect) {
+                return;
+              }
+
+              floatingToolbarDragRef.current = {
+                startX: event.clientX,
+                startY: event.clientY,
+                originX: toolbarRect.left,
+                originY: toolbarRect.top,
+              };
+
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              const dragState = floatingToolbarDragRef.current;
+              if (!dragState) {
+                return;
+              }
+
+              const deltaX = event.clientX - dragState.startX;
+              const deltaY = event.clientY - dragState.startY;
+
+              setFloatingToolbarPos({
+                x: dragState.originX + deltaX,
+                y: dragState.originY + deltaY,
+              });
+            }}
+            onPointerUp={() => {
+              floatingToolbarDragRef.current = null;
+            }}
+          />
+
           <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
             <button
               type="button"
