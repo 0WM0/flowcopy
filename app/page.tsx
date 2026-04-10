@@ -9566,18 +9566,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         
         {activeSidePanelTab === "card" && (
           <>
-
-        <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#52525b" }}>
-          Click a node to edit structured fields. Double-click empty canvas to add a
-          Card. Keyboard shortcuts: <strong>Tab</strong> adds Card, and
-          <strong> Shift+Tab</strong> adds Vertical Card at the pointer position.
-          <strong> Shift+R</strong> adds Horizontal Card at the pointer position.
-          <strong> Shift+F</strong> frames selected nodes. <strong>Ctrl/Cmd+C</strong>
-          copies selected nodes (including frame members), and
-          <strong> Ctrl/Cmd+V</strong> pastes non-destructive duplicates. All changes autosave. Use
-          each field’s registry button (📋) to open the filtered CLP picker.
-        </p>
-
         <section
           style={{
             border: "1px solid #cbd5e1",
