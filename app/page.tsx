@@ -9029,7 +9029,9 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         width: "100vw",
         height: "100vh",
         display: "grid",
-        gridTemplateColumns: `1fr ${activePanelWidth}px`,
+        gridTemplateColumns: isInspectorVisible
+          ? `1fr ${activePanelWidth}px`
+          : "1fr auto",
         position: "relative",
       }}
     >
@@ -9439,30 +9441,33 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       <div
         style={{
           position: "relative",
-          width: activePanelWidth,
+          width: isInspectorVisible ? activePanelWidth : "auto",
           height: "100vh",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
         }}
       >
-        <div
-          onPointerDown={handleSidePanelResizePointerDown}
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            width: 6,
-            height: "100%",
-            cursor: "col-resize",
-            flexShrink: 0,
-            backgroundImage:
-              "radial-gradient(circle, #94a3b8 1px, transparent 1px)",
-            backgroundSize: "4px 4px",
-            backgroundPosition: "center",
-            opacity: isResizingSidePanel ? 1 : 0.4,
-          }}
-        />
+        {isInspectorVisible && (
+          <div
+            onPointerDown={handleSidePanelResizePointerDown}
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: 6,
+              height: "100%",
+              cursor: "col-resize",
+              flexShrink: 0,
+              backgroundImage:
+                "radial-gradient(circle, #94a3b8 1px, transparent 1px)",
+              backgroundSize: "4px 4px",
+              backgroundPosition: "center",
+              opacity: isResizingSidePanel ? 1 : 0.4,
+              zIndex: 10,
+            }}
+          />
+        )}
 
         <div style={{ paddingLeft: 10, paddingRight: 12, flexShrink: 0 }}>
         <section
