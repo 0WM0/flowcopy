@@ -9029,7 +9029,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         width: "100vw",
         height: "100vh",
         display: "grid",
-        gridTemplateColumns: isInspectorVisible ? `1fr ${activePanelWidth}px` : "1fr",
+        gridTemplateColumns: `1fr ${activePanelWidth}px`,
         position: "relative",
       }}
     >
@@ -9436,20 +9436,22 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         </div>
       </div>
 
-      {isInspectorVisible && (
-      <aside
+      <div
         style={{
           position: "relative",
           width: activePanelWidth,
           height: "100vh",
           overflow: "hidden",
           display: "flex",
-          flexDirection: "row",
+          flexDirection: "column",
         }}
       >
         <div
           onPointerDown={handleSidePanelResizePointerDown}
           style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
             width: 6,
             height: "100%",
             cursor: "col-resize",
@@ -9461,20 +9463,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             opacity: isResizingSidePanel ? 1 : 0.4,
           }}
         />
-        <div
-          style={{
-            flex: 1,
-            overflow: "auto",
-            overflowY: "auto",
-            height: "100%",
-            minWidth: 0,
-            padding: 12,
-            display: "grid",
-            alignContent: "start",
-            gridAutoRows: "min-content",
-            gap: 10,
-          }}
-        >
+
+        <div style={{ paddingLeft: 10, paddingRight: 12, flexShrink: 0 }}>
         <section
           style={{
             border: "1px solid #d4d4d8",
@@ -9612,6 +9602,22 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           )}
 
         </section>
+        </div>
+
+        {isInspectorVisible && (
+        <div
+          style={{
+            flex: 1,
+            overflow: "auto",
+            overflowY: "auto",
+            minWidth: 0,
+            padding: 12,
+            display: "grid",
+            alignContent: "start",
+            gridAutoRows: "min-content",
+            gap: 10,
+          }}
+        >
 
         
         {activeSidePanelTab === "card" && (
@@ -12197,8 +12203,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           </div>
         )}
         </div>
-      </aside>
-      )}
+        )}
+      </div>
 
       {registryDragPreview && isRegistryDragActive && (
         <div
