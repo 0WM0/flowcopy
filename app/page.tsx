@@ -131,8 +131,6 @@ import {
   TABLE_FIELD_LABELS,
   TABLE_EDITABLE_FIELDS,
   GLOBAL_OPTION_TO_NODE_FIELD,
-  SIDE_PANEL_MIN_WIDTH,
-  SIDE_PANEL_MAX_WIDTH,
   SIDE_PANEL_WIDTH_STORAGE_KEY,
   inputStyle,
   buttonStyle,
@@ -286,7 +284,6 @@ import {
   syncAdminOptionsWithNodes,
   formatDateTime,
   type SidePanelSection,
-  clampSidePanelWidth,
   readInitialSidePanelWidth,
   isEditorSurfaceMode,
   ensureArrayOfStrings,
@@ -1733,7 +1730,6 @@ export default function Page() {
   const [panelWidths, setPanelWidths] = useState<Record<SidePanelSection, number>>(
     readInitialSidePanelWidth
   );
-  const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(
@@ -1775,8 +1771,6 @@ export default function Page() {
     ) => void
   >(() => undefined);
   const menuTermGlossaryTermsRef = useRef<string[]>([]);
-  const sidePanelResizeStartXRef = useRef(0);
-  const sidePanelResizeStartWidthRef = useRef(SIDE_PANEL_MIN_WIDTH);
   const canvasClipboardRef = useRef<CanvasClipboardSnapshot | null>(null);
   const activeRegistryDragPayloadRef = useRef<TermRegistryDragPayload | null>(null);
   const pasteInvocationCountRef = useRef(0);
@@ -1911,30 +1905,6 @@ export default function Page() {
       JSON.stringify(panelWidths)
     );
   }, [panelWidths]);
-
-  useEffect(() => {
-    if (!isResizingSidePanel) {
-      return;
-    }
-
-    const previousCursor = document.body.style.cursor;
-    const previousUserSelect = document.body.style.userSelect;
-
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-
-    return () => {
-      document.body.style.cursor = previousCursor;
-      document.body.style.userSelect = previousUserSelect;
-    };
-  }, [isResizingSidePanel]);
-
-  useEffect(
-    () => () => {
-      setIsResizingSidePanel(false);
-    },
-    []
-  );
 
   const activeAccount = useMemo(
     () =>
@@ -8150,52 +8120,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
     ]
   );
 
-  const stopSidePanelResize = useCallback(() => {
-    setIsResizingSidePanel(false);
-  }, []);
-
-  const handleSidePanelPointerMove = useCallback((event: PointerEvent) => {
-    const deltaX = sidePanelResizeStartXRef.current - event.clientX;
-    const nextWidth = clampSidePanelWidth({
-      [activeSidePanelTab]: sidePanelResizeStartWidthRef.current + deltaX,
-    })[activeSidePanelTab];
-    setPanelWidths((prev) => ({ ...prev, [activeSidePanelTab]: nextWidth }));
-  }, [activeSidePanelTab]);
-
-  const handleSidePanelResizePointerDown = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) {
-        return;
-      }
-
-      event.preventDefault();
-      sidePanelResizeStartXRef.current = event.clientX;
-      sidePanelResizeStartWidthRef.current = panelWidths[activeSidePanelTab];
-      setIsResizingSidePanel(true);
-    },
-    [activeSidePanelTab, panelWidths]
-  );
-
-  useEffect(() => {
-    if (!isResizingSidePanel) {
-      return;
-    }
-
-    const handlePointerUp = () => {
-      stopSidePanelResize();
-    };
-
-    window.addEventListener("pointermove", handleSidePanelPointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-    window.addEventListener("pointercancel", handlePointerUp);
-
-    return () => {
-      window.removeEventListener("pointermove", handleSidePanelPointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-      window.removeEventListener("pointercancel", handlePointerUp);
-    };
-  }, [handleSidePanelPointerMove, isResizingSidePanel, stopSidePanelResize]);
-
   useEffect(() => {
     if (!isUiJourneyConversationOpen) {
       return;
@@ -9208,64 +9132,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         </div>
       </div>
 
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: `calc(100% - ${activePanelWidth}px - 11px)`,
-          transform: "translateY(-50%)",
-          width: 22,
-          border: "1px solid #cbd5e1",
-          borderRadius: 8,
-          background: "#f8fafc",
-          boxShadow: "0 4px 12px rgba(15, 23, 42, 0.16)",
-          zIndex: 40,
-          display: "grid",
-          gap: 4,
-          padding: "4px 2px",
-          justifyItems: "center",
-          userSelect: "none",
-        }}
-      >
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize side panel"
-          title="Drag to resize panel"
-          onPointerDown={handleSidePanelResizePointerDown}
-          style={{
-            width: "100%",
-            height: 8,
-            cursor: "col-resize",
-            borderRadius: 4,
-            backgroundImage:
-              "radial-gradient(circle, #94a3b8 1px, transparent 1px)",
-            backgroundSize: "4px 4px",
-            backgroundPosition: "center",
-            opacity: isResizingSidePanel ? 1 : 0.85,
-          }}
-        />
-
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize side panel"
-          title="Drag to resize panel"
-          onPointerDown={handleSidePanelResizePointerDown}
-          style={{
-            width: "100%",
-            height: 8,
-            cursor: "col-resize",
-            borderRadius: 4,
-            backgroundImage:
-              "radial-gradient(circle, #94a3b8 1px, transparent 1px)",
-            backgroundSize: "4px 4px",
-            backgroundPosition: "center",
-            opacity: isResizingSidePanel ? 1 : 0.85,
-          }}
-        />
-      </div>
-
       <aside
         style={{
           position: "relative",
@@ -9275,153 +9141,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           flexDirection: "row",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 4,
-            padding: "8px 4px",
-            width: 36,
-            minWidth: 36,
-            flexShrink: 0,
-            borderRight: "1px solid #e2e8f0",
-            background: "#f8fafc",
-          }}
-        >
-          <button
-            type="button"
-            title="Card Editor"
-            aria-label="Card Editor"
-            onClick={() => setActiveSidePanelTab("card")}
-            style={{
-              width: 28,
-              height: 28,
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0,
-              background: activeSidePanelTab === "card" ? "#dbeafe" : "transparent",
-              color: activeSidePanelTab === "card" ? "#1d4ed8" : "#64748b",
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              fill="none"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            title="Controlled Language"
-            aria-label="Controlled Language"
-            onClick={() => setActiveSidePanelTab("clp")}
-            style={{
-              width: 28,
-              height: 28,
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0,
-              background: activeSidePanelTab === "clp" ? "#dbeafe" : "transparent",
-              color: activeSidePanelTab === "clp" ? "#1d4ed8" : "#64748b",
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              fill="none"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-              <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            title="Journey"
-            aria-label="Journey"
-            onClick={() => setActiveSidePanelTab("journey")}
-            style={{
-              width: 28,
-              height: 28,
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0,
-              background: activeSidePanelTab === "journey" ? "#dbeafe" : "transparent",
-              color: activeSidePanelTab === "journey" ? "#1d4ed8" : "#64748b",
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              fill="none"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="5" r="3" />
-              <line x1="12" y1="8" x2="12" y2="14" />
-              <path d="m5 19 3.5-2 3.5 2 3.5-2 3.5 2" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            title="Admin"
-            aria-label="Admin"
-            onClick={() => setActiveSidePanelTab("admin")}
-            style={{
-              width: 28,
-              height: 28,
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0,
-              background: activeSidePanelTab === "admin" ? "#dbeafe" : "transparent",
-              color: activeSidePanelTab === "admin" ? "#1d4ed8" : "#64748b",
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              fill="none"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-            </svg>
-          </button>
-        </div>
-
         <div
           style={{
             flex: 1,
