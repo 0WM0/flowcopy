@@ -9615,6 +9615,1231 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </section>
             )}
 
+        {selectedEdge && normalizedSelectedEdgeData && !hasSelectedNodes ? (
+          <section
+            style={{
+              border: "1px solid #cbd5e1",
+              borderRadius: 8,
+              padding: 10,
+              display: "grid",
+              gap: 8,
+              background: "#f8fafc",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 14 }}>Edge Inspector</h3>
+              <button type="button" style={buttonStyle} onClick={handleDeleteSelection}>
+                Delete Edge
+              </button>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#334155" }}>
+              <strong>Edge ID:</strong> {selectedEdge.id}
+              <br />
+              <strong>Source → Target:</strong> {selectedEdge.source} → {selectedEdge.target}
+            </div>
+
+            <label>
+              <div style={inspectorFieldLabelStyle}>Kind</div>
+              <input
+                style={inputStyle}
+                value={
+                  normalizedSelectedEdgeData.edge_kind === "sequential"
+                    ? "Sequential"
+                    : "Parallel"
+                }
+                readOnly
+              />
+            </label>
+
+            <label>
+              <div style={inspectorFieldLabelStyle}>Color</div>
+              <input
+                style={inputStyle}
+                type="color"
+                value={normalizedSelectedEdgeData.stroke_color ?? "#1d4ed8"}
+                onChange={(event) => {
+                  const nextColor = event.target.value;
+                  updateSelectedEdgeData((currentData) => ({
+                    ...currentData,
+                    stroke_color: nextColor,
+                  }));
+                }}
+              />
+            </label>
+
+            <label>
+              <div style={inspectorFieldLabelStyle}>Line style</div>
+              <select
+                style={inputStyle}
+                value={normalizedSelectedEdgeData.line_style ?? "solid"}
+                onChange={(event) => {
+                  const nextStyle =
+                    (event.target.value as EdgeLineStyle) ?? "solid";
+                  updateSelectedEdgeData((currentData) => ({
+                    ...currentData,
+                    line_style: nextStyle,
+                  }));
+                }}
+              >
+                {EDGE_LINE_STYLE_OPTIONS.map((option) => (
+                  <option key={`edge-line-style:${option}`} value={option}>
+                    {option.charAt(0).toUpperCase() + option.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {normalizedSelectedEdgeData.edge_kind === "sequential" && (
+              <label>
+                <div style={inspectorFieldLabelStyle}>Direction</div>
+                <select
+                  style={inputStyle}
+                  value={
+                    normalizedSelectedEdgeData.is_reversed ? "reversed" : "forward"
+                  }
+                  onChange={(event) => {
+                    const nextDirection =
+                      (event.target.value as EdgeDirection) ?? "forward";
+                    updateSelectedEdgeData((currentData) => ({
+                      ...currentData,
+                      is_reversed: nextDirection === "reversed",
+                    }));
+                  }}
+                >
+                  <option value="forward">Forward</option>
+                  <option value="reversed">Reversed</option>
+                </select>
+              </label>
+            )}
+
+            <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
+              Tip: press Delete / Backspace to remove this edge.
+            </p>
+          </section>
+        ) : hasMultipleSelectedNodes ? (
+          <p style={{ fontSize: 13, color: "#71717a" }}>
+            Multiple nodes selected. Select a single node to edit its data.
+          </p>
+        ) : !hasExactlyOneSelectedNode || !selectedNode ? (
+          <p style={{ fontSize: 13, color: "#71717a" }}>
+            No selection. Click a node or edge on the canvas.
+          </p>
+        ) : (
+          <div style={{ display: "grid", gap: 10 }}>
+
+            <div>
+              <div style={inspectorFieldLabelStyle}>Card type</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {NODE_TYPE_OPTIONS.map((nodeTypeOption) => {
+                  const isActive = selectedNode.data.node_type === nodeTypeOption;
+                  const currentNodeType = selectedNode.data.node_type;
+                  const isEnabled =
+                    isActive ||
+                    ((currentNodeType === "vertical_multi_term" || currentNodeType === "horizontal_multi_term") &&
+                      (nodeTypeOption === "vertical_multi_term" || nodeTypeOption === "horizontal_multi_term"));
+
+                  return (
+                    <button
+                      key={`inspector-node-type:${nodeTypeOption}`}
+                      type="button"
+                      style={{
+                        ...buttonStyle,
+                        fontSize: 11,
+                        padding: "4px 8px",
+                        borderColor: isActive ? "#1d4ed8" : "#d4d4d8",
+                        background: isActive ? "#dbeafe" : isEnabled ? "#fff" : "#f4f4f5",
+                        color: isActive ? "#1e3a8a" : isEnabled ? "#334155" : "#a1a1aa",
+                        fontWeight: isActive ? 700 : 600,
+                        cursor: isEnabled ? "pointer" : "not-allowed",
+                        opacity: isEnabled ? 1 : 0.7,
+                      }}
+                      disabled={!isEnabled}
+                      aria-pressed={isActive}
+                      onClick={() => {
+                        if (!isEnabled || !isNodeType(nodeTypeOption)) {
+                          return;
+                        }
+
+                        updateSelectedNodeType(nodeTypeOption);
+                      }}
+                    >
+                      {NODE_TYPE_LABELS[nodeTypeOption]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div
+              style={{
+                borderTop: "2px solid #cbd5e1",
+                marginTop: 4,
+                marginBottom: 4,
+                paddingTop: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.8,
+                }}
+              >
+                CARD CONTENT
+              </div>
+            </div>
+
+            {selectedNode.data.node_type === "vertical_multi_term" ? (
+              <>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Title</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      style={inputStyle}
+                      value={selectedNode.data.title}
+                      placeholder="Add title"
+                      onChange={(event) => updateSelectedField("title", event.target.value)}
+                      onBlur={(event) =>
+                        commitSelectedRegistryField("title", event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={getInspectorRegistryButtonStyle(
+                        activeInspectorRegistryPickerField === "title"
+                      )}
+                      title="Open CLP registry"
+                      aria-label="Open CLP registry"
+                      onClick={() => toggleInspectorRegistryPickerForField("title")}
+                    >
+                      📋
+                    </button>
+                  </div>
+                </label>
+
+                <div
+                  style={{
+                    border: "1px solid #dbeafe",
+                    borderRadius: 8,
+                    padding: 8,
+                    background: "#f8fbff",
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                    Field visibility
+                  </div>
+
+                  <div
+                    style={{
+                      borderTop: "1px solid #bfdbfe",
+                      marginTop: 2,
+                    }}
+                  />
+                </div>
+
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Menu Terms</div>
+                  <input
+                    key={`menu-right-connections:${selectedNode.id}:${
+                      selectedVerticalContentConfig?.groups.length ??
+                      VMN_GROUPS_MIN
+                    }`}
+                    style={inputStyle}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    defaultValue={
+                      selectedVerticalContentConfig?.groups.length ??
+                      VMN_GROUPS_MIN
+                    }
+                    onInput={(event) => {
+                      const nextValue = event.currentTarget.value.replace(/[^\d]/g, "");
+                      if (nextValue === event.currentTarget.value) {
+                        return;
+                      }
+
+                      event.currentTarget.value = nextValue;
+                    }}
+                    onBlur={(event) => {
+                      event.currentTarget.value = commitSelectedMenuRightConnectionsInput(
+                        event.currentTarget.value
+                      );
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      event.currentTarget.value = commitSelectedMenuRightConnectionsInput(
+                        event.currentTarget.value
+                      );
+                    }}
+                  />
+                </label>
+
+                <div
+                  style={{
+                    border: "1px solid #dbeafe",
+                    borderRadius: 8,
+                    padding: 6,
+                    background: "#f8fbff",
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                      Term Input
+                    </div>
+                    <button
+                      type="button"
+                      style={{
+                        ...buttonStyle,
+                        width: 20,
+                        height: 20,
+                        minWidth: 20,
+                        padding: 0,
+                        borderRadius: 999,
+                        fontSize: 14,
+                        lineHeight: 1,
+                        fontWeight: 700,
+                        color: "#1d4ed8",
+                        borderColor: "#93c5fd",
+                        opacity:
+                          (selectedVerticalContentConfig?.groups.length ??
+                            VMN_GROUPS_MAX) >=
+                          VMN_GROUPS_MAX
+                            ? 0.45
+                            : 1,
+                        cursor:
+                          (selectedVerticalContentConfig?.groups.length ??
+                            VMN_GROUPS_MAX) >=
+                          VMN_GROUPS_MAX
+                            ? "not-allowed"
+                            : "pointer",
+                      }}
+                      title="Add menu term"
+                      aria-label="Add menu term"
+                      onClick={addSelectedMenuTerm}
+                      disabled={
+                        (selectedVerticalContentConfig?.groups.length ??
+                          VMN_GROUPS_MAX) >=
+                        VMN_GROUPS_MAX
+                      }
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  {[...(selectedVerticalContentConfig?.groups ?? [])]
+                    .sort((groupA, groupB) =>
+                      groupA.row === groupB.row
+                        ? groupA.column - groupB.column
+                        : groupA.row - groupB.row
+                    )
+                    .map((menuGroup) => {
+                    const groupSlots = (selectedVerticalContentConfig?.slots ?? [])
+                      .filter((slot) => slot.groupId === menuGroup.id)
+                      .sort(sortContentSlotsByPosition);
+
+                    return (
+                      <div
+                        key={`inspector-menu-term:${menuGroup.id}`}
+                        style={{
+                          border: "1px solid #bfdbfe",
+                          borderRadius: 6,
+                          padding: 5,
+                          display: "grid",
+                          gap: 5,
+                          background: "#fff",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <button
+                            type="button"
+                            style={{
+                              ...buttonStyle,
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              borderColor: "#fca5a5",
+                              color: "#b91c1c",
+                              flexShrink: 0,
+                            }}
+                            title="Delete this term"
+                            onClick={() => deleteSelectedMenuTermById(menuGroup.id)}
+                          >
+                            X
+                          </button>
+                        </div>
+
+                        {groupSlots.map((slot) => {
+                          const slotRegistryField = buildContentSlotRegistryField(slot.id);
+                          const isRegistryPickerOpen =
+                            activeInspectorRegistryPickerField === slotRegistryField;
+                          const normalizedTermType = normalizeContentSlotTermType(slot.termType);
+                          const isLongField = normalizedTermType === "tool_tip";
+
+                          return (
+                            <label
+                              key={`inspector-menu-slot:${menuGroup.id}:${slot.id}`}
+                              style={{ display: "grid", gap: 4 }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  color: "#334155",
+                                }}
+                              >
+                                {normalizeConversationSlotTermTypeLabel(slot.termType)}
+                              </div>
+
+                              <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                                {isLongField ? (
+                                  <textarea
+                                    style={{ ...inputStyle, minHeight: 60, resize: "vertical" }}
+                                    value={slot.value ?? ""}
+                                    placeholder="Add value"
+                                    onChange={(event) =>
+                                      updateSelectedMenuSlotValueById(
+                                        slot.id,
+                                        event.target.value
+                                      )
+                                    }
+                                    onBlur={(event) =>
+                                      commitSelectedMenuSlotRegistryField(
+                                        slot.id,
+                                        event.currentTarget.value
+                                      )
+                                    }
+                                  />
+                                ) : (
+                                  <input
+                                    style={inputStyle}
+                                    value={slot.value ?? ""}
+                                    placeholder="Add value"
+                                    onChange={(event) =>
+                                      updateSelectedMenuSlotValueById(
+                                        slot.id,
+                                        event.target.value
+                                      )
+                                    }
+                                    onBlur={(event) =>
+                                      commitSelectedMenuSlotRegistryField(
+                                        slot.id,
+                                        event.currentTarget.value
+                                      )
+                                    }
+                                    onKeyDown={(event) => {
+                                      if (event.key !== "Enter") {
+                                        return;
+                                      }
+
+                                      event.preventDefault();
+                                      event.currentTarget.blur();
+                                    }}
+                                  />
+                                )}
+
+                                <button
+                                  type="button"
+                                  style={getInspectorRegistryButtonStyle(isRegistryPickerOpen)}
+                                  title="Open CLP registry"
+                                  aria-label="Open CLP registry"
+                                  onClick={() =>
+                                    toggleInspectorRegistryPickerForField(slotRegistryField)
+                                  }
+                                >
+                                  📋
+                                </button>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : selectedNode.data.node_type === "frame" ? (
+              <>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Title</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      style={inputStyle}
+                      value={selectedNode.data.title}
+                      placeholder="Add title"
+                      onChange={(event) => updateSelectedField("title", event.target.value)}
+                      onBlur={(event) =>
+                        commitSelectedRegistryField("title", event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={getInspectorRegistryButtonStyle(
+                        activeInspectorRegistryPickerField === "title"
+                      )}
+                      title="Open CLP registry"
+                      aria-label="Open CLP registry"
+                      onClick={() => toggleInspectorRegistryPickerForField("title")}
+                    >
+                      📋
+                    </button>
+                  </div>
+                </label>
+
+                <div
+                  style={{
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 8,
+                    padding: 8,
+                    background: "#f8fafc",
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>
+                    Frame style
+                  </div>
+
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {FRAME_SHADE_OPTIONS.map((frameShadeOption) => {
+                      const isActive =
+                        (selectedFrameNodeConfig?.shade ?? "medium") === frameShadeOption;
+
+                      return (
+                        <button
+                          key={`frame-shade:${frameShadeOption}`}
+                          type="button"
+                          style={{
+                            ...buttonStyle,
+                            fontSize: 11,
+                            padding: "4px 8px",
+                            borderColor: isActive ? "#64748b" : "#cbd5e1",
+                            background: isActive ? "#e2e8f0" : "#f8fafc",
+                            color: isActive ? "#0f172a" : "#334155",
+                            fontWeight: isActive ? 700 : 600,
+                          }}
+                          onClick={() => updateSelectedFrameShade(frameShadeOption)}
+                        >
+                          {FRAME_SHADE_LABELS[frameShadeOption]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Concept</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.concept}
+                    onChange={(event) => updateSelectedField("concept", event.target.value)}
+                  >
+                    <option value="">—</option>
+                    {buildSelectOptions(
+                      adminOptions.concept,
+                      selectedNode.data.concept,
+                      DEFAULT_GLOBAL_OPTIONS.concept
+                    ).map((option) => (
+                      <option key={`frame-concept:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Notes</div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                    <textarea
+                      style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
+                      value={selectedNode.data.notes}
+                      onChange={(event) => updateSelectedField("notes", event.target.value)}
+                      onBlur={(event) =>
+                        commitSelectedRegistryField("notes", event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={getInspectorRegistryButtonStyle(
+                        activeInspectorRegistryPickerField === "notes"
+                      )}
+                      title="Open CLP registry"
+                      aria-label="Open CLP registry"
+                      onClick={() => toggleInspectorRegistryPickerForField("notes")}
+                    >
+                      📋
+                    </button>
+                  </div>
+                </label>
+              </>
+            ) : (
+              <>
+                {/* hidden for beta */}
+                {false &&
+                  selectedNode?.data.node_type !== "horizontal_multi_term" && (
+                    <label>
+                      <div style={inspectorFieldLabelStyle}>Node shape</div>
+                      <select
+                        style={inputStyle}
+                        value={selectedNode?.data.node_shape}
+                        onChange={(event) =>
+                          updateSelectedField("node_shape", event.target.value as NodeShape)
+                        }
+                      >
+                        {NODE_SHAPE_OPTIONS.map((shape) => (
+                          <option key={`shape:${shape}`} value={shape}>
+                            {shape.charAt(0).toUpperCase() + shape.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginBottom: 4,
+                    }}
+                  >
+                    <div style={{ ...inspectorFieldLabelStyle, marginBottom: 0 }}>Title</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      style={inputStyle}
+                      value={selectedNode.data.title}
+                      onChange={(event) => updateSelectedField("title", event.target.value)}
+                      onBlur={(event) =>
+                        commitSelectedRegistryField("title", event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={getInspectorRegistryButtonStyle(
+                        activeInspectorRegistryPickerField === "title"
+                      )}
+                      title="Open CLP registry"
+                      aria-label="Open CLP registry"
+                      onClick={() => toggleInspectorRegistryPickerForField("title")}
+                    >
+                      📋
+                    </button>
+                  </div>
+                </div>
+
+                {selectedNode.data.node_type === "horizontal_multi_term" && selectedHorizontalContentConfig && (
+                  <div
+                    style={{
+                      border: "1px solid #dbeafe",
+                      borderRadius: 8,
+                      padding: 8,
+                      background: "#f8fbff",
+                      display: "grid",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e40af" }}>
+                      Horizontal Cells
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ fontSize: 12, color: "#334155", fontWeight: 600 }}>
+                        Columns: {selectedHorizontalContentConfig.groups.length}
+                      </div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          type="button"
+                          style={{
+                            ...buttonStyle,
+                            width: 24,
+                            height: 24,
+                            minWidth: 24,
+                            padding: 0,
+                            fontWeight: 700,
+                            lineHeight: 1,
+                          }}
+                          onClick={() => updateRibbonColumns(1)}
+                          aria-label="Add column"
+                          title="Add column"
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          style={{
+                            ...buttonStyle,
+                            width: 24,
+                            height: 24,
+                            minWidth: 24,
+                            padding: 0,
+                            fontWeight: 700,
+                            lineHeight: 1,
+                            opacity:
+                              selectedHorizontalContentConfig.groups.length <=
+                              HMN_MIN_COLUMNS
+                                ? 0.45
+                                : 1,
+                            cursor:
+                              selectedHorizontalContentConfig.groups.length <=
+                              HMN_MIN_COLUMNS
+                                ? "not-allowed"
+                                : "pointer",
+                          }}
+                          onClick={() => updateRibbonColumns(-1)}
+                          disabled={
+                            selectedHorizontalContentConfig.groups.length <=
+                            HMN_MIN_COLUMNS
+                          }
+                          aria-label="Remove column"
+                          title="Remove column"
+                        >
+                          -
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 2 }}>
+                      {[...selectedHorizontalContentConfig.groups]
+                        .sort((groupA, groupB) =>
+                          groupA.row === groupB.row
+                            ? groupA.column - groupB.column
+                            : groupA.row - groupB.row
+                        )
+                        .map((group) => {
+                          const groupSlots = selectedHorizontalContentConfig.slots
+                            .filter((slot) => slot.groupId === group.id)
+                            .sort(sortContentSlotsByPosition);
+
+                          return (
+                          <div
+                            key={`inspector-ribbon-cell:${group.id}`}
+                            style={{
+                              border: "1px solid #e2e8f0",
+                              borderRadius: 6,
+                              padding: "6px 8px",
+                              marginBottom: 6,
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: "#64748b",
+                                marginBottom: 6,
+                              }}
+                            >
+                              Cell {group.column + 1}
+                            </div>
+
+                            <div style={{ display: "grid", gap: 6 }}>
+                              {groupSlots.map((slot) => {
+                                const slotRegistryField = buildContentSlotRegistryField(slot.id);
+                                const isRegistryPickerOpen =
+                                  activeInspectorRegistryPickerField === slotRegistryField;
+                                const normalizedTermType = normalizeContentSlotTermType(slot.termType);
+                                const isLongField = normalizedTermType === "tool_tip";
+
+                                return (
+                                  <label
+                                    key={`inspector-ribbon-slot:${group.id}:${slot.id}`}
+                                    style={{ display: "grid", gap: 4 }}
+                                  >
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        gap: 8,
+                                      }}
+                                    >
+                                      <div style={{ fontSize: 11, color: "#334155", fontWeight: 700 }}>
+                                        {normalizeConversationSlotTermTypeLabel(slot.termType)}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        style={getInspectorRegistryButtonStyle(isRegistryPickerOpen)}
+                                        title="Open CLP registry"
+                                        aria-label="Open CLP registry"
+                                        onClick={() =>
+                                          toggleInspectorRegistryPickerForField(slotRegistryField)
+                                        }
+                                      >
+                                        📋
+                                      </button>
+                                    </div>
+
+                                    {isLongField ? (
+                                      <textarea
+                                        style={{ ...inputStyle, fontSize: 11 }}
+                                        value={slot.value ?? ""}
+                                        placeholder="Add value"
+                                        rows={2}
+                                        onChange={(event) =>
+                                          updateRibbonCellField(slot.id, event.target.value)
+                                        }
+                                        onBlur={(event) =>
+                                          commitContentSlotRegistryField(
+                                            slot.id,
+                                            event.currentTarget.value
+                                          )
+                                        }
+                                      />
+                                    ) : (
+                                      <input
+                                        style={{
+                                          ...inputStyle,
+                                          fontSize: 11,
+                                          fontFamily:
+                                            normalizedTermType === "key_command"
+                                              ? "monospace"
+                                              : undefined,
+                                        }}
+                                        value={slot.value ?? ""}
+                                        placeholder="Add value"
+                                        onChange={(event) =>
+                                          updateRibbonCellField(slot.id, event.target.value)
+                                        }
+                                        onBlur={(event) =>
+                                          commitContentSlotRegistryField(
+                                            slot.id,
+                                            event.currentTarget.value
+                                          )
+                                        }
+                                        onKeyDown={(event) => {
+                                          if (event.key !== "Enter") {
+                                            return;
+                                          }
+
+                                          event.preventDefault();
+                                          event.currentTarget.blur();
+                                        }}
+                                      />
+                                    )}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {selectedNodeIsDefaultInspectorNode && (
+                    <>
+                      <div
+                        style={{
+                          border: "1px solid #dbeafe",
+                          borderRadius: 8,
+                          padding: 8,
+                          background: "#f8fbff",
+                          display: "grid",
+                          gap: 6,
+                        }}
+                      >
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                          Field visibility
+                        </div>
+
+                        <div
+                          style={{
+                            borderTop: "1px solid #bfdbfe",
+                            marginTop: 2,
+                            paddingTop: 6,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: "#475569",
+                              marginBottom: 4,
+                              textTransform: "uppercase",
+                              letterSpacing: 0.4,
+                            }}
+                          >
+                            Displayed term fields
+                          </div>
+
+                          {selectedNode.data.content_config.slots
+                            .filter(
+                              (slot) =>
+                                normalizeContentSlotTermType(slot.termType) !== "title"
+                            )
+                            .map((slot, slotIndex) => (
+                            <label
+                              key={`display-term-slot:${slot.id}:${slotIndex}`}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontSize: 12,
+                                color: "#334155",
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={slot.visible !== false}
+                                onChange={(event) =>
+                                  updateSelectedContentSlotVisibility(
+                                    slot.id,
+                                    event.target.checked
+                                  )
+                                }
+                              />
+                              {getContentSlotInspectorLabel(slot.termType)}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                    
+
+                      <div>
+                        <div style={{ fontSize: 12, marginBottom: 4, color: "#334155" }}>
+                          Body Text
+                        </div>
+                        <textarea
+                          style={{
+                            ...inputStyle,
+                            width: "100%",
+                            minHeight: 70,
+                            resize: "vertical",
+                            marginBottom: 8,
+                          }}
+                          value={selectedNode.data.body_text ?? ""}
+                          placeholder="Add body text"
+                          onChange={(event) =>
+                            updateNodeFieldById(selectedNode.id, "body_text", event.target.value)
+                          }
+                        />
+                        <div style={{ fontSize: 11, marginBottom: 4, color: "#94a3b8" }}>
+                          Preview (markdown)
+                        </div>
+                        <div
+                          style={{
+                            border: "1px solid #e2e8f0",
+                            borderRadius: 6,
+                            background: "#f8fafc",
+                            padding: 8,
+                          }}
+                        >
+                          <BodyTextPreview value={selectedNode.data.body_text ?? ""} />
+                        </div>
+                      </div>
+
+                      {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => {
+                        const normalizedFieldType = normalizeContentSlotTermType(fieldType);
+                        const matchingSlot = selectedNode.data.content_config.slots.find(
+                          (slot) =>
+                            normalizeContentSlotTermType(slot.termType) === normalizedFieldType
+                        );
+
+                        if (!matchingSlot) {
+                          return null;
+                        }
+
+                        const slotRegistryField = buildContentSlotRegistryField(matchingSlot.id);
+
+                        return (
+                          <label
+                            key={`controlled-language-field:${fieldType}:${matchingSlot.id}`}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 8,
+                                marginBottom: 4,
+                              }}
+                            >
+                              <div style={inspectorFieldLabelStyle}>
+                                {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
+                              </div>
+                              <button
+                                type="button"
+                                style={getInspectorRegistryButtonStyle(
+                                  activeInspectorRegistryPickerField === slotRegistryField
+                                )}
+                                title="Open CLP registry"
+                                aria-label="Open CLP registry"
+                                onClick={() =>
+                                  toggleInspectorRegistryPickerForField(slotRegistryField)
+                                }
+                              >
+                                📋
+                              </button>
+                            </div>
+
+                            <input
+                              style={inputStyle}
+                              value={matchingSlot.value}
+                              onChange={(event) =>
+                                updateSelectedContentSlotValue(
+                                  matchingSlot.id,
+                                  event.target.value
+                                )
+                              }
+                              onBlur={(event) =>
+                                commitContentSlotRegistryField(
+                                  matchingSlot.id,
+                                  event.target.value
+                                )
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter") {
+                                  return;
+                                }
+
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                              }}
+                            />
+                          </label>
+                        );
+                      })}
+                      
+                    </>
+                  )}
+              </>
+            )}
+
+            <div
+              style={{
+                borderTop: "2px solid #cbd5e1",
+                marginTop: 4,
+                marginBottom: 4,
+                paddingTop: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.8,
+                }}
+              >
+                TAGGING
+              </div>
+            </div>
+
+            {selectedNode.data.node_type !== "frame" && (
+              <>
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Tone</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.tone}
+                    onChange={(event) => updateSelectedField("tone", event.target.value)}
+                  >
+                    {buildSelectOptions(
+                      adminOptions.tone,
+                      selectedNode.data.tone,
+                      DEFAULT_GLOBAL_OPTIONS.tone
+                    ).map((option) => (
+                      <option key={`tone:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Polarity</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.polarity}
+                    onChange={(event) => updateSelectedField("polarity", event.target.value)}
+                  >
+                    {buildSelectOptions(
+                      adminOptions.polarity,
+                      selectedNode.data.polarity,
+                      DEFAULT_GLOBAL_OPTIONS.polarity
+                    ).map((option) => (
+                      <option key={`polarity:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Reversibility</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.reversibility}
+                    onChange={(event) =>
+                      updateSelectedField("reversibility", event.target.value)
+                    }
+                  >
+                    {buildSelectOptions(
+                      adminOptions.reversibility,
+                      selectedNode.data.reversibility,
+                      DEFAULT_GLOBAL_OPTIONS.reversibility
+                    ).map((option) => (
+                      <option key={`reversibility:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Concept</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.concept}
+                    onChange={(event) => updateSelectedField("concept", event.target.value)}
+                  >
+                    <option value="">—</option>
+                    {buildSelectOptions(
+                      adminOptions.concept,
+                      selectedNode.data.concept,
+                      DEFAULT_GLOBAL_OPTIONS.concept
+                    ).map((option) => (
+                      <option key={`concept:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Notes</div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                    <textarea
+                      style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
+                      value={selectedNode.data.notes}
+                      onChange={(event) => updateSelectedField("notes", event.target.value)}
+                      onBlur={(event) =>
+                        commitSelectedRegistryField("notes", event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={getInspectorRegistryButtonStyle(
+                        activeInspectorRegistryPickerField === "notes"
+                      )}
+                      title="Open CLP registry"
+                      aria-label="Open CLP registry"
+                      onClick={() => toggleInspectorRegistryPickerForField("notes")}
+                    >
+                      📋
+                    </button>
+                  </div>
+                </label>
+
+                <label>
+                  <div style={inspectorFieldLabelStyle}>Card style</div>
+                  <select
+                    style={inputStyle}
+                    value={selectedNode.data.card_style}
+                    onChange={(event) => updateSelectedField("card_style", event.target.value)}
+                  >
+                    {buildSelectOptions(
+                      adminOptions.card_style,
+                      selectedNode.data.card_style,
+                      DEFAULT_GLOBAL_OPTIONS.card_style
+                    ).map((option) => (
+                      <option key={`card_style:${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+
+            <details style={{ marginTop: 12, borderTop: "1px solid #e2e8f0", paddingTop: 8 }}>
+              <summary style={{ fontSize: 11, color: "#94a3b8", cursor: "pointer", userSelect: "none" }}>
+                Card Identity
+              </summary>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>
+                <strong>Card ID:</strong> {selectedNode.id}<br />
+                <strong>Sequence:</strong> {ordering.sequenceByNodeId[selectedNode.id] ?? "-"}<br />
+                <strong>X:</strong> {Math.round(selectedNode.position.x)}<br />
+                <strong>Y:</strong> {Math.round(selectedNode.position.y)}
+              </div>
+            </details>
+          </div>
+        )}
           </>
         )}
 
@@ -10919,1231 +12144,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           </section>
         )}
 
-        {selectedEdge && normalizedSelectedEdgeData && !hasSelectedNodes ? (
-          <section
-            style={{
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
-              padding: 10,
-              display: "grid",
-              gap: 8,
-              background: "#f8fafc",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 8,
-              }}
-            >
-              <h3 style={{ margin: 0, fontSize: 14 }}>Edge Inspector</h3>
-              <button type="button" style={buttonStyle} onClick={handleDeleteSelection}>
-                Delete Edge
-              </button>
-            </div>
-
-            <div style={{ fontSize: 12, color: "#334155" }}>
-              <strong>Edge ID:</strong> {selectedEdge.id}
-              <br />
-              <strong>Source → Target:</strong> {selectedEdge.source} → {selectedEdge.target}
-            </div>
-
-            <label>
-              <div style={inspectorFieldLabelStyle}>Kind</div>
-              <input
-                style={inputStyle}
-                value={
-                  normalizedSelectedEdgeData.edge_kind === "sequential"
-                    ? "Sequential"
-                    : "Parallel"
-                }
-                readOnly
-              />
-            </label>
-
-            <label>
-              <div style={inspectorFieldLabelStyle}>Color</div>
-              <input
-                style={inputStyle}
-                type="color"
-                value={normalizedSelectedEdgeData.stroke_color ?? "#1d4ed8"}
-                onChange={(event) => {
-                  const nextColor = event.target.value;
-                  updateSelectedEdgeData((currentData) => ({
-                    ...currentData,
-                    stroke_color: nextColor,
-                  }));
-                }}
-              />
-            </label>
-
-            <label>
-              <div style={inspectorFieldLabelStyle}>Line style</div>
-              <select
-                style={inputStyle}
-                value={normalizedSelectedEdgeData.line_style ?? "solid"}
-                onChange={(event) => {
-                  const nextStyle =
-                    (event.target.value as EdgeLineStyle) ?? "solid";
-                  updateSelectedEdgeData((currentData) => ({
-                    ...currentData,
-                    line_style: nextStyle,
-                  }));
-                }}
-              >
-                {EDGE_LINE_STYLE_OPTIONS.map((option) => (
-                  <option key={`edge-line-style:${option}`} value={option}>
-                    {option.charAt(0).toUpperCase() + option.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {normalizedSelectedEdgeData.edge_kind === "sequential" && (
-              <label>
-                <div style={inspectorFieldLabelStyle}>Direction</div>
-                <select
-                  style={inputStyle}
-                  value={
-                    normalizedSelectedEdgeData.is_reversed ? "reversed" : "forward"
-                  }
-                  onChange={(event) => {
-                    const nextDirection =
-                      (event.target.value as EdgeDirection) ?? "forward";
-                    updateSelectedEdgeData((currentData) => ({
-                      ...currentData,
-                      is_reversed: nextDirection === "reversed",
-                    }));
-                  }}
-                >
-                  <option value="forward">Forward</option>
-                  <option value="reversed">Reversed</option>
-                </select>
-              </label>
-            )}
-
-            <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
-              Tip: press Delete / Backspace to remove this edge.
-            </p>
-          </section>
-        ) : hasMultipleSelectedNodes ? (
-          <p style={{ fontSize: 13, color: "#71717a" }}>
-            Multiple nodes selected. Select a single node to edit its data.
-          </p>
-        ) : !hasExactlyOneSelectedNode || !selectedNode ? (
-          <p style={{ fontSize: 13, color: "#71717a" }}>
-            No selection. Click a node or edge on the canvas.
-          </p>
-        ) : (
-          <div style={{ display: "grid", gap: 10 }}>
-
-            <div>
-              <div style={inspectorFieldLabelStyle}>Card type</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {NODE_TYPE_OPTIONS.map((nodeTypeOption) => {
-                  const isActive = selectedNode.data.node_type === nodeTypeOption;
-                  const currentNodeType = selectedNode.data.node_type;
-                  const isEnabled =
-                    isActive ||
-                    ((currentNodeType === "vertical_multi_term" || currentNodeType === "horizontal_multi_term") &&
-                      (nodeTypeOption === "vertical_multi_term" || nodeTypeOption === "horizontal_multi_term"));
-
-                  return (
-                    <button
-                      key={`inspector-node-type:${nodeTypeOption}`}
-                      type="button"
-                      style={{
-                        ...buttonStyle,
-                        fontSize: 11,
-                        padding: "4px 8px",
-                        borderColor: isActive ? "#1d4ed8" : "#d4d4d8",
-                        background: isActive ? "#dbeafe" : isEnabled ? "#fff" : "#f4f4f5",
-                        color: isActive ? "#1e3a8a" : isEnabled ? "#334155" : "#a1a1aa",
-                        fontWeight: isActive ? 700 : 600,
-                        cursor: isEnabled ? "pointer" : "not-allowed",
-                        opacity: isEnabled ? 1 : 0.7,
-                      }}
-                      disabled={!isEnabled}
-                      aria-pressed={isActive}
-                      onClick={() => {
-                        if (!isEnabled || !isNodeType(nodeTypeOption)) {
-                          return;
-                        }
-
-                        updateSelectedNodeType(nodeTypeOption);
-                      }}
-                    >
-                      {NODE_TYPE_LABELS[nodeTypeOption]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div
-              style={{
-                borderTop: "2px solid #cbd5e1",
-                marginTop: 4,
-                marginBottom: 4,
-                paddingTop: 8,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: "#64748b",
-                  textTransform: "uppercase",
-                  letterSpacing: 0.8,
-                }}
-              >
-                CARD CONTENT
-              </div>
-            </div>
-
-            {selectedNode.data.node_type === "vertical_multi_term" ? (
-              <>
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Title</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <input
-                      style={inputStyle}
-                      value={selectedNode.data.title}
-                      placeholder="Add title"
-                      onChange={(event) => updateSelectedField("title", event.target.value)}
-                      onBlur={(event) =>
-                        commitSelectedRegistryField("title", event.target.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") {
-                          return;
-                        }
-
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                      }}
-                    />
-                    <button
-                      type="button"
-                      style={getInspectorRegistryButtonStyle(
-                        activeInspectorRegistryPickerField === "title"
-                      )}
-                      title="Open CLP registry"
-                      aria-label="Open CLP registry"
-                      onClick={() => toggleInspectorRegistryPickerForField("title")}
-                    >
-                      📋
-                    </button>
-                  </div>
-                </label>
-
-                <div
-                  style={{
-                    border: "1px solid #dbeafe",
-                    borderRadius: 8,
-                    padding: 8,
-                    background: "#f8fbff",
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
-                    Field visibility
-                  </div>
-
-                  <div
-                    style={{
-                      borderTop: "1px solid #bfdbfe",
-                      marginTop: 2,
-                    }}
-                  />
-                </div>
-
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Menu Terms</div>
-                  <input
-                    key={`menu-right-connections:${selectedNode.id}:${
-                      selectedVerticalContentConfig?.groups.length ??
-                      VMN_GROUPS_MIN
-                    }`}
-                    style={inputStyle}
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    defaultValue={
-                      selectedVerticalContentConfig?.groups.length ??
-                      VMN_GROUPS_MIN
-                    }
-                    onInput={(event) => {
-                      const nextValue = event.currentTarget.value.replace(/[^\d]/g, "");
-                      if (nextValue === event.currentTarget.value) {
-                        return;
-                      }
-
-                      event.currentTarget.value = nextValue;
-                    }}
-                    onBlur={(event) => {
-                      event.currentTarget.value = commitSelectedMenuRightConnectionsInput(
-                        event.currentTarget.value
-                      );
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") {
-                        return;
-                      }
-
-                      event.preventDefault();
-                      event.currentTarget.value = commitSelectedMenuRightConnectionsInput(
-                        event.currentTarget.value
-                      );
-                    }}
-                  />
-                </label>
-
-                <div
-                  style={{
-                    border: "1px solid #dbeafe",
-                    borderRadius: 8,
-                    padding: 6,
-                    background: "#f8fbff",
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
-                      Term Input
-                    </div>
-                    <button
-                      type="button"
-                      style={{
-                        ...buttonStyle,
-                        width: 20,
-                        height: 20,
-                        minWidth: 20,
-                        padding: 0,
-                        borderRadius: 999,
-                        fontSize: 14,
-                        lineHeight: 1,
-                        fontWeight: 700,
-                        color: "#1d4ed8",
-                        borderColor: "#93c5fd",
-                        opacity:
-                          (selectedVerticalContentConfig?.groups.length ??
-                            VMN_GROUPS_MAX) >=
-                          VMN_GROUPS_MAX
-                            ? 0.45
-                            : 1,
-                        cursor:
-                          (selectedVerticalContentConfig?.groups.length ??
-                            VMN_GROUPS_MAX) >=
-                          VMN_GROUPS_MAX
-                            ? "not-allowed"
-                            : "pointer",
-                      }}
-                      title="Add menu term"
-                      aria-label="Add menu term"
-                      onClick={addSelectedMenuTerm}
-                      disabled={
-                        (selectedVerticalContentConfig?.groups.length ??
-                          VMN_GROUPS_MAX) >=
-                        VMN_GROUPS_MAX
-                      }
-                    >
-                      +
-                    </button>
-                  </div>
-
-                  {[...(selectedVerticalContentConfig?.groups ?? [])]
-                    .sort((groupA, groupB) =>
-                      groupA.row === groupB.row
-                        ? groupA.column - groupB.column
-                        : groupA.row - groupB.row
-                    )
-                    .map((menuGroup) => {
-                    const groupSlots = (selectedVerticalContentConfig?.slots ?? [])
-                      .filter((slot) => slot.groupId === menuGroup.id)
-                      .sort(sortContentSlotsByPosition);
-
-                    return (
-                      <div
-                        key={`inspector-menu-term:${menuGroup.id}`}
-                        style={{
-                          border: "1px solid #bfdbfe",
-                          borderRadius: 6,
-                          padding: 5,
-                          display: "grid",
-                          gap: 5,
-                          background: "#fff",
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <button
-                            type="button"
-                            style={{
-                              ...buttonStyle,
-                              fontSize: 10,
-                              padding: "2px 6px",
-                              borderColor: "#fca5a5",
-                              color: "#b91c1c",
-                              flexShrink: 0,
-                            }}
-                            title="Delete this term"
-                            onClick={() => deleteSelectedMenuTermById(menuGroup.id)}
-                          >
-                            X
-                          </button>
-                        </div>
-
-                        {groupSlots.map((slot) => {
-                          const slotRegistryField = buildContentSlotRegistryField(slot.id);
-                          const isRegistryPickerOpen =
-                            activeInspectorRegistryPickerField === slotRegistryField;
-                          const normalizedTermType = normalizeContentSlotTermType(slot.termType);
-                          const isLongField = normalizedTermType === "tool_tip";
-
-                          return (
-                            <label
-                              key={`inspector-menu-slot:${menuGroup.id}:${slot.id}`}
-                              style={{ display: "grid", gap: 4 }}
-                            >
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  color: "#334155",
-                                }}
-                              >
-                                {normalizeConversationSlotTermTypeLabel(slot.termType)}
-                              </div>
-
-                              <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-                                {isLongField ? (
-                                  <textarea
-                                    style={{ ...inputStyle, minHeight: 60, resize: "vertical" }}
-                                    value={slot.value ?? ""}
-                                    placeholder="Add value"
-                                    onChange={(event) =>
-                                      updateSelectedMenuSlotValueById(
-                                        slot.id,
-                                        event.target.value
-                                      )
-                                    }
-                                    onBlur={(event) =>
-                                      commitSelectedMenuSlotRegistryField(
-                                        slot.id,
-                                        event.currentTarget.value
-                                      )
-                                    }
-                                  />
-                                ) : (
-                                  <input
-                                    style={inputStyle}
-                                    value={slot.value ?? ""}
-                                    placeholder="Add value"
-                                    onChange={(event) =>
-                                      updateSelectedMenuSlotValueById(
-                                        slot.id,
-                                        event.target.value
-                                      )
-                                    }
-                                    onBlur={(event) =>
-                                      commitSelectedMenuSlotRegistryField(
-                                        slot.id,
-                                        event.currentTarget.value
-                                      )
-                                    }
-                                    onKeyDown={(event) => {
-                                      if (event.key !== "Enter") {
-                                        return;
-                                      }
-
-                                      event.preventDefault();
-                                      event.currentTarget.blur();
-                                    }}
-                                  />
-                                )}
-
-                                <button
-                                  type="button"
-                                  style={getInspectorRegistryButtonStyle(isRegistryPickerOpen)}
-                                  title="Open CLP registry"
-                                  aria-label="Open CLP registry"
-                                  onClick={() =>
-                                    toggleInspectorRegistryPickerForField(slotRegistryField)
-                                  }
-                                >
-                                  📋
-                                </button>
-                              </div>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            ) : selectedNode.data.node_type === "frame" ? (
-              <>
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Title</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <input
-                      style={inputStyle}
-                      value={selectedNode.data.title}
-                      placeholder="Add title"
-                      onChange={(event) => updateSelectedField("title", event.target.value)}
-                      onBlur={(event) =>
-                        commitSelectedRegistryField("title", event.target.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") {
-                          return;
-                        }
-
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                      }}
-                    />
-                    <button
-                      type="button"
-                      style={getInspectorRegistryButtonStyle(
-                        activeInspectorRegistryPickerField === "title"
-                      )}
-                      title="Open CLP registry"
-                      aria-label="Open CLP registry"
-                      onClick={() => toggleInspectorRegistryPickerForField("title")}
-                    >
-                      📋
-                    </button>
-                  </div>
-                </label>
-
-                <div
-                  style={{
-                    border: "1px solid #cbd5e1",
-                    borderRadius: 8,
-                    padding: 8,
-                    background: "#f8fafc",
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>
-                    Frame style
-                  </div>
-
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {FRAME_SHADE_OPTIONS.map((frameShadeOption) => {
-                      const isActive =
-                        (selectedFrameNodeConfig?.shade ?? "medium") === frameShadeOption;
-
-                      return (
-                        <button
-                          key={`frame-shade:${frameShadeOption}`}
-                          type="button"
-                          style={{
-                            ...buttonStyle,
-                            fontSize: 11,
-                            padding: "4px 8px",
-                            borderColor: isActive ? "#64748b" : "#cbd5e1",
-                            background: isActive ? "#e2e8f0" : "#f8fafc",
-                            color: isActive ? "#0f172a" : "#334155",
-                            fontWeight: isActive ? 700 : 600,
-                          }}
-                          onClick={() => updateSelectedFrameShade(frameShadeOption)}
-                        >
-                          {FRAME_SHADE_LABELS[frameShadeOption]}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Concept</div>
-                  <select
-                    style={inputStyle}
-                    value={selectedNode.data.concept}
-                    onChange={(event) => updateSelectedField("concept", event.target.value)}
-                  >
-                    <option value="">—</option>
-                    {buildSelectOptions(
-                      adminOptions.concept,
-                      selectedNode.data.concept,
-                      DEFAULT_GLOBAL_OPTIONS.concept
-                    ).map((option) => (
-                      <option key={`frame-concept:${option}`} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Notes</div>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-                    <textarea
-                      style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
-                      value={selectedNode.data.notes}
-                      onChange={(event) => updateSelectedField("notes", event.target.value)}
-                      onBlur={(event) =>
-                        commitSelectedRegistryField("notes", event.target.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") {
-                          return;
-                        }
-
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                      }}
-                    />
-                    <button
-                      type="button"
-                      style={getInspectorRegistryButtonStyle(
-                        activeInspectorRegistryPickerField === "notes"
-                      )}
-                      title="Open CLP registry"
-                      aria-label="Open CLP registry"
-                      onClick={() => toggleInspectorRegistryPickerForField("notes")}
-                    >
-                      📋
-                    </button>
-                  </div>
-                </label>
-              </>
-            ) : (
-              <>
-                {/* hidden for beta */}
-                {false &&
-                  selectedNode?.data.node_type !== "horizontal_multi_term" && (
-                    <label>
-                      <div style={inspectorFieldLabelStyle}>Node shape</div>
-                      <select
-                        style={inputStyle}
-                        value={selectedNode?.data.node_shape}
-                        onChange={(event) =>
-                          updateSelectedField("node_shape", event.target.value as NodeShape)
-                        }
-                      >
-                        {NODE_SHAPE_OPTIONS.map((shape) => (
-                          <option key={`shape:${shape}`} value={shape}>
-                            {shape.charAt(0).toUpperCase() + shape.slice(1)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-
-                <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      marginBottom: 4,
-                    }}
-                  >
-                    <div style={{ ...inspectorFieldLabelStyle, marginBottom: 0 }}>Title</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <input
-                      style={inputStyle}
-                      value={selectedNode.data.title}
-                      onChange={(event) => updateSelectedField("title", event.target.value)}
-                      onBlur={(event) =>
-                        commitSelectedRegistryField("title", event.target.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") {
-                          return;
-                        }
-
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                      }}
-                    />
-                    <button
-                      type="button"
-                      style={getInspectorRegistryButtonStyle(
-                        activeInspectorRegistryPickerField === "title"
-                      )}
-                      title="Open CLP registry"
-                      aria-label="Open CLP registry"
-                      onClick={() => toggleInspectorRegistryPickerForField("title")}
-                    >
-                      📋
-                    </button>
-                  </div>
-                </div>
-
-                {selectedNode.data.node_type === "horizontal_multi_term" && selectedHorizontalContentConfig && (
-                  <div
-                    style={{
-                      border: "1px solid #dbeafe",
-                      borderRadius: 8,
-                      padding: 8,
-                      background: "#f8fbff",
-                      display: "grid",
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e40af" }}>
-                      Horizontal Cells
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
-                      }}
-                    >
-                      <div style={{ fontSize: 12, color: "#334155", fontWeight: 600 }}>
-                        Columns: {selectedHorizontalContentConfig.groups.length}
-                      </div>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button
-                          type="button"
-                          style={{
-                            ...buttonStyle,
-                            width: 24,
-                            height: 24,
-                            minWidth: 24,
-                            padding: 0,
-                            fontWeight: 700,
-                            lineHeight: 1,
-                          }}
-                          onClick={() => updateRibbonColumns(1)}
-                          aria-label="Add column"
-                          title="Add column"
-                        >
-                          +
-                        </button>
-                        <button
-                          type="button"
-                          style={{
-                            ...buttonStyle,
-                            width: 24,
-                            height: 24,
-                            minWidth: 24,
-                            padding: 0,
-                            fontWeight: 700,
-                            lineHeight: 1,
-                            opacity:
-                              selectedHorizontalContentConfig.groups.length <=
-                              HMN_MIN_COLUMNS
-                                ? 0.45
-                                : 1,
-                            cursor:
-                              selectedHorizontalContentConfig.groups.length <=
-                              HMN_MIN_COLUMNS
-                                ? "not-allowed"
-                                : "pointer",
-                          }}
-                          onClick={() => updateRibbonColumns(-1)}
-                          disabled={
-                            selectedHorizontalContentConfig.groups.length <=
-                            HMN_MIN_COLUMNS
-                          }
-                          aria-label="Remove column"
-                          title="Remove column"
-                        >
-                          -
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{ marginTop: 2 }}>
-                      {[...selectedHorizontalContentConfig.groups]
-                        .sort((groupA, groupB) =>
-                          groupA.row === groupB.row
-                            ? groupA.column - groupB.column
-                            : groupA.row - groupB.row
-                        )
-                        .map((group) => {
-                          const groupSlots = selectedHorizontalContentConfig.slots
-                            .filter((slot) => slot.groupId === group.id)
-                            .sort(sortContentSlotsByPosition);
-
-                          return (
-                          <div
-                            key={`inspector-ribbon-cell:${group.id}`}
-                            style={{
-                              border: "1px solid #e2e8f0",
-                              borderRadius: 6,
-                              padding: "6px 8px",
-                              marginBottom: 6,
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 600,
-                                color: "#64748b",
-                                marginBottom: 6,
-                              }}
-                            >
-                              Cell {group.column + 1}
-                            </div>
-
-                            <div style={{ display: "grid", gap: 6 }}>
-                              {groupSlots.map((slot) => {
-                                const slotRegistryField = buildContentSlotRegistryField(slot.id);
-                                const isRegistryPickerOpen =
-                                  activeInspectorRegistryPickerField === slotRegistryField;
-                                const normalizedTermType = normalizeContentSlotTermType(slot.termType);
-                                const isLongField = normalizedTermType === "tool_tip";
-
-                                return (
-                                  <label
-                                    key={`inspector-ribbon-slot:${group.id}:${slot.id}`}
-                                    style={{ display: "grid", gap: 4 }}
-                                  >
-                                    <div
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
-                                        gap: 8,
-                                      }}
-                                    >
-                                      <div style={{ fontSize: 11, color: "#334155", fontWeight: 700 }}>
-                                        {normalizeConversationSlotTermTypeLabel(slot.termType)}
-                                      </div>
-                                      <button
-                                        type="button"
-                                        style={getInspectorRegistryButtonStyle(isRegistryPickerOpen)}
-                                        title="Open CLP registry"
-                                        aria-label="Open CLP registry"
-                                        onClick={() =>
-                                          toggleInspectorRegistryPickerForField(slotRegistryField)
-                                        }
-                                      >
-                                        📋
-                                      </button>
-                                    </div>
-
-                                    {isLongField ? (
-                                      <textarea
-                                        style={{ ...inputStyle, fontSize: 11 }}
-                                        value={slot.value ?? ""}
-                                        placeholder="Add value"
-                                        rows={2}
-                                        onChange={(event) =>
-                                          updateRibbonCellField(slot.id, event.target.value)
-                                        }
-                                        onBlur={(event) =>
-                                          commitContentSlotRegistryField(
-                                            slot.id,
-                                            event.currentTarget.value
-                                          )
-                                        }
-                                      />
-                                    ) : (
-                                      <input
-                                        style={{
-                                          ...inputStyle,
-                                          fontSize: 11,
-                                          fontFamily:
-                                            normalizedTermType === "key_command"
-                                              ? "monospace"
-                                              : undefined,
-                                        }}
-                                        value={slot.value ?? ""}
-                                        placeholder="Add value"
-                                        onChange={(event) =>
-                                          updateRibbonCellField(slot.id, event.target.value)
-                                        }
-                                        onBlur={(event) =>
-                                          commitContentSlotRegistryField(
-                                            slot.id,
-                                            event.currentTarget.value
-                                          )
-                                        }
-                                        onKeyDown={(event) => {
-                                          if (event.key !== "Enter") {
-                                            return;
-                                          }
-
-                                          event.preventDefault();
-                                          event.currentTarget.blur();
-                                        }}
-                                      />
-                                    )}
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                        })}
-                    </div>
-                  </div>
-                )}
-
-                {selectedNodeIsDefaultInspectorNode && (
-                    <>
-                      <div
-                        style={{
-                          border: "1px solid #dbeafe",
-                          borderRadius: 8,
-                          padding: 8,
-                          background: "#f8fbff",
-                          display: "grid",
-                          gap: 6,
-                        }}
-                      >
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
-                          Field visibility
-                        </div>
-
-                        <div
-                          style={{
-                            borderTop: "1px solid #bfdbfe",
-                            marginTop: 2,
-                            paddingTop: 6,
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              color: "#475569",
-                              marginBottom: 4,
-                              textTransform: "uppercase",
-                              letterSpacing: 0.4,
-                            }}
-                          >
-                            Displayed term fields
-                          </div>
-
-                          {selectedNode.data.content_config.slots
-                            .filter(
-                              (slot) =>
-                                normalizeContentSlotTermType(slot.termType) !== "title"
-                            )
-                            .map((slot, slotIndex) => (
-                            <label
-                              key={`display-term-slot:${slot.id}:${slotIndex}`}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                fontSize: 12,
-                                color: "#334155",
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={slot.visible !== false}
-                                onChange={(event) =>
-                                  updateSelectedContentSlotVisibility(
-                                    slot.id,
-                                    event.target.checked
-                                  )
-                                }
-                              />
-                              {getContentSlotInspectorLabel(slot.termType)}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-
-                    
-
-                      <div>
-                        <div style={{ fontSize: 12, marginBottom: 4, color: "#334155" }}>
-                          Body Text
-                        </div>
-                        <textarea
-                          style={{
-                            ...inputStyle,
-                            width: "100%",
-                            minHeight: 70,
-                            resize: "vertical",
-                            marginBottom: 8,
-                          }}
-                          value={selectedNode.data.body_text ?? ""}
-                          placeholder="Add body text"
-                          onChange={(event) =>
-                            updateNodeFieldById(selectedNode.id, "body_text", event.target.value)
-                          }
-                        />
-                        <div style={{ fontSize: 11, marginBottom: 4, color: "#94a3b8" }}>
-                          Preview (markdown)
-                        </div>
-                        <div
-                          style={{
-                            border: "1px solid #e2e8f0",
-                            borderRadius: 6,
-                            background: "#f8fafc",
-                            padding: 8,
-                          }}
-                        >
-                          <BodyTextPreview value={selectedNode.data.body_text ?? ""} />
-                        </div>
-                      </div>
-
-                      {CONTROLLED_LANGUAGE_NODE_FIELDS.map((fieldType) => {
-                        const normalizedFieldType = normalizeContentSlotTermType(fieldType);
-                        const matchingSlot = selectedNode.data.content_config.slots.find(
-                          (slot) =>
-                            normalizeContentSlotTermType(slot.termType) === normalizedFieldType
-                        );
-
-                        if (!matchingSlot) {
-                          return null;
-                        }
-
-                        const slotRegistryField = buildContentSlotRegistryField(matchingSlot.id);
-
-                        return (
-                          <label
-                            key={`controlled-language-field:${fieldType}:${matchingSlot.id}`}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 8,
-                                marginBottom: 4,
-                              }}
-                            >
-                              <div style={inspectorFieldLabelStyle}>
-                                {CONTROLLED_LANGUAGE_FIELD_LABELS[fieldType]}
-                              </div>
-                              <button
-                                type="button"
-                                style={getInspectorRegistryButtonStyle(
-                                  activeInspectorRegistryPickerField === slotRegistryField
-                                )}
-                                title="Open CLP registry"
-                                aria-label="Open CLP registry"
-                                onClick={() =>
-                                  toggleInspectorRegistryPickerForField(slotRegistryField)
-                                }
-                              >
-                                📋
-                              </button>
-                            </div>
-
-                            <input
-                              style={inputStyle}
-                              value={matchingSlot.value}
-                              onChange={(event) =>
-                                updateSelectedContentSlotValue(
-                                  matchingSlot.id,
-                                  event.target.value
-                                )
-                              }
-                              onBlur={(event) =>
-                                commitContentSlotRegistryField(
-                                  matchingSlot.id,
-                                  event.target.value
-                                )
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key !== "Enter") {
-                                  return;
-                                }
-
-                                event.preventDefault();
-                                event.currentTarget.blur();
-                              }}
-                            />
-                          </label>
-                        );
-                      })}
-                      
-                    </>
-                  )}
-              </>
-            )}
-
-            <div
-              style={{
-                borderTop: "2px solid #cbd5e1",
-                marginTop: 4,
-                marginBottom: 4,
-                paddingTop: 8,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: "#64748b",
-                  textTransform: "uppercase",
-                  letterSpacing: 0.8,
-                }}
-              >
-                TAGGING
-              </div>
-            </div>
-
-            {selectedNode.data.node_type !== "frame" && (
-              <>
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Tone</div>
-                  <select
-                    style={inputStyle}
-                    value={selectedNode.data.tone}
-                    onChange={(event) => updateSelectedField("tone", event.target.value)}
-                  >
-                    {buildSelectOptions(
-                      adminOptions.tone,
-                      selectedNode.data.tone,
-                      DEFAULT_GLOBAL_OPTIONS.tone
-                    ).map((option) => (
-                      <option key={`tone:${option}`} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Polarity</div>
-                  <select
-                    style={inputStyle}
-                    value={selectedNode.data.polarity}
-                    onChange={(event) => updateSelectedField("polarity", event.target.value)}
-                  >
-                    {buildSelectOptions(
-                      adminOptions.polarity,
-                      selectedNode.data.polarity,
-                      DEFAULT_GLOBAL_OPTIONS.polarity
-                    ).map((option) => (
-                      <option key={`polarity:${option}`} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Reversibility</div>
-                  <select
-                    style={inputStyle}
-                    value={selectedNode.data.reversibility}
-                    onChange={(event) =>
-                      updateSelectedField("reversibility", event.target.value)
-                    }
-                  >
-                    {buildSelectOptions(
-                      adminOptions.reversibility,
-                      selectedNode.data.reversibility,
-                      DEFAULT_GLOBAL_OPTIONS.reversibility
-                    ).map((option) => (
-                      <option key={`reversibility:${option}`} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Concept</div>
-                  <select
-                    style={inputStyle}
-                    value={selectedNode.data.concept}
-                    onChange={(event) => updateSelectedField("concept", event.target.value)}
-                  >
-                    <option value="">—</option>
-                    {buildSelectOptions(
-                      adminOptions.concept,
-                      selectedNode.data.concept,
-                      DEFAULT_GLOBAL_OPTIONS.concept
-                    ).map((option) => (
-                      <option key={`concept:${option}`} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Notes</div>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-                    <textarea
-                      style={{ ...inputStyle, minHeight: 76, resize: "vertical" }}
-                      value={selectedNode.data.notes}
-                      onChange={(event) => updateSelectedField("notes", event.target.value)}
-                      onBlur={(event) =>
-                        commitSelectedRegistryField("notes", event.target.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") {
-                          return;
-                        }
-
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                      }}
-                    />
-                    <button
-                      type="button"
-                      style={getInspectorRegistryButtonStyle(
-                        activeInspectorRegistryPickerField === "notes"
-                      )}
-                      title="Open CLP registry"
-                      aria-label="Open CLP registry"
-                      onClick={() => toggleInspectorRegistryPickerForField("notes")}
-                    >
-                      📋
-                    </button>
-                  </div>
-                </label>
-
-                <label>
-                  <div style={inspectorFieldLabelStyle}>Card style</div>
-                  <select
-                    style={inputStyle}
-                    value={selectedNode.data.card_style}
-                    onChange={(event) => updateSelectedField("card_style", event.target.value)}
-                  >
-                    {buildSelectOptions(
-                      adminOptions.card_style,
-                      selectedNode.data.card_style,
-                      DEFAULT_GLOBAL_OPTIONS.card_style
-                    ).map((option) => (
-                      <option key={`card_style:${option}`} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            )}
-
-            <details style={{ marginTop: 12, borderTop: "1px solid #e2e8f0", paddingTop: 8 }}>
-              <summary style={{ fontSize: 11, color: "#94a3b8", cursor: "pointer", userSelect: "none" }}>
-                Card Identity
-              </summary>
-              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>
-                <strong>Card ID:</strong> {selectedNode.id}<br />
-                <strong>Sequence:</strong> {ordering.sequenceByNodeId[selectedNode.id] ?? "-"}<br />
-                <strong>X:</strong> {Math.round(selectedNode.position.x)}<br />
-                <strong>Y:</strong> {Math.round(selectedNode.position.y)}
-              </div>
-            </details>
-          </div>
-        )}
+        
         </div>
       </div>
       )}
