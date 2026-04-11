@@ -121,7 +121,6 @@ import {
   CONTROLLED_LANGUAGE_MAX_VISIBLE_ROWS,
   CONTROLLED_LANGUAGE_ROW_HEIGHT_PX,
   CONTROLLED_LANGUAGE_TABLE_HEADER_HEIGHT_PX,
-  CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX,
   TERM_REGISTRY_TERM_TYPE_LABELS,
   TERM_REGISTRY_TERM_TYPE_OPTIONS,
   UI_JOURNEY_CONVERSATION_EXPORT_FORMAT_LABELS,
@@ -9548,9 +9547,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             overflowY: "auto",
             minWidth: 0,
             padding: 12,
-            display: "grid",
-            alignContent: "start",
-            gridAutoRows: "min-content",
+            display: activeSidePanelTab === "clp" ? "flex" : "grid",
+            flexDirection: activeSidePanelTab === "clp" ? "column" : undefined,
+            height: activeSidePanelTab === "clp" ? "100%" : undefined,
+            alignContent: activeSidePanelTab === "clp" ? undefined : "start",
+            gridAutoRows: activeSidePanelTab === "clp" ? undefined : "min-content",
             gap: 10,
           }}
         >
@@ -9624,7 +9625,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               border: "1px solid #bfdbfe",
               borderRadius: 8,
               padding: 10,
-              display: "grid",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+              flex: 1,
               gap: 8,
               background: "#f8fbff",
             }}
@@ -9738,7 +9742,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   style={{
                     overflowX: "auto",
                     overflowY: "auto",
-                    maxHeight: CONTROLLED_LANGUAGE_TABLE_MAX_HEIGHT_PX,
+                    flex: 1,
+                    minHeight: 0,
                   }}
                 >
                   <table
@@ -9932,7 +9937,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             )}
 
             {clpActiveView === "registry" && (
-              <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, gap: 8 }}>
                 <div
                   style={{
                     display: "flex",
@@ -10062,7 +10067,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                 <div
                   style={{
-                    maxHeight: 400,
+                    flex: 1,
+                    minHeight: 0,
                     overflowY: "auto",
                     display: "grid",
                     gap: 4,
