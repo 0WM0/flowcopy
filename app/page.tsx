@@ -9031,7 +9031,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         display: "grid",
         gridTemplateColumns: isInspectorVisible
           ? `1fr ${activePanelWidth}px`
-          : "1fr auto",
+          : "1fr",
         position: "relative",
       }}
     >
@@ -9083,6 +9083,78 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           <MiniMap />
           <Controls />
         </ReactFlow>
+
+        <div
+          className="nodrag nopan nowheel"
+          style={{
+            position: "absolute",
+            top: 12,
+            left: 12,
+            display: "flex",
+            gap: 6,
+            padding: "6px 10px",
+            background: "#ffffff",
+            border: "1px solid #cbd5e1",
+            borderRadius: 10,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+            zIndex: 10,
+            alignItems: "center",
+          }}
+        >
+          <button type="button" style={buttonStyle} onClick={handleBackToDashboard}>
+            ← Dashboard
+          </button>
+          <div style={{ width: 1, height: 18, background: "#e2e8f0" }} />
+          <button
+            type="button"
+            style={getToggleButtonStyle(true)}
+            onClick={() => handleEditorModeChange("canvas")}
+          >
+            Canvas
+          </button>
+          <button
+            type="button"
+            style={getToggleButtonStyle(false)}
+            onClick={() => handleEditorModeChange("table")}
+          >
+            Table
+          </button>
+          <div style={{ width: 1, height: 18, background: "#e2e8f0" }} />
+          <button
+            type="button"
+            style={{
+              ...buttonStyle,
+              fontSize: 16,
+              opacity: undoStack.length === 0 ? 0.5 : 1,
+              cursor: undoStack.length === 0 ? "not-allowed" : "pointer",
+            }}
+            onClick={undo}
+          >
+            ↩
+          </button>
+          <button
+            type="button"
+            style={{
+              ...buttonStyle,
+              fontSize: 16,
+            }}
+            onClick={redo}
+          >
+            ↪
+          </button>
+          <span
+            style={{
+              fontSize: 11,
+              color: "#64748b",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: 300,
+            }}
+          >
+            {activeProject.name} · Saved {formatDateTime(activeProject.updatedAt)}
+          </span>
+        </div>
 
         <div
           className="nodrag nopan nowheel"
@@ -9436,19 +9508,20 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             </button>
           </div>
         </div>
+
       </div>
 
-      <div
-        style={{
-          position: "relative",
-          width: isInspectorVisible ? activePanelWidth : "auto",
-          height: "100vh",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {isInspectorVisible && (
+      {isInspectorVisible && (
+        <div
+          style={{
+            position: "relative",
+            width: activePanelWidth,
+            height: "100vh",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <div
             onPointerDown={handleSidePanelResizePointerDown}
             style={{
@@ -9467,149 +9540,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               zIndex: 10,
             }}
           />
-        )}
 
-        <div style={{ paddingLeft: 10, paddingRight: 12, flexShrink: 0 }}>
-        <section
-          style={{
-            border: "1px solid #d4d4d8",
-            borderRadius: 8,
-            padding: 10,
-            display: "grid",
-            gap: 8,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
-            <button type="button" style={buttonStyle} onClick={handleBackToDashboard}>
-              ← Dashboard
-            </button>
-            <button
-              type="button"
-              style={getToggleButtonStyle(true)}
-              onClick={() => handleEditorModeChange("canvas")}
-            >
-              Canvas
-            </button>
-            <button
-              type="button"
-              style={getToggleButtonStyle(false)}
-              onClick={() => handleEditorModeChange("table")}
-            >
-              Table
-            </button>
-            <button
-              type="button"
-              style={{
-                ...buttonStyle,
-                fontSize: 16,
-                opacity: undoStack.length === 0 ? 0.5 : 1,
-                cursor: undoStack.length === 0 ? "not-allowed" : "pointer",
-              }}
-              onClick={undo}
-            >
-              ↩
-            </button>
-            <button
-              type="button"
-              style={{
-                ...buttonStyle,
-                fontSize: 16,
-              }}
-              onClick={redo}
-            >
-              ↪
-            </button>
-            <span
-              style={{
-                fontSize: 11,
-                color: "#64748b",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                maxWidth: 300,
-              }}
-            >
-              {activeProject.name} · Saved {formatDateTime(activeProject.updatedAt)}
-            </span>
-          </div>
-
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button
-              type="button"
-              style={{
-                ...buttonStyle,
-                borderColor: "#a855f7",
-                background: "#faf5ff",
-                color: "#6b21a8",
-                fontWeight: 700,
-              }}
-              onClick={openFeedbackModal}
-            >
-              Send Feedback
-            </button>
-            <button
-              type="button"
-              style={{
-                ...buttonStyle,
-                borderColor: "#dc2626",
-                background: "#fef2f2",
-                color: "#991b1b",
-                fontWeight: 700,
-              }}
-              onClick={openHelpModal}
-            >
-              Get Help
-            </button>
-            <input
-              ref={importFileInputRef}
-              type="file"
-              accept=".csv,.xml,.json,text/csv,application/xml,text/xml,application/json,text/json"
-              style={{ display: "none" }}
-              onChange={importProjectDataFromFile}
-            />
-          </div>
-
-          {transferFeedback && (
-            <div
-              style={{
-                fontSize: 12,
-                borderRadius: 6,
-                padding: "6px 8px",
-                border:
-                  transferFeedback.type === "error"
-                    ? "1px solid #fecaca"
-                    : transferFeedback.type === "success"
-                      ? "1px solid #bbf7d0"
-                      : "1px solid #bfdbfe",
-                background:
-                  transferFeedback.type === "error"
-                    ? "#fef2f2"
-                    : transferFeedback.type === "success"
-                      ? "#f0fdf4"
-                      : "#eff6ff",
-                color:
-                  transferFeedback.type === "error"
-                    ? "#991b1b"
-                    : transferFeedback.type === "success"
-                      ? "#14532d"
-                      : "#1e3a8a",
-              }}
-            >
-              {transferFeedback.message}
-            </div>
-          )}
-
-        </section>
-        </div>
-
-        {isInspectorVisible && (
         <div
           style={{
             flex: 1,
@@ -12208,8 +12139,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           </div>
         )}
         </div>
-        )}
       </div>
+      )}
 
       {registryDragPreview && isRegistryDragActive && (
         <div
