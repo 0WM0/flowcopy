@@ -11452,6 +11452,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           if (value && value.trim().length > 0) {
                             setRegistryDraftTermType(value.trim());
                           }
+                          event.target.value = registryDraftTermType;
                           return;
                         }
                         setRegistryDraftTermType(event.target.value);
