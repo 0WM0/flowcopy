@@ -60,6 +60,7 @@ import {
   getNodeVisualSize,
 } from "../lib/node-utils";
 import { syncSequentialEdgesForContentConfig } from "../lib/edge-utils";
+import { theme } from "../lib/theme";
 import { useUiStore } from "../lib/ui-store";
 
 function BodyTextPreview({ value }: { value: string }) {
@@ -69,7 +70,7 @@ function BodyTextPreview({ value }: { value: string }) {
         style={{
           margin: 0,
           fontSize: 11,
-          color: "#94a3b8",
+          color: theme.node.field.placeholder,
           fontStyle: "italic",
         }}
       >
@@ -289,9 +290,9 @@ const getCanvasRegistryButtonStyle = (): React.CSSProperties => ({
   borderRadius: 4,
   fontSize: 11,
   lineHeight: 1,
-  borderColor: "#d4d4d8",
-  background: "#fff",
-  color: "#1e3a8a",
+  borderColor: theme.table.border,
+  background: theme.primitives.white,
+  color: theme.primitives.blue900,
   flexShrink: 0,
 });
 
@@ -306,9 +307,10 @@ const getRibbonCellActionButtonStyle = (
   borderRadius: 4,
   fontSize: 10,
   lineHeight: 1,
-  borderColor: tone === "danger" ? "#fecaca" : "#cbd5e1",
-  color: tone === "danger" ? "#b91c1c" : "#334155",
-  background: "#fff",
+  borderColor:
+    tone === "danger" ? theme.primitives.red200 : theme.primitives.slate300,
+  color: tone === "danger" ? theme.primitives.red700 : theme.primitives.slate700,
+  background: theme.primitives.white,
   flexShrink: 0,
 });
 export function SlotTermTypeEditor({
@@ -336,12 +338,12 @@ export function SlotTermTypeEditor({
           autoFocus
           style={{
             fontSize: 10,
-            fontWeight: 600,
-            color: "#1e293b",
-            border: "1px solid #93c5fd",
+            fontWeight: theme.node.field.labelWeight,
+            color: theme.primitives.slate900,
+            border: `${theme.surface.borderWidth} solid ${theme.primitives.blue300}`,
             borderRadius: 4,
             padding: "2px 4px",
-            background: "#eff6ff",
+            background: theme.primitives.blue50,
             width: "100%",
           }}
           value={customValue}
@@ -379,12 +381,12 @@ export function SlotTermTypeEditor({
           autoFocus
           style={{
             fontSize: 10,
-            fontWeight: 600,
-            color: "#1e293b",
-            border: "1px solid #93c5fd",
+            fontWeight: theme.node.field.labelWeight,
+            color: theme.primitives.slate900,
+            border: `${theme.surface.borderWidth} solid ${theme.primitives.blue300}`,
             borderRadius: 4,
             padding: "2px 4px",
-            background: "#eff6ff",
+            background: theme.primitives.blue50,
             width: "100%",
             cursor: "pointer",
           }}
@@ -430,8 +432,8 @@ export function SlotTermTypeEditor({
       }}
       style={{
         fontSize: 10,
-        fontWeight: 600,
-        color: "#64748b",
+        fontWeight: theme.node.field.labelWeight,
+        color: theme.node.field.termType,
         marginBottom: 4,
         cursor: "pointer",
         display: "flex",
@@ -441,7 +443,7 @@ export function SlotTermTypeEditor({
       title="Click to change term type"
     >
       {currentLabel}
-      <span style={{ fontSize: 8, color: "#94a3b8" }}>▼</span>
+      <span style={{ fontSize: 8, color: theme.node.field.termTypeIcon }}>▼</span>
     </div>
   );
 }
@@ -721,8 +723,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
         ...styleWithoutBorderShorthand,
         borderWidth: 1,
         borderStyle: "solid",
-        borderColor: "#60a5fa",
-        background: "#eff6ff",
+        borderColor: theme.primitives.blue400,
+        background: theme.primitives.blue50,
         boxShadow: "0 0 0 1px rgba(37, 99, 235, 0.28)",
       };
     },
@@ -1806,7 +1808,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           width: frameConfig.width,
           minHeight: frameConfig.height,
           boxSizing: "border-box",
-          borderRadius: 10,
+          borderRadius: theme.surface.radius.xl,
           border: `2px solid ${frameHighlightColor ?? frameShadeStyle.border}`,
           background: frameShadeStyle.background,
           boxShadow: frameHighlightColor
@@ -1855,11 +1857,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             top: 8,
             left: 8,
             fontSize: 11,
-            color: "#1d4ed8",
+            color: theme.frame.collapseBtn.text,
             fontWeight: 600,
-            border: "1px solid #bfdbfe",
+            border: `${theme.surface.borderWidth} solid ${theme.frame.collapseBtn.border}`,
             borderRadius: 999,
-            background: "rgba(255, 255, 255, 0.9)",
+            background: theme.frame.collapseBtn.bg,
             padding: "1px 7px",
           }}
         >
@@ -1936,9 +1938,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   borderRadius: 999,
                   fontSize: 10,
                   lineHeight: 1,
-                  color: "#475569",
-                  borderColor: "#cbd5e1",
-                  background: "#f8fafc",
+                  color: theme.node.typeBadge.text,
+                  borderColor: theme.node.typeBadge.border,
+                  background: theme.node.typeBadge.bg,
                   flexShrink: 0,
                 }}
                 title="Edit title"
@@ -1977,7 +1979,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               right: 8,
               bottom: 6,
               fontSize: 10,
-              color: "#64748b",
+              color: theme.node.field.termType,
             }}
           >
             id: {id}
@@ -2049,12 +2051,12 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           flexDirection: "row",
           position: "relative",
           boxSizing: "border-box",
-          borderRadius: 8,
-          border: `2px solid ${ribbonHighlightColor ?? "#94a3b8"}`,
-          background: "#f1f5f9",
+          borderRadius: theme.surface.radius.lg,
+          border: `2px solid ${ribbonHighlightColor ?? theme.node.border}`,
+          background: theme.node.bg,
           boxShadow: ribbonHighlightColor
-            ? `0 0 0 3px ${ribbonHighlightColor}, 0 3px 10px rgba(0, 0, 0, 0.12)`
-            : "0 1px 3px rgba(0,0,0,0.08)",
+            ? `0 0 0 3px ${ribbonHighlightColor}, ${theme.node.highlightShadow}`
+            : theme.node.shadow,
           minHeight: minNodeHeight,
           overflow: "visible",
           paddingBottom: 3,
@@ -2072,8 +2074,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             width: 10,
             height: 10,
             borderRadius: "50%",
-            background: "#2563eb",
-            border: "2px solid #fff",
+            background: theme.node.handleBg,
+            border: `2px solid ${theme.node.handleBorder}`,
           }}
         />
         <Handle
@@ -2088,7 +2090,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             width: 10,
             height: 10,
             borderRadius: 2,
-            background: "#1e293b",
+            background: theme.node.resizeDot,
             zIndex: 10,
           }}
         />
@@ -2104,7 +2106,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             width: 10,
             height: 10,
             borderRadius: 2,
-            background: "#1e293b",
+            background: theme.node.resizeDot,
             zIndex: 10,
           }}
         />
@@ -2120,7 +2122,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             width: 10,
             height: 10,
             borderRadius: 2,
-            background: "#1e293b",
+            background: theme.node.resizeDot,
             zIndex: 10,
           }}
         />
@@ -2136,7 +2138,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             width: 10,
             height: 10,
             borderRadius: 2,
-            background: "#1e293b",
+            background: theme.node.resizeDot,
             zIndex: 10,
           }}
         />
@@ -2148,8 +2150,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
         >
           <div
             style={{
-              background: "#e2e8f0",
-              borderBottom: "1px solid #94a3b8",
+              background: theme.node.header.bg,
+              borderBottom: `${theme.surface.borderWidth} solid ${theme.node.header.border}`,
               borderRadius: "6px 6px 0 0",
               padding: "3px 8px",
               display: "flex",
@@ -2157,7 +2159,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               gap: 6,
             }}
           >
-            <span style={{ fontSize: 10, color: "#1d4ed8", fontWeight: 600 }}>
+            <span style={{ fontSize: 10, color: theme.node.sequenceLabel, fontWeight: 600 }}>
               #{data.sequence_index ?? "-"}
             </span>
             <button
@@ -2171,9 +2173,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 borderRadius: 999,
                 fontSize: 10,
                 lineHeight: 1,
-                color: "#475569",
-                borderColor: "#cbd5e1",
-                background: "#f8fafc",
+                color: theme.node.typeBadge.text,
+                borderColor: theme.node.typeBadge.border,
+                background: theme.node.typeBadge.bg,
               }}
               title="Edit title"
               aria-label="Edit title"
@@ -2197,7 +2199,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   height: 20,
                   fontSize: 11,
                   fontWeight: 600,
-                  color: "#334155",
+                  color: theme.node.field.label,
                 }}
                 value={data.title}
                 placeholder="Add title"
@@ -2228,7 +2230,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   minWidth: 0,
                   fontSize: 11,
                   fontWeight: 600,
-                  color: "#334155",
+                  color: theme.node.field.label,
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -2343,11 +2345,15 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       position: "relative",
                       borderWidth: 1,
                       borderStyle: "solid",
-                      borderColor: isRibbonDropTargetActive ? "#60a5fa" : "#cbd5e1",
-                      background: isRibbonDropTargetActive ? "#eff6ff" : "#ffffff",
+                      borderColor: isRibbonDropTargetActive
+                        ? theme.node.slot.dropActiveBorder
+                        : theme.node.slot.border,
+                      background: isRibbonDropTargetActive
+                        ? theme.node.slot.dropActiveBg
+                        : theme.node.slot.bg,
                       boxShadow: isRibbonDropTargetActive
-                        ? "0 0 0 1px rgba(37, 99, 235, 0.28)"
-                        : "none",
+                        ? theme.node.slot.dropActiveShadow
+                        : theme.surface.shadow.none,
                       padding: "3px 6px",
                       minWidth: 0,
                       minHeight: 24,
@@ -2361,7 +2367,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       style={{
                         fontSize: 10,
                         color:
-                          isShowingLabel || isShowingKeyCommand ? "#1e293b" : "#94a3b8",
+                          isShowingLabel || isShowingKeyCommand
+                            ? theme.node.field.value
+                            : theme.node.field.placeholder,
                         fontFamily: isShowingKeyCommand
                           ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
                           : "inherit",
@@ -2390,8 +2398,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         transform: "translateX(-50%) translateY(0%) !important" as any,
                         width: 10,
                         height: 10,
-                        background: "#2563eb",
-                        border: "2px solid #fff",
+                        background: theme.node.handleBg,
+                        border: `2px solid ${theme.node.handleBorder}`,
                         borderRadius: "50%",
                         zIndex: 5,
                       }}
@@ -2407,9 +2415,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               style={{
                 margin: "0 8px 0",
                 padding: "2px 0 2px",
-                borderTop: "1px solid #94a3b8",
+                borderTop: `${theme.surface.borderWidth} solid ${theme.node.header.border}`,
                 fontSize: 9,
-                color: "#64748b",
+                color: theme.node.field.termType,
               }}
             >
               id: {id}
@@ -2433,10 +2441,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 left: cellPopupPosition.x,
                 top: cellPopupPosition.y,
                 width: 220,
-                background: "#ffffff",
-                border: "1px solid #94a3b8",
+                background: theme.node.popup.bg,
+                border: `${theme.surface.borderWidth} solid ${theme.node.popup.border}`,
                 borderRadius: 8,
-                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                boxShadow: theme.node.popup.shadow,
                 padding: "8px 10px",
                 zIndex: 9999,
                 display: "grid",
@@ -2448,23 +2456,29 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 style={{
                   borderWidth: 1,
                   borderStyle: "solid",
-                  borderColor: "#bfdbfe",
+                  borderColor: theme.node.popup.termBadge.border,
                   borderRadius: 6,
-                  background: "#eff6ff",
+                  background: theme.node.popup.termBadge.bg,
                   padding: "6px 8px",
                   display: "grid",
                   gap: 2,
                 }}
               >
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#1e3a8a" }}>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: theme.node.popup.termBadge.text,
+                  }}
+                >
                   Assign term: {pendingRibbonRegistryTerm.termValue}
                 </div>
                 {pendingRibbonRegistryTerm.referenceKey && (
-                  <div style={{ fontSize: 10, color: "#475569" }}>
+                  <div style={{ fontSize: 10, color: theme.node.popup.termBadge.detail }}>
                     Key: {pendingRibbonRegistryTerm.referenceKey}
                   </div>
                 )}
-                <div style={{ fontSize: 10, color: "#334155" }}>
+                <div style={{ fontSize: 10, color: theme.node.popup.fieldText }}>
                   Click a field below to place this term.
                 </div>
               </div>
@@ -2492,7 +2506,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                     return;
                   }
 
-                  event.currentTarget.style.background = "#eff6ff";
+                  event.currentTarget.style.background = theme.node.popup.termBadge.bg;
                 }}
                 onMouseLeave={(event) => {
                   event.currentTarget.style.background = "transparent";
@@ -2614,11 +2628,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     ...(useDarkCompactPalette
       ? {
           borderRadius: 8,
-          border: `2px solid ${defaultNodeHighlightColor ?? "#94a3b8"}`,
-          background: "#f1f5f9",
+          border: `2px solid ${defaultNodeHighlightColor ?? theme.node.border}`,
+          background: theme.node.bg,
           boxShadow: defaultNodeHighlightColor
-            ? `0 0 0 3px ${defaultNodeHighlightColor}, 0 3px 10px rgba(0, 0, 0, 0.12)`
-            : "0 1px 3px rgba(0,0,0,0.08)",
+            ? `0 0 0 3px ${defaultNodeHighlightColor}, ${theme.node.highlightShadow}`
+            : theme.node.shadow,
         }
       : {}),
     padding:
@@ -2654,8 +2668,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           width: 10,
           height: 10,
           borderRadius: "50%",
-          background: "#2563eb",
-          border: "2px solid #fff",
+          background: theme.node.handleBg,
+          border: `2px solid ${theme.node.handleBorder}`,
         }}
       />
       <Handle
@@ -2670,7 +2684,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           width: 10,
           height: 10,
           borderRadius: 2,
-          background: "#1e293b",
+          background: theme.node.resizeDot,
           zIndex: 10,
         }}
       />
@@ -2686,7 +2700,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           width: 10,
           height: 10,
           borderRadius: 2,
-          background: "#1e293b",
+          background: theme.node.resizeDot,
           zIndex: 10,
         }}
       />
@@ -2706,12 +2720,12 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             gap: 6,
             padding: useDarkCompactPalette ? "3px 8px" : "0 0 3px",
             margin: useDarkCompactPalette ? "-6px -6px 0" : undefined,
-            borderBottom: "1px solid #94a3b8",
+            borderBottom: `${theme.surface.borderWidth} solid ${theme.node.header.border}`,
             borderRadius: useDarkCompactPalette ? "6px 6px 0 0" : undefined,
-            background: useDarkCompactPalette ? "#e2e8f0" : undefined,
+            background: useDarkCompactPalette ? theme.node.header.bg : undefined,
           }}
         >
-          <span style={{ fontSize: 10, color: "#1d4ed8", fontWeight: 600 }}>
+          <span style={{ fontSize: 10, color: theme.node.sequenceLabel, fontWeight: 600 }}>
             #{data.sequence_index ?? "-"}
           </span>
           <button
@@ -2725,9 +2739,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               borderRadius: 999,
               fontSize: 10,
               lineHeight: 1,
-              color: "#475569",
-              borderColor: "#cbd5e1",
-              background: "#f8fafc",
+              color: theme.node.typeBadge.text,
+              borderColor: theme.node.typeBadge.border,
+              background: theme.node.typeBadge.bg,
             }}
             title="Edit title"
             aria-label="Edit title"
@@ -2751,7 +2765,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 height: 20,
                 fontSize: 11,
                 fontWeight: 600,
-                color: "#334155",
+                color: theme.node.field.label,
               }}
               value={data.title}
               placeholder="Add title"
@@ -2782,7 +2796,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 minWidth: 0,
                 fontSize: 11,
                 fontWeight: 600,
-                color: "#334155",
+                color: theme.node.field.label,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -2800,11 +2814,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               ref={verticalTermsContainerRef}
               style={{
                 marginTop: 4,
-                border: "1px solid #cbd5e1",
+                border: `${theme.surface.borderWidth} solid ${theme.node.group.border}`,
                 borderRadius: 6,
                 padding: 4,
                 paddingBottom: 1,
-                background: "#f1f5f9",
+                background: theme.node.group.bg,
                 display: "flex",
                 alignItems: "stretch",
                 gap: 4,
@@ -2901,10 +2915,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       }}
                       style={{
                         position: "relative",
-                        border: `1px solid ${
+                        border: `${theme.surface.borderWidth} solid ${
                           isVerticalDropTargetActive || isEditingRow
-                            ? "#60a5fa"
-                            : "#cbd5e1"
+                            ? theme.node.slot.dropActiveBorder
+                            : theme.node.slot.border
                         }`,
                         borderRadius: 6,
                         padding: 3,
@@ -2913,11 +2927,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         gap: 3,
                         background:
                           isVerticalDropTargetActive || isEditingRow
-                            ? "#eff6ff"
-                            : "#fff",
+                            ? theme.node.slot.dropActiveBg
+                            : theme.node.slot.bg,
                         boxShadow: isVerticalDropTargetActive || isEditingRow
-                          ? "0 0 0 1px rgba(37, 99, 235, 0.28)"
-                          : "none",
+                          ? theme.node.slot.dropActiveShadow
+                          : theme.surface.shadow.none,
                         cursor: "text",
                       }}
                     >
@@ -2942,7 +2956,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                               justifyContent: "space-between",
                               gap: 6,
                               cursor: "text",
-                              background: isEditingRow ? "#eff6ff" : "#fff",
+                              background: isEditingRow
+                                ? theme.node.slot.dropActiveBg
+                                : theme.node.slot.bg,
                               overflow: "hidden",
                             }}
                             title="Click to edit term details"
@@ -2956,8 +2972,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                                 textOverflow: "ellipsis",
                                 color:
                                   row.primarySlot?.value.trim().length
-                                    ? "#0f172a"
-                                    : "#94a3b8",
+                                    ? theme.node.field.value
+                                    : theme.node.field.placeholder,
                                 fontStyle:
                                   row.primarySlot?.value.trim().length
                                     ? "normal"
@@ -2966,7 +2982,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                             >
                               {row.primarySlot?.value.trim() || "Add term"}
                             </span>
-                            <span style={{ fontSize: 11, color: "#64748b", flexShrink: 0 }}>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: theme.node.field.termType,
+                                flexShrink: 0,
+                              }}
+                            >
                               ▾
                             </span>
                           </div>
@@ -2984,8 +3006,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                           width: 10,
                           height: 10,
                           borderRadius: 999,
-                          background: "#2563eb",
-                          border: "2px solid #fff",
+                          background: theme.node.handleBg,
+                          border: `2px solid ${theme.node.handleBorder}`,
                         }}
                       />
                     </div>
@@ -3009,10 +3031,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       left: verticalTermPopupPosition.x,
                       top: verticalTermPopupPosition.y,
                       width: 220,
-                      background: "#ffffff",
-                      border: "1px solid #94a3b8",
+                      background: theme.node.popup.bg,
+                      border: `${theme.surface.borderWidth} solid ${theme.node.popup.border}`,
                       borderRadius: 8,
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                      boxShadow: theme.node.popup.shadow,
                       padding: "8px 10px",
                       zIndex: 9999,
                       display: "grid",
@@ -3024,23 +3046,29 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       style={{
                         borderWidth: 1,
                         borderStyle: "solid",
-                        borderColor: "#bfdbfe",
+                        borderColor: theme.node.popup.termBadge.border,
                         borderRadius: 6,
-                        background: "#eff6ff",
+                        background: theme.node.popup.termBadge.bg,
                         padding: "6px 8px",
                         display: "grid",
                         gap: 2,
                       }}
                     >
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "#1e3a8a" }}>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: theme.node.popup.termBadge.text,
+                        }}
+                      >
                         Assign term: {pendingVerticalRegistryTerm.termValue}
                       </div>
                       {pendingVerticalRegistryTerm.referenceKey && (
-                        <div style={{ fontSize: 10, color: "#475569" }}>
+                        <div style={{ fontSize: 10, color: theme.node.popup.termBadge.detail }}>
                           Key: {pendingVerticalRegistryTerm.referenceKey}
                         </div>
                       )}
-                      <div style={{ fontSize: 10, color: "#334155" }}>
+                      <div style={{ fontSize: 10, color: theme.node.popup.fieldText }}>
                         Click a field below to place this term.
                       </div>
                     </div>
@@ -3070,7 +3098,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                           return;
                         }
 
-                        event.currentTarget.style.background = "#eff6ff";
+                        event.currentTarget.style.background = theme.node.popup.termBadge.bg;
                       }}
                       onMouseLeave={(event) => {
                         event.currentTarget.style.background = "transparent";
@@ -3179,7 +3207,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       paddingTop: 4,
                     }}
                   >
-                    <div style={{ fontSize: 9, color: "#71717a", marginBottom: 2 }}>
+                    <div
+                      style={{
+                        fontSize: 9,
+                        color: theme.node.group.slotCount,
+                        marginBottom: 2,
+                      }}
+                    >
                       {label}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -3289,9 +3323,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             style={{
               marginTop: 4,
               paddingTop: 3,
-              borderTop: "1px solid #94a3b8",
+              borderTop: `${theme.surface.borderWidth} solid ${theme.node.header.border}`,
               fontSize: 9,
-              color: "#71717a",
+              color: theme.node.group.slotCount,
             }}
           >
             id: {id}
@@ -3308,8 +3342,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           width: 10,
           height: 10,
           borderRadius: "50%",
-          background: "#2563eb",
-          border: "2px solid #fff",
+          background: theme.node.handleBg,
+          border: `2px solid ${theme.node.handleBorder}`,
         }}
         isConnectable={!isMenuNode}
       />
@@ -3326,7 +3360,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           width: 10,
           height: 10,
           borderRadius: 2,
-          background: "#1e293b",
+          background: theme.node.resizeDot,
           zIndex: 10,
         }}
       />
@@ -3342,7 +3376,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
           width: 10,
           height: 10,
           borderRadius: 2,
-          background: "#1e293b",
+          background: theme.node.resizeDot,
           zIndex: 10,
         }}
       />
