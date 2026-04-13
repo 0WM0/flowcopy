@@ -9607,12 +9607,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 selectedNode?.data.node_type === "vertical_multi_term")) && (
               <section
                 style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
+                  border: `${theme.surface.borderWidth} solid ${theme.inspector.card.blockBorder}`,
+                  borderRadius: theme.surface.radius.lg,
                   padding: 10,
                   display: "grid",
                   gap: 10,
-                  background: "#ffffff",
+                  background: theme.inspector.bg,
                 }}
               >
                 {canCreateFrameFromSelection && (
@@ -9620,8 +9620,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     type="button"
                     style={{
                       ...buttonStyle,
-                      borderColor: "#94a3b8",
-                      background: "#f8fafc",
+                      borderColor: theme.node.border,
+                      background: theme.inspector.card.blockBg,
                       fontWeight: 700,
                     }}
                     onClick={() => createFrameFromSelection()}
@@ -9632,7 +9632,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                 {hasExactlyOneSelectedNode && selectedNode?.data.node_type === "vertical_multi_term" && (
                   <>
-                    <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: "#1e3a8a" }}>
+                    <p
+                      style={{
+                        marginTop: 0,
+                        marginBottom: 0,
+                        fontSize: 12,
+                        color: theme.inspector.edge.infoText,
+                      }}
+                    >
                       Vertical Card mode: edit term rows below. These
                       terms use the Menu Term glossary.
                     </p>
@@ -9643,10 +9650,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           marginTop: 0,
                           marginBottom: 0,
                           fontSize: 11,
-                          color: "#b91c1c",
-                          background: "#fef2f2",
-                          border: "1px solid #fecaca",
-                          borderRadius: 6,
+                          color: theme.status.error.text,
+                          background: theme.status.error.bg,
+                          border: `${theme.surface.borderWidth} solid ${theme.status.error.border}`,
+                          borderRadius: theme.surface.radius.md,
                           padding: "6px 8px",
                         }}
                       >
@@ -9661,12 +9668,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         {selectedEdge && normalizedSelectedEdgeData && !hasSelectedNodes ? (
           <section
             style={{
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
+              border: `${theme.surface.borderWidth} solid ${theme.inspector.edge.blockBorder}`,
+              borderRadius: theme.surface.radius.lg,
               padding: 10,
               display: "grid",
               gap: 8,
-              background: "#f8fafc",
+              background: theme.inspector.edge.blockBg,
             }}
           >
             <div
@@ -9683,7 +9690,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </button>
             </div>
 
-            <div style={{ fontSize: 12, color: "#334155" }}>
+            <div style={{ fontSize: 12, color: theme.inspector.card.fieldLabel }}>
               <strong>Edge ID:</strong> {selectedEdge.id}
               <br />
               <strong>Source → Target:</strong> {selectedEdge.source} → {selectedEdge.target}
@@ -9763,16 +9770,16 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </label>
             )}
 
-            <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
+            <p style={{ margin: 0, fontSize: 11, color: theme.inspector.card.emptyText }}>
               Tip: press Delete / Backspace to remove this edge.
             </p>
           </section>
         ) : hasMultipleSelectedNodes ? (
-          <p style={{ fontSize: 13, color: "#71717a" }}>
+          <p style={{ fontSize: 13, color: theme.inspector.card.emptyTextAlt }}>
             Multiple nodes selected. Select a single node to edit its data.
           </p>
         ) : !hasExactlyOneSelectedNode || !selectedNode ? (
-          <p style={{ fontSize: 13, color: "#71717a" }}>
+          <p style={{ fontSize: 13, color: theme.inspector.card.emptyTextAlt }}>
             No selection. Click a node or edge on the canvas.
           </p>
         ) : (
@@ -9797,9 +9804,17 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         ...buttonStyle,
                         fontSize: 11,
                         padding: "4px 8px",
-                        borderColor: isActive ? "#1d4ed8" : "#d4d4d8",
-                        background: isActive ? "#dbeafe" : isEnabled ? "#fff" : "#f4f4f5",
-                        color: isActive ? "#1e3a8a" : isEnabled ? "#334155" : "#a1a1aa",
+                        borderColor: isActive ? theme.button.primary.bg : theme.table.border,
+                        background: isActive
+                          ? theme.toolbar.activeButton.bg
+                          : isEnabled
+                            ? theme.primitives.white
+                            : theme.primitives.zinc100,
+                        color: isActive
+                          ? theme.primitives.blue900
+                          : isEnabled
+                            ? theme.inspector.card.fieldLabel
+                            : theme.primitives.zinc400,
                         fontWeight: isActive ? 700 : 600,
                         cursor: isEnabled ? "pointer" : "not-allowed",
                         opacity: isEnabled ? 1 : 0.7,
@@ -9823,7 +9838,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
             <div
               style={{
-                borderTop: "2px solid #cbd5e1",
+                borderTop: `${theme.inspector.sectionDividerWidth} solid ${theme.inspector.sectionDivider}`,
                 marginTop: 4,
                 marginBottom: 4,
                 paddingTop: 8,
@@ -9832,8 +9847,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               <div
                 style={{
                   fontSize: 10,
-                  fontWeight: 700,
-                  color: "#64748b",
+                  fontWeight: theme.inspector.sectionTitleWeight,
+                  color: theme.inspector.sectionTitle,
                   textTransform: "uppercase",
                   letterSpacing: 0.8,
                 }}
@@ -9880,21 +9895,21 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                 <div
                   style={{
-                    border: "1px solid #dbeafe",
-                    borderRadius: 8,
+                    border: `${theme.surface.borderWidth} solid ${theme.clp.header.border}`,
+                    borderRadius: theme.surface.radius.lg,
                     padding: 8,
-                    background: "#f8fbff",
+                    background: theme.clp.header.bg,
                     display: "grid",
                     gap: 6,
                   }}
                 >
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: theme.clp.header.title }}>
                     Field visibility
                   </div>
 
                   <div
                     style={{
-                      borderTop: "1px solid #bfdbfe",
+                      borderTop: `${theme.surface.borderWidth} solid ${theme.clp.tab.border}`,
                       marginTop: 2,
                     }}
                   />
@@ -9943,10 +9958,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                 <div
                   style={{
-                    border: "1px solid #dbeafe",
-                    borderRadius: 8,
+                    border: `${theme.surface.borderWidth} solid ${theme.clp.header.border}`,
+                    borderRadius: theme.surface.radius.lg,
                     padding: 6,
-                    background: "#f8fbff",
+                    background: theme.clp.header.bg,
                     display: "grid",
                     gap: 6,
                   }}
@@ -9959,7 +9974,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       gap: 8,
                     }}
                   >
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: theme.clp.header.title }}>
                       Term Input
                     </div>
                     <button
@@ -9974,8 +9989,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         fontSize: 14,
                         lineHeight: 1,
                         fontWeight: 700,
-                        color: "#1d4ed8",
-                        borderColor: "#93c5fd",
+                        color: theme.clp.header.title,
+                        borderColor: theme.primitives.blue300,
                         opacity:
                           (selectedVerticalContentConfig?.groups.length ??
                             VMN_GROUPS_MAX) >=
@@ -10017,12 +10032,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       <div
                         key={`inspector-menu-term:${menuGroup.id}`}
                         style={{
-                          border: "1px solid #bfdbfe",
-                          borderRadius: 6,
+                          border: `${theme.surface.borderWidth} solid ${theme.primitives.blue200}`,
+                          borderRadius: theme.surface.radius.md,
                           padding: 5,
                           display: "grid",
                           gap: 5,
-                          background: "#fff",
+                          background: theme.primitives.white,
                         }}
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -10032,8 +10047,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                               ...buttonStyle,
                               fontSize: 10,
                               padding: "2px 6px",
-                              borderColor: "#fca5a5",
-                              color: "#b91c1c",
+                              borderColor: theme.button.danger.border,
+                              color: theme.button.danger.text,
                               flexShrink: 0,
                             }}
                             title="Delete this term"
@@ -10166,15 +10181,21 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                 <div
                   style={{
-                    border: "1px solid #cbd5e1",
-                    borderRadius: 8,
+                    border: `${theme.surface.borderWidth} solid ${theme.inspector.card.blockBorder}`,
+                    borderRadius: theme.surface.radius.lg,
                     padding: 8,
-                    background: "#f8fafc",
+                    background: theme.inspector.card.blockBg,
                     display: "grid",
                     gap: 6,
                   }}
                 >
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: theme.inspector.card.fieldLabel,
+                    }}
+                  >
                     Frame style
                   </div>
 
@@ -10191,9 +10212,15 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             ...buttonStyle,
                             fontSize: 11,
                             padding: "4px 8px",
-                            borderColor: isActive ? "#64748b" : "#cbd5e1",
-                            background: isActive ? "#e2e8f0" : "#f8fafc",
-                            color: isActive ? "#0f172a" : "#334155",
+                            borderColor: isActive
+                              ? theme.inspector.admin.filterBtn.active.border
+                              : theme.inspector.admin.filterBtn.inactive.border,
+                            background: isActive
+                              ? theme.inspector.admin.filterBtn.active.bg
+                              : theme.inspector.admin.filterBtn.inactive.bg,
+                            color: isActive
+                              ? theme.inspector.admin.filterBtn.active.text
+                              : theme.inspector.admin.filterBtn.inactive.text,
                             fontWeight: isActive ? 700 : 600,
                           }}
                           onClick={() => updateSelectedFrameShade(frameShadeOption)}
@@ -10327,15 +10354,15 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 {selectedNode.data.node_type === "horizontal_multi_term" && selectedHorizontalContentConfig && (
                   <div
                     style={{
-                      border: "1px solid #dbeafe",
-                      borderRadius: 8,
+                      border: `${theme.surface.borderWidth} solid ${theme.clp.header.border}`,
+                      borderRadius: theme.surface.radius.lg,
                       padding: 8,
-                      background: "#f8fbff",
+                      background: theme.clp.header.bg,
                       display: "grid",
                       gap: 8,
                     }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e40af" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: theme.primitives.blue800 }}>
                       Horizontal Cells
                     </div>
 
@@ -10347,7 +10374,13 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         gap: 8,
                       }}
                     >
-                      <div style={{ fontSize: 12, color: "#334155", fontWeight: 600 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: theme.inspector.card.fieldLabel,
+                          fontWeight: 600,
+                        }}
+                      >
                         Columns: {selectedHorizontalContentConfig.groups.length}
                       </div>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -10418,8 +10451,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           <div
                             key={`inspector-ribbon-cell:${group.id}`}
                             style={{
-                              border: "1px solid #e2e8f0",
-                              borderRadius: 6,
+                              border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
+                              borderRadius: theme.surface.radius.md,
                               padding: "6px 8px",
                               marginBottom: 6,
                             }}
@@ -10428,7 +10461,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                               style={{
                                 fontSize: 11,
                                 fontWeight: 600,
-                                color: "#64748b",
+                                color: theme.inspector.card.emptyText,
                                 marginBottom: 6,
                               }}
                             >
@@ -10536,21 +10569,21 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     <>
                       <div
                         style={{
-                          border: "1px solid #dbeafe",
-                          borderRadius: 8,
+                          border: `${theme.surface.borderWidth} solid ${theme.clp.header.border}`,
+                          borderRadius: theme.surface.radius.lg,
                           padding: 8,
-                          background: "#f8fbff",
+                          background: theme.clp.header.bg,
                           display: "grid",
                           gap: 6,
                         }}
                       >
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: theme.clp.header.title }}>
                           Field visibility
                         </div>
 
                         <div
                           style={{
-                            borderTop: "1px solid #bfdbfe",
+                            borderTop: `${theme.surface.borderWidth} solid ${theme.clp.tab.border}`,
                             marginTop: 2,
                             paddingTop: 6,
                           }}
@@ -10559,7 +10592,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             style={{
                               fontSize: 10,
                               fontWeight: 700,
-                              color: "#475569",
+                              color: theme.clp.description,
                               marginBottom: 4,
                               textTransform: "uppercase",
                               letterSpacing: 0.4,
@@ -10581,7 +10614,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                 alignItems: "center",
                                 gap: 8,
                                 fontSize: 12,
-                                color: "#334155",
+                                color: theme.inspector.card.fieldLabel,
                               }}
                             >
                               <input
@@ -10603,7 +10636,13 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     
 
                       <div>
-                        <div style={{ fontSize: 12, marginBottom: 4, color: "#334155" }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            marginBottom: 4,
+                            color: theme.inspector.card.fieldLabel,
+                          }}
+                        >
                           Body Text
                         </div>
                         <textarea
@@ -10620,14 +10659,20 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             updateNodeFieldById(selectedNode.id, "body_text", event.target.value)
                           }
                         />
-                        <div style={{ fontSize: 11, marginBottom: 4, color: "#94a3b8" }}>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            marginBottom: 4,
+                            color: theme.node.field.placeholder,
+                          }}
+                        >
                           Preview (markdown)
                         </div>
                         <div
                           style={{
-                            border: "1px solid #e2e8f0",
-                            borderRadius: 6,
-                            background: "#f8fafc",
+                            border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
+                            borderRadius: theme.surface.radius.md,
+                            background: theme.inspector.card.blockBg,
                             padding: 8,
                           }}
                         >
@@ -10714,7 +10759,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
             <div
               style={{
-                borderTop: "2px solid #cbd5e1",
+                borderTop: `${theme.inspector.sectionDividerWidth} solid ${theme.inspector.sectionDivider}`,
                 marginTop: 4,
                 marginBottom: 4,
                 paddingTop: 8,
@@ -10723,8 +10768,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               <div
                 style={{
                   fontSize: 10,
-                  fontWeight: 700,
-                  color: "#64748b",
+                  fontWeight: theme.inspector.sectionTitleWeight,
+                  color: theme.inspector.sectionTitle,
                   textTransform: "uppercase",
                   letterSpacing: 0.8,
                 }}
