@@ -11446,8 +11446,16 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         borderRadius: 4,
                         background: "#fff",
                       }}
-                      value={registryDraftTermType}
-                      onChange={(event) => setRegistryDraftTermType(event.target.value)}
+                      onChange={(event) => {
+                        if (event.target.value === "__custom__") {
+                          const value = window.prompt("Enter custom term type:");
+                          if (value && value.trim().length > 0) {
+                            setRegistryDraftTermType(value.trim());
+                          }
+                          return;
+                        }
+                        setRegistryDraftTermType(event.target.value);
+                      }}
                     >
                       {TERM_REGISTRY_TERM_TYPE_OPTIONS.map((termTypeOption) => (
                         <option
@@ -11459,6 +11467,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           {termTypeOption.label}
                         </option>
                       ))}
+                      <option value="__custom__">+ Add term label...</option>
                     </select>
 
                     <button
