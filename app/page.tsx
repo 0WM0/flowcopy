@@ -138,7 +138,7 @@ import {
   inspectorFieldLabelStyle,
 } from "./constants";
 
-import { FlowCopyNode, BodyTextPreview } from "./components/FlowCopyNode";
+import { FlowCopyNode, BodyTextPreview, SlotTermTypeEditor } from "./components/FlowCopyNode";
 import { HelpModal } from "./components/HelpModal";
 
 
@@ -5444,6 +5444,37 @@ export default function Page() {
     [effectiveSelectedNodeId, queueUndoSnapshot, setNodes, startTextEditHistoryBurst]
   );
 
+  const updateInspectorSlotTermType = useCallback(
+    (slotId: string, termType: string) => {
+      if (!effectiveSelectedNodeId) return;
+      queueUndoSnapshot();
+      const normalizedTermType = normalizeContentSlotTermType(termType);
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== effectiveSelectedNodeId) return node;
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              content_config: {
+                ...node.data.content_config,
+                slots: node.data.content_config.slots.map((slot) =>
+                  slot.id === slotId
+                    ? {
+                        ...slot,
+                        termType: normalizedTermType.length > 0 ? normalizedTermType : null,
+                      }
+                    : slot
+                ),
+              },
+            },
+          };
+        })
+      );
+    },
+    [effectiveSelectedNodeId, queueUndoSnapshot, setNodes]
+  );
+
   const commitContentSlotRegistryField = useCallback(
     (slotId: string, value: string) => {
       flushTextEditHistoryBurst();
@@ -10009,7 +10040,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           </button>
                         </div>
 
-                        {groupSlots.map((slot) => {
+                        {groupSlots.map((slot, slotIndex) => {
                           const slotRegistryField = buildContentSlotRegistryField(slot.id);
                           const isRegistryPickerOpen =
                             activeInspectorRegistryPickerField === slotRegistryField;
@@ -10021,15 +10052,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                               key={`inspector-menu-slot:${menuGroup.id}:${slot.id}`}
                               style={{ display: "grid", gap: 4 }}
                             >
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  color: "#334155",
-                                }}
-                              >
-                                {normalizeConversationSlotTermTypeLabel(slot.termType)}
-                              </div>
+                              <SlotTermTypeEditor
+                                slot={slot}
+                                slotIndex={slotIndex}
+                                onChangeTermType={updateInspectorSlotTermType}
+                              />
 
                               <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
                                 {isLongField ? (
@@ -10406,7 +10433,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             </div>
 
                             <div style={{ display: "grid", gap: 6 }}>
-                              {groupSlots.map((slot) => {
+                              {groupSlots.map((slot, slotIndex) => {
                                 const slotRegistryField = buildContentSlotRegistryField(slot.id);
                                 const isRegistryPickerOpen =
                                   activeInspectorRegistryPickerField === slotRegistryField;
@@ -10426,9 +10453,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                         gap: 8,
                                       }}
                                     >
-                                      <div style={{ fontSize: 11, color: "#334155", fontWeight: 700 }}>
-                                        {normalizeConversationSlotTermTypeLabel(slot.termType)}
-                                      </div>
+                                      <SlotTermTypeEditor
+                                        slot={slot}
+                                        slotIndex={slotIndex}
+                                        onChangeTermType={updateInspectorSlotTermType}
+                                      />
                                       <button
                                         type="button"
                                         style={getInspectorRegistryButtonStyle(isRegistryPickerOpen)}
