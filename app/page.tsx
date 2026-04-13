@@ -1969,6 +1969,14 @@ export default function Page() {
     };
   }, [handleSidePanelPointerMove, isResizingSidePanel, stopSidePanelResize]);
 
+  useEffect(() => {
+    if (!isResizingSidePanel) return;
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.userSelect = "";
+    };
+  }, [isResizingSidePanel]);
+
   const activeAccount = useMemo(
     () =>
       store.accounts.find((account) => account.id === store.session.activeAccountId) ??
@@ -9519,6 +9527,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
+            userSelect: isResizingSidePanel ? "none" : undefined,
           }}
         >
           <div
