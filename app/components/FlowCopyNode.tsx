@@ -225,7 +225,7 @@ const LEGACY_SLOT_TERM_TYPE_MAP: Record<string, string> = {
   "tool tip": "tool_tip",
 };
 
-const normalizeSlotTermTypeValue = (
+export const normalizeSlotTermTypeValue = (
   termType: string | null | undefined
 ): string => {
   if (typeof termType !== "string") {
@@ -248,7 +248,7 @@ const normalizeSlotTermTypeValue = (
 const normalizeContentSlotTermType = (termType: string | null | undefined): string =>
   normalizeSlotTermTypeValue(termType);
 
-const getSlotTermTypeDisplayLabel = (termType: string): string => {
+export const getSlotTermTypeDisplayLabel = (termType: string): string => {
   const normalizedTermType = termType.trim();
   if (normalizedTermType.length === 0) {
     return "Untyped";
@@ -311,7 +311,7 @@ const getRibbonCellActionButtonStyle = (
   background: "#fff",
   flexShrink: 0,
 });
-function SlotTermTypeEditor({
+export function SlotTermTypeEditor({
   slot,
   slotIndex,
   onChangeTermType,
