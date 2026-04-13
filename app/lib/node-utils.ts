@@ -36,6 +36,7 @@ import {
   UI_JOURNEY_HIGHLIGHT_STROKE_COLOR,
   UI_JOURNEY_RECALLED_STROKE_COLOR,
 } from "../constants";
+import { theme } from "./theme";
 
 export const isFrameShade = (value: unknown): value is FrameShade =>
   value === "light" || value === "medium" || value === "dark";
@@ -1001,7 +1002,7 @@ export const resolveNodeHighlightColor = ({
   glossaryHighlighted?: boolean;
 }): string | null => {
   if (glossaryHighlighted) {
-    return "#f59e0b";
+    return theme.clp.audit.highlight.border;
   }
 
   if (uiJourneyRecalled) {
@@ -1013,7 +1014,7 @@ export const resolveNodeHighlightColor = ({
   }
 
   if (selected) {
-    return "#2563eb";
+    return theme.primitives.blue600;
   }
 
   return null;
@@ -1029,7 +1030,7 @@ export const getNodeShapeStyle = (
     glossaryHighlighted?: boolean;
   } = {}
 ): React.CSSProperties => {
-  const resolvedAccentColor = accentColor?.trim() || "#4f46e5";
+  const resolvedAccentColor = accentColor?.trim() || theme.primitives.indigo600;
   const highlightColor = resolveNodeHighlightColor({
     selected,
     uiJourneyHighlighted: options.uiJourneyHighlighted ?? false,
@@ -1042,12 +1043,12 @@ export const getNodeShapeStyle = (
     width: 260,
     minHeight: 75,
     position: "relative",
-    background: "#ffffff",
+    background: theme.primitives.white,
     border: `2px solid ${highlightColor ?? resolvedAccentColor}`,
     padding: 10,
     boxShadow: highlightColor
-      ? `0 0 0 3px ${highlightColor}, 0 3px 10px rgba(0, 0, 0, 0.12)`
-      : "0 1px 3px rgba(0,0,0,0.08)",
+      ? `0 0 0 3px ${highlightColor}, ${theme.node.highlightShadow}`
+      : theme.node.shadow,
   };
 
   switch (shape) {
@@ -1101,7 +1102,7 @@ export const getDiamondBorderLayerStyle = (accentColor: string): React.CSSProper
 export const getDiamondSurfaceLayerStyle = (): React.CSSProperties => ({
   position: "absolute",
   inset: 6,
-  background: "#ffffff",
+  background: theme.primitives.white,
   clipPath: DIAMOND_CLIP_PATH,
   zIndex: 1,
   pointerEvents: "none",
