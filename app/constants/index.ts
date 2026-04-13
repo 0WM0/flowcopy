@@ -1,5 +1,6 @@
 import type React from "react";
 import { MarkerType, type DefaultEdgeOptions } from "@xyflow/react";
+import { theme } from "../lib/theme";
 import type {
   FrameShade,
   EdgeKind,
@@ -147,27 +148,27 @@ export const FRAME_SHADE_STYLES: Record<
   }
 > = {
   light: {
-    border: "#cbd5e1",
-    background: "rgba(248, 250, 252, 0.88)",
-    tabBackground: "#f1f5f9",
-    tabText: "#475569",
+    border: theme.frame.shade0.border,
+    background: theme.frame.shade0.bg,
+    tabBackground: theme.frame.shade0.tabBg,
+    tabText: theme.frame.shade0.tabText,
   },
   medium: {
-    border: "#94a3b8",
-    background: "rgba(241, 245, 249, 0.72)",
-    tabBackground: "#e2e8f0",
-    tabText: "#334155",
+    border: theme.frame.shade1.border,
+    background: theme.frame.shade1.bg,
+    tabBackground: theme.frame.shade1.tabBg,
+    tabText: theme.frame.shade1.tabText,
   },
   dark: {
-    border: "#64748b",
-    background: "rgba(226, 232, 240, 0.58)",
-    tabBackground: "#cbd5e1",
-    tabText: "#1e293b",
+    border: theme.frame.shade2.border,
+    background: theme.frame.shade2.bg,
+    tabBackground: theme.frame.shade2.tabBg,
+    tabText: theme.frame.shade2.tabText,
   },
 };
 
-export const EDGE_STROKE_COLOR = "#1d4ed8";
-export const PARALLEL_EDGE_STROKE_COLOR = "#64748b";
+export const EDGE_STROKE_COLOR = theme.edge.sequential.stroke;
+export const PARALLEL_EDGE_STROKE_COLOR = theme.edge.parallel.stroke;
 
 export const EDGE_LINE_STYLE_OPTIONS = [
   "solid",
@@ -196,10 +197,10 @@ export const PARALLEL_TARGET_HANDLE_ID = "p-tgt";
 export const PARALLEL_ALT_SOURCE_HANDLE_ID = "p-src-top";
 export const PARALLEL_ALT_TARGET_HANDLE_ID = "p-tgt-bottom";
 
-export const SEQUENTIAL_SELECTED_STROKE_COLOR = "#0f172a";
-export const PARALLEL_SELECTED_STROKE_COLOR = "#334155";
-export const UI_JOURNEY_HIGHLIGHT_STROKE_COLOR = "#6366f1";
-export const UI_JOURNEY_RECALLED_STROKE_COLOR = "#7c3aed";
+export const SEQUENTIAL_SELECTED_STROKE_COLOR = theme.edge.sequential.selectedStroke;
+export const PARALLEL_SELECTED_STROKE_COLOR = theme.edge.parallel.selectedStroke;
+export const UI_JOURNEY_HIGHLIGHT_STROKE_COLOR = theme.edge.journey.highlight;
+export const UI_JOURNEY_RECALLED_STROKE_COLOR = theme.edge.journey.recalled;
 
 export const DIAMOND_CLIP_PATH = "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)";
 
@@ -432,17 +433,17 @@ export const SIDE_PANEL_WIDTH_STORAGE_KEY = "flowcopy.editor.panelWidths";
 
 export const inputStyle: React.CSSProperties = {
   width: "100%",
-  border: "1px solid #d4d4d8",
-  borderRadius: 6,
+  border: `${theme.surface.borderWidth} solid ${theme.table.border}`,
+  borderRadius: theme.surface.radius.md,
   padding: "6px 8px",
   fontSize: 12,
-  background: "#fff",
+  background: theme.primitives.white,
 };
 
 export const buttonStyle: React.CSSProperties = {
-  border: "1px solid #d4d4d8",
-  borderRadius: 6,
-  background: "#fff",
+  border: `${theme.surface.borderWidth} solid ${theme.table.border}`,
+  borderRadius: theme.surface.radius.md,
+  background: theme.primitives.white,
   padding: "6px 10px",
   cursor: "pointer",
   fontSize: 12,
@@ -452,16 +453,16 @@ export const getToggleButtonStyle = (
   isActive: boolean
 ): React.CSSProperties => ({
   ...buttonStyle,
-  borderColor: isActive ? "#1d4ed8" : "#bfdbfe",
-  background: isActive ? "#2563eb" : "#eff6ff",
-  color: isActive ? "#ffffff" : "#1e3a8a",
-  fontWeight: 700,
-  boxShadow: isActive ? "0 4px 12px rgba(37, 99, 235, 0.3)" : "none",
+  borderColor: isActive ? theme.button.primary.bg : theme.primitives.blue200,
+  background: isActive ? theme.primitives.blue600 : theme.primitives.blue50,
+  color: isActive ? theme.primitives.white : theme.primitives.blue900,
+  fontWeight: theme.button.primary.weight,
+  boxShadow: isActive ? theme.button.primary.shadow : theme.surface.shadow.none,
 });
 
 export const inspectorFieldLabelStyle: React.CSSProperties = {
   fontSize: 12,
   marginBottom: 4,
-  fontWeight: 700,
-  color: "#1e293b",
+  fontWeight: theme.inspector.card.fieldLabelWeight,
+  color: theme.inspector.card.fieldLabel,
 };
