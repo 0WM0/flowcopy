@@ -158,6 +158,7 @@ import {
   cloneUiJourneySnapshotPresets,
   createUiJourneySnapshotPresetId,
 } from "./lib/ui-journey";
+import { theme } from "./lib/theme";
 
 import {
   buildCsvFromRows,
@@ -9085,11 +9086,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         onDrop={handleCanvasRegistryDrop}
         style={{
           position: "relative",
-          borderRight: "1px solid #e4e4e7",
+          borderRight: `${theme.surface.borderWidth} solid ${theme.table.cellBorder}`,
           transition: "box-shadow 120ms ease, background-color 120ms ease",
-          background: isCanvasRegistryDropActive ? "rgba(191, 219, 254, 0.18)" : undefined,
+          background: isCanvasRegistryDropActive ? theme.canvas.dropActiveOverlay : undefined,
           boxShadow: isCanvasRegistryDropActive
-            ? "inset 0 0 0 2px rgba(37, 99, 235, 0.42)"
+            ? `inset 0 0 0 2px ${theme.canvas.dropActiveBorder}`
             : "none",
         }}
       >
@@ -9131,10 +9132,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             display: "flex",
             gap: 6,
             padding: "6px 10px",
-            background: "#ffffff",
-            border: "1px solid #cbd5e1",
-            borderRadius: 10,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+            background: theme.topBar.bg,
+            border: `${theme.surface.borderWidth} solid ${theme.topBar.border}`,
+            borderRadius: theme.surface.radius.xl,
+            boxShadow: theme.topBar.shadow,
             zIndex: 10,
             alignItems: "center",
           }}
@@ -9142,7 +9143,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           <button type="button" style={buttonStyle} onClick={handleBackToDashboard}>
             ← Dashboard
           </button>
-          <div style={{ width: 1, height: 18, background: "#e2e8f0" }} />
+          <div style={{ width: 1, height: 18, background: theme.topBar.separator }} />
           <button
             type="button"
             style={getToggleButtonStyle(true)}
@@ -9157,13 +9158,13 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           >
             Table
           </button>
-          <div style={{ width: 1, height: 18, background: "#e2e8f0" }} />
+          <div style={{ width: 1, height: 18, background: theme.topBar.separator }} />
           <button
             type="button"
             style={{
               ...buttonStyle,
               fontSize: 16,
-              opacity: undoStack.length === 0 ? 0.5 : 1,
+              opacity: undoStack.length === 0 ? theme.topBar.disabledOpacity : 1,
               cursor: undoStack.length === 0 ? "not-allowed" : "pointer",
             }}
             onClick={undo}
@@ -9183,7 +9184,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           <span
             style={{
               fontSize: 11,
-              color: "#64748b",
+              color: theme.topBar.text,
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -9206,10 +9207,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             flexDirection: "column",
             gap: 6,
             padding: "6px 10px",
-            background: "#ffffff",
-            border: "1px solid #cbd5e1",
-            borderRadius: 10,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+            background: theme.toolbar.bg,
+            border: `${theme.surface.borderWidth} solid ${theme.toolbar.border}`,
+            borderRadius: theme.surface.radius.xl,
+            boxShadow: theme.toolbar.shadow,
             zIndex: 50,
             alignItems: "center",
           }}
@@ -9221,10 +9222,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               cursor: "grab",
               borderRadius: 3,
               backgroundImage:
-                "radial-gradient(circle, #94a3b8 1px, transparent 1px)",
+                `radial-gradient(circle, ${theme.toolbar.dragHandle} 1px, transparent 1px)`,
               backgroundSize: "4px 4px",
               backgroundPosition: "center",
-              opacity: 0.6,
+              opacity: theme.toolbar.dragHandleOpacity,
             }}
             onPointerDown={(event) => {
               const toolbarRect = event.currentTarget.parentElement?.getBoundingClientRect();
@@ -9267,10 +9268,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               onClick={() => handleQuickAddFromSideTab("default")}
               style={{
                 height: 32,
-                border: "1px solid #e2e8f0",
-                borderRadius: 6,
+                border: `${theme.surface.borderWidth} solid ${theme.toolbar.button.border}`,
+                borderRadius: theme.surface.radius.md,
                 cursor: "pointer",
-                background: "#f8fafc",
+                background: theme.toolbar.button.bg,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -9288,7 +9289,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               >
                 <rect x="4" y="4" width="16" height="16" rx="2" />
               </svg>
-              <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>Card</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: theme.toolbar.button.text }}>Card</span>
             </button>
 
             <button
@@ -9297,10 +9298,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               onClick={() => handleQuickAddFromSideTab("vertical_multi_term")}
               style={{
                 height: 32,
-                border: "1px solid #e2e8f0",
-                borderRadius: 6,
+                border: `${theme.surface.borderWidth} solid ${theme.toolbar.button.border}`,
+                borderRadius: theme.surface.radius.md,
                 cursor: "pointer",
-                background: "#f8fafc",
+                background: theme.toolbar.button.bg,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -9319,7 +9320,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 <rect x="5" y="3" width="14" height="7" rx="1.5" />
                 <rect x="5" y="14" width="14" height="7" rx="1.5" />
               </svg>
-              <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: theme.toolbar.button.text }}>
                 Vertical
               </span>
             </button>
@@ -9330,10 +9331,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               onClick={() => handleQuickAddFromSideTab("horizontal_multi_term")}
               style={{
                 height: 32,
-                border: "1px solid #e2e8f0",
-                borderRadius: 6,
+                border: `${theme.surface.borderWidth} solid ${theme.toolbar.button.border}`,
+                borderRadius: theme.surface.radius.md,
                 cursor: "pointer",
-                background: "#f8fafc",
+                background: theme.toolbar.button.bg,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -9352,13 +9353,13 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 <rect x="3" y="5" width="7" height="14" rx="1.5" />
                 <rect x="14" y="5" width="7" height="14" rx="1.5" />
               </svg>
-              <span style={{ fontSize: 10, fontWeight: 600, color: "#334155" }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: theme.toolbar.button.text }}>
                 Horizontal
               </span>
             </button>
           </div>
 
-          <div style={{ width: "100%", height: 1, background: "#e2e8f0" }} />
+          <div style={{ width: "100%", height: 1, background: theme.toolbar.separator }} />
 
           <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
             <button
@@ -9384,12 +9385,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 padding: 0,
                 background:
                   activeSidePanelTab === "card" && isInspectorVisible
-                    ? "#dbeafe"
+                    ? theme.toolbar.activeButton.bg
                     : "transparent",
                 color:
                   activeSidePanelTab === "card" && isInspectorVisible
-                    ? "#1d4ed8"
-                    : "#64748b",
+                    ? theme.toolbar.activeButton.text
+                    : theme.topBar.text,
               }}
             >
               <svg
@@ -9429,12 +9430,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 padding: 0,
                 background:
                   activeSidePanelTab === "clp" && isInspectorVisible
-                    ? "#dbeafe"
+                    ? theme.toolbar.activeButton.bg
                     : "transparent",
                 color:
                   activeSidePanelTab === "clp" && isInspectorVisible
-                    ? "#1d4ed8"
-                    : "#64748b",
+                    ? theme.toolbar.activeButton.text
+                    : theme.topBar.text,
               }}
             >
               <svg
@@ -9475,12 +9476,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 padding: 0,
                 background:
                   activeSidePanelTab === "journey" && isInspectorVisible
-                    ? "#dbeafe"
+                    ? theme.toolbar.activeButton.bg
                     : "transparent",
                 color:
                   activeSidePanelTab === "journey" && isInspectorVisible
-                    ? "#1d4ed8"
-                    : "#64748b",
+                    ? theme.toolbar.activeButton.text
+                    : theme.topBar.text,
               }}
             >
               <svg
@@ -9522,12 +9523,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 padding: 0,
                 background:
                   activeSidePanelTab === "admin" && isInspectorVisible
-                    ? "#dbeafe"
+                    ? theme.toolbar.activeButton.bg
                     : "transparent",
                 color:
                   activeSidePanelTab === "admin" && isInspectorVisible
-                    ? "#1d4ed8"
-                    : "#64748b",
+                    ? theme.toolbar.activeButton.text
+                    : theme.topBar.text,
               }}
             >
               <svg
@@ -9572,10 +9573,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               cursor: "col-resize",
               flexShrink: 0,
               backgroundImage:
-                "radial-gradient(circle, #94a3b8 1px, transparent 1px)",
+                `radial-gradient(circle, ${theme.inspector.resizeHandle} 1px, transparent 1px)`,
               backgroundSize: "4px 4px",
               backgroundPosition: "center",
-              opacity: isResizingSidePanel ? 1 : 0.4,
+              opacity: isResizingSidePanel
+                ? theme.inspector.resizeHandleActiveOpacity
+                : theme.inspector.resizeHandleOpacity,
               zIndex: 10,
             }}
           />
