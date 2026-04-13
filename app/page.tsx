@@ -9158,7 +9158,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         <div
           className="nodrag nopan nowheel"
           style={{
-            position: "absolute",
+            position: "fixed",
             bottom: floatingToolbarPos ? "auto" : 20,
             left: floatingToolbarPos ? floatingToolbarPos.x : "50%",
             top: floatingToolbarPos ? floatingToolbarPos.y : undefined,
@@ -9171,7 +9171,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             border: "1px solid #cbd5e1",
             borderRadius: 10,
             boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-            zIndex: 10,
+            zIndex: 50,
             alignItems: "center",
           }}
         >
