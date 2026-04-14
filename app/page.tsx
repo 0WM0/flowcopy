@@ -1496,9 +1496,11 @@ const getInspectorRegistryButtonStyle = (
   borderRadius: 4,
   fontSize: 14,
   lineHeight: 1,
-  borderColor: isActive ? "#93c5fd" : "#d4d4d8",
-  background: isActive ? "#dbeafe" : "#fff",
-  color: "#1e3a8a",
+  borderColor: isActive
+    ? theme.clp.registry.assignedCard.borderColor
+    : theme.table.borderColor,
+  background: isActive ? theme.clp.registry.assignedCard.bg : theme.table.bg,
+  color: theme.clp.registry.assignedCard.text,
 });
 
 const getTermRegistryTermTypeLabel = (termType: string | null): string => {
@@ -4408,7 +4410,10 @@ export default function Page() {
               fontSize: 11,
             },
             labelBgStyle: {
-              fill: edgeKind === "parallel" ? "#f1f5f9" : "#eff6ff",
+              fill:
+                edgeKind === "parallel"
+                  ? theme.edge.labelBg.parallel
+                  : theme.edge.labelBg.sequential,
               fillOpacity: 0.95,
             },
             labelBgPadding: [4, 2],
@@ -8420,7 +8425,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           <section
             style={{
               ...dashboardBlockStyle,
-              border: "2px solid #dc2626",
+              border: theme.dashboard.alertBorder,
               padding: "0 3px",
               display: "grid",
               gridTemplateColumns: "1fr auto",
@@ -8463,7 +8468,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           <section
             style={{
               ...dashboardBlockStyle,
-              border: "2px solid #dc2626",
+              border: theme.dashboard.alertBorder,
               padding: "0 3px",
               display: "grid",
               gridTemplateColumns: "auto 1fr auto",
@@ -8743,22 +8748,22 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 padding: "6px 8px",
                 border:
                   transferFeedback.type === "error"
-                    ? "1px solid #fecaca"
+                    ? theme.status.error.border
                     : transferFeedback.type === "success"
-                      ? "1px solid #bbf7d0"
-                      : "1px solid #bfdbfe",
+                      ? theme.status.success.border
+                      : theme.status.info.border,
                 background:
                   transferFeedback.type === "error"
-                    ? "#fef2f2"
+                    ? theme.status.error.bg
                     : transferFeedback.type === "success"
-                      ? "#f0fdf4"
-                      : "#eff6ff",
+                      ? theme.status.success.bg
+                      : theme.status.info.bg,
                 color:
                   transferFeedback.type === "error"
-                    ? "#991b1b"
+                    ? theme.status.error.text
                     : transferFeedback.type === "success"
-                      ? "#14532d"
-                      : "#1e3a8a",
+                      ? theme.status.success.text
+                      : theme.status.info.text,
               }}
             >
               {transferFeedback.message}
@@ -8772,52 +8777,52 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               borderCollapse: "collapse",
               width: "max-content",
               minWidth: "100%",
-              background: "#fff",
-              border: "1px solid #d4d4d8",
+              background: theme.table.bg,
+              border: theme.table.border,
             }}
           >
             <thead>
               <tr>
-                <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>node_id</th>
-                <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>node_id</th>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                   sequence_index
                 </th>
-                <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                   Node Type
                 </th>
-                <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                   parallel_group_id
                 </th>
-                <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>position_x</th>
-                <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>position_y</th>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>position_x</th>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>position_y</th>
                 {TABLE_EDITABLE_FIELDS.map((field) => (
                   <th
                     key={`table-head:${field}`}
-                    style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}
+                    style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}
                   >
                     {TABLE_FIELD_LABELS[field]}
                   </th>
                 ))}
-                <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                   Ribbon Cells
                 </th>
                 {menuTermColumnIndexes.map((menuTermIndex) => (
                   <th
                     key={`table-menu-term-head:${menuTermIndex}`}
-                    style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}
+                    style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}
                   >
                     {`Menu Term ${menuTermIndex + 1}`}
                   </th>
                 ))}
                 {ribbonCellColumnIndexes.map((ribbonCellIndex) => (
                   <React.Fragment key={`table-ribbon-cell-head:${ribbonCellIndex}`}>
-                    <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                    <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                       {`Ribbon Label ${ribbonCellIndex + 1}`}
                     </th>
-                    <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                    <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                       {`Ribbon Key Command ${ribbonCellIndex + 1}`}
                     </th>
-                    <th style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                    <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                       {`Ribbon Tool Tip ${ribbonCellIndex + 1}`}
                     </th>
                   </React.Fragment>
@@ -8835,7 +8840,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       menuTermColumnIndexes.length +
                       ribbonCellColumnIndexes.length * 3
                     }
-                    style={{ border: "1px solid #e4e4e7", padding: 12, fontSize: 12 }}
+                    style={{ border: theme.table.cellBorder, padding: 12, fontSize: 12 }}
                   >
                     No nodes in this project yet. Switch to Canvas View to add nodes.
                   </td>
@@ -8893,28 +8898,28 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                   return (
                     <tr key={`table-row:${node.id}`}>
-                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                         <code>{node.id}</code>
                       </td>
-                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                         {sequenceIndex ?? ""}
                       </td>
-                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                         {node.data.node_type}
                       </td>
-                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                         {parallelGroupId ?? ""}
                       </td>
-                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                         {Math.round(node.position.x)}
                       </td>
-                      <td style={{ border: "1px solid #e4e4e7", padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
                         {Math.round(node.position.y)}
                       </td>
 
                       {TABLE_EDITABLE_FIELDS.map((field) => {
                         const baseCellStyle: React.CSSProperties = {
-                          border: "1px solid #e4e4e7",
+                          border: theme.table.cellBorder,
                           padding: 6,
                           minWidth: TABLE_TEXTAREA_FIELDS.has(field) ? 240 : 170,
                           verticalAlign: "top",
@@ -8977,7 +8982,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                       <td
                         style={{
-                          border: "1px solid #e4e4e7",
+                          border: theme.table.cellBorder,
                           padding: 8,
                           fontSize: 12,
                           minWidth: 220,
@@ -8990,7 +8995,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         <td
                           key={`menu-term-cell:${node.id}:${menuTermIndex}`}
                           style={{
-                            border: "1px solid #e4e4e7",
+                            border: theme.table.cellBorder,
                             padding: 8,
                             fontSize: 12,
                             minWidth: 170,
@@ -9009,7 +9014,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           >
                             <td
                               style={{
-                                border: "1px solid #e4e4e7",
+                                border: theme.table.cellBorder,
                                 padding: 8,
                                 fontSize: 12,
                                 minWidth: 170,
@@ -9019,7 +9024,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             </td>
                             <td
                               style={{
-                                border: "1px solid #e4e4e7",
+                                border: theme.table.cellBorder,
                                 padding: 8,
                                 fontSize: 12,
                                 minWidth: 170,
@@ -9029,7 +9034,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             </td>
                             <td
                               style={{
-                                border: "1px solid #e4e4e7",
+                                border: theme.table.cellBorder,
                                 padding: 8,
                                 fontSize: 12,
                                 minWidth: 220,
@@ -13230,7 +13235,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         width: 8,
                         height: 8,
                         borderRadius: 1,
-                        border: "2px solid #2B6CB0",
+                        border: theme.cv.pageOutline,
                         marginLeft: 10,
                         boxSizing: "border-box",
                         background: "transparent",
@@ -13243,7 +13248,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       style={{
                         fontSize: 10,
                         fontWeight: 600,
-                        color: "#5A7FA3",
+                        color: theme.cv.headerMeta,
                         letterSpacing: 0.6,
                         textTransform: "uppercase",
                       }}
