@@ -433,16 +433,16 @@ export const SIDE_PANEL_WIDTH_STORAGE_KEY = "flowcopy.editor.panelWidths";
 
 export const inputStyle: React.CSSProperties = {
   width: "100%",
-  border: `${theme.surface.borderWidth} solid ${theme.table.border}`,
-  borderRadius: theme.surface.radius.md,
+  border: theme.table.border,
+  borderRadius: 6,
   padding: "6px 8px",
   fontSize: 12,
   background: theme.primitives.white,
 };
 
 export const buttonStyle: React.CSSProperties = {
-  border: `${theme.surface.borderWidth} solid ${theme.table.border}`,
-  borderRadius: theme.surface.radius.md,
+  border: theme.table.border,
+  borderRadius: 6,
   background: theme.primitives.white,
   padding: "6px 10px",
   cursor: "pointer",
@@ -457,7 +457,7 @@ export const getToggleButtonStyle = (
   background: isActive ? theme.primitives.blue600 : theme.primitives.blue50,
   color: isActive ? theme.primitives.white : theme.primitives.blue900,
   fontWeight: theme.button.primary.weight,
-  boxShadow: isActive ? theme.button.primary.shadow : theme.surface.shadow.none,
+  boxShadow: isActive ? theme.button.primary.shadow : "none",
 });
 
 export const inspectorFieldLabelStyle: React.CSSProperties = {
