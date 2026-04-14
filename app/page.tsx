@@ -644,8 +644,8 @@ const TransferModal = ({
           width: "min(560px, 94vw)",
           maxHeight: "88vh",
           overflowY: "auto",
-          border: `${theme.surface.borderWidth} solid ${theme.modal.border}`,
-          borderRadius: theme.surface.radius.xxl,
+          border: theme.modal.border,
+          borderRadius: theme.modal.radius,
           background: theme.modal.bg,
           boxShadow: theme.modal.shadow,
           padding: 14,
@@ -671,8 +671,8 @@ const TransferModal = ({
           <>
             <section
               style={{
-                border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
-                borderRadius: theme.surface.radius.lg,
+                border: theme.modal.sectionBorder,
+                borderRadius: theme.modal.sectionRadius,
                 background: theme.modal.sectionBg,
                 padding: 10,
                 display: "grid",
@@ -724,8 +724,8 @@ const TransferModal = ({
             {state.context === "clp" && (
               <section
                 style={{
-                  border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
-                  borderRadius: theme.surface.radius.lg,
+                  border: theme.modal.sectionBorder,
+                  borderRadius: theme.modal.sectionRadius,
                   background: theme.modal.bg,
                   padding: 10,
                   display: "grid",
@@ -781,8 +781,8 @@ const TransferModal = ({
           <>
             <section
               style={{
-                border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
-                borderRadius: theme.surface.radius.lg,
+                border: theme.modal.sectionBorder,
+                borderRadius: theme.modal.sectionRadius,
                 background: theme.modal.sectionBg,
                 padding: 10,
                 display: "grid",
@@ -797,8 +797,8 @@ const TransferModal = ({
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: 8,
-                    border: `${theme.surface.borderWidth} solid ${theme.modal.border}`,
-                    borderRadius: theme.surface.radius.md,
+                    border: theme.modal.border,
+                    borderRadius: theme.clp.registry.input.radius,
                     background: theme.modal.bg,
                     padding: "6px 8px",
                   }}
@@ -856,7 +856,7 @@ const TransferModal = ({
                   style={{
                     fontSize: 11,
                     color: theme.status.error.text,
-                    border: `${theme.surface.borderWidth} solid ${theme.status.error.border}`,
+                    border: theme.status.error.border,
                     borderRadius: 6,
                     background: theme.status.error.bg,
                     padding: "6px 8px",
@@ -869,8 +869,8 @@ const TransferModal = ({
 
             <section
               style={{
-                border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
-                borderRadius: theme.surface.radius.lg,
+                border: theme.modal.sectionBorder,
+                borderRadius: theme.modal.sectionRadius,
                 background: theme.modal.bg,
                 padding: 10,
                 display: "grid",
@@ -933,8 +933,8 @@ const TransferModal = ({
 
             <section
               style={{
-                border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
-                borderRadius: theme.surface.radius.lg,
+                border: theme.modal.sectionBorder,
+                borderRadius: theme.modal.sectionRadius,
                 background: theme.modal.bg,
                 padding: 10,
                 display: "grid",
@@ -953,8 +953,8 @@ const TransferModal = ({
                     <div
                       key={`clp-import-preview-row:${rowIndex}`}
                       style={{
-                        border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
-                        borderRadius: theme.surface.radius.md,
+                        border: theme.modal.sectionBorder,
+                        borderRadius: theme.clp.registry.input.radius,
                         padding: "8px 10px",
                         background: theme.modal.sectionBg,
                         display: "grid",
@@ -1000,8 +1000,8 @@ const TransferModal = ({
 
             <section
               style={{
-                border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
-                borderRadius: theme.surface.radius.lg,
+                border: theme.modal.sectionBorder,
+                borderRadius: theme.modal.sectionRadius,
                 background: theme.modal.bg,
                 padding: 10,
                 display: "grid",
@@ -1057,7 +1057,7 @@ const TransferModal = ({
                   style={{
                     fontSize: 11,
                     color: theme.status.error.text,
-                    border: `${theme.surface.borderWidth} solid ${theme.status.error.border}`,
+                    border: theme.status.error.border,
                     borderRadius: 6,
                     background: theme.status.error.bg,
                     padding: "6px 8px",
@@ -1097,7 +1097,7 @@ const TransferModal = ({
                 margin: 0,
                 fontSize: 13,
                 color: theme.modal.hint,
-                border: `${theme.surface.borderWidth} dashed ${theme.modal.border}`,
+                border: theme.dashboard.loadingBorder,
                 borderRadius: 8,
                 background: theme.modal.sectionBg,
                 padding: "10px 12px",
@@ -8324,8 +8324,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
     const dashboardBlockStyle: React.CSSProperties = {
       background: theme.dashboard.card.bg,
       border: `2px solid ${theme.inspector.card.blockBorder}`,
-      borderRadius: theme.surface.radius.xxl,
-      boxShadow: theme.surface.shadow.lg,
+      borderRadius: theme.modal.radius,
+      boxShadow: theme.dashboard.card.shadow,
     };
 
     const dashboardButtonStyle: React.CSSProperties = {
@@ -8333,8 +8333,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       padding: "2px 8px",
       minHeight: 24,
       lineHeight: 1,
-      border: `${theme.surface.borderWidth} solid ${theme.dashboard.btn.secondary.border}`,
-      borderRadius: theme.surface.radius.lg,
+      border: theme.dashboard.btn.secondary.border,
+      borderRadius: theme.modal.sectionRadius,
       fontSize: 11,
       fontWeight: 700,
       color: theme.dashboard.btn.secondary.text,
@@ -8573,7 +8573,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       style={{
                         textAlign: "left",
                         border: `2px solid ${theme.dashboard.card.border}`,
-                        borderRadius: theme.surface.radius.xxl,
+                        borderRadius: theme.modal.radius,
                         padding: "9px 10px",
                         background: theme.dashboard.card.bg,
                         display: "grid",
@@ -8683,7 +8683,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       >
         <header
           style={{
-            borderBottom: `${theme.surface.borderWidth} solid ${theme.table.border}`,
+            borderBottom: theme.table.border,
             background: theme.primitives.white,
             padding: 12,
             display: "grid",
@@ -9086,7 +9086,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         onDrop={handleCanvasRegistryDrop}
         style={{
           position: "relative",
-          borderRight: `${theme.surface.borderWidth} solid ${theme.table.cellBorder}`,
+          borderRight: theme.table.cellBorder,
           transition: "box-shadow 120ms ease, background-color 120ms ease",
           background: isCanvasRegistryDropActive ? theme.canvas.dropActiveOverlay : undefined,
           boxShadow: isCanvasRegistryDropActive
@@ -9133,8 +9133,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             gap: 6,
             padding: "6px 10px",
             background: theme.topBar.bg,
-            border: `${theme.surface.borderWidth} solid ${theme.topBar.border}`,
-            borderRadius: theme.surface.radius.xl,
+            border: theme.topBar.border,
+            borderRadius: theme.toolbar.radius,
             boxShadow: theme.topBar.shadow,
             zIndex: 10,
             alignItems: "center",
@@ -9208,8 +9208,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             gap: 6,
             padding: "6px 10px",
             background: theme.toolbar.bg,
-            border: `${theme.surface.borderWidth} solid ${theme.toolbar.border}`,
-            borderRadius: theme.surface.radius.xl,
+            border: theme.toolbar.border,
+            borderRadius: theme.toolbar.radius,
             boxShadow: theme.toolbar.shadow,
             zIndex: 50,
             alignItems: "center",
@@ -9268,8 +9268,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               onClick={() => handleQuickAddFromSideTab("default")}
               style={{
                 height: 32,
-                border: `${theme.surface.borderWidth} solid ${theme.toolbar.button.border}`,
-                borderRadius: theme.surface.radius.md,
+                border: theme.toolbar.button.border,
+                borderRadius: theme.clp.registry.input.radius,
                 cursor: "pointer",
                 background: theme.toolbar.button.bg,
                 display: "flex",
@@ -9298,8 +9298,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               onClick={() => handleQuickAddFromSideTab("vertical_multi_term")}
               style={{
                 height: 32,
-                border: `${theme.surface.borderWidth} solid ${theme.toolbar.button.border}`,
-                borderRadius: theme.surface.radius.md,
+                border: theme.toolbar.button.border,
+                borderRadius: theme.clp.registry.input.radius,
                 cursor: "pointer",
                 background: theme.toolbar.button.bg,
                 display: "flex",
@@ -9331,8 +9331,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               onClick={() => handleQuickAddFromSideTab("horizontal_multi_term")}
               style={{
                 height: 32,
-                border: `${theme.surface.borderWidth} solid ${theme.toolbar.button.border}`,
-                borderRadius: theme.surface.radius.md,
+                border: theme.toolbar.button.border,
+                borderRadius: theme.clp.registry.input.radius,
                 cursor: "pointer",
                 background: theme.toolbar.button.bg,
                 display: "flex",
@@ -9607,8 +9607,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 selectedNode?.data.node_type === "vertical_multi_term")) && (
               <section
                 style={{
-                  border: `${theme.surface.borderWidth} solid ${theme.inspector.card.blockBorder}`,
-                  borderRadius: theme.surface.radius.lg,
+                  border: theme.inspector.card.blockBorder,
+                  borderRadius: theme.modal.sectionRadius,
                   padding: 10,
                   display: "grid",
                   gap: 10,
@@ -9652,8 +9652,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           fontSize: 11,
                           color: theme.status.error.text,
                           background: theme.status.error.bg,
-                          border: `${theme.surface.borderWidth} solid ${theme.status.error.border}`,
-                          borderRadius: theme.surface.radius.md,
+                          border: theme.status.error.border,
+                          borderRadius: theme.clp.registry.input.radius,
                           padding: "6px 8px",
                         }}
                       >
@@ -9668,8 +9668,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         {selectedEdge && normalizedSelectedEdgeData && !hasSelectedNodes ? (
           <section
             style={{
-              border: `${theme.surface.borderWidth} solid ${theme.inspector.edge.blockBorder}`,
-              borderRadius: theme.surface.radius.lg,
+              border: theme.inspector.edge.blockBorder,
+              borderRadius: theme.modal.sectionRadius,
               padding: 10,
               display: "grid",
               gap: 8,
@@ -9838,7 +9838,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
             <div
               style={{
-                borderTop: `${theme.inspector.sectionDividerWidth} solid ${theme.inspector.sectionDivider}`,
+                borderTop: theme.inspector.sectionDivider,
                 marginTop: 4,
                 marginBottom: 4,
                 paddingTop: 8,
@@ -9895,8 +9895,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                 <div
                   style={{
-                    border: `${theme.surface.borderWidth} solid ${theme.clp.header.border}`,
-                    borderRadius: theme.surface.radius.lg,
+                    border: theme.clp.header.border,
+                    borderRadius: theme.modal.sectionRadius,
                     padding: 8,
                     background: theme.clp.header.bg,
                     display: "grid",
@@ -9909,7 +9909,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                   <div
                     style={{
-                      borderTop: `${theme.surface.borderWidth} solid ${theme.clp.tab.border}`,
+                      borderTop: theme.clp.tab.border,
                       marginTop: 2,
                     }}
                   />
@@ -9958,8 +9958,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                 <div
                   style={{
-                    border: `${theme.surface.borderWidth} solid ${theme.clp.header.border}`,
-                    borderRadius: theme.surface.radius.lg,
+                    border: theme.clp.header.border,
+                    borderRadius: theme.modal.sectionRadius,
                     padding: 6,
                     background: theme.clp.header.bg,
                     display: "grid",
@@ -10032,8 +10032,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       <div
                         key={`inspector-menu-term:${menuGroup.id}`}
                         style={{
-                          border: `${theme.surface.borderWidth} solid ${theme.primitives.blue200}`,
-                          borderRadius: theme.surface.radius.md,
+                          border: theme.node.popup.termBadge.border,
+                          borderRadius: theme.clp.registry.input.radius,
                           padding: 5,
                           display: "grid",
                           gap: 5,
@@ -10181,8 +10181,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                 <div
                   style={{
-                    border: `${theme.surface.borderWidth} solid ${theme.inspector.card.blockBorder}`,
-                    borderRadius: theme.surface.radius.lg,
+                    border: theme.inspector.card.blockBorder,
+                    borderRadius: theme.modal.sectionRadius,
                     padding: 8,
                     background: theme.inspector.card.blockBg,
                     display: "grid",
@@ -10354,8 +10354,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 {selectedNode.data.node_type === "horizontal_multi_term" && selectedHorizontalContentConfig && (
                   <div
                     style={{
-                      border: `${theme.surface.borderWidth} solid ${theme.clp.header.border}`,
-                      borderRadius: theme.surface.radius.lg,
+                      border: theme.clp.header.border,
+                      borderRadius: theme.modal.sectionRadius,
                       padding: 8,
                       background: theme.clp.header.bg,
                       display: "grid",
@@ -10451,8 +10451,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           <div
                             key={`inspector-ribbon-cell:${group.id}`}
                             style={{
-                              border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
-                              borderRadius: theme.surface.radius.md,
+                              border: theme.modal.sectionBorder,
+                              borderRadius: theme.clp.registry.input.radius,
                               padding: "6px 8px",
                               marginBottom: 6,
                             }}
@@ -10569,8 +10569,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     <>
                       <div
                         style={{
-                          border: `${theme.surface.borderWidth} solid ${theme.clp.header.border}`,
-                          borderRadius: theme.surface.radius.lg,
+                          border: theme.clp.header.border,
+                          borderRadius: theme.modal.sectionRadius,
                           padding: 8,
                           background: theme.clp.header.bg,
                           display: "grid",
@@ -10583,7 +10583,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                         <div
                           style={{
-                            borderTop: `${theme.surface.borderWidth} solid ${theme.clp.tab.border}`,
+                            borderTop: theme.clp.tab.border,
                             marginTop: 2,
                             paddingTop: 6,
                           }}
@@ -10670,8 +10670,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         </div>
                         <div
                           style={{
-                            border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
-                            borderRadius: theme.surface.radius.md,
+                            border: theme.modal.sectionBorder,
+                            borderRadius: theme.clp.registry.input.radius,
                             background: theme.inspector.card.blockBg,
                             padding: 8,
                           }}
@@ -10759,7 +10759,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
             <div
               style={{
-                borderTop: `${theme.inspector.sectionDividerWidth} solid ${theme.inspector.sectionDivider}`,
+                borderTop: theme.inspector.sectionDivider,
                 marginTop: 4,
                 marginBottom: 4,
                 paddingTop: 8,
@@ -10916,7 +10916,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             <details
               style={{
                 marginTop: 12,
-                borderTop: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
+                borderTop: theme.modal.sectionBorder,
                 paddingTop: 8,
               }}
             >
@@ -10946,8 +10946,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           <>
         <section
             style={{
-              border: `${theme.surface.borderWidth} solid ${theme.clp.header.border}`,
-              borderRadius: theme.surface.radius.lg,
+              border: theme.clp.header.border,
+              borderRadius: theme.modal.sectionRadius,
               padding: 10,
               display: "flex",
               flexDirection: "column",
@@ -11024,7 +11024,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 gap: 0,
                 borderRadius: 6,
                 overflow: "hidden",
-                border: `${theme.surface.borderWidth} solid ${theme.clp.tab.border}`,
+                border: theme.clp.tab.border,
               }}
             >
               <button
@@ -11057,7 +11057,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   fontSize: 11,
                   fontWeight: 700,
                   border: "none",
-                  borderLeft: `${theme.surface.borderWidth} solid ${theme.clp.tab.border}`,
+                  borderLeft: theme.clp.tab.border,
                   cursor: "pointer",
                   background:
                     clpActiveView === "registry"
@@ -11093,7 +11093,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       borderCollapse: "collapse",
                       width: "100%",
                       minWidth: 560,
-                      border: `${theme.surface.borderWidth} solid ${theme.clp.audit.tableBorder}`,
+                      border: theme.clp.audit.tableBorder,
                       background: theme.clp.audit.tableBg,
                     }}
                   >
@@ -11101,7 +11101,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   <tr>
                     <th
                       style={{
-                        border: `${theme.surface.borderWidth} solid ${theme.clp.audit.tableBorder}`,
+                        border: theme.clp.audit.tableBorder,
                         padding: 6,
                         fontSize: 11,
                         textAlign: "left",
@@ -11112,7 +11112,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     </th>
                     <th
                       style={{
-                        border: `${theme.surface.borderWidth} solid ${theme.clp.audit.tableBorder}`,
+                        border: theme.clp.audit.tableBorder,
                         padding: 6,
                         fontSize: 11,
                         textAlign: "left",
@@ -11123,7 +11123,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     </th>
                     <th
                       style={{
-                        border: `${theme.surface.borderWidth} solid ${theme.clp.audit.tableBorder}`,
+                        border: theme.clp.audit.tableBorder,
                         padding: 6,
                         fontSize: 11,
                         textAlign: "left",
@@ -11142,7 +11142,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       <td
                         colSpan={3}
                         style={{
-                          border: `${theme.surface.borderWidth} solid ${theme.clp.audit.tableBorder}`,
+                          border: theme.clp.audit.tableBorder,
                           padding: 8,
                           fontSize: 11,
                           color: theme.clp.audit.emptyText,
@@ -11163,7 +11163,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         <tr key={`controlled-language-row:${rowKey}`}>
                           <td
                             style={{
-                              border: `${theme.surface.borderWidth} solid ${theme.clp.audit.cellBorder}`,
+                              border: theme.clp.audit.cellBorder,
                               padding: 6,
                             }}
                           >
@@ -11185,7 +11185,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                           <td
                             style={{
-                              border: `${theme.surface.borderWidth} solid ${theme.clp.audit.cellBorder}`,
+                              border: theme.clp.audit.cellBorder,
                               padding: 6,
                             }}
                           >
@@ -11205,7 +11205,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                           <td
                             style={{
-                              border: `${theme.surface.borderWidth} solid ${theme.clp.audit.cellBorder}`,
+                              border: theme.clp.audit.cellBorder,
                               padding: 6,
                               fontSize: 11,
                               color: theme.clp.audit.occurrenceBadge.text,
@@ -11326,7 +11326,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       justifyContent: "space-between",
                       gap: 8,
                       padding: "6px 8px",
-                      border: `${theme.surface.borderWidth} solid ${theme.clp.registry.filterBadge.border}`,
+                      border: theme.clp.registry.filterBadge.border,
                       borderRadius: 6,
                       background: theme.clp.header.bg,
                     }}
@@ -11364,7 +11364,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       minWidth: 120,
                       padding: "4px 8px",
                       fontSize: 11,
-                      border: `${theme.surface.borderWidth} solid ${theme.clp.registry.input.border}`,
+                      border: theme.clp.registry.input.border,
                       borderRadius: 4,
                     }}
                     placeholder={
@@ -11392,7 +11392,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         style={{
                           padding: "4px 8px",
                           fontSize: 11,
-                          border: `${theme.surface.borderWidth} solid ${theme.clp.registry.input.border}`,
+                          border: theme.clp.registry.input.border,
                           borderRadius: 4,
                         }}
                         value={registryFilterStatus}
@@ -11410,7 +11410,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         style={{
                           padding: "4px 8px",
                           fontSize: 11,
-                          border: `${theme.surface.borderWidth} solid ${theme.clp.registry.input.border}`,
+                          border: theme.clp.registry.input.border,
                           borderRadius: 4,
                         }}
                         value={registryFilterType}
@@ -11525,7 +11525,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       gap: 6,
                       alignItems: "center",
                       padding: "6px 8px",
-                      border: `${theme.surface.borderWidth} solid ${theme.clp.registry.filterBadge.border}`,
+                      border: theme.clp.registry.filterBadge.border,
                       borderRadius: 6,
                       background: theme.clp.header.bg,
                     }}
@@ -11536,7 +11536,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         minWidth: 0,
                         padding: "4px 8px",
                         fontSize: 11,
-                        border: `${theme.surface.borderWidth} solid ${theme.clp.registry.input.border}`,
+                        border: theme.clp.registry.input.border,
                         borderRadius: 4,
                       }}
                       placeholder="Add term value"
@@ -11556,7 +11556,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       style={{
                         padding: "4px 8px",
                         fontSize: 11,
-                        border: `${theme.surface.borderWidth} solid ${theme.clp.registry.input.border}`,
+                        border: theme.clp.registry.input.border,
                         borderRadius: 4,
                         background: theme.primitives.white,
                       }}
@@ -11656,8 +11656,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           gap: 6,
                           padding: "6px 8px",
                           border: isRegistryEntryHighlightActive
-                            ? `${theme.surface.borderWidth} solid ${theme.clp.registry.entryHighlight.border}`
-                            : `${theme.surface.borderWidth} solid ${theme.clp.registry.entryBorder}`,
+                            ? theme.clp.registry.entryHighlight.border
+                            : theme.clp.registry.entryBorder,
                           borderRadius: 6,
                           background: isRegistryEntryHighlightActive
                             ? theme.clp.registry.entryHighlight.bg
@@ -11666,7 +11666,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                               : theme.clp.registry.entryDraftBg,
                           boxShadow: isRegistryEntryHighlightActive
                             ? theme.clp.registry.entryHighlight.shadow
-                            : theme.surface.shadow.none,
+                            : "none",
                           fontSize: 11,
                           cursor: entry.assignedNodeId ? "pointer" : "default",
                         }}
@@ -11678,7 +11678,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                               ...inputStyle,
                               fontSize: 12,
                               fontWeight: 700,
-                              border: `${theme.surface.borderWidth} solid ${theme.clp.registry.input.border}`,
+                              border: theme.clp.registry.input.border,
                               padding: "2px 6px",
                               minHeight: 24,
                             }}
@@ -11737,7 +11737,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                   padding: "2px 6px",
                                   fontSize: 10,
                                   fontFamily: "monospace",
-                                  border: `${theme.surface.borderWidth} solid ${theme.clp.registry.input.border}`,
+                                  border: theme.clp.registry.input.border,
                                   borderRadius: 4,
                                   background: theme.clp.registry.input.bg,
                                   color: theme.clp.registry.input.text,
@@ -11834,7 +11834,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                   maxWidth: "100%",
                                   padding: "2px 6px",
                                   fontSize: 10,
-                                  border: `${theme.surface.borderWidth} solid ${theme.clp.registry.input.border}`,
+                                  border: theme.clp.registry.input.border,
                                   borderRadius: 4,
                                   background: theme.clp.registry.input.bg,
                                   color: entry.termType
@@ -11864,7 +11864,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                   maxWidth: "100%",
                                   padding: "2px 6px",
                                   fontSize: 10,
-                                  border: `${theme.surface.borderWidth} solid ${theme.clp.registry.termType.readOnly.border}`,
+                                  border: theme.clp.registry.termType.readOnly.border,
                                   borderRadius: 4,
                                   background: theme.clp.registry.termType.readOnly.bg,
                                   color: entry.termType
@@ -11893,7 +11893,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                 fontSize: 10,
                                 color: theme.clp.registry.draftBadge.text,
                                 fontWeight: 700,
-                                border: `${theme.surface.borderWidth} solid ${theme.clp.registry.draftBadge.border}`,
+                                border: theme.clp.registry.draftBadge.border,
                                 borderRadius: 999,
                                 padding: "1px 6px",
                                 background: theme.clp.registry.draftBadge.bg,
@@ -11968,8 +11968,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
             <section
               style={{
-                border: `${theme.surface.borderWidth} solid ${theme.journey.blockBorder}`,
-                borderRadius: theme.surface.radius.lg,
+                border: theme.journey.blockBorder,
+                borderRadius: theme.modal.sectionRadius,
                 padding: 8,
                 display: "grid",
                 gap: 8,
@@ -12111,11 +12111,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           <div
                             key={`ui-journey-snapshot:${preset.id}`}
                             style={{
-                              border: `${theme.surface.borderWidth} solid ${
+                              border: 
                                 isSelected
                                   ? theme.journey.selected.border
                                   : theme.inspector.card.blockBorder
-                              }`,
+                              ,
                               borderRadius: 8,
                               background: isSelected
                                 ? theme.journey.selected.bg
@@ -12213,8 +12213,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         {activeSidePanelTab === "admin" && (
           <section
             style={{
-              border: `${theme.surface.borderWidth} solid ${theme.table.border}`,
-              borderRadius: theme.surface.radius.lg,
+              border: theme.table.border,
+              borderRadius: theme.modal.sectionRadius,
               padding: 10,
               display: "grid",
               gap: 10,
@@ -12243,7 +12243,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               <div
                 key={field}
                 style={{
-                  borderTop: `${theme.surface.borderWidth} solid ${theme.primitives.slate100}`,
+                  borderTop: theme.primitives.slate100,
                   paddingTop: 10,
                   display: "grid",
                   gap: 6,
@@ -12262,7 +12262,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         alignItems: "center",
                         gap: 6,
                         fontSize: 11,
-                        border: `${theme.surface.borderWidth} solid ${theme.table.border}`,
+                        border: theme.table.border,
                         borderRadius: 999,
                         padding: "3px 8px",
                         background: theme.primitives.white,
@@ -12276,7 +12276,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             height: 10,
                             borderRadius: 999,
                             background: option,
-                            border: `${theme.surface.borderWidth} solid ${theme.primitives.zinc400}`,
+                            border: theme.primitives.zinc400,
                           }}
                         />
                       )}
@@ -12343,8 +12343,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             pointerEvents: "none",
             maxWidth: 280,
             padding: "6px 10px",
-            borderRadius: theme.surface.radius.lg,
-            border: `${theme.surface.borderWidth} solid ${theme.toast.border}`,
+            borderRadius: theme.modal.sectionRadius,
+            border: theme.toast.border,
             background: theme.toast.bg,
             color: theme.toast.text,
             fontSize: 12,
@@ -12383,8 +12383,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               width: "min(640px, 96vw)",
               maxHeight: "90vh",
               overflowY: "auto",
-              border: `${theme.surface.borderWidth} solid ${theme.modal.border}`,
-              borderRadius: theme.surface.radius.xxl,
+              border: theme.modal.border,
+              borderRadius: theme.modal.radius,
               background: theme.modal.bg,
               boxShadow: theme.modal.shadow,
               padding: 14,
@@ -12495,10 +12495,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     padding: "6px 8px",
                     border:
                       feedbackSubmitStatus === "error"
-                        ? `${theme.surface.borderWidth} solid ${theme.status.error.border}`
+                        ? theme.status.error.border
                         : feedbackSubmitStatus === "success"
-                          ? `${theme.surface.borderWidth} solid ${theme.status.success.border}`
-                          : `${theme.surface.borderWidth} solid ${theme.status.info.border}`,
+                          ? theme.status.success.border
+                          : theme.status.info.border,
                     background:
                       feedbackSubmitStatus === "error"
                         ? theme.status.error.bg
