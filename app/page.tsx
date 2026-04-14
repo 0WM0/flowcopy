@@ -632,7 +632,7 @@ const TransferModal = ({
         position: "fixed",
         inset: 0,
         zIndex: 2150,
-        background: "rgba(15, 23, 42, 0.56)",
+        background: theme.modal.overlay,
         display: "grid",
         placeItems: "center",
         padding: 16,
@@ -644,10 +644,10 @@ const TransferModal = ({
           width: "min(560px, 94vw)",
           maxHeight: "88vh",
           overflowY: "auto",
-          border: "1px solid #cbd5e1",
-          borderRadius: 12,
-          background: "#ffffff",
-          boxShadow: "0 22px 45px rgba(15, 23, 42, 0.24)",
+          border: `${theme.surface.borderWidth} solid ${theme.modal.border}`,
+          borderRadius: theme.surface.radius.xxl,
+          background: theme.modal.bg,
+          boxShadow: theme.modal.shadow,
           padding: 14,
           display: "grid",
           gap: 12,
@@ -661,7 +661,7 @@ const TransferModal = ({
             gap: 8,
           }}
         >
-          <h3 style={{ margin: 0, fontSize: 18, color: "#0f172a" }}>{modalTitle}</h3>
+          <h3 style={{ margin: 0, fontSize: 18, color: theme.modal.title }}>{modalTitle}</h3>
           <button type="button" style={TRANSFER_PAIR_BUTTON_STYLE} onClick={onClose}>
             Close
           </button>
@@ -671,15 +671,15 @@ const TransferModal = ({
           <>
             <section
               style={{
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-                background: "#f8fafc",
+                border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
+                borderRadius: theme.surface.radius.lg,
+                background: theme.modal.sectionBg,
                 padding: 10,
                 display: "grid",
                 gap: 8,
               }}
             >
-              <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>Format</div>
+              <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Format</div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <label
                   style={{
@@ -687,7 +687,7 @@ const TransferModal = ({
                     alignItems: "center",
                     gap: 6,
                     fontSize: 12,
-                    color: "#334155",
+                    color: theme.modal.fieldText,
                   }}
                 >
                   <input
@@ -706,7 +706,7 @@ const TransferModal = ({
                     alignItems: "center",
                     gap: 6,
                     fontSize: 12,
-                    color: "#334155",
+                    color: theme.modal.fieldText,
                   }}
                 >
                   <input
@@ -724,15 +724,15 @@ const TransferModal = ({
             {state.context === "clp" && (
               <section
                 style={{
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 8,
-                  background: "#ffffff",
+                  border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
+                  borderRadius: theme.surface.radius.lg,
+                  background: theme.modal.bg,
                   padding: 10,
                   display: "grid",
                   gap: 8,
                 }}
               >
-                <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>Fields</div>
+                <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Fields</div>
 
                 {CLP_EXPORT_FIELD_OPTIONS.map((fieldOption) => (
                   <label
@@ -742,7 +742,7 @@ const TransferModal = ({
                       alignItems: "center",
                       gap: 8,
                       fontSize: 12,
-                      color: "#334155",
+                      color: theme.modal.fieldText,
                     }}
                   >
                     <input
@@ -766,10 +766,10 @@ const TransferModal = ({
                 type="button"
                 style={{
                   ...TRANSFER_PAIR_BUTTON_STYLE,
-                  borderColor: "#1d4ed8",
-                  background: "#1d4ed8",
-                  color: "#fff",
-                  fontWeight: 700,
+                  borderColor: theme.button.primary.bg,
+                  background: theme.button.primary.bg,
+                  color: theme.button.primary.text,
+                  fontWeight: theme.button.primary.weight,
                 }}
                 onClick={onExport}
               >
@@ -781,15 +781,15 @@ const TransferModal = ({
           <>
             <section
               style={{
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-                background: "#f8fafc",
+                border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
+                borderRadius: theme.surface.radius.lg,
+                background: theme.modal.sectionBg,
                 padding: 10,
                 display: "grid",
                 gap: 8,
               }}
             >
-              <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>Upload file</div>
+              <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Upload file</div>
               {clpImportFileName ? (
                 <div
                   style={{
@@ -797,16 +797,16 @@ const TransferModal = ({
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: 8,
-                    border: "1px solid #cbd5e1",
-                    borderRadius: 6,
-                    background: "#ffffff",
+                    border: `${theme.surface.borderWidth} solid ${theme.modal.border}`,
+                    borderRadius: theme.surface.radius.md,
+                    background: theme.modal.bg,
                     padding: "6px 8px",
                   }}
                 >
                   <div
                     style={{
                       fontSize: 11,
-                      color: "#0f172a",
+                      color: theme.modal.title,
                       minWidth: 0,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
@@ -827,9 +827,9 @@ const TransferModal = ({
                       lineHeight: 1,
                       padding: "2px 8px",
                       minHeight: 22,
-                      borderColor: "#cbd5e1",
-                      color: "#334155",
-                      background: "#f8fafc",
+                      borderColor: theme.modal.border,
+                      color: theme.modal.fieldText,
+                      background: theme.modal.sectionBg,
                       flexShrink: 0,
                     }}
                     onClick={handleClearClpImportFile}
@@ -839,7 +839,7 @@ const TransferModal = ({
                 </div>
               ) : (
                 <>
-                  <div style={{ fontSize: 12, color: "#475569" }}>
+                  <div style={{ fontSize: 12, color: theme.modal.hint }}>
                     Accepted formats: <strong>.csv</strong> or <strong>.json</strong>
                   </div>
                   <input
@@ -855,10 +855,10 @@ const TransferModal = ({
                 <div
                   style={{
                     fontSize: 11,
-                    color: "#991b1b",
-                    border: "1px solid #fecaca",
+                    color: theme.status.error.text,
+                    border: `${theme.surface.borderWidth} solid ${theme.status.error.border}`,
                     borderRadius: 6,
-                    background: "#fef2f2",
+                    background: theme.status.error.bg,
                     padding: "6px 8px",
                   }}
                 >
@@ -869,15 +869,15 @@ const TransferModal = ({
 
             <section
               style={{
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-                background: "#ffffff",
+                border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
+                borderRadius: theme.surface.radius.lg,
+                background: theme.modal.bg,
                 padding: 10,
                 display: "grid",
                 gap: 8,
               }}
             >
-              <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>
+              <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>
                 Column mapping
               </div>
 
@@ -893,13 +893,13 @@ const TransferModal = ({
                       alignItems: "center",
                       gap: 10,
                       fontSize: 12,
-                      color: "#334155",
+                      color: theme.modal.fieldText,
                     }}
                   >
                     <span
                       style={{
                         fontWeight: fieldOption.required ? 700 : 500,
-                        color: fieldOption.required ? "#991b1b" : "#334155",
+                        color: fieldOption.required ? theme.status.error.text : theme.modal.fieldText,
                       }}
                     >
                       {fieldOption.label}
@@ -933,18 +933,18 @@ const TransferModal = ({
 
             <section
               style={{
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-                background: "#ffffff",
+                border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
+                borderRadius: theme.surface.radius.lg,
+                background: theme.modal.bg,
                 padding: 10,
                 display: "grid",
                 gap: 8,
               }}
             >
-              <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>Preview</div>
+              <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Preview</div>
 
               {clpImportPreviewRows.length === 0 ? (
-                <div style={{ fontSize: 12, color: "#64748b" }}>
+                <div style={{ fontSize: 12, color: theme.inspector.card.emptyText }}>
                   Upload a file to preview the first 3 entries.
                 </div>
               ) : (
@@ -953,15 +953,15 @@ const TransferModal = ({
                     <div
                       key={`clp-import-preview-row:${rowIndex}`}
                       style={{
-                        border: "1px solid #e2e8f0",
-                        borderRadius: 6,
+                        border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
+                        borderRadius: theme.surface.radius.md,
                         padding: "8px 10px",
-                        background: "#f8fafc",
+                        background: theme.modal.sectionBg,
                         display: "grid",
                         gap: 4,
                       }}
                     >
-                      <div style={{ fontSize: 11, color: "#475569", fontWeight: 700 }}>
+                      <div style={{ fontSize: 11, color: theme.modal.hint, fontWeight: 700 }}>
                         Entry {rowIndex + 1}
                       </div>
 
@@ -981,10 +981,10 @@ const TransferModal = ({
                               fontSize: 12,
                             }}
                           >
-                            <span style={{ color: "#334155", fontWeight: 600 }}>
+                            <span style={{ color: theme.modal.fieldText, fontWeight: 600 }}>
                               {fieldOption.label}
                             </span>
-                            <span style={{ color: "#0f172a" }}>
+                            <span style={{ color: theme.modal.title }}>
                               {mappedColumnHeader
                                 ? formatClpImportPreviewValue(mappedValue)
                                 : "—"}
@@ -1000,15 +1000,15 @@ const TransferModal = ({
 
             <section
               style={{
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-                background: "#ffffff",
+                border: `${theme.surface.borderWidth} solid ${theme.modal.sectionBorder}`,
+                borderRadius: theme.surface.radius.lg,
+                background: theme.modal.bg,
                 padding: 10,
                 display: "grid",
                 gap: 8,
               }}
             >
-              <div style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>
+              <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>
                 Import mode
               </div>
 
@@ -1019,7 +1019,7 @@ const TransferModal = ({
                     alignItems: "center",
                     gap: 6,
                     fontSize: 12,
-                    color: "#334155",
+                    color: theme.modal.fieldText,
                   }}
                 >
                   <input
@@ -1038,7 +1038,7 @@ const TransferModal = ({
                     alignItems: "center",
                     gap: 6,
                     fontSize: 12,
-                    color: "#334155",
+                    color: theme.modal.fieldText,
                   }}
                 >
                   <input
@@ -1056,10 +1056,10 @@ const TransferModal = ({
                 <div
                   style={{
                     fontSize: 11,
-                    color: "#991b1b",
-                    border: "1px solid #fecaca",
+                    color: theme.status.error.text,
+                    border: `${theme.surface.borderWidth} solid ${theme.status.error.border}`,
                     borderRadius: 6,
-                    background: "#fef2f2",
+                    background: theme.status.error.bg,
                     padding: "6px 8px",
                   }}
                 >
@@ -1078,9 +1078,9 @@ const TransferModal = ({
                 disabled={!canSubmitClpImport}
                 style={{
                   ...TRANSFER_PAIR_BUTTON_STYLE,
-                  borderColor: canSubmitClpImport ? "#1d4ed8" : "#cbd5e1",
-                  background: canSubmitClpImport ? "#1d4ed8" : "#e2e8f0",
-                  color: canSubmitClpImport ? "#fff" : "#64748b",
+                  borderColor: canSubmitClpImport ? theme.button.primary.bg : theme.modal.border,
+                  background: canSubmitClpImport ? theme.button.primary.bg : theme.button.primary.disabled.bg,
+                  color: canSubmitClpImport ? theme.button.primary.text : theme.button.primary.disabled.text,
                   fontWeight: 700,
                   cursor: canSubmitClpImport ? "pointer" : "not-allowed",
                 }}
@@ -1096,10 +1096,10 @@ const TransferModal = ({
               style={{
                 margin: 0,
                 fontSize: 13,
-                color: "#475569",
-                border: "1px dashed #cbd5e1",
+                color: theme.modal.hint,
+                border: `${theme.surface.borderWidth} dashed ${theme.modal.border}`,
                 borderRadius: 8,
-                background: "#f8fafc",
+                background: theme.modal.sectionBg,
                 padding: "10px 12px",
               }}
             >
@@ -8305,11 +8305,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           height: "100vh",
           display: "grid",
           placeItems: "center",
-          background: "#f8fafc",
+          background: theme.dashboard.bg,
           padding: 16,
         }}
       >
-        <p style={{ margin: 0, fontSize: 14, color: "#475569" }}>
+        <p style={{ margin: 0, fontSize: 14, color: theme.dashboard.emptyText }}>
           Preparing your dashboard…
         </p>
       </main>
@@ -8322,10 +8322,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
     const dashboardProjectsSpacing = 8;
 
     const dashboardBlockStyle: React.CSSProperties = {
-      background: "#fff",
-      border: "2px solid #cbd5e1",
-      borderRadius: 12,
-      boxShadow: "0 8px 20px rgba(15, 23, 42, 0.05)",
+      background: theme.dashboard.card.bg,
+      border: `2px solid ${theme.inspector.card.blockBorder}`,
+      borderRadius: theme.surface.radius.xxl,
+      boxShadow: theme.surface.shadow.lg,
     };
 
     const dashboardButtonStyle: React.CSSProperties = {
@@ -8333,12 +8333,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       padding: "2px 8px",
       minHeight: 24,
       lineHeight: 1,
-      border: "1px solid #64748b",
-      borderRadius: 8,
+      border: `${theme.surface.borderWidth} solid ${theme.dashboard.btn.secondary.border}`,
+      borderRadius: theme.surface.radius.lg,
       fontSize: 11,
       fontWeight: 700,
-      color: "#0f172a",
-      background: "#f8fafc",
+      color: theme.dashboard.btn.secondary.text,
+      background: theme.dashboard.btn.secondary.bg,
     };
 
     const dashboardCompactInputStyle: React.CSSProperties = {
@@ -8351,10 +8351,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
     const dashboardPrimaryButtonStyle: React.CSSProperties = {
       ...dashboardButtonStyle,
-      borderColor: "#1d4ed8",
-      color: "#fff",
-      background: "#1d4ed8",
-      boxShadow: "0 4px 12px rgba(29, 78, 216, 0.28)",
+      borderColor: theme.dashboard.btn.primary.bg,
+      color: theme.dashboard.btn.primary.text,
+      background: theme.dashboard.btn.primary.bg,
+      boxShadow: theme.dashboard.btn.primary.shadow,
     };
 
     return (
@@ -8362,7 +8362,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         style={{
           width: "100vw",
           minHeight: "100vh",
-          background: "#f8fafc",
+          background: theme.dashboard.bg,
           padding: "0 16px 12px",
           position: "relative",
           display: "grid",
@@ -8409,8 +8409,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 textAlign: "center",
                 fontSize: 46,
                 lineHeight: 1.02,
-                fontWeight: 900,
-                color: "#0f172a",
+                fontWeight: theme.dashboard.heroTitleWeight,
+                color: theme.primitives.slate950,
               }}
             >
               Project Dashboard
@@ -8436,7 +8436,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   fontWeight: 700,
                   letterSpacing: 0.4,
                   textTransform: "uppercase",
-                  color: "#64748b",
+                  color: theme.inspector.sectionTitle,
                 }}
               >
                 User Account Email
@@ -8446,7 +8446,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   fontSize: 12,
                   lineHeight: 1,
                   fontWeight: 700,
-                  color: "#1e293b",
+                  color: theme.dashboard.card.title,
                 }}
               >
                {authenticatedUserEmail ?? "No email"}
@@ -8471,7 +8471,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               alignItems: "center",
             }}
           >
-            <div style={{ fontSize: 11, lineHeight: 1, color: "#334155", fontWeight: 600 }}>
+            <div style={{ fontSize: 11, lineHeight: 1, color: theme.modal.fieldLabel, fontWeight: 600 }}>
               New project name
             </div>
             <input
@@ -8505,10 +8505,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             }}
           >
             <div style={{ display: "grid", justifyItems: "center", gap: 1 }}>
-              <h2 style={{ margin: 0, fontSize: 46, fontWeight: 900, color: "#1e293b" }}>
+              <h2 style={{ margin: 0, fontSize: 46, fontWeight: 900, color: theme.dashboard.heroTitle }}>
                 Projects
               </h2>
-              <p style={{ margin: 0, fontSize: 16, color: "#475569", textAlign: "center" }}>
+              <p style={{ margin: 0, fontSize: 16, color: theme.dashboard.heroSubtitle, textAlign: "center" }}>
                 Open, rename, or delete your projects.
               </p>
             </div>
@@ -8517,9 +8517,9 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               <div
                 style={{
                   ...dashboardBlockStyle,
-                  borderColor: "#fecaca",
-                  background: "#fef2f2",
-                  color: "#991b1b",
+                  borderColor: theme.status.error.border,
+                  background: theme.status.error.bg,
+                  color: theme.status.error.text,
                   fontSize: 12,
                   padding: "8px 10px",
                 }}
@@ -8533,10 +8533,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 style={{
                   ...dashboardBlockStyle,
                   borderStyle: "dashed",
-                  borderColor: "#94a3b8",
+                  borderColor: theme.node.border,
                   padding: "14px 16px",
                   textAlign: "center",
-                  color: "#475569",
+                  color: theme.dashboard.emptyText,
                   fontSize: 13,
                 }}
               >
@@ -8547,10 +8547,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 style={{
                   ...dashboardBlockStyle,
                   borderStyle: "dashed",
-                  borderColor: "#94a3b8",
+                  borderColor: theme.node.border,
                   padding: "14px 16px",
                   textAlign: "center",
-                  color: "#475569",
+                  color: theme.dashboard.emptyText,
                   fontSize: 13,
                 }}
               >
@@ -8572,13 +8572,13 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       key={project.id}
                       style={{
                         textAlign: "left",
-                        border: "2px solid #bfdbfe",
-                        borderRadius: 12,
+                        border: `2px solid ${theme.dashboard.card.border}`,
+                        borderRadius: theme.surface.radius.xxl,
                         padding: "9px 10px",
-                        background: "#fff",
+                        background: theme.dashboard.card.bg,
                         display: "grid",
                         gap: 8,
-                        boxShadow: "0 3px 10px rgba(37, 99, 235, 0.1)",
+                        boxShadow: theme.dashboard.card.shadow,
                         lineHeight: 1.25,
                       }}
                     >
@@ -8600,17 +8600,17 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           style={{
                             fontSize: 14,
                             fontWeight: 700,
-                            color: "#1e293b",
+                            color: theme.dashboard.card.title,
                             lineHeight: 1.2,
                           }}
                         >
                           {project.title}
                         </div>
-                        <div style={{ fontSize: 11, color: "#475569" }}>
+                        <div style={{ fontSize: 11, color: theme.dashboard.card.meta }}>
                           Nodes: {project.node_count}
                         </div>
-                        <div style={{ fontSize: 11, color: "#475569" }}>Project ID: {project.id}</div>
-                        <div style={{ fontSize: 10, color: "#94a3b8" }}>
+                        <div style={{ fontSize: 11, color: theme.dashboard.card.meta }}>Project ID: {project.id}</div>
+                        <div style={{ fontSize: 10, color: theme.dashboard.card.id }}>
                           Updated: {formatDateTime(project.updated_at)}
                         </div>
                       </button>
@@ -8628,9 +8628,9 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           type="button"
                           style={{
                             ...dashboardButtonStyle,
-                            borderColor: "#fecaca",
-                            color: "#991b1b",
-                            background: "#fef2f2",
+                            borderColor: theme.dashboard.card.deleteBtn.border,
+                            color: theme.dashboard.card.deleteBtn.text,
+                            background: theme.dashboard.card.deleteBtn.bg,
                           }}
                           onClick={() => void deleteProjectFromDashboard(project.id)}
                           disabled={isProjectActionPending}
@@ -8678,19 +8678,19 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           height: "100vh",
           display: "grid",
           gridTemplateRows: "auto 1fr",
-          background: "#f8fafc",
+          background: theme.dashboard.bg,
         }}
       >
         <header
           style={{
-            borderBottom: "1px solid #d4d4d8",
-            background: "#fff",
+            borderBottom: `${theme.surface.borderWidth} solid ${theme.table.border}`,
+            background: theme.primitives.white,
             padding: 12,
             display: "grid",
             gap: 8,
           }}
         >
-          <div style={{ fontSize: 12, color: "#334155" }}>
+          <div style={{ fontSize: 12, color: theme.modal.fieldLabel }}>
             <strong>Project:</strong> {activeProject.name} ({activeProject.id})
           </div>
 
@@ -12213,8 +12213,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         {activeSidePanelTab === "admin" && (
           <section
             style={{
-              border: "1px solid #d4d4d8",
-              borderRadius: 8,
+              border: `${theme.surface.borderWidth} solid ${theme.table.border}`,
+              borderRadius: theme.surface.radius.lg,
               padding: 10,
               display: "grid",
               gap: 10,
@@ -12243,7 +12243,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               <div
                 key={field}
                 style={{
-                  borderTop: "1px solid #f1f5f9",
+                  borderTop: `${theme.surface.borderWidth} solid ${theme.primitives.slate100}`,
                   paddingTop: 10,
                   display: "grid",
                   gap: 6,
@@ -12262,10 +12262,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         alignItems: "center",
                         gap: 6,
                         fontSize: 11,
-                        border: "1px solid #d4d4d8",
+                        border: `${theme.surface.borderWidth} solid ${theme.table.border}`,
                         borderRadius: 999,
                         padding: "3px 8px",
-                        background: "#fff",
+                        background: theme.primitives.white,
                       }}
                     >
                       {field === "action_type_color" && (
@@ -12276,7 +12276,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             height: 10,
                             borderRadius: 999,
                             background: option,
-                            border: "1px solid #a1a1aa",
+                            border: `${theme.surface.borderWidth} solid ${theme.primitives.zinc400}`,
                           }}
                         />
                       )}
@@ -12289,7 +12289,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           background: "transparent",
                           cursor: "pointer",
                           fontSize: 11,
-                          color: "#71717a",
+                          color: theme.inspector.card.emptyTextAlt,
                           padding: 0,
                         }}
                         title="Remove option"
@@ -12343,13 +12343,13 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             pointerEvents: "none",
             maxWidth: 280,
             padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid rgba(148, 163, 184, 0.8)",
-            background: "rgba(15, 23, 42, 0.78)",
-            color: "#fff",
+            borderRadius: theme.surface.radius.lg,
+            border: `${theme.surface.borderWidth} solid ${theme.toast.border}`,
+            background: theme.toast.bg,
+            color: theme.toast.text,
             fontSize: 12,
             fontWeight: 700,
-            boxShadow: "0 8px 20px rgba(15, 23, 42, 0.25)",
+            boxShadow: theme.toast.shadow,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -12371,7 +12371,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             position: "fixed",
             inset: 0,
             zIndex: 2100,
-            background: "rgba(15, 23, 42, 0.56)",
+            background: theme.modal.overlay,
             display: "grid",
             placeItems: "center",
             padding: 16,
@@ -12383,10 +12383,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               width: "min(640px, 96vw)",
               maxHeight: "90vh",
               overflowY: "auto",
-              border: "1px solid #cbd5e1",
-              borderRadius: 12,
-              background: "#ffffff",
-              boxShadow: "0 22px 45px rgba(15, 23, 42, 0.24)",
+              border: `${theme.surface.borderWidth} solid ${theme.modal.border}`,
+              borderRadius: theme.surface.radius.xxl,
+              background: theme.modal.bg,
+              boxShadow: theme.modal.shadow,
               padding: 14,
               display: "grid",
               gap: 12,
@@ -12400,7 +12400,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 gap: 8,
               }}
             >
-              <h3 id="feedback-modal-title" style={{ margin: 0, fontSize: 18, color: "#0f172a" }}>
+              <h3 id="feedback-modal-title" style={{ margin: 0, fontSize: 18, color: theme.modal.title }}>
                 Send Feedback
               </h3>
 
@@ -12408,8 +12408,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 type="button"
                 style={{
                   ...buttonStyle,
-                  borderColor: "#94a3b8",
-                  color: "#0f172a",
+                  borderColor: theme.node.border,
+                  color: theme.modal.title,
                   fontWeight: 700,
                   opacity: feedbackSubmitStatus === "submitting" ? 0.5 : 1,
                   cursor: feedbackSubmitStatus === "submitting" ? "not-allowed" : "pointer",
@@ -12421,7 +12421,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </button>
             </div>
 
-            <p style={{ margin: 0, fontSize: 12, color: "#475569" }}>
+            <p style={{ margin: 0, fontSize: 12, color: theme.modal.hint }}>
               Share product feedback directly into your Supabase feedback inbox.
             </p>
 
@@ -12474,7 +12474,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   gap: 8,
                   flexWrap: "wrap",
                   fontSize: 11,
-                  color: isFeedbackEmailValid ? "#64748b" : "#b91c1c",
+                  color: isFeedbackEmailValid ? theme.inspector.card.emptyText : theme.status.error.text,
                 }}
               >
                 <span>
@@ -12495,22 +12495,22 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     padding: "6px 8px",
                     border:
                       feedbackSubmitStatus === "error"
-                        ? "1px solid #fecaca"
+                        ? `${theme.surface.borderWidth} solid ${theme.status.error.border}`
                         : feedbackSubmitStatus === "success"
-                          ? "1px solid #bbf7d0"
-                          : "1px solid #bfdbfe",
+                          ? `${theme.surface.borderWidth} solid ${theme.status.success.border}`
+                          : `${theme.surface.borderWidth} solid ${theme.status.info.border}`,
                     background:
                       feedbackSubmitStatus === "error"
-                        ? "#fef2f2"
+                        ? theme.status.error.bg
                         : feedbackSubmitStatus === "success"
-                          ? "#f0fdf4"
-                          : "#eff6ff",
+                          ? theme.status.success.bg
+                          : theme.status.info.bg,
                     color:
                       feedbackSubmitStatus === "error"
-                        ? "#991b1b"
+                        ? theme.status.error.text
                         : feedbackSubmitStatus === "success"
-                          ? "#14532d"
-                          : "#1e3a8a",
+                          ? theme.status.success.text
+                          : theme.status.info.text,
                   }}
                 >
                   {feedbackSubmitMessage}
@@ -12522,8 +12522,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   type="button"
                   style={{
                     ...buttonStyle,
-                    borderColor: "#94a3b8",
-                    color: "#0f172a",
+                    borderColor: theme.node.border,
+                    color: theme.modal.title,
                     fontWeight: 700,
                     opacity: feedbackSubmitStatus === "submitting" ? 0.5 : 1,
                     cursor: feedbackSubmitStatus === "submitting" ? "not-allowed" : "pointer",
@@ -12537,9 +12537,9 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   type="submit"
                   style={{
                     ...buttonStyle,
-                    borderColor: "#a855f7",
-                    background: "#faf5ff",
-                    color: "#6b21a8",
+                    borderColor: theme.primitives.violet600,
+                    background: theme.primitives.violet50,
+                    color: theme.primitives.violet900,
                     fontWeight: 700,
                     opacity: canSubmitFeedback ? 1 : 0.55,
                     cursor: canSubmitFeedback ? "pointer" : "not-allowed",
