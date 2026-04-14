@@ -12882,10 +12882,15 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                     const hasBodyText = typeof entry.bodyText === "string" && entry.bodyText.trim().length > 0;
                                     const hasNotes = typeof entry.notes === "string" && entry.notes.trim().length > 0;
                                     const regularFieldLabelStyle: React.CSSProperties = {
-                                      fontSize: 11, color: "#5A7FA3", fontWeight: 600, textTransform: "uppercase",
+                                      fontSize: 11,
+                                      color: theme.cv.node.fieldLabel,
+                                      fontWeight: theme.cv.node.fieldLabelWeight,
+                                      textTransform: "uppercase",
                                     };
                                     const regularFieldValueStyle: React.CSSProperties = {
-                                      fontSize: 14, color: "#1A365D", fontWeight: 600,
+                                      fontSize: 14,
+                                      color: theme.cv.node.fieldValue,
+                                      fontWeight: theme.cv.node.fieldValueWeight,
                                     };
 
                                     if (isMultiTermHeader) {
