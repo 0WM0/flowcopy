@@ -9645,8 +9645,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         color: theme.inspector.edge.infoText,
                       }}
                     >
-                      Vertical Card mode: edit term rows below. These
-                      terms use the Menu Term glossary.
+                      Vertical Card mode: edit grouped term rows below. Terms are tracked in the Term Registry.
                     </p>
 
                     {menuTermDeleteError && (
@@ -9898,28 +9897,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   </div>
                 </label>
 
-                <div
-                  style={{
-                    border: theme.clp.header.border,
-                    borderRadius: theme.modal.sectionRadius,
-                    padding: 8,
-                    background: theme.clp.header.bg,
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ fontSize: 11, fontWeight: theme.clp.header.titleWeight, color: theme.clp.header.title }}>
-                    Field visibility
-                  </div>
-
-                  <div
-                    style={{
-                      borderTop: theme.clp.tab.border,
-                      marginTop: 2,
-                    }}
-                  />
-                </div>
-
                 <label>
                   <div style={inspectorFieldLabelStyle}>Menu Terms</div>
                   <input
@@ -10150,6 +10127,9 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </>
             ) : selectedNode.data.node_type === "frame" ? (
               <>
+                <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: theme.inspector.edge.infoText }}>
+                  Frame mode: visual container for grouping cards.
+                </p>
                 <label>
                   <div style={inspectorFieldLabelStyle}>Title</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -10357,6 +10337,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 </div>
 
                 {selectedNode.data.node_type === "horizontal_multi_term" && selectedHorizontalContentConfig && (
+                  <>
+                  <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: theme.inspector.edge.infoText }}>
+                    Horizontal Card mode: cell-based term layout. Terms are tracked in the Term Registry.
+                  </p>
                   <div
                     style={{
                       border: theme.clp.header.border,
@@ -10568,10 +10552,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         })}
                     </div>
                   </div>
+                  </>
                 )}
 
                 {selectedNodeIsDefaultInspectorNode && (
                     <>
+                      <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: theme.inspector.edge.infoText }}>
+                        Card mode: standard fields with term tracking via the Term Registry.
+                      </p>
                       <div
                         style={{
                           border: theme.clp.header.border,
