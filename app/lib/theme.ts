@@ -1,6 +1,16 @@
 // app/lib/theme.ts
 // Centralized design tokens — every visual value in the app references this file.
-// To change the look and feel, edit values here. Components never hardcode colors.
+// To change the look and feel, edit values here. Components never hardcode visuals.
+//
+// RULES FOR CONTRIBUTORS:
+// - Every property must be a FINAL CSS-ready value (string or number).
+// - Components assign theme values directly: style={{ border: theme.modal.border }}
+// - Components NEVER compose or concatenate theme values.
+// - To change border width globally, edit the defaultBorder width parameter below.
+// - To go flat, set all radius values to 0.
+// - To remove shadows, set all shadow values to "none".
+
+// ── Primitives (internal only — components reference semantic tokens, not these) ──
 
 const primitives = {
   slate950: "#0f172a",
@@ -79,54 +89,103 @@ const primitives = {
   black: "#000000",
 } as const;
 
-export const theme = {
-  primitives,
+// ── Internal helpers (not exported — used to compose final values) ──
 
-  // ── Surface (flat/elevated knobs) ──────────────────────────
-  surface: {
-    shadow: {
-      none: "none",
-      sm: "0 1px 3px rgba(0,0,0,0.08)",
-      md: "0 2px 8px rgba(0,0,0,0.12)",
-      lg: "0 8px 20px rgba(15,23,42,0.05)",
-      xl: "0 22px 45px rgba(15,23,42,0.24)",
-    },
-    radius: { sm: 4, md: 6, lg: 8, xl: 10, xxl: 12, pill: 999 },
-    borderWidth: "1px",
-  },
+const border = (color: string, width = "1px", style = "solid") =>
+  `${width} ${style} ${color}`;
+
+const border2 = (color: string) => border(color, "2px");
+
+const borderDashed = (color: string) => border(color, "1px", "dashed");
+
+// ── Radii (internal — assigned to section properties below) ──
+
+const radii = {
+  none: 0,
+  sm: 4,
+  md: 6,
+  lg: 8,
+  xl: 10,
+  xxl: 12,
+  pill: 999,
+} as const;
+
+// ── Shadows (internal — assigned to section properties below) ──
+
+const shadows = {
+  none: "none",
+  sm: "0 1px 3px rgba(0,0,0,0.08)",
+  md: "0 2px 8px rgba(0,0,0,0.12)",
+  lg: "0 8px 20px rgba(15,23,42,0.05)",
+  xl: "0 22px 45px rgba(15,23,42,0.24)",
+} as const;
+
+// ── Shared weights (internal — assigned to section properties below) ──
+
+const weights = {
+  normal: 400,
+  medium: 500,
+  semibold: 600,
+  bold: 700,
+  black: 900,
+} as const;
+
+// ── Shared opacity (internal — assigned to section properties below) ──
+
+const opacities = {
+  disabled: 0.5,
+  muted: 0.55,
+  subtle: 0.35,
+  dimmed: 0.45,
+  full: 1,
+} as const;
+
+// ══════════════════════════════════════════════════════════════════
+// THEME — every value below is a final, CSS-ready value.
+// Components assign directly: style={{ border: theme.modal.border }}
+// ══════════════════════════════════════════════════════════════════
+
+export const theme = {
+  // Primitives exposed for edge cases (dynamic user-set colors, etc.)
+  primitives,
 
   // ── Canvas ─────────────────────────────────────────────────
   canvas: {
     bg: primitives.white,
     dropActiveOverlay: "rgba(191,219,254,0.18)",
-    dropActiveBorder: "rgba(37,99,235,0.42)",
+    dropActiveBorder: "inset 0 0 0 2px rgba(37,99,235,0.42)",
   },
 
   // ── Node (shared across Default, VC, HC) ───────────────────
   node: {
     bg: primitives.slate100,
-    border: primitives.slate400,
-    borderSelected: primitives.blue400,
+    border: border2(primitives.slate400),
+    borderColor: primitives.slate400,
+    borderSelected: border2(primitives.blue400),
     selectedBg: primitives.blue50,
     selectedShadow: "0 0 0 1px rgba(37,99,235,0.28)",
-    shadow: "0 1px 3px rgba(0,0,0,0.08)",
+    shadow: shadows.sm,
     highlightShadow: "0 3px 10px rgba(0,0,0,0.12)",
+    radius: radii.lg,
     sequenceLabel: primitives.blue700,
     handleBg: primitives.blue600,
-    handleBorder: primitives.white,
+    handleBorder: border2(primitives.white),
     resizeDot: primitives.slate900,
     typeBadge: {
       bg: primitives.slate50,
-      border: primitives.slate300,
+      border: border(primitives.slate300),
+      borderColor: primitives.slate300,
       text: primitives.slate600,
+      radius: radii.pill,
     },
     header: {
       bg: primitives.slate200,
-      border: primitives.slate400,
+      border: border(primitives.slate400),
+      borderColor: primitives.slate400,
     },
     field: {
       label: primitives.slate700,
-      labelWeight: 600,
+      labelWeight: weights.semibold,
       value: primitives.slate900,
       placeholder: primitives.slate400,
       termType: primitives.slate500,
@@ -134,55 +193,71 @@ export const theme = {
     },
     slot: {
       bg: primitives.white,
-      border: primitives.slate300,
+      border: border(primitives.slate300),
+      borderColor: primitives.slate300,
       dropActiveBg: primitives.blue50,
-      dropActiveBorder: primitives.blue400,
+      dropActiveBorder: border(primitives.blue400),
+      dropActiveBorderColor: primitives.blue400,
       dropActiveShadow: "0 0 0 1px rgba(37,99,235,0.28)",
-      removeDisabledOpacity: 0.35,
+      removeDisabledOpacity: opacities.subtle,
+      radius: radii.md,
     },
     popup: {
       bg: primitives.white,
-      border: primitives.slate400,
+      border: border(primitives.slate400),
       shadow: "0 4px 12px rgba(0,0,0,0.15)",
+      radius: radii.lg,
       termBadge: {
         bg: primitives.blue50,
-        border: primitives.blue200,
+        border: border(primitives.blue200),
+        borderColor: primitives.blue200,
         text: primitives.blue900,
         detail: primitives.slate600,
+        radius: radii.md,
       },
       fieldText: primitives.slate700,
     },
     group: {
       bg: primitives.slate100,
-      border: primitives.slate300,
+      border: border(primitives.slate300),
       slotCount: primitives.zinc500,
+      radius: radii.md,
     },
   },
 
   // ── Frame ──────────────────────────────────────────────────
   frame: {
+    radius: radii.xl,
     shade0: {
-      border: primitives.slate300,
+      border: border2(primitives.slate300),
+      borderColor: primitives.slate300,
       bg: "rgba(248,250,252,0.88)",
       tabBg: primitives.slate100,
       tabText: primitives.slate600,
+      tabBorder: border(primitives.slate300),
     },
     shade1: {
-      border: primitives.slate400,
+      border: border2(primitives.slate400),
+      borderColor: primitives.slate400,
       bg: "rgba(241,245,249,0.72)",
       tabBg: primitives.slate200,
       tabText: primitives.slate700,
+      tabBorder: border(primitives.slate400),
     },
     shade2: {
-      border: primitives.slate500,
+      border: border2(primitives.slate500),
+      borderColor: primitives.slate500,
       bg: "rgba(226,232,240,0.58)",
       tabBg: primitives.slate300,
       tabText: primitives.slate900,
+      tabBorder: border(primitives.slate500),
     },
     collapseBtn: {
       text: primitives.blue700,
-      border: primitives.blue200,
+      border: border(primitives.blue200),
       bg: "rgba(255,255,255,0.9)",
+      radius: radii.pill,
+      weight: weights.semibold,
     },
   },
 
@@ -192,36 +267,41 @@ export const theme = {
     parallel: { stroke: primitives.slate500, selectedStroke: primitives.slate700 },
     labelBg: { sequential: primitives.blue50, parallel: primitives.slate100 },
     labelBgOpacity: 0.95,
+    labelWeight: weights.bold,
+    labelRadius: radii.sm,
     journey: { highlight: primitives.indigo500, recalled: primitives.violet700 },
   },
 
   // ── Toolbar (floating, bottom center) ──────────────────────
   toolbar: {
     bg: primitives.white,
-    border: primitives.slate300,
-    shadow: "0 2px 8px rgba(0,0,0,0.12)",
+    border: border(primitives.slate300),
+    shadow: shadows.md,
+    radius: radii.xl,
     separator: primitives.slate200,
     dragHandle: primitives.slate400,
     dragHandleOpacity: 0.6,
     button: {
       bg: primitives.slate50,
-      border: primitives.slate200,
+      border: border(primitives.slate200),
       text: primitives.slate700,
+      radius: radii.md,
+      labelWeight: weights.semibold,
     },
     activeButton: {
       bg: primitives.blue100,
       text: primitives.blue700,
     },
-    label: { text: primitives.slate700, weight: 600 },
   },
 
   // ── Top Bar (fixed top-left) ───────────────────────────────
   topBar: {
     bg: primitives.white,
-    border: primitives.slate300,
-    shadow: "0 2px 8px rgba(0,0,0,0.12)",
+    border: border(primitives.slate300),
+    shadow: shadows.md,
+    radius: radii.xl,
     separator: primitives.slate200,
-    disabledOpacity: 0.5,
+    disabledOpacity: opacities.disabled,
     text: primitives.slate500,
   },
 
@@ -230,37 +310,40 @@ export const theme = {
     bg: primitives.white,
     resizeHandle: primitives.slate400,
     resizeHandleOpacity: 0.4,
-    resizeHandleActiveOpacity: 1,
-    sectionDivider: primitives.slate300,
-    sectionDividerWidth: "2px",
+    resizeHandleActiveOpacity: opacities.full,
+    sectionDivider: border2(primitives.slate300),
     sectionTitle: primitives.slate500,
-    sectionTitleWeight: 700,
+    sectionTitleWeight: weights.bold,
     card: {
       fieldLabel: primitives.slate700,
-      fieldLabelWeight: 600,
+      fieldLabelWeight: weights.semibold,
       emptyText: primitives.slate500,
       emptyTextAlt: primitives.zinc500,
       blockBg: primitives.slate50,
-      blockBorder: primitives.slate300,
+      blockBorder: border(primitives.slate300),
+      blockRadius: radii.lg,
     },
     edge: {
       blockBg: primitives.slate50,
-      blockBorder: primitives.slate300,
+      blockBorder: border(primitives.slate300),
+      blockRadius: radii.lg,
       infoText: primitives.blue900,
     },
     admin: {
       filterBtn: {
         active: {
           bg: primitives.slate200,
-          border: primitives.slate500,
+          border: border(primitives.slate500),
+          borderColor: primitives.slate500,
           text: primitives.slate950,
-          weight: 700,
+          weight: weights.bold,
         },
         inactive: {
           bg: primitives.slate50,
-          border: primitives.slate300,
+          border: border(primitives.slate300),
+          borderColor: primitives.slate300,
           text: primitives.slate700,
-          weight: 600,
+          weight: weights.semibold,
         },
       },
     },
@@ -270,36 +353,42 @@ export const theme = {
   clp: {
     header: {
       bg: primitives.blue50,
-      border: primitives.blue200,
+      border: border(primitives.blue200),
       title: primitives.blue900,
-      titleWeight: 700,
+      titleWeight: weights.bold,
+      radius: radii.lg,
     },
     description: primitives.slate600,
     tab: {
       active: { bg: primitives.blue900, text: primitives.white },
       inactive: { bg: primitives.blue50, text: primitives.blue900 },
-      border: primitives.blue200,
+      border: border(primitives.blue200),
+      borderColor: primitives.blue200,
+      radius: radii.md,
+      weight: weights.bold,
     },
     audit: {
       tableBg: primitives.white,
-      tableBorder: primitives.blue100,
+      tableBorder: border(primitives.blue100),
       headerBg: primitives.blue50,
-      cellBorder: primitives.slate200,
+      cellBorder: border(primitives.slate200),
       emptyText: primitives.slate500,
       fieldText: primitives.slate700,
       occurrenceBadge: {
         bg: primitives.white,
-        border: primitives.zinc300,
+        border: border(primitives.zinc300),
+        borderColor: primitives.zinc300,
         text: primitives.slate950,
-        zeroOpacity: 0.55,
+        zeroOpacity: opacities.muted,
       },
       highlight: {
-        border: primitives.amber500,
+        border: border(primitives.amber500),
+        borderColor: primitives.amber500,
         bg: primitives.amber100,
         text: primitives.amber800,
       },
       warning: {
-        border: primitives.amber500,
+        border: border(primitives.amber500),
         bg: primitives.orange50,
         text: primitives.orange800,
       },
@@ -308,9 +397,11 @@ export const theme = {
     registry: {
       entryBg: primitives.white,
       entryDraftBg: primitives.amber50,
-      entryBorder: primitives.slate200,
+      entryBorder: border(primitives.slate200),
+      entryBorderColor: primitives.slate200,
+      entryRadius: radii.md,
       entryHighlight: {
-        border: primitives.amber500,
+        border: border(primitives.amber500),
         bg: primitives.amber100,
         shadow: "0 0 0 1px rgba(245,158,11,0.18) inset",
       },
@@ -318,37 +409,46 @@ export const theme = {
       fieldText: primitives.slate700,
       input: {
         bg: primitives.white,
-        border: primitives.zinc300,
+        border: border(primitives.zinc300),
         text: primitives.slate700,
+        radius: radii.sm,
       },
       termType: {
         text: primitives.blue900,
         fallback: primitives.slate500,
         readOnly: {
           bg: primitives.slate50,
-          border: primitives.slate200,
+          border: border(primitives.slate200),
+          radius: radii.sm,
         },
       },
       draftBadge: {
         bg: primitives.orange50,
-        border: primitives.amber500,
+        border: border(primitives.amber500),
         text: primitives.amber800,
+        radius: radii.pill,
+        weight: weights.bold,
       },
       unassignBadge: {
         bg: primitives.white,
-        border: primitives.red300,
+        border: border(primitives.red300),
+        borderColor: primitives.red300,
         text: primitives.red700,
+        radius: radii.pill,
       },
       assignedCard: {
         bg: primitives.blue100,
-        border: primitives.blue300,
+        border: border(primitives.blue300),
+        borderColor: primitives.blue300,
         text: primitives.blue900,
       },
-      addBtn: { bg: primitives.blue50, text: primitives.blue900 },
+      addBtn: { bg: primitives.blue50, text: primitives.blue900, weight: weights.bold },
       filterBadge: {
         bg: primitives.blue100,
         text: primitives.blue700,
-        border: primitives.blue300,
+        border: border(primitives.blue300),
+        borderColor: primitives.blue300,
+        weight: weights.bold,
       },
     },
   },
@@ -356,26 +456,33 @@ export const theme = {
   // ── Journey ────────────────────────────────────────────────
   journey: {
     blockBg: primitives.indigo50,
-    blockBorder: primitives.indigo200,
+    blockBorder: border(primitives.indigo200),
+    blockRadius: radii.lg,
     title: primitives.indigo800,
-    titleWeight: 700,
+    titleWeight: weights.bold,
     description: primitives.violet900,
     btn: {
       bg: primitives.indigo50,
-      border: primitives.indigo400,
+      border: border(primitives.indigo400),
+      borderColor: primitives.indigo400,
       text: primitives.indigo800,
+      weight: weights.bold,
     },
     selected: {
       bg: primitives.indigo50,
-      border: primitives.indigo400,
+      border: border(primitives.indigo400),
+      borderColor: primitives.indigo400,
       title: primitives.indigo900,
       meta: primitives.indigo700,
+      radius: radii.lg,
     },
     unselectedMeta: primitives.slate500,
     openBtn: {
       bg: primitives.blue50,
-      border: primitives.blue300,
+      border: border(primitives.blue300),
+      borderColor: primitives.blue300,
       text: primitives.blue900,
+      weight: weights.bold,
     },
   },
 
@@ -383,37 +490,49 @@ export const theme = {
   cv: {
     bg: primitives.slate100,
     gridLine: "rgba(29,78,216,0.08)",
-    gridBorder: "rgba(29,78,216,0.22)",
+    gridBorder: border("rgba(29,78,216,0.22)"),
     shadow: "0 24px 48px rgba(15,23,42,0.22)",
+    radius: radii.xxl,
     headerBg: "rgba(255,255,255,0.78)",
-    headerBorder: "rgba(29,78,216,0.2)",
+    headerBorder: border("rgba(29,78,216,0.2)"),
     headerTitle: primitives.slate950,
     headerMeta: primitives.slate500,
+    headerTitleWeight: weights.bold,
     accent: primitives.blue700,
     node: {
       bg: primitives.white,
-      border: "rgba(29,78,216,0.15)",
-      multiTermBorder: "rgba(29,78,216,0.25)",
+      border: border("rgba(29,78,216,0.15)"),
+      multiTermBorder: border("rgba(29,78,216,0.25)"),
       multiTermBg: primitives.blue50,
       title: primitives.slate950,
+      titleWeight: weights.bold,
       emptyField: primitives.slate400,
       fieldLabel: primitives.slate500,
+      fieldLabelWeight: weights.semibold,
       fieldValue: primitives.slate950,
+      fieldValueWeight: weights.semibold,
+      radius: radii.xl,
     },
-    sequenceCircle: { bg: primitives.blue700, text: primitives.white },
+    sequenceCircle: { bg: primitives.blue700, text: primitives.white, weight: weights.bold },
     connector: primitives.blue700,
+    connectorWidth: 2,
     termBubble: {
       bg: primitives.blue700,
       text: primitives.white,
       subtext: "rgba(255,255,255,0.6)",
+      radius: radii.lg,
+      weight: weights.bold,
     },
     sectionLabel: primitives.slate500,
+    sectionLabelWeight: weights.semibold,
     orphan: {
-      border: primitives.red200,
+      border: border(primitives.red200),
+      borderColor: primitives.red200,
       bg: primitives.red50,
       text: primitives.red700,
     },
-    pageOutline: primitives.blue700,
+    pageOutline: border2(primitives.blue700),
+    pageOutlineColor: primitives.blue700,
   },
 
   // ── Dashboard ──────────────────────────────────────────────
@@ -422,72 +541,113 @@ export const theme = {
     emptyText: primitives.slate600,
     card: {
       bg: primitives.white,
-      border: primitives.blue200,
+      border: border2(primitives.blue200),
       shadow: "0 3px 10px rgba(37,99,235,0.1)",
+      radius: radii.xxl,
       title: primitives.slate900,
+      titleWeight: weights.bold,
       meta: primitives.slate600,
       id: primitives.slate400,
       deleteBtn: {
-        border: primitives.red300,
+        border: border(primitives.red300),
+        borderColor: primitives.red300,
         text: primitives.red700,
         bg: primitives.red50,
       },
     },
+    alertBorder: border2(primitives.red500),
     heroTitle: primitives.slate900,
-    heroTitleWeight: 900,
+    heroTitleWeight: weights.black,
     heroSubtitle: primitives.slate600,
     btn: {
       primary: {
         bg: primitives.blue700,
         text: primitives.white,
         shadow: "0 4px 12px rgba(29,78,216,0.28)",
+        weight: weights.bold,
       },
       secondary: {
         bg: primitives.slate50,
-        border: primitives.slate500,
+        border: border(primitives.slate500),
+        borderColor: primitives.slate500,
         text: primitives.slate950,
+        weight: weights.bold,
+        radius: radii.lg,
       },
     },
+    loadingBorder: borderDashed(primitives.slate400),
+    loadingText: primitives.slate600,
   },
 
   // ── Modal (shared) ─────────────────────────────────────────
   modal: {
     overlay: "rgba(15,23,42,0.56)",
     bg: primitives.white,
-    border: primitives.slate300,
-    shadow: "0 22px 45px rgba(15,23,42,0.24)",
+    border: border(primitives.slate300),
+    borderColor: primitives.slate300,
+    shadow: shadows.xl,
+    radius: radii.xxl,
     title: primitives.slate950,
     sectionBg: primitives.slate50,
-    sectionBorder: primitives.slate200,
+    sectionBorder: border(primitives.slate200),
+    sectionRadius: radii.lg,
     fieldLabel: primitives.slate700,
-    fieldLabelWeight: 700,
+    fieldLabelWeight: weights.bold,
     fieldText: primitives.slate700,
     hint: primitives.slate600,
   },
 
   // ── Status badges ──────────────────────────────────────────
   status: {
-    error: { bg: primitives.red50, border: primitives.red200, text: primitives.red800 },
-    success: { bg: primitives.green50, border: primitives.green200, text: primitives.green900 },
-    info: { bg: primitives.blue50, border: primitives.blue200, text: primitives.blue900 },
-    warning: { bg: primitives.amber100, border: primitives.amber500, text: primitives.amber800 },
+    error: {
+      bg: primitives.red50,
+      border: border(primitives.red200),
+      borderColor: primitives.red200,
+      text: primitives.red800,
+      radius: radii.md,
+    },
+    success: {
+      bg: primitives.green50,
+      border: border(primitives.green200),
+      borderColor: primitives.green200,
+      text: primitives.green900,
+      radius: radii.md,
+    },
+    info: {
+      bg: primitives.blue50,
+      border: border(primitives.blue200),
+      borderColor: primitives.blue200,
+      text: primitives.blue900,
+      radius: radii.md,
+    },
+    warning: {
+      bg: primitives.amber100,
+      border: border(primitives.amber500),
+      borderColor: primitives.amber500,
+      text: primitives.amber800,
+      radius: radii.md,
+    },
   },
 
   // ── Buttons (shared) ──────────────────────────────────────
   button: {
     primary: {
       bg: primitives.blue700,
+      border: border(primitives.blue700),
       text: primitives.white,
-      weight: 700,
+      weight: weights.bold,
       shadow: "0 4px 12px rgba(29,78,216,0.28)",
+      radius: radii.md,
       disabled: {
         bg: primitives.slate200,
-        border: primitives.slate300,
+        border: border(primitives.slate300),
+        borderColor: primitives.slate300,
         text: primitives.slate500,
       },
     },
     danger: {
-      border: primitives.red300,
+      border: border(primitives.red300),
+      borderColor: primitives.red300,
       text: primitives.red700,
       bg: primitives.white,
     },
@@ -496,16 +656,20 @@ export const theme = {
   // ── Tables ─────────────────────────────────────────────────
   table: {
     bg: primitives.white,
-    border: primitives.zinc300,
-    cellBorder: primitives.zinc200,
+    border: border(primitives.zinc300),
+    borderColor: primitives.zinc300,
+    cellBorder: border(primitives.zinc200),
+    cellBorderColor: primitives.zinc200,
   },
 
   // ── Toast ──────────────────────────────────────────────────
   toast: {
     bg: "rgba(15,23,42,0.78)",
-    border: "rgba(148,163,184,0.8)",
+    border: border("rgba(148,163,184,0.8)"),
     text: primitives.white,
     shadow: "0 8px 20px rgba(15,23,42,0.25)",
+    radius: radii.lg,
+    weight: weights.bold,
   },
 } as const;
 
