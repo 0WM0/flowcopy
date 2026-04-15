@@ -9607,9 +9607,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         
         {activeSidePanelTab === "card" && (
           <>
-            {(canCreateFrameFromSelection ||
-              (hasExactlyOneSelectedNode &&
-                selectedNode?.data.node_type === "vertical_multi_term")) && (
+            {canCreateFrameFromSelection && (
               <section
                 style={{
                   border: theme.inspector.card.blockBorder,
@@ -9633,27 +9631,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   >
                     Frame selected nodes ({selectedNonFrameNodesForFrameCreation.length})
                   </button>
-                )}
-
-                {hasExactlyOneSelectedNode && selectedNode?.data.node_type === "vertical_multi_term" && (
-                  <>
-                    {menuTermDeleteError && (
-                      <p
-                        style={{
-                          marginTop: 0,
-                          marginBottom: 0,
-                          fontSize: 11,
-                          color: theme.status.error.text,
-                          background: theme.status.error.bg,
-                          border: theme.status.error.border,
-                          borderRadius: theme.clp.registry.input.radius,
-                          padding: "6px 8px",
-                        }}
-                      >
-                        {menuTermDeleteError}
-                      </p>
-                    )}
-                  </>
                 )}
               </section>
             )}
@@ -9862,6 +9839,23 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 >
                   Vertical Card mode: edit grouped term rows below. Terms are tracked in the Term Registry.
                 </p>
+
+                {menuTermDeleteError && (
+                  <p
+                    style={{
+                      marginTop: 0,
+                      marginBottom: 0,
+                      fontSize: 11,
+                      color: theme.status.error.text,
+                      background: theme.status.error.bg,
+                      border: theme.status.error.border,
+                      borderRadius: theme.clp.registry.input.radius,
+                      padding: "6px 8px",
+                    }}
+                  >
+                    {menuTermDeleteError}
+                  </p>
+                )}
 
                 <label>
                   <div style={inspectorFieldLabelStyle}>Title</div>
