@@ -130,6 +130,21 @@ const weights = {
   black: 900,
 } as const;
 
+// ── Shared font sizes (internal — assigned to section properties below) ──
+
+const fontSizes = {
+  xs: 8,
+  sm: 9,
+  caption: 10,
+  body: 11,
+  label: 12,
+  subheading: 13,
+  heading: 14,
+  sectionTitle: 16,
+  modalTitle: 18,
+  hero: 46,
+} as const;
+
 // ── Shared opacity (internal — assigned to section properties below) ──
 
 const opacities = {
@@ -148,6 +163,7 @@ const opacities = {
 export const theme = {
   // Primitives exposed for edge cases (dynamic user-set colors, etc.)
   primitives,
+  fontSizes,
 
   // ── Canvas ─────────────────────────────────────────────────
   canvas: {
@@ -168,6 +184,8 @@ export const theme = {
     highlightShadow: "0 3px 10px rgba(0,0,0,0.12)",
     radius: radii.lg,
     sequenceLabel: primitives.blue700,
+    sequenceLabelFontSize: fontSizes.caption,
+    dropdownArrowFontSize: fontSizes.xs,
     handleBg: primitives.blue600,
     handleBorder: border2(primitives.white),
     resizeDot: primitives.slate900,
@@ -186,7 +204,9 @@ export const theme = {
     field: {
       label: primitives.slate900,
       labelWeight: weights.semibold,
+      labelFontSize: fontSizes.caption,
       value: primitives.slate900,
+      inputFontSize: fontSizes.body,
       placeholder: primitives.slate400,
       termType: primitives.slate500,
       termTypeIcon: primitives.slate400,
@@ -216,6 +236,8 @@ export const theme = {
         radius: radii.md,
       },
       fieldText: primitives.slate700,
+      fieldFontSize: fontSizes.caption,
+      bodyFontSize: fontSizes.body,
     },
     group: {
       bg: primitives.slate200,
@@ -287,6 +309,7 @@ export const theme = {
       text: primitives.slate700,
       radius: radii.md,
       labelWeight: weights.semibold,
+      labelFontSize: fontSizes.caption,
     },
     activeButton: {
       bg: primitives.blue100,
@@ -303,6 +326,7 @@ export const theme = {
     separator: primitives.slate200,
     disabledOpacity: opacities.disabled,
     text: primitives.slate500,
+    statusTextFontSize: fontSizes.body,
   },
 
   // ── Inspector Panel ────────────────────────────────────────
@@ -315,19 +339,28 @@ export const theme = {
     sectionTitle: primitives.slate900,
     sectionTitleWeight: weights.bold,
     card: {
+      sectionHeaderFontSize: fontSizes.caption,
       fieldLabel: primitives.slate900,
       fieldLabelWeight: weights.semibold,
+      fieldLabelFontSize: fontSizes.label,
+      inputFontSize: fontSizes.body,
       emptyText: primitives.slate600,
+      emptyTextFontSize: fontSizes.body,
       emptyTextAlt: primitives.slate600,
+      emptyTextAltFontSize: fontSizes.subheading,
+      bannerFontSize: fontSizes.body,
       blockBg: primitives.slate100,
       blockBorder: border(primitives.slate400),
       blockRadius: radii.lg,
     },
     edge: {
+      titleFontSize: fontSizes.heading,
+      fieldLabelFontSize: fontSizes.label,
       blockBg: primitives.slate50,
       blockBorder: border(primitives.slate400),
       blockRadius: radii.lg,
       infoText: primitives.blue900,
+      infoTextFontSize: fontSizes.label,
     },
     admin: {
       filterBtn: {
@@ -351,6 +384,11 @@ export const theme = {
 
   // ── CLP ────────────────────────────────────────────────────
   clp: {
+    sectionTitleFontSize: fontSizes.body,
+    registryTitleFontSize: fontSizes.subheading,
+    fieldLabelFontSize: fontSizes.caption,
+    bodyFontSize: fontSizes.body,
+    detailFontSize: fontSizes.label,
     header: {
       bg: primitives.blue50,
       border: border(primitives.blue200),
@@ -460,7 +498,10 @@ export const theme = {
     blockRadius: radii.lg,
     title: primitives.indigo800,
     titleWeight: weights.bold,
+    titleFontSize: fontSizes.label,
     description: primitives.violet900,
+    descriptionFontSize: fontSizes.body,
+    bodyFontSize: fontSizes.body,
     btn: {
       bg: primitives.indigo50,
       border: border(primitives.indigo400),
@@ -496,7 +537,10 @@ export const theme = {
     headerBg: "rgba(255,255,255,0.78)",
     headerBorder: border("rgba(29,78,216,0.2)"),
     headerTitle: primitives.slate950,
+    modalTitleFontSize: fontSizes.modalTitle,
     headerMeta: primitives.slate500,
+    headerMetaFontSize: fontSizes.caption,
+    headerTitleFontSize: fontSizes.subheading,
     headerTitleWeight: weights.bold,
     accent: primitives.blue700,
     node: {
@@ -506,14 +550,24 @@ export const theme = {
       multiTermBg: primitives.blue50,
       title: primitives.slate950,
       titleWeight: weights.bold,
+      titleFontSize: fontSizes.heading,
       emptyField: primitives.slate400,
+      emptyFieldFontSize: fontSizes.label,
       fieldLabel: primitives.slate500,
       fieldLabelWeight: weights.semibold,
+      fieldLabelFontSize: fontSizes.body,
       fieldValue: primitives.slate950,
       fieldValueWeight: weights.semibold,
+      fieldValueFontSize: fontSizes.heading,
       radius: radii.xl,
     },
-    sequenceCircle: { bg: primitives.blue700, text: primitives.white, weight: weights.bold },
+    sequenceCircle: {
+      bg: primitives.blue700,
+      text: primitives.white,
+      weight: weights.bold,
+      fontSizeSmall: fontSizes.body,
+      fontSizeLarge: fontSizes.label,
+    },
     connector: primitives.blue700,
     connectorWidth: 2,
     termBubble: {
@@ -522,6 +576,8 @@ export const theme = {
       subtext: "rgba(255,255,255,0.6)",
       radius: radii.lg,
       weight: weights.bold,
+      fontSize: fontSizes.subheading,
+      detailFontSize: fontSizes.label,
     },
     sectionLabel: primitives.slate500,
     sectionLabelWeight: weights.semibold,
@@ -530,6 +586,7 @@ export const theme = {
       borderColor: primitives.red200,
       bg: primitives.red50,
       text: primitives.red700,
+      badgeFontSize: fontSizes.sm,
     },
     pageOutline: border2(primitives.blue700),
     pageOutlineColor: primitives.blue700,
@@ -539,6 +596,7 @@ export const theme = {
   dashboard: {
     bg: primitives.slate50,
     emptyText: primitives.slate600,
+    emptyTextFontSize: fontSizes.heading,
     card: {
       bg: primitives.white,
       border: border2(primitives.blue200),
@@ -546,8 +604,11 @@ export const theme = {
       radius: radii.xxl,
       title: primitives.slate900,
       titleWeight: weights.bold,
+      titleFontSize: fontSizes.subheading,
       meta: primitives.slate600,
+      metaFontSize: fontSizes.body,
       id: primitives.slate400,
+      idFontSize: fontSizes.caption,
       deleteBtn: {
         border: border(primitives.red300),
         borderColor: primitives.red300,
@@ -558,7 +619,10 @@ export const theme = {
     alertBorder: border2(primitives.red500),
     heroTitle: primitives.slate900,
     heroTitleWeight: weights.black,
+    heroTitleFontSize: fontSizes.hero,
     heroSubtitle: primitives.slate600,
+    heroSubtitleFontSize: fontSizes.sectionTitle,
+    projectFieldFontSize: fontSizes.label,
     btn: {
       primary: {
         bg: primitives.blue700,
@@ -588,13 +652,20 @@ export const theme = {
     shadow: shadows.xl,
     radius: radii.xxl,
     title: primitives.slate950,
+    titleFontSize: fontSizes.modalTitle,
     sectionBg: primitives.slate50,
     sectionBorder: border(primitives.slate200),
     sectionRadius: radii.lg,
     fieldLabel: primitives.slate700,
     fieldLabelWeight: weights.bold,
+    fieldLabelFontSize: fontSizes.label,
     fieldText: primitives.slate700,
+    inputFontSize: fontSizes.label,
     hint: primitives.slate600,
+    hintFontSize: fontSizes.label,
+    requiredFontSize: fontSizes.caption,
+    fileInfoFontSize: fontSizes.body,
+    previewLabelFontSize: fontSizes.body,
   },
 
   // ── Status badges ──────────────────────────────────────────
@@ -631,6 +702,7 @@ export const theme = {
 
   // ── Buttons (shared) ──────────────────────────────────────
   button: {
+    labelFontSize: fontSizes.label,
     primary: {
       bg: primitives.blue700,
       border: border(primitives.blue700),
@@ -660,6 +732,7 @@ export const theme = {
     borderColor: primitives.zinc300,
     cellBorder: border(primitives.zinc200),
     cellBorderColor: primitives.zinc200,
+    cellFontSize: fontSizes.label,
   },
 
   // ── Toast ──────────────────────────────────────────────────
@@ -670,6 +743,7 @@ export const theme = {
     shadow: "0 8px 20px rgba(15,23,42,0.25)",
     radius: radii.lg,
     weight: weights.bold,
+    bodyFontSize: fontSizes.caption,
   },
 } as const;
 
