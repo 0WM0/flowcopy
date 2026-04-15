@@ -661,7 +661,7 @@ const TransferModal = ({
             gap: 8,
           }}
         >
-          <h3 style={{ margin: 0, fontSize: 18, color: theme.modal.title }}>{modalTitle}</h3>
+          <h3 style={{ margin: 0, fontSize: theme.modal.titleFontSize, color: theme.modal.title }}>{modalTitle}</h3>
           <button type="button" style={TRANSFER_PAIR_BUTTON_STYLE} onClick={onClose}>
             Close
           </button>
@@ -679,14 +679,14 @@ const TransferModal = ({
                 gap: 8,
               }}
             >
-              <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Format</div>
+              <div style={{ fontSize: theme.modal.fieldLabelFontSize, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Format</div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <label
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
-                    fontSize: 12,
+                    fontSize: theme.modal.fieldLabelFontSize,
                     color: theme.modal.fieldText,
                   }}
                 >
@@ -705,7 +705,7 @@ const TransferModal = ({
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
-                    fontSize: 12,
+                    fontSize: theme.modal.fieldLabelFontSize,
                     color: theme.modal.fieldText,
                   }}
                 >
@@ -732,7 +732,7 @@ const TransferModal = ({
                   gap: 8,
                 }}
               >
-                <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Fields</div>
+                <div style={{ fontSize: theme.modal.fieldLabelFontSize, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Fields</div>
 
                 {CLP_EXPORT_FIELD_OPTIONS.map((fieldOption) => (
                   <label
@@ -741,7 +741,7 @@ const TransferModal = ({
                       display: "inline-flex",
                       alignItems: "center",
                       gap: 8,
-                      fontSize: 12,
+                      fontSize: theme.modal.fieldLabelFontSize,
                       color: theme.modal.fieldText,
                     }}
                   >
@@ -789,7 +789,7 @@ const TransferModal = ({
                 gap: 8,
               }}
             >
-              <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Upload file</div>
+              <div style={{ fontSize: theme.modal.fieldLabelFontSize, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Upload file</div>
               {clpImportFileName ? (
                 <div
                   style={{
@@ -805,7 +805,7 @@ const TransferModal = ({
                 >
                   <div
                     style={{
-                      fontSize: 11,
+                      fontSize: theme.modal.fileInfoFontSize,
                       color: theme.modal.title,
                       minWidth: 0,
                       whiteSpace: "nowrap",
@@ -823,7 +823,7 @@ const TransferModal = ({
                     type="button"
                     style={{
                       ...buttonStyle,
-                      fontSize: 10,
+                      fontSize: theme.modal.requiredFontSize,
                       lineHeight: 1,
                       padding: "2px 8px",
                       minHeight: 22,
@@ -839,7 +839,7 @@ const TransferModal = ({
                 </div>
               ) : (
                 <>
-                  <div style={{ fontSize: 12, color: theme.modal.hint }}>
+                  <div style={{ fontSize: theme.modal.hintFontSize, color: theme.modal.hint }}>
                     Accepted formats: <strong>.csv</strong> or <strong>.json</strong>
                   </div>
                   <input
@@ -854,7 +854,7 @@ const TransferModal = ({
               {clpImportError && (
                 <div
                   style={{
-                    fontSize: 11,
+                    fontSize: theme.modal.fileInfoFontSize,
                     color: theme.status.error.text,
                     border: theme.status.error.border,
                     borderRadius: 6,
@@ -877,7 +877,7 @@ const TransferModal = ({
                 gap: 8,
               }}
             >
-              <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>
+              <div style={{ fontSize: theme.modal.fieldLabelFontSize, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>
                 Column mapping
               </div>
 
@@ -892,7 +892,7 @@ const TransferModal = ({
                       gridTemplateColumns: "1fr 1.1fr",
                       alignItems: "center",
                       gap: 10,
-                      fontSize: 12,
+                      fontSize: theme.modal.fieldLabelFontSize,
                       color: theme.modal.fieldText,
                     }}
                   >
@@ -904,7 +904,7 @@ const TransferModal = ({
                     >
                       {fieldOption.label}
                       {fieldOption.required && (
-                        <span style={{ marginLeft: 6, fontSize: 10 }}>(required)</span>
+                        <span style={{ marginLeft: 6, fontSize: theme.modal.requiredFontSize }}>(required)</span>
                       )}
                     </span>
 
@@ -941,10 +941,10 @@ const TransferModal = ({
                 gap: 8,
               }}
             >
-              <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Preview</div>
+              <div style={{ fontSize: theme.modal.fieldLabelFontSize, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>Preview</div>
 
               {clpImportPreviewRows.length === 0 ? (
-                <div style={{ fontSize: 12, color: theme.inspector.card.emptyText }}>
+                <div style={{ fontSize: theme.modal.hintFontSize, color: theme.inspector.card.emptyText }}>
                   Upload a file to preview the first 3 entries.
                 </div>
               ) : (
@@ -961,7 +961,7 @@ const TransferModal = ({
                         gap: 4,
                       }}
                     >
-                      <div style={{ fontSize: 11, color: theme.modal.hint, fontWeight: theme.modal.fieldLabelWeight }}>
+                      <div style={{ fontSize: theme.modal.previewLabelFontSize, color: theme.modal.hint, fontWeight: theme.modal.fieldLabelWeight }}>
                         Entry {rowIndex + 1}
                       </div>
 
@@ -978,7 +978,7 @@ const TransferModal = ({
                               display: "grid",
                               gridTemplateColumns: "150px 1fr",
                               gap: 8,
-                              fontSize: 12,
+                              fontSize: theme.modal.fieldLabelFontSize,
                             }}
                           >
                             <span style={{ color: theme.modal.fieldText, fontWeight: theme.inspector.card.fieldLabelWeight }}>
@@ -1008,7 +1008,7 @@ const TransferModal = ({
                 gap: 8,
               }}
             >
-              <div style={{ fontSize: 12, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>
+              <div style={{ fontSize: theme.modal.fieldLabelFontSize, color: theme.modal.fieldLabel, fontWeight: theme.modal.fieldLabelWeight }}>
                 Import mode
               </div>
 
@@ -1018,7 +1018,7 @@ const TransferModal = ({
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
-                    fontSize: 12,
+                    fontSize: theme.modal.fieldLabelFontSize,
                     color: theme.modal.fieldText,
                   }}
                 >
@@ -1037,7 +1037,7 @@ const TransferModal = ({
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
-                    fontSize: 12,
+                    fontSize: theme.modal.fieldLabelFontSize,
                     color: theme.modal.fieldText,
                   }}
                 >
@@ -1055,7 +1055,7 @@ const TransferModal = ({
               {clpImportMode === "replace" && (
                 <div
                   style={{
-                    fontSize: 11,
+                    fontSize: theme.modal.fileInfoFontSize,
                     color: theme.status.error.text,
                     border: theme.status.error.border,
                     borderRadius: 6,
@@ -1095,7 +1095,7 @@ const TransferModal = ({
             <p
               style={{
                 margin: 0,
-                fontSize: 13,
+                fontSize: theme.modal.hintFontSize,
                 color: theme.modal.hint,
                 border: theme.dashboard.loadingBorder,
                 borderRadius: 8,
@@ -8314,7 +8314,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           padding: 16,
         }}
       >
-        <p style={{ margin: 0, fontSize: 14, color: theme.dashboard.emptyText }}>
+        <p style={{ margin: 0, fontSize: theme.dashboard.emptyTextFontSize, color: theme.dashboard.emptyText }}>
           Preparing your dashboard…
         </p>
       </main>
@@ -8340,7 +8340,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       lineHeight: 1,
       border: theme.dashboard.btn.secondary.border,
       borderRadius: theme.modal.sectionRadius,
-      fontSize: 11,
+      fontSize: theme.button.labelFontSize,
       fontWeight: theme.dashboard.btn.secondary.weight,
       color: theme.dashboard.btn.secondary.text,
       background: theme.dashboard.btn.secondary.bg,
@@ -8348,7 +8348,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
     const dashboardCompactInputStyle: React.CSSProperties = {
       ...inputStyle,
-      fontSize: 11,
+      fontSize: theme.dashboard.projectFieldFontSize,
       lineHeight: 1,
       padding: "2px 8px",
       minHeight: 24,
@@ -8412,7 +8412,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               style={{
                 margin: 0,
                 textAlign: "center",
-                fontSize: 46,
+                fontSize: theme.dashboard.heroTitleFontSize,
                 lineHeight: 1.02,
                 fontWeight: theme.dashboard.heroTitleWeight,
                 color: theme.primitives.slate950,
@@ -8436,7 +8436,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <div
                 style={{
-                  fontSize: 10,
+                  fontSize: theme.dashboard.card.idFontSize,
                   lineHeight: 1,
                   fontWeight: theme.dashboard.card.titleWeight,
                   letterSpacing: 0.4,
@@ -8448,7 +8448,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </div>
               <div
                 style={{
-                  fontSize: 12,
+                  fontSize: theme.dashboard.projectFieldFontSize,
                   lineHeight: 1,
                   fontWeight: theme.dashboard.card.titleWeight,
                   color: theme.dashboard.card.title,
@@ -8476,7 +8476,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               alignItems: "center",
             }}
           >
-            <div style={{ fontSize: 11, lineHeight: 1, color: theme.modal.fieldLabel, fontWeight: theme.inspector.card.fieldLabelWeight }}>
+            <div style={{ fontSize: theme.dashboard.projectFieldFontSize, lineHeight: 1, color: theme.modal.fieldLabel, fontWeight: theme.inspector.card.fieldLabelWeight }}>
               New project name
             </div>
             <input
@@ -8510,10 +8510,10 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             }}
           >
             <div style={{ display: "grid", justifyItems: "center", gap: 1 }}>
-              <h2 style={{ margin: 0, fontSize: 46, fontWeight: theme.dashboard.heroTitleWeight, color: theme.dashboard.heroTitle }}>
+              <h2 style={{ margin: 0, fontSize: theme.dashboard.heroTitleFontSize, fontWeight: theme.dashboard.heroTitleWeight, color: theme.dashboard.heroTitle }}>
                 Projects
               </h2>
-              <p style={{ margin: 0, fontSize: 16, color: theme.dashboard.heroSubtitle, textAlign: "center" }}>
+              <p style={{ margin: 0, fontSize: theme.dashboard.heroSubtitleFontSize, color: theme.dashboard.heroSubtitle, textAlign: "center" }}>
                 Open, rename, or delete your projects.
               </p>
             </div>
@@ -8525,7 +8525,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   borderColor: theme.status.error.border,
                   background: theme.status.error.bg,
                   color: theme.status.error.text,
-                  fontSize: 12,
+                  fontSize: theme.dashboard.projectFieldFontSize,
                   padding: "8px 10px",
                 }}
               >
@@ -8542,7 +8542,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   padding: "14px 16px",
                   textAlign: "center",
                   color: theme.dashboard.emptyText,
-                  fontSize: 13,
+                  fontSize: theme.dashboard.card.titleFontSize,
                 }}
               >
                 Loading projects...
@@ -8556,7 +8556,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   padding: "14px 16px",
                   textAlign: "center",
                   color: theme.dashboard.emptyText,
-                  fontSize: 13,
+                  fontSize: theme.dashboard.card.titleFontSize,
                 }}
               >
                 No projects yet. Create your first project above.
@@ -8603,7 +8603,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       >
                         <div
                           style={{
-                            fontSize: 14,
+                            fontSize: theme.dashboard.card.titleFontSize,
                             fontWeight: theme.dashboard.card.titleWeight,
                             color: theme.dashboard.card.title,
                             lineHeight: 1.2,
@@ -8611,11 +8611,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         >
                           {project.title}
                         </div>
-                        <div style={{ fontSize: 11, color: theme.dashboard.card.meta }}>
+                        <div style={{ fontSize: theme.dashboard.card.metaFontSize, color: theme.dashboard.card.meta }}>
                           Nodes: {project.node_count}
                         </div>
-                        <div style={{ fontSize: 11, color: theme.dashboard.card.meta }}>Project ID: {project.id}</div>
-                        <div style={{ fontSize: 10, color: theme.dashboard.card.id }}>
+                        <div style={{ fontSize: theme.dashboard.card.metaFontSize, color: theme.dashboard.card.meta }}>Project ID: {project.id}</div>
+                        <div style={{ fontSize: theme.dashboard.card.idFontSize, color: theme.dashboard.card.id }}>
                           Updated: {formatDateTime(project.updated_at)}
                         </div>
                       </button>
@@ -8695,7 +8695,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             gap: 8,
           }}
         >
-          <div style={{ fontSize: 12, color: theme.modal.fieldLabel }}>
+          <div style={{ fontSize: theme.table.cellFontSize, color: theme.modal.fieldLabel }}>
             <strong>Project:</strong> {activeProject.name} ({activeProject.id})
           </div>
 
@@ -8743,7 +8743,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           {transferFeedback && (
             <div
               style={{
-                fontSize: 12,
+                fontSize: theme.table.cellFontSize,
                 borderRadius: 6,
                 padding: "6px 8px",
                 border:
@@ -8783,46 +8783,46 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           >
             <thead>
               <tr>
-                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>node_id</th>
-                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>node_id</th>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                   sequence_index
                 </th>
-                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                   Node Type
                 </th>
-                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                   parallel_group_id
                 </th>
-                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>position_x</th>
-                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>position_y</th>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>position_x</th>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>position_y</th>
                 {TABLE_EDITABLE_FIELDS.map((field) => (
                   <th
                     key={`table-head:${field}`}
-                    style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}
+                    style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}
                   >
                     {TABLE_FIELD_LABELS[field]}
                   </th>
                 ))}
-                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                   Ribbon Cells
                 </th>
                 {menuTermColumnIndexes.map((menuTermIndex) => (
                   <th
                     key={`table-menu-term-head:${menuTermIndex}`}
-                    style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}
+                    style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}
                   >
                     {`Menu Term ${menuTermIndex + 1}`}
                   </th>
                 ))}
                 {ribbonCellColumnIndexes.map((ribbonCellIndex) => (
                   <React.Fragment key={`table-ribbon-cell-head:${ribbonCellIndex}`}>
-                    <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                    <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                       {`Ribbon Label ${ribbonCellIndex + 1}`}
                     </th>
-                    <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                    <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                       {`Ribbon Key Command ${ribbonCellIndex + 1}`}
                     </th>
-                    <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                    <th style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                       {`Ribbon Tool Tip ${ribbonCellIndex + 1}`}
                     </th>
                   </React.Fragment>
@@ -8840,7 +8840,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       menuTermColumnIndexes.length +
                       ribbonCellColumnIndexes.length * 3
                     }
-                    style={{ border: theme.table.cellBorder, padding: 12, fontSize: 12 }}
+                    style={{ border: theme.table.cellBorder, padding: 12, fontSize: theme.table.cellFontSize }}
                   >
                     No nodes in this project yet. Switch to Canvas View to add nodes.
                   </td>
@@ -8898,22 +8898,22 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                   return (
                     <tr key={`table-row:${node.id}`}>
-                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                         <code>{node.id}</code>
                       </td>
-                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                         {sequenceIndex ?? ""}
                       </td>
-                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                         {node.data.node_type}
                       </td>
-                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                         {parallelGroupId ?? ""}
                       </td>
-                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                         {Math.round(node.position.x)}
                       </td>
-                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: 12 }}>
+                      <td style={{ border: theme.table.cellBorder, padding: 8, fontSize: theme.table.cellFontSize }}>
                         {Math.round(node.position.y)}
                       </td>
 
@@ -8984,7 +8984,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         style={{
                           border: theme.table.cellBorder,
                           padding: 8,
-                          fontSize: 12,
+                          fontSize: theme.table.cellFontSize,
                           minWidth: 220,
                         }}
                       >
@@ -8997,7 +8997,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           style={{
                             border: theme.table.cellBorder,
                             padding: 8,
-                            fontSize: 12,
+                            fontSize: theme.table.cellFontSize,
                             minWidth: 170,
                           }}
                         >
@@ -9016,7 +9016,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                               style={{
                                 border: theme.table.cellBorder,
                                 padding: 8,
-                                fontSize: 12,
+                                fontSize: theme.table.cellFontSize,
                                 minWidth: 170,
                               }}
                             >
@@ -9026,7 +9026,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                               style={{
                                 border: theme.table.cellBorder,
                                 padding: 8,
-                                fontSize: 12,
+                                fontSize: theme.table.cellFontSize,
                                 minWidth: 170,
                               }}
                             >
@@ -9036,7 +9036,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                               style={{
                                 border: theme.table.cellBorder,
                                 padding: 8,
-                                fontSize: 12,
+                                fontSize: theme.table.cellFontSize,
                                 minWidth: 220,
                               }}
                             >
@@ -12213,7 +12213,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               gap: 10,
             }}
           >
-            <h3 style={{ margin: 0, fontSize: 14 }}>Global Attribute Admin</h3>
+            <h3 style={{ margin: 0, fontSize: theme.clp.registryTitleFontSize }}>Global Attribute Admin</h3>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button
@@ -12242,7 +12242,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   gap: 6,
                 }}
               >
-                <div style={{ fontSize: 12, fontWeight: theme.inspector.card.fieldLabelWeight }}>
+                <div style={{ fontSize: theme.table.cellFontSize, fontWeight: theme.inspector.card.fieldLabelWeight }}>
                   {GLOBAL_OPTION_LABELS[field]}
                 </div>
 
@@ -12254,7 +12254,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 6,
-                        fontSize: 11,
+                        fontSize: theme.button.labelFontSize,
                         border: theme.table.border,
                         borderRadius: 999,
                         padding: "3px 8px",
@@ -12281,7 +12281,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           border: "none",
                           background: "transparent",
                           cursor: "pointer",
-                          fontSize: 11,
+                          fontSize: theme.button.labelFontSize,
                           color: theme.inspector.card.emptyTextAlt,
                           padding: 0,
                         }}
@@ -12340,7 +12340,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             border: theme.toast.border,
             background: theme.toast.bg,
             color: theme.toast.text,
-            fontSize: 12,
+            fontSize: theme.toast.bodyFontSize,
             fontWeight: theme.toast.weight,
             boxShadow: theme.toast.shadow,
             whiteSpace: "nowrap",
@@ -12393,7 +12393,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 gap: 8,
               }}
             >
-              <h3 id="feedback-modal-title" style={{ margin: 0, fontSize: 18, color: theme.modal.title }}>
+              <h3 id="feedback-modal-title" style={{ margin: 0, fontSize: theme.modal.titleFontSize, color: theme.modal.title }}>
                 Send Feedback
               </h3>
 
@@ -12414,7 +12414,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </button>
             </div>
 
-            <p style={{ margin: 0, fontSize: 12, color: theme.modal.hint }}>
+            <p style={{ margin: 0, fontSize: theme.modal.inputFontSize, color: theme.modal.hint }}>
               Share product feedback directly into your Supabase feedback inbox.
             </p>
 
@@ -12466,7 +12466,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   justifyContent: "space-between",
                   gap: 8,
                   flexWrap: "wrap",
-                  fontSize: 11,
+                  fontSize: theme.modal.fileInfoFontSize,
                   color: isFeedbackEmailValid ? theme.inspector.card.emptyText : theme.status.error.text,
                 }}
               >
@@ -12483,7 +12483,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               {feedbackSubmitMessage && (
                 <div
                   style={{
-                    fontSize: 12,
+                    fontSize: theme.modal.inputFontSize,
                     borderRadius: 6,
                     padding: "6px 8px",
                     border:
