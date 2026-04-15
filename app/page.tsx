@@ -10272,6 +10272,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </>
             ) : (
               <>
+                {selectedNode.data.node_type === "horizontal_multi_term" && (
+                  <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: theme.inspector.edge.infoText }}>
+                    Horizontal Card mode: cell-based term layout. Terms are tracked in the Term Registry.
+                  </p>
+                )}
+
                 {/* hidden for beta */}
                 {false &&
                   selectedNode?.data.node_type !== "horizontal_multi_term" && (
@@ -10338,9 +10344,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                 {selectedNode.data.node_type === "horizontal_multi_term" && selectedHorizontalContentConfig && (
                   <>
-                  <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: theme.inspector.edge.infoText }}>
-                    Horizontal Card mode: cell-based term layout. Terms are tracked in the Term Registry.
-                  </p>
                   <div
                     style={{
                       border: theme.clp.header.border,
