@@ -9188,7 +9188,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           </button>
           <span
             style={{
-              fontSize: 11,
+              fontSize: theme.topBar.fontSize.statusText,
               color: theme.topBar.text,
               whiteSpace: "nowrap",
               overflow: "hidden",
@@ -9294,7 +9294,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               >
                 <rect x="4" y="4" width="16" height="16" rx="2" />
               </svg>
-              <span style={{ fontSize: 10, fontWeight: theme.toolbar.button.labelWeight, color: theme.toolbar.button.text }}>Card</span>
+              <span style={{ fontSize: theme.toolbar.button.fontSize.label, fontWeight: theme.toolbar.button.labelWeight, color: theme.toolbar.button.text }}>Card</span>
             </button>
 
             <button
@@ -9325,7 +9325,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 <rect x="5" y="3" width="14" height="7" rx="1.5" />
                 <rect x="5" y="14" width="14" height="7" rx="1.5" />
               </svg>
-              <span style={{ fontSize: 10, fontWeight: theme.toolbar.button.labelWeight, color: theme.toolbar.button.text }}>
+              <span style={{ fontSize: theme.toolbar.button.fontSize.label, fontWeight: theme.toolbar.button.labelWeight, color: theme.toolbar.button.text }}>
                 Vertical
               </span>
             </button>
@@ -9358,7 +9358,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 <rect x="3" y="5" width="7" height="14" rx="1.5" />
                 <rect x="14" y="5" width="7" height="14" rx="1.5" />
               </svg>
-              <span style={{ fontSize: 10, fontWeight: theme.toolbar.button.labelWeight, color: theme.toolbar.button.text }}>
+              <span style={{ fontSize: theme.toolbar.button.fontSize.label, fontWeight: theme.toolbar.button.labelWeight, color: theme.toolbar.button.text }}>
                 Horizontal
               </span>
             </button>
@@ -9654,13 +9654,13 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 gap: 8,
               }}
             >
-              <h3 style={{ margin: 0, fontSize: 14 }}>Edge Inspector</h3>
+              <h3 style={{ margin: 0, fontSize: theme.inspector.edge.fontSize.title }}>Edge Inspector</h3>
               <button type="button" style={buttonStyle} onClick={handleDeleteSelection}>
                 Delete Edge
               </button>
             </div>
 
-            <div style={{ fontSize: 12, color: theme.inspector.card.fieldLabel }}>
+            <div style={{ fontSize: theme.inspector.edge.fontSize.fieldLabel, color: theme.inspector.card.fieldLabel }}>
               <strong>Edge ID:</strong> {selectedEdge.id}
               <br />
               <strong>Source → Target:</strong> {selectedEdge.source} → {selectedEdge.target}
@@ -9740,16 +9740,16 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </label>
             )}
 
-            <p style={{ margin: 0, fontSize: 11, color: theme.inspector.card.emptyText }}>
+            <p style={{ margin: 0, fontSize: theme.inspector.card.fontSize.input, color: theme.inspector.card.emptyText }}>
               Tip: press Delete / Backspace to remove this edge.
             </p>
           </section>
         ) : hasMultipleSelectedNodes ? (
-          <p style={{ fontSize: 13, color: theme.inspector.card.emptyTextAlt }}>
+          <p style={{ fontSize: theme.inspector.card.fontSize.emptyTextAlt, color: theme.inspector.card.emptyTextAlt }}>
             Multiple nodes selected. Select a single node to edit its data.
           </p>
         ) : !hasExactlyOneSelectedNode || !selectedNode ? (
-          <p style={{ fontSize: 13, color: theme.inspector.card.emptyTextAlt }}>
+          <p style={{ fontSize: theme.inspector.card.fontSize.emptyTextAlt, color: theme.inspector.card.emptyTextAlt }}>
             No selection. Click a node or edge on the canvas.
           </p>
         ) : (
@@ -9772,7 +9772,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       type="button"
                       style={{
                         ...buttonStyle,
-                        fontSize: 11,
+                        fontSize: theme.inspector.card.fontSize.input,
                         padding: "4px 8px",
                         borderColor: isActive ? theme.button.primary.bg : theme.table.border,
                         background: isActive
@@ -9816,7 +9816,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             >
               <div
                 style={{
-                  fontSize: 10,
+                  fontSize: theme.inspector.card.fontSize.sectionHeader,
                   fontWeight: theme.inspector.sectionTitleWeight,
                   color: theme.inspector.sectionTitle,
                   textTransform: "uppercase",
@@ -9833,7 +9833,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                   style={{
                     marginTop: 0,
                     marginBottom: 0,
-                    fontSize: 12,
+                    fontSize: theme.inspector.edge.fontSize.infoText,
                     color: theme.inspector.edge.infoText,
                   }}
                 >
@@ -9845,7 +9845,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     style={{
                       marginTop: 0,
                       marginBottom: 0,
-                      fontSize: 11,
+                      fontSize: theme.inspector.card.fontSize.input,
                       color: theme.status.error.text,
                       background: theme.status.error.bg,
                       border: theme.status.error.border,
@@ -9950,7 +9950,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       gap: 8,
                     }}
                   >
-                    <div style={{ fontSize: 11, fontWeight: theme.clp.header.titleWeight, color: theme.clp.header.title }}>
+                    <div style={{ fontSize: theme.inspector.card.fontSize.input, fontWeight: theme.clp.header.titleWeight, color: theme.clp.header.title }}>
                       Term Input
                     </div>
                     <button
@@ -9962,7 +9962,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         minWidth: 20,
                         padding: 0,
                         borderRadius: 999,
-                        fontSize: 14,
+                        fontSize: theme.clp.fontSize.registryTitle,
                         lineHeight: 1,
                         fontWeight: theme.clp.tab.weight,
                         color: theme.clp.header.title,
@@ -10021,7 +10021,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                             type="button"
                             style={{
                               ...buttonStyle,
-                              fontSize: 10,
+                              fontSize: theme.inspector.card.fontSize.sectionHeader,
                               padding: "2px 6px",
                               borderColor: theme.button.danger.border,
                               color: theme.button.danger.text,
@@ -10121,7 +10121,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               </>
             ) : selectedNode.data.node_type === "frame" ? (
               <>
-                <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: theme.inspector.edge.infoText }}>
+                <p style={{ marginTop: 0, marginBottom: 0, fontSize: theme.inspector.edge.fontSize.infoText, color: theme.inspector.edge.infoText }}>
                   Frame mode: visual container for grouping cards.
                 </p>
                 <label>
@@ -10170,7 +10170,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 >
                   <div
                     style={{
-                      fontSize: 11,
+                      fontSize: theme.inspector.card.fontSize.input,
                       fontWeight: theme.inspector.card.fieldLabelWeight,
                       color: theme.inspector.card.fieldLabel,
                     }}
@@ -10189,7 +10189,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           type="button"
                           style={{
                             ...buttonStyle,
-                            fontSize: 11,
+                            fontSize: theme.inspector.card.fontSize.input,
                             padding: "4px 8px",
                             borderColor: isActive
                               ? theme.inspector.admin.filterBtn.active.border
@@ -10267,13 +10267,13 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             ) : (
               <>
                 {selectedNode.data.node_type === "horizontal_multi_term" && (
-                  <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: theme.inspector.edge.infoText }}>
+                  <p style={{ marginTop: 0, marginBottom: 0, fontSize: theme.inspector.edge.fontSize.infoText, color: theme.inspector.edge.infoText }}>
                     Horizontal Card mode: cell-based term layout. Terms are tracked in the Term Registry.
                   </p>
                 )}
 
                 {selectedNodeIsDefaultInspectorNode && (
-                  <p style={{ marginTop: 0, marginBottom: 0, fontSize: 12, color: theme.inspector.edge.infoText }}>
+                  <p style={{ marginTop: 0, marginBottom: 0, fontSize: theme.inspector.edge.fontSize.infoText, color: theme.inspector.edge.infoText }}>
                     Card mode: standard fields with term tracking via the Term Registry.
                   </p>
                 )}
@@ -10354,7 +10354,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       gap: 8,
                     }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: theme.clp.header.titleWeight, color: theme.primitives.blue800 }}>
+                    <div style={{ fontSize: theme.inspector.card.fontSize.emptyTextAlt, fontWeight: theme.clp.header.titleWeight, color: theme.primitives.blue800 }}>
                       Horizontal Cells
                     </div>
 
@@ -10368,7 +10368,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     >
                       <div
                         style={{
-                          fontSize: 12,
+                          fontSize: theme.inspector.card.fontSize.fieldLabel,
                           color: theme.inspector.card.fieldLabel,
                           fontWeight: theme.inspector.card.fieldLabelWeight,
                         }}
@@ -10451,7 +10451,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           >
                             <div
                               style={{
-                                fontSize: 11,
+                                fontSize: theme.inspector.card.fontSize.input,
                                 fontWeight: theme.inspector.card.fieldLabelWeight,
                                 color: theme.inspector.card.emptyText,
                                 marginBottom: 6,
@@ -10501,7 +10501,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                                     {isLongField ? (
                                       <textarea
-                                        style={{ ...inputStyle, fontSize: 11 }}
+                                        style={{ ...inputStyle, fontSize: theme.inspector.card.fontSize.input }}
                                         value={slot.value ?? ""}
                                         placeholder="Add value"
                                         rows={2}
@@ -10519,7 +10519,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                       <input
                                         style={{
                                           ...inputStyle,
-                                          fontSize: 11,
+                                          fontSize: theme.inspector.card.fontSize.input,
                                           fontFamily:
                                             normalizedTermType === "key_command"
                                               ? "monospace"
@@ -10570,7 +10570,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           gap: 6,
                         }}
                       >
-                        <div style={{ fontSize: 11, fontWeight: theme.clp.header.titleWeight, color: theme.clp.header.title }}>
+                        <div style={{ fontSize: theme.inspector.card.fontSize.input, fontWeight: theme.clp.header.titleWeight, color: theme.clp.header.title }}>
                           Field visibility
                         </div>
 
@@ -10583,7 +10583,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         >
                           <div
                             style={{
-                              fontSize: 10,
+                              fontSize: theme.inspector.card.fontSize.sectionHeader,
                               fontWeight: theme.clp.header.titleWeight,
                               color: theme.clp.description,
                               marginBottom: 4,
@@ -10606,7 +10606,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 8,
-                                fontSize: 12,
+                                fontSize: theme.inspector.card.fontSize.fieldLabel,
                                 color: theme.inspector.card.fieldLabel,
                               }}
                             >
@@ -10631,7 +10631,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       <div>
                         <div
                           style={{
-                            fontSize: 12,
+                            fontSize: theme.inspector.card.fontSize.fieldLabel,
                             marginBottom: 4,
                             color: theme.inspector.card.fieldLabel,
                           }}
@@ -10654,7 +10654,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         />
                         <div
                           style={{
-                            fontSize: 11,
+                            fontSize: theme.inspector.card.fontSize.input,
                             marginBottom: 4,
                             color: theme.node.field.placeholder,
                           }}
@@ -10760,7 +10760,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             >
               <div
                 style={{
-                  fontSize: 10,
+                  fontSize: theme.inspector.card.fontSize.sectionHeader,
                   fontWeight: theme.inspector.sectionTitleWeight,
                   color: theme.inspector.sectionTitle,
                   textTransform: "uppercase",
@@ -10915,7 +10915,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             >
               <summary
                 style={{
-                  fontSize: 11,
+                  fontSize: theme.inspector.card.fontSize.input,
                   color: theme.node.field.placeholder,
                   cursor: "pointer",
                   userSelect: "none",
@@ -10923,7 +10923,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               >
                 Card Identity
               </summary>
-              <div style={{ fontSize: 11, color: theme.node.field.placeholder, marginTop: 6 }}>
+              <div style={{ fontSize: theme.inspector.card.fontSize.input, color: theme.node.field.placeholder, marginTop: 6 }}>
                 <strong>Card ID:</strong> {selectedNode.id}<br />
                 <strong>Sequence:</strong> {ordering.sequenceByNodeId[selectedNode.id] ?? "-"}<br />
                 <strong>X:</strong> {Math.round(selectedNode.position.x)}<br />
