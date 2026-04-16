@@ -8612,7 +8612,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           {project.title}
                         </div>
                         <div style={{ fontSize: theme.dashboard.card.metaFontSize, color: theme.dashboard.card.meta }}>
-                          Nodes: {project.node_count}
+                          Cards: {project.node_count}
                         </div>
                         <div style={{ fontSize: theme.dashboard.card.metaFontSize, color: theme.dashboard.card.meta }}>Project ID: {project.id}</div>
                         <div style={{ fontSize: theme.dashboard.card.idFontSize, color: theme.dashboard.card.id }}>
