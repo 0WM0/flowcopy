@@ -7969,7 +7969,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       const file = event.target.files?.[0];
       event.currentTarget.value = "";
 
-      if (!file || !activeAccount || !activeProject) {
+      if (!file || !activeAccount) {
         return;
       }
 
@@ -8005,7 +8005,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           const normalizedRows = parsed.rows.map(normalizeFlatRowKeys);
           const { projectId: importedProjectId, projectRows } = selectFlatImportRowsForProject({
             rows: normalizedRows,
-            preferredProjectId: activeProject.id,
+            preferredProjectId: activeProject?.id ?? "",
           });
 
           if (projectRows.length === 0) {
@@ -8126,8 +8126,8 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             ? parsedTermRegistryRaw
             : [];
           const fallbackProjectName =
-            importedProjectId === activeProject.id
-              ? activeProject.name
+            importedProjectId === activeProject?.id
+              ? activeProject?.name ?? "Imported Project"
               : `Imported ${importedProjectId}`;
           const createdAtFallback = new Date().toISOString();
 
@@ -8163,7 +8163,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             updatedAt: now,
           }) ?? importedProject;
 
-        if (activeProject.id === normalizedImportedProject.id) {
+        if (activeProject?.id === normalizedImportedProject.id) {
           queueUndoSnapshot();
         }
 
@@ -8445,6 +8445,31 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               >
                 {isCreatingProject ? "Creating..." : "Create Project"}
               </button>
+
+              <button
+                type="button"
+                style={{
+                  background: "transparent",
+                  color: theme.dashboard.card.meta,
+                  border: theme.dashboard.btn.secondary.border,
+                  borderRadius: 6,
+                  padding: "8px 14px",
+                  fontSize: 13,
+                  fontWeight: theme.dashboard.btn.secondary.weight,
+                  cursor: "pointer",
+                }}
+                onClick={triggerImportPicker}
+              >
+                Import project
+              </button>
+
+              <input
+                ref={importFileInputRef}
+                type="file"
+                accept=".csv,.xml,.json,text/csv,application/xml,text/xml,application/json,text/json"
+                style={{ display: "none" }}
+                onChange={importProjectDataFromFile}
+              />
             </div>
           </div>
 
@@ -9096,6 +9121,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         position: "relative",
       }}
     >
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".csv,.xml,.json,text/csv,application/xml,text/xml,application/json,text/json"
+        style={{ display: "none" }}
+        onChange={importProjectDataFromFile}
+      />
+
       <div
         ref={canvasContainerRef}
         onPointerMove={handleCanvasPointerMove}
