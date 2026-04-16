@@ -69,7 +69,7 @@ function BodyTextPreview({ value }: { value: string }) {
       <p
         style={{
           margin: 0,
-          fontSize: 11,
+          fontSize: theme.node.field.inputFontSize,
           color: theme.node.field.placeholder,
           fontStyle: "italic",
         }}
@@ -288,7 +288,7 @@ const getCanvasRegistryButtonStyle = (): React.CSSProperties => ({
   minWidth: 16,
   padding: 0,
   borderRadius: 4,
-  fontSize: 11,
+  fontSize: theme.node.field.inputFontSize,
   lineHeight: 1,
   borderColor: theme.table.border,
   background: theme.primitives.white,
@@ -305,7 +305,7 @@ const getRibbonCellActionButtonStyle = (
   minWidth: 15,
   padding: 0,
   borderRadius: 4,
-  fontSize: 10,
+  fontSize: theme.node.field.labelFontSize,
   lineHeight: 1,
   borderColor:
     tone === "danger" ? theme.primitives.red200 : theme.primitives.slate300,
@@ -337,7 +337,7 @@ export function SlotTermTypeEditor({
           className="nodrag"
           autoFocus
           style={{
-            fontSize: 10,
+            fontSize: theme.node.field.labelFontSize,
             fontWeight: theme.node.field.labelWeight,
             color: theme.primitives.slate900,
             border: theme.node.popup.termBadge.border,
@@ -380,7 +380,7 @@ export function SlotTermTypeEditor({
           className="nodrag"
           autoFocus
           style={{
-            fontSize: 10,
+            fontSize: theme.node.field.labelFontSize,
             fontWeight: theme.node.field.labelWeight,
             color: theme.primitives.slate900,
             border: theme.node.popup.termBadge.border,
@@ -431,7 +431,7 @@ export function SlotTermTypeEditor({
         }
       }}
       style={{
-        fontSize: 10,
+        fontSize: theme.node.field.labelFontSize,
         fontWeight: theme.node.field.labelWeight,
         color: theme.node.field.termType,
         marginBottom: 4,
@@ -443,7 +443,7 @@ export function SlotTermTypeEditor({
       title="Click to change term type"
     >
       {currentLabel}
-      <span style={{ fontSize: 8, color: theme.node.field.termTypeIcon }}>▼</span>
+      <span style={{ fontSize: theme.node.dropdownArrowFontSize, color: theme.node.field.termTypeIcon }}>▼</span>
     </div>
   );
 }
@@ -1856,7 +1856,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             position: "absolute",
             top: 8,
             left: 8,
-            fontSize: 11,
+            fontSize: theme.node.field.inputFontSize,
             color: theme.frame.collapseBtn.text,
             fontWeight: 600,
             border: theme.frame.collapseBtn.border,
@@ -1881,7 +1881,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             background: frameShadeStyle.tabBackground,
             color: frameShadeStyle.tabText,
             padding: "2px 10px",
-            fontSize: 11,
+            fontSize: theme.node.field.inputFontSize,
             fontWeight: 700,
             whiteSpace: "nowrap",
             overflow: "hidden",
@@ -1902,7 +1902,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 outline: "none",
                 padding: 0,
                 margin: 0,
-                fontSize: 11,
+                fontSize: theme.node.field.inputFontSize,
                 fontWeight: 700,
                 color: frameShadeStyle.tabText,
               }}
@@ -1936,7 +1936,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   padding: "0 4px",
                   height: 16,
                   borderRadius: 999,
-                  fontSize: 10,
+                  fontSize: theme.node.field.labelFontSize,
                   lineHeight: 1,
                   color: theme.node.typeBadge.text,
                   borderColor: theme.node.typeBadge.border,
@@ -1978,7 +1978,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               position: "absolute",
               right: 8,
               bottom: 6,
-              fontSize: 10,
+              fontSize: theme.node.field.labelFontSize,
               color: theme.node.field.termType,
             }}
           >
@@ -2159,7 +2159,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               gap: 6,
             }}
           >
-            <span style={{ fontSize: 10, color: theme.node.sequenceLabel, fontWeight: 600 }}>
+            <span style={{ fontSize: theme.node.field.labelFontSize, color: theme.node.sequenceLabel, fontWeight: 600 }}>
               #{data.sequence_index ?? "-"}
             </span>
             <button
@@ -2171,7 +2171,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 padding: "0 4px",
                 height: 16,
                 borderRadius: 999,
-                fontSize: 10,
+                fontSize: theme.node.field.labelFontSize,
                 lineHeight: 1,
                 color: theme.node.typeBadge.text,
                 borderColor: theme.node.typeBadge.border,
@@ -2197,7 +2197,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   flex: 1,
                   minWidth: 0,
                   height: 20,
-                  fontSize: 11,
+                  fontSize: theme.node.field.inputFontSize,
                   fontWeight: 600,
                   color: theme.node.field.label,
                 }}
@@ -2228,7 +2228,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  fontSize: 11,
+                  fontSize: theme.node.field.inputFontSize,
                   fontWeight: 600,
                   color: theme.node.field.label,
                   whiteSpace: "nowrap",
@@ -2365,7 +2365,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   >
                     <span
                       style={{
-                        fontSize: 10,
+                        fontSize: theme.node.field.labelFontSize,
                         color:
                           isShowingLabel || isShowingKeyCommand
                             ? theme.node.field.value
@@ -2416,7 +2416,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 margin: "0 8px 0",
                 padding: "2px 0 2px",
                 borderTop: theme.node.header.border,
-                fontSize: 9,
+                fontSize: theme.fontSizes.sm,
                 color: theme.node.field.termType,
               }}
             >
@@ -2466,7 +2466,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               >
                 <div
                   style={{
-                    fontSize: 10,
+                    fontSize: theme.node.field.labelFontSize,
                     fontWeight: 700,
                     color: theme.node.popup.termBadge.text,
                   }}
@@ -2474,11 +2474,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   Assign term: {pendingRibbonRegistryTerm.termValue}
                 </div>
                 {pendingRibbonRegistryTerm.referenceKey && (
-                  <div style={{ fontSize: 10, color: theme.node.popup.termBadge.detail }}>
+                  <div style={{ fontSize: theme.node.field.labelFontSize, color: theme.node.popup.termBadge.detail }}>
                     Key: {pendingRibbonRegistryTerm.referenceKey}
                   </div>
                 )}
-                <div style={{ fontSize: 10, color: theme.node.popup.fieldText }}>
+                <div style={{ fontSize: theme.node.field.labelFontSize, color: theme.node.popup.fieldText }}>
                   Click a field below to place this term.
                 </div>
               </div>
@@ -2534,7 +2534,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       minWidth: 0,
                       width: "100%",
                       maxWidth: "100%",
-                      fontSize: 11,
+                      fontSize: theme.node.field.inputFontSize,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -2591,7 +2591,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 className="nodrag"
                 style={{
                   ...buttonStyle,
-                  fontSize: 11,
+                  fontSize: theme.node.field.inputFontSize,
                   padding: "4px 10px",
                 }}
                 onClick={closeRibbonCellPopup}
@@ -2725,7 +2725,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
             background: useDarkCompactPalette ? theme.node.header.bg : undefined,
           }}
         >
-          <span style={{ fontSize: 10, color: theme.node.sequenceLabel, fontWeight: 600 }}>
+          <span style={{ fontSize: theme.node.field.labelFontSize, color: theme.node.sequenceLabel, fontWeight: 600 }}>
             #{data.sequence_index ?? "-"}
           </span>
           <button
@@ -2737,7 +2737,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               padding: "0 4px",
               height: 16,
               borderRadius: 999,
-              fontSize: 10,
+              fontSize: theme.node.field.labelFontSize,
               lineHeight: 1,
               color: theme.node.typeBadge.text,
               borderColor: theme.node.typeBadge.border,
@@ -2763,7 +2763,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 flex: 1,
                 minWidth: 0,
                 height: 20,
-                fontSize: 11,
+                fontSize: theme.node.field.inputFontSize,
                 fontWeight: 600,
                 color: theme.node.field.label,
               }}
@@ -2794,7 +2794,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               style={{
                 flex: 1,
                 minWidth: 0,
-                fontSize: 11,
+                fontSize: theme.node.field.inputFontSize,
                 fontWeight: 600,
                 color: theme.node.field.label,
                 whiteSpace: "nowrap",
@@ -2983,7 +2983,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                             </span>
                             <span
                               style={{
-                                fontSize: 11,
+                                fontSize: theme.node.field.inputFontSize,
                                 color: theme.node.field.termType,
                                 flexShrink: 0,
                               }}
@@ -3055,7 +3055,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                     >
                       <div
                         style={{
-                          fontSize: 10,
+                          fontSize: theme.node.field.labelFontSize,
                           fontWeight: 700,
                           color: theme.node.popup.termBadge.text,
                         }}
@@ -3063,11 +3063,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         Assign term: {pendingVerticalRegistryTerm.termValue}
                       </div>
                       {pendingVerticalRegistryTerm.referenceKey && (
-                        <div style={{ fontSize: 10, color: theme.node.popup.termBadge.detail }}>
+                        <div style={{ fontSize: theme.node.field.labelFontSize, color: theme.node.popup.termBadge.detail }}>
                           Key: {pendingVerticalRegistryTerm.referenceKey}
                         </div>
                       )}
-                      <div style={{ fontSize: 10, color: theme.node.popup.fieldText }}>
+                      <div style={{ fontSize: theme.node.field.labelFontSize, color: theme.node.popup.fieldText }}>
                         Click a field below to place this term.
                       </div>
                     </div>
@@ -3125,7 +3125,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                             minWidth: 0,
                             width: "100%",
                             maxWidth: "100%",
-                            fontSize: 11,
+                            fontSize: theme.node.field.inputFontSize,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -3182,7 +3182,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       className="nodrag"
                       style={{
                         ...buttonStyle,
-                        fontSize: 11,
+                        fontSize: theme.node.field.inputFontSize,
                         padding: "4px 10px",
                       }}
                       onClick={closeVerticalTermPopup}
@@ -3208,7 +3208,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   >
                     <div
                       style={{
-                        fontSize: 9,
+                        fontSize: theme.fontSizes.sm,
                         color: theme.node.group.slotCount,
                         marginBottom: 2,
                       }}
@@ -3323,7 +3323,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               marginTop: 4,
               paddingTop: 3,
               borderTop: theme.node.header.border,
-              fontSize: 9,
+              fontSize: theme.fontSizes.sm,
               color: theme.node.group.slotCount,
             }}
           >
@@ -3385,3 +3385,4 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
 export type { FlowCopyNodeProps };
 export { FlowCopyNode, BodyTextPreview };
+
