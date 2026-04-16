@@ -8352,9 +8352,9 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       >
         <div
           style={{
-            maxWidth: 720,
+            maxWidth: 1100,
             margin: "0 auto",
-            padding: "40px 24px",
+            padding: "56px 40px",
           }}
         >
           <div
@@ -8365,7 +8365,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               marginBottom: 40,
             }}
           >
-            <img src="/termpath-logo.png" alt="Termpath" style={{ height: 32 }} />
+            <img src="/termpath-logo.png" alt="Termpath" style={{ height: 40 }} />
 
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: 13, color: theme.dashboard.card.meta }}>
@@ -8453,7 +8453,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               display: "flex",
               justifyContent: "space-between",
               alignItems: "baseline",
-              marginBottom: 12,
+              marginBottom: 16,
               borderBottom: "0.5px solid " + theme.primitives.slate200,
               paddingBottom: 8,
             }}
@@ -8489,7 +8489,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 background: theme.dashboard.card.bg,
                 border: theme.dashboard.card.border,
                 borderRadius: theme.dashboard.card.radius,
-                padding: "14px 16px",
+                padding: "18px 20px",
                 textAlign: "center",
                 color: theme.dashboard.emptyText,
                 fontSize: theme.dashboard.card.titleFontSize,
@@ -8503,7 +8503,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                 background: theme.dashboard.card.bg,
                 border: theme.dashboard.card.border,
                 borderRadius: theme.dashboard.card.radius,
-                padding: "14px 16px",
+                padding: "18px 20px",
                 textAlign: "center",
                 color: theme.dashboard.emptyText,
                 fontSize: theme.dashboard.card.titleFontSize,
@@ -8515,8 +8515,9 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                gap: 10,
+                gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+                gap: 14,
+                marginTop: 8,
               }}
             >
               {projects.map((project) => {
@@ -8537,7 +8538,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       background: theme.dashboard.card.bg,
                       border: theme.dashboard.card.border,
                       borderRadius: theme.dashboard.card.radius,
-                      padding: "14px 16px",
+                      padding: "18px 20px",
                       cursor: isProjectActionPending ? "default" : "pointer",
                     }}
                   >
@@ -8562,9 +8563,12 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                       <span
                         style={{
                           position: "relative",
-                          fontSize: 11,
-                          color: theme.dashboard.card.id,
+                          fontSize: 18,
+                          color: theme.dashboard.card.meta,
                           cursor: "pointer",
+                          padding: "0 6px",
+                          lineHeight: 1,
+                          userSelect: "none",
                         }}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -8647,7 +8651,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
 
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <span style={{ fontSize: theme.dashboard.card.metaFontSize, color: theme.dashboard.card.meta }}>
-                        {project.node_count} cards
+                        {project.node_count} {project.node_count === 1 ? "card" : "cards"}
                       </span>
 
                       <span style={{ fontSize: theme.dashboard.card.metaFontSize, color: theme.dashboard.card.id }}>
