@@ -8219,12 +8219,15 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           return {
             ...prev,
             accounts,
-            session: {
-              ...prev.session,
-              activeAccountId: activeAccount.id,
-              activeProjectId: normalizedImportedProject.id,
-              view: "editor",
-            },
+            ...(activeProject
+              ? {}
+              : {
+                  session: {
+                    ...prev.session,
+                    activeProjectId: normalizedImportedProject.id,
+                    view: "editor" as const,
+                  },
+                }),
           };
         });
 
