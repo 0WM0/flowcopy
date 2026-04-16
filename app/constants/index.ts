@@ -436,7 +436,7 @@ export const inputStyle: React.CSSProperties = {
   border: theme.table.border,
   borderRadius: 6,
   padding: "6px 8px",
-  fontSize: 12,
+  fontSize: theme.inspector.card.inputFontSize,
   background: theme.primitives.white,
 };
 
