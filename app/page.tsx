@@ -8152,6 +8152,26 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           throw new Error("Import file did not produce a valid project.");
         }
 
+        // When importing from dashboard (no active project), always create a new project with a fresh ID
+        if (!activeProject) {
+          let importName = importedProject.name;
+          const existingNames = new Set(activeAccount.projects.map((p) => p.name));
+          if (existingNames.has(importName)) {
+            let suffix = 2;
+            while (existingNames.has(`${importName} (${suffix})`)) {
+              suffix++;
+            }
+            importName = `${importName} (${suffix})`;
+          }
+          importedProject = {
+            ...importedProject,
+            id: crypto.randomUUID(),
+            name: importName,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+        }
+
         const existingProject = activeAccount.projects.find(
           (project) => project.id === importedProject.id
         );
