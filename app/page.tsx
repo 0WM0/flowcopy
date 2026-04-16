@@ -1658,6 +1658,7 @@ export default function Page() {
   const [dashboardActionProjectId, setDashboardActionProjectId] = useState<string | null>(null);
   const [dashboardProjects, setDashboardProjects] = useState<DbProjectListItem[]>([]);
   const [isDashboardProjectsLoading, setIsDashboardProjectsLoading] = useState(false);
+  const [openCardMenu, setOpenCardMenu] = useState<string | null>(null);
 
   const [nodes, setNodes] = useNodesState<FlowNode>([]);
   const [edges, setEdges] = useEdgesState<FlowEdge>([]);
@@ -8302,6 +8303,22 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
     };
   }, [closeHelpModal, isHelpModalOpen]);
 
+  useEffect(() => {
+    if (openCardMenu === null) {
+      return;
+    }
+
+    const handleDocumentClick = () => {
+      setOpenCardMenu(null);
+    };
+
+    document.addEventListener("click", handleDocumentClick);
+
+    return () => {
+      document.removeEventListener("click", handleDocumentClick);
+    };
+  }, [openCardMenu]);
+
   if (store.session.view === "account") {
     return (
       <main
@@ -8324,331 +8341,327 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
   if (store.session.view === "dashboard") {
     const projects = dashboardProjects;
     const isCreatingProject = dashboardActionProjectId === "creating-project";
-    const dashboardProjectsSpacing = 8;
-
-    const dashboardBlockStyle: React.CSSProperties = {
-      background: theme.dashboard.card.bg,
-      border: `2px solid ${theme.inspector.card.blockBorder}`,
-      borderRadius: theme.modal.radius,
-      boxShadow: theme.dashboard.card.shadow,
-    };
-
-    const dashboardButtonStyle: React.CSSProperties = {
-      ...buttonStyle,
-      padding: "2px 8px",
-      minHeight: 24,
-      lineHeight: 1,
-      border: theme.dashboard.btn.secondary.border,
-      borderRadius: theme.modal.sectionRadius,
-      fontSize: theme.button.labelFontSize,
-      fontWeight: theme.dashboard.btn.secondary.weight,
-      color: theme.dashboard.btn.secondary.text,
-      background: theme.dashboard.btn.secondary.bg,
-    };
-
-    const dashboardCompactInputStyle: React.CSSProperties = {
-      ...inputStyle,
-      fontSize: theme.dashboard.projectFieldFontSize,
-      lineHeight: 1,
-      padding: "2px 8px",
-      minHeight: 24,
-    };
-
-    const dashboardPrimaryButtonStyle: React.CSSProperties = {
-      ...dashboardButtonStyle,
-      borderColor: theme.dashboard.btn.primary.bg,
-      color: theme.dashboard.btn.primary.text,
-      background: theme.dashboard.btn.primary.bg,
-      boxShadow: theme.dashboard.btn.primary.shadow,
-    };
 
     return (
       <main
         style={{
-          width: "100vw",
+          width: "100%",
           minHeight: "100vh",
           background: theme.dashboard.bg,
-          padding: "0 16px 12px",
-          position: "relative",
-          display: "grid",
-          justifyItems: "center",
         }}
       >
         <div
           style={{
-            position: "absolute",
-            top: 12,
-            right: 26,
-            pointerEvents: "none",
-            zIndex: 1,
-          }}
-        >
-          <img
-            src="/termpath-logo.png"
-            alt="Termpath"
-            style={{
-              width: 360,
-              height: "auto",
-              display: "block",
-            }}
-          />
-        </div>
-
-        <div
-          style={{
-            width: "min(1080px, 100%)",
-            display: "grid",
-            gap: 5,
+            maxWidth: 720,
+            margin: "0 auto",
+            padding: "40px 24px",
           }}
         >
           <div
             style={{
-              minHeight: 42,
-              display: "grid",
-              placeItems: "center",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 40,
             }}
           >
-            <h1
-              style={{
-                margin: 0,
-                textAlign: "center",
-                fontSize: theme.dashboard.heroTitleFontSize,
-                lineHeight: 1.02,
-                fontWeight: theme.dashboard.heroTitleWeight,
-                color: theme.primitives.slate950,
-              }}
-            >
-              Project Dashboard
-            </h1>
+            <img src="/termpath-logo.png" alt="Termpath" style={{ height: 32 }} />
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 13, color: theme.dashboard.card.meta }}>
+                {authenticatedUserEmail ?? "No email"}
+              </span>
+
+              <form action="/auth/signout" method="post" style={{ margin: 0 }}>
+                <button
+                  type="submit"
+                  style={{
+                    fontSize: 12,
+                    padding: "4px 10px",
+                    border: theme.dashboard.card.border,
+                    borderRadius: theme.dashboard.card.radius,
+                    background: "transparent",
+                    color: theme.dashboard.card.meta,
+                    cursor: "pointer",
+                  }}
+                >
+                  Sign out
+                </button>
+              </form>
+            </div>
           </div>
 
-          <section
-            style={{
-              ...dashboardBlockStyle,
-              border: theme.dashboard.alertBorder,
-              padding: "0 3px",
-              display: "grid",
-              gridTemplateColumns: "1fr auto",
-              alignItems: "center",
-              gap: 3,
-            }}
-          >
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <div
-                style={{
-                  fontSize: theme.dashboard.card.idFontSize,
-                  lineHeight: 1,
-                  fontWeight: theme.dashboard.card.titleWeight,
-                  letterSpacing: 0.4,
-                  textTransform: "uppercase",
-                  color: theme.inspector.sectionTitle,
-                }}
-              >
-                User Account Email
-              </div>
-              <div
-                style={{
-                  fontSize: theme.dashboard.projectFieldFontSize,
-                  lineHeight: 1,
-                  fontWeight: theme.dashboard.card.titleWeight,
-                  color: theme.dashboard.card.title,
-                }}
-              >
-               {authenticatedUserEmail ?? "No email"}
-              </div>
-            </div>
-
-            <form action="/auth/signout" method="post" style={{ margin: 0 }}>
-              <button type="submit" style={dashboardButtonStyle}>
-                Sign out
-              </button>
-            </form>
-          </section>
-
-          <section
-            style={{
-              ...dashboardBlockStyle,
-              border: theme.dashboard.alertBorder,
-              padding: "0 3px",
-              display: "grid",
-              gridTemplateColumns: "auto 1fr auto",
-              gap: 3,
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontSize: theme.dashboard.projectFieldFontSize, lineHeight: 1, color: theme.modal.fieldLabel, fontWeight: theme.inspector.card.fieldLabelWeight }}>
-              New project name
-            </div>
-            <input
-              style={dashboardCompactInputStyle}
-              placeholder="e.g. Checkout Microcopy"
-              value={newProjectName}
-              disabled={isCreatingProject}
-              onChange={(event) => setNewProjectName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void createProjectFromDashboard();
-                }
+          <div style={{ marginBottom: 40 }}>
+            <div
+              style={{
+                fontSize: 13,
+                color: theme.dashboard.card.meta,
+                fontWeight: 500,
+                marginBottom: 8,
               }}
-            />
-            <button
-              type="button"
-              style={dashboardPrimaryButtonStyle}
-              onClick={() => void createProjectFromDashboard()}
-              disabled={isCreatingProject}
             >
-              {isCreatingProject ? "Creating..." : "Create Project"}
-            </button>
-          </section>
-
-          <section
-            style={{
-              display: "grid",
-              gap: dashboardProjectsSpacing,
-              marginTop: dashboardProjectsSpacing,
-            }}
-          >
-            <div style={{ display: "grid", justifyItems: "center", gap: 1 }}>
-              <h2 style={{ margin: 0, fontSize: theme.dashboard.heroTitleFontSize, fontWeight: theme.dashboard.heroTitleWeight, color: theme.dashboard.heroTitle }}>
-                Projects
-              </h2>
-              <p style={{ margin: 0, fontSize: theme.dashboard.heroSubtitleFontSize, color: theme.dashboard.heroSubtitle, textAlign: "center" }}>
-                Open, rename, or delete your projects.
-              </p>
+              New project
             </div>
 
-            {dashboardActionError && (
-              <div
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
                 style={{
-                  ...dashboardBlockStyle,
-                  borderColor: theme.status.error.border,
-                  background: theme.status.error.bg,
-                  color: theme.status.error.text,
-                  fontSize: theme.dashboard.projectFieldFontSize,
-                  padding: "8px 10px",
+                  ...inputStyle,
+                  flex: 1,
+                  fontSize: 14,
+                  padding: "8px 12px",
+                  border: theme.dashboard.card.border,
+                  borderRadius: 6,
+                  background: theme.dashboard.card.bg,
+                  color: theme.dashboard.heroTitle,
                 }}
-              >
-                {dashboardActionError}
-              </div>
-            )}
+                placeholder="e.g. Checkout Microcopy"
+                value={newProjectName}
+                disabled={isCreatingProject}
+                onChange={(event) => setNewProjectName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void createProjectFromDashboard();
+                  }
+                }}
+              />
 
-            {isDashboardProjectsLoading ? (
-              <div
+              <button
+                type="button"
                 style={{
-                  ...dashboardBlockStyle,
-                  borderStyle: "dashed",
-                  borderColor: theme.node.border,
-                  padding: "14px 16px",
-                  textAlign: "center",
-                  color: theme.dashboard.emptyText,
-                  fontSize: theme.dashboard.card.titleFontSize,
+                  background: theme.dashboard.btn.primary.bg,
+                  color: theme.dashboard.btn.primary.text,
+                  border: "none",
+                  padding: "8px 16px",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: theme.dashboard.btn.primary.weight,
+                  cursor: "pointer",
+                  boxShadow: theme.dashboard.btn.primary.shadow,
                 }}
+                onClick={() => void createProjectFromDashboard()}
+                disabled={isCreatingProject}
               >
-                Loading projects...
-              </div>
-            ) : projects.length === 0 ? (
-              <div
-                style={{
-                  ...dashboardBlockStyle,
-                  borderStyle: "dashed",
-                  borderColor: theme.node.border,
-                  padding: "14px 16px",
-                  textAlign: "center",
-                  color: theme.dashboard.emptyText,
-                  fontSize: theme.dashboard.card.titleFontSize,
-                }}
-              >
-                No projects yet. Create your first project above.
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                  gap: 10,
-                }}
-              >
-                {projects.map((project) => {
-                  const isProjectActionPending = dashboardActionProjectId === project.id;
+                {isCreatingProject ? "Creating..." : "Create Project"}
+              </button>
+            </div>
+          </div>
 
-                  return (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "baseline",
+              marginBottom: 12,
+              borderBottom: "0.5px solid " + theme.primitives.slate200,
+              paddingBottom: 8,
+            }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 500, color: theme.dashboard.heroTitle }}>
+              Projects
+            </div>
+
+            <div style={{ fontSize: 12, color: theme.dashboard.card.id }}>
+              {projects.length} project{projects.length !== 1 ? "s" : ""}
+            </div>
+          </div>
+
+          {dashboardActionError && (
+            <div
+              style={{
+                marginBottom: 12,
+                background: theme.status.error.bg,
+                border: theme.status.error.border,
+                borderRadius: theme.dashboard.card.radius,
+                color: theme.status.error.text,
+                fontSize: 13,
+                padding: "8px 10px",
+              }}
+            >
+              {dashboardActionError}
+            </div>
+          )}
+
+          {isDashboardProjectsLoading ? (
+            <div
+              style={{
+                background: theme.dashboard.card.bg,
+                border: theme.dashboard.card.border,
+                borderRadius: theme.dashboard.card.radius,
+                padding: "14px 16px",
+                textAlign: "center",
+                color: theme.dashboard.emptyText,
+                fontSize: theme.dashboard.card.titleFontSize,
+              }}
+            >
+              Loading projects...
+            </div>
+          ) : projects.length === 0 ? (
+            <div
+              style={{
+                background: theme.dashboard.card.bg,
+                border: theme.dashboard.card.border,
+                borderRadius: theme.dashboard.card.radius,
+                padding: "14px 16px",
+                textAlign: "center",
+                color: theme.dashboard.emptyText,
+                fontSize: theme.dashboard.card.titleFontSize,
+              }}
+            >
+              No projects yet. Create your first project above.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                gap: 10,
+              }}
+            >
+              {projects.map((project) => {
+                const isProjectActionPending = dashboardActionProjectId === project.id;
+
+                return (
+                  <div
+                    key={project.id}
+                    onClick={() => {
+                      if (isProjectActionPending) {
+                        return;
+                      }
+
+                      setOpenCardMenu(null);
+                      void openProject(project.id);
+                    }}
+                    style={{
+                      background: theme.dashboard.card.bg,
+                      border: theme.dashboard.card.border,
+                      borderRadius: theme.dashboard.card.radius,
+                      padding: "14px 16px",
+                      cursor: isProjectActionPending ? "default" : "pointer",
+                    }}
+                  >
                     <div
-                      key={project.id}
                       style={{
-                        textAlign: "left",
-                        border: `2px solid ${theme.dashboard.card.border}`,
-                        borderRadius: theme.modal.radius,
-                        padding: "9px 10px",
-                        background: theme.dashboard.card.bg,
-                        display: "grid",
-                        gap: 8,
-                        boxShadow: theme.dashboard.card.shadow,
-                        lineHeight: 1.25,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "start",
+                        marginBottom: 10,
                       }}
                     >
-                      <button
-                        type="button"
-                        onClick={() => openProject(project.id)}
-                        disabled={isProjectActionPending}
+                      <div
                         style={{
-                          textAlign: "left",
-                          border: "none",
-                          padding: 0,
-                          background: "transparent",
-                          cursor: isProjectActionPending ? "default" : "pointer",
-                          display: "grid",
-                          gap: 3,
+                          fontSize: theme.dashboard.card.titleFontSize,
+                          fontWeight: theme.dashboard.card.titleWeight,
+                          color: theme.dashboard.card.title,
                         }}
                       >
-                        <div
-                          style={{
-                            fontSize: theme.dashboard.card.titleFontSize,
-                            fontWeight: theme.dashboard.card.titleWeight,
-                            color: theme.dashboard.card.title,
-                            lineHeight: 1.2,
-                          }}
-                        >
-                          {project.title}
-                        </div>
-                        <div style={{ fontSize: theme.dashboard.card.metaFontSize, color: theme.dashboard.card.meta }}>
-                          Cards: {project.node_count}
-                        </div>
-                        <div style={{ fontSize: theme.dashboard.card.metaFontSize, color: theme.dashboard.card.meta }}>Project ID: {project.id}</div>
-                        <div style={{ fontSize: theme.dashboard.card.idFontSize, color: theme.dashboard.card.id }}>
-                          Updated: {formatDateTime(project.updated_at)}
-                        </div>
-                      </button>
-
-                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-                        <button
-                          type="button"
-                          style={dashboardButtonStyle}
-                          onClick={() => void renameProjectFromDashboard(project.id)}
-                          disabled={isProjectActionPending}
-                        >
-                          Rename
-                        </button>
-                        <button
-                          type="button"
-                          style={{
-                            ...dashboardButtonStyle,
-                            borderColor: theme.dashboard.card.deleteBtn.border,
-                            color: theme.dashboard.card.deleteBtn.text,
-                            background: theme.dashboard.card.deleteBtn.bg,
-                          }}
-                          onClick={() => void deleteProjectFromDashboard(project.id)}
-                          disabled={isProjectActionPending}
-                        >
-                          Delete
-                        </button>
+                        {project.title}
                       </div>
+
+                      <span
+                        style={{
+                          position: "relative",
+                          fontSize: 11,
+                          color: theme.dashboard.card.id,
+                          cursor: "pointer",
+                        }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+
+                          if (isProjectActionPending) {
+                            return;
+                          }
+
+                          setOpenCardMenu((currentMenu) =>
+                            currentMenu === project.id ? null : project.id
+                          );
+                        }}
+                      >
+                        {"···"}
+                        {openCardMenu === project.id && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              right: 0,
+                              top: "100%",
+                              marginTop: 4,
+                              background: theme.dashboard.card.bg,
+                              border: theme.dashboard.card.border,
+                              borderRadius: 6,
+                              boxShadow: theme.dashboard.card.shadow,
+                              zIndex: 10,
+                              minWidth: 120,
+                            }}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              style={{
+                                display: "block",
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "6px 12px",
+                                fontSize: 12,
+                                border: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                                color: theme.dashboard.card.meta,
+                              }}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOpenCardMenu(null);
+                                void renameProjectFromDashboard(project.id);
+                              }}
+                              disabled={isProjectActionPending}
+                            >
+                              Rename
+                            </button>
+
+                            <button
+                              type="button"
+                              style={{
+                                display: "block",
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "6px 12px",
+                                fontSize: 12,
+                                border: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                                color: theme.dashboard.card.deleteBtn.text,
+                              }}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOpenCardMenu(null);
+                                void deleteProjectFromDashboard(project.id);
+                              }}
+                              disabled={isProjectActionPending}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <span style={{ fontSize: theme.dashboard.card.metaFontSize, color: theme.dashboard.card.meta }}>
+                        {project.node_count} cards
+                      </span>
+
+                      <span style={{ fontSize: theme.dashboard.card.metaFontSize, color: theme.dashboard.card.id }}>
+                        {new Date(project.updated_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </main>
     );
