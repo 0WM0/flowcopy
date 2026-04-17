@@ -11563,6 +11563,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     minHeight: 0,
                     overflowY: "auto",
                     display: "grid",
+                    alignContent: "start",
                     gap: 4,
                   }}
                 >
