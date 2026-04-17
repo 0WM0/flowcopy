@@ -178,6 +178,12 @@ const roles = {
     primary: activePalette.accentPrimary,
     primarySubtle: activePalette.accentSubtle,
   },
+  interactive: {
+    hover: activePalette.surfaceHover,
+    pressed: activePalette.surfacePressed,
+    focus: activePalette.borderFocus,
+    disabled: activePalette.surfaceDisabled,
+  },
   dotGrid: activePalette.dotGrid,
 } as const;
 

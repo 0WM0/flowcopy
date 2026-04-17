@@ -14,4 +14,8 @@ export const zincDark: Palette = {
   accentPrimary: "#60A5FA",
   accentSubtle: "#1E3A8A",
   dotGrid: "#3F3F46",
+  surfaceHover: "#27272A",
+  surfacePressed: "#3F3F46",
+  borderFocus: "#60A5FA",
+  surfaceDisabled: "#18181B",
 };

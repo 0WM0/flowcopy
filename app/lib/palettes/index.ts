@@ -12,6 +12,10 @@ export type Palette = {
   accentPrimary: string;
   accentSubtle: string;
   dotGrid: string;
+  surfaceHover: string;
+  surfacePressed: string;
+  borderFocus: string;
+  surfaceDisabled: string;
 };
 
 import { zincLight } from "./zinc-light";
