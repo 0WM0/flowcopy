@@ -16,6 +16,22 @@ export type Palette = {
   surfacePressed: string;
   borderFocus: string;
   surfaceDisabled: string;
+  dangerPrimary: string;
+  dangerSubtle: string;
+  dangerHover: string;
+  dangerText: string;
+  warningPrimary: string;
+  warningSubtle: string;
+  warningHover: string;
+  warningText: string;
+  successPrimary: string;
+  successSubtle: string;
+  successHover: string;
+  successText: string;
+  infoPrimary: string;
+  infoSubtle: string;
+  infoHover: string;
+  infoText: string;
 };
 
 import { zincLight } from "./zinc-light";

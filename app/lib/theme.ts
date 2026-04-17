@@ -184,6 +184,30 @@ const roles = {
     focus: activePalette.borderFocus,
     disabled: activePalette.surfaceDisabled,
   },
+  danger: {
+    primary: activePalette.dangerPrimary,
+    subtle: activePalette.dangerSubtle,
+    hover: activePalette.dangerHover,
+    text: activePalette.dangerText,
+  },
+  warning: {
+    primary: activePalette.warningPrimary,
+    subtle: activePalette.warningSubtle,
+    hover: activePalette.warningHover,
+    text: activePalette.warningText,
+  },
+  success: {
+    primary: activePalette.successPrimary,
+    subtle: activePalette.successSubtle,
+    hover: activePalette.successHover,
+    text: activePalette.successText,
+  },
+  info: {
+    primary: activePalette.infoPrimary,
+    subtle: activePalette.infoSubtle,
+    hover: activePalette.infoHover,
+    text: activePalette.infoText,
+  },
   dotGrid: activePalette.dotGrid,
 } as const;
 
