@@ -10,6 +10,8 @@
 // - To go flat, set all radius values to 0.
 // - To remove shadows, set all shadow values to "none".
 
+import { activePalette } from "./palettes";
+
 // ── Primitives (internal only — components reference semantic tokens, not these) ──
 
 const primitives = {
@@ -153,6 +155,30 @@ const opacities = {
   subtle: 0.35,
   dimmed: 0.45,
   full: 1,
+} as const;
+
+const roles = {
+  surface: {
+    canvas: activePalette.canvas,
+    frame: activePalette.frame,
+    card: activePalette.card,
+    panel: activePalette.panel,
+    tier1: activePalette.tier1,
+  },
+  border: {
+    default: activePalette.borderDefault,
+    strong: activePalette.borderStrong,
+  },
+  text: {
+    primary: activePalette.textPrimary,
+    secondary: activePalette.textSecondary,
+    tertiary: activePalette.textTertiary,
+  },
+  accent: {
+    primary: activePalette.accentPrimary,
+    primarySubtle: activePalette.accentSubtle,
+  },
+  dotGrid: activePalette.dotGrid,
 } as const;
 
 // ══════════════════════════════════════════════════════════════════
@@ -755,5 +781,7 @@ export const theme = {
     bodyFontSize: fontSizes.caption,
   },
 } as const;
+
+export { roles };
 
 export type Theme = typeof theme;
