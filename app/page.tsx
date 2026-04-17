@@ -6394,10 +6394,15 @@ export default function Page() {
         return hasChanges ? nextRegistry : currentRegistry;
       });
 
+      closeInspectorRegistryPicker();
+      setActiveSidePanelTab("card");
+
     },
     [
+      closeInspectorRegistryPicker,
       effectiveSelectedNodeId,
       pushToHistory,
+      setActiveSidePanelTab,
       setTermRegistry,
       updateRibbonCellField,
       updateSelectedContentSlotValue,
