@@ -8231,6 +8231,54 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           };
         });
 
+        // For dashboard imports, create the project in Supabase so auto-save can find it
+        if (!activeProject) {
+          try {
+            const { createProject } = await import("./lib/db");
+            const dbProject = await createProject(normalizedImportedProject.name, {
+              nodes: normalizedImportedProject.canvas.nodes,
+              edges: normalizedImportedProject.canvas.edges,
+              adminOptions: normalizedImportedProject.canvas.adminOptions,
+              controlledLanguageGlossary:
+                normalizedImportedProject.canvas.controlledLanguageGlossary,
+              termRegistry: normalizedImportedProject.canvas.termRegistry,
+              uiJourneySnapshotPresets:
+                normalizedImportedProject.canvas.uiJourneySnapshotPresets,
+            });
+            // Update local state with the Supabase-assigned ID
+            const supabaseId = dbProject.id;
+            loadProjectIntoEditor({
+              ...normalizedImportedProject,
+              id: supabaseId,
+            });
+            updateStore((prev) => {
+              const accountIndex = prev.accounts.findIndex(
+                (account) => account.id === activeAccount.id
+              );
+              if (accountIndex < 0) return prev;
+              const accounts = [...prev.accounts];
+              const account = accounts[accountIndex];
+              const projects = account.projects.map((p) =>
+                p.id === normalizedImportedProject.id ? { ...p, id: supabaseId } : p
+              );
+              accounts[accountIndex] = { ...account, projects };
+              return {
+                ...prev,
+                accounts,
+                session: {
+                  ...prev.session,
+                  activeProjectId: supabaseId,
+                },
+              };
+            });
+          } catch (err) {
+            console.error(
+              "[Dashboard Import] Failed to create project in database:",
+              err
+            );
+          }
+        }
+
         setTransferFeedback({
           type: "success",
           message: `${existingProject ? "Updated" : "Imported"} project ${
