@@ -622,7 +622,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   }, [editingVerticalGroupId, isVerticalTermsNode, verticalTermRows]);
   const stopNodeSelectionPropagation = useCallback(
     (event: React.SyntheticEvent<HTMLElement>) => {
-      event.stopPropagation();
+      // Stop click from triggering node selection, but let pointerdown/mousedown
+      // bubble so ReactFlow's native node-click handler still sees the event.
+      if (event.type === "click") {
+        event.stopPropagation();
+      }
     },
     []
   );
