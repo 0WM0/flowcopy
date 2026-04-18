@@ -1002,7 +1002,7 @@ export const resolveNodeHighlightColor = ({
   glossaryHighlighted?: boolean;
 }): string | null => {
   if (glossaryHighlighted) {
-    return theme.clp.audit.highlight.border;
+    return theme.clp.audit.highlight.borderColor;
   }
 
   if (uiJourneyRecalled) {
@@ -1014,7 +1014,7 @@ export const resolveNodeHighlightColor = ({
   }
 
   if (selected) {
-    return theme.primitives.blue600;
+    return theme.primitives.indigo700;
   }
 
   return null;
