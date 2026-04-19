@@ -354,24 +354,24 @@ export const theme = {
 
   // ── Toolbar (floating, bottom center) ──────────────────────
   toolbar: {
-    bg: primitives.white,
-    border: border(primitives.slate300),
+    bg: roles.surface.panel,
+    border: border(roles.border.default),
     shadow: shadows.md,
     radius: radii.xl,
-    separator: primitives.slate200,
-    dragHandle: primitives.slate400,
+    separator: roles.border.default,
+    dragHandle: roles.border.strong,
     dragHandleOpacity: 0.6,
     button: {
-      bg: primitives.slate50,
-      border: border(primitives.slate200),
-      text: primitives.slate700,
+      bg: roles.surface.tier1,
+      border: border(roles.border.default),
+      text: roles.text.secondary,
       radius: radii.md,
       labelWeight: weights.semibold,
       labelFontSize: fontSizes.caption,
     },
     activeButton: {
-      bg: primitives.blue100,
-      text: primitives.blue700,
+      bg: roles.accent.primarySubtle,
+      text: roles.accent.primary,
     },
   },
 
