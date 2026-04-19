@@ -204,9 +204,12 @@ export const UI_JOURNEY_RECALLED_STROKE_COLOR = theme.edge.journey.recalled;
 
 export const DIAMOND_CLIP_PATH = "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)";
 
+// zIndex 900 keeps edges above all frames (area-derived frame zIndex is well under 500 in practice)
+// and below node cards (which render at zIndex 1000/2000 via the node transform in page.tsx).
 export const DEFAULT_EDGE_OPTIONS: DefaultEdgeOptions = {
   type: "smoothstep",
   animated: true,
+  zIndex: 900,
 };
 
 export const GLOBAL_OPTION_FIELDS: GlobalOptionField[] = [
