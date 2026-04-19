@@ -223,9 +223,10 @@ export const theme = {
 
   // ── Canvas ─────────────────────────────────────────────────
   canvas: {
-    bg: primitives.white,
-    dropActiveOverlay: "rgba(191,219,254,0.18)",
-    dropActiveBorder: "inset 0 0 0 2px rgba(37,99,235,0.42)",
+    bg: roles.surface.canvas,
+    // TODO(roles): accent-alpha tint not yet in palette — value derived from accent indigo at 12% opacity
+    dropActiveOverlay: "rgba(67,56,202,0.12)",
+    dropActiveBorder: `inset 0 0 0 2px ${roles.accent.primary}`,
   },
 
   // ── Node (shared across Default, VC, HC) ───────────────────
