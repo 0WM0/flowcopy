@@ -1043,8 +1043,8 @@ export const getNodeShapeStyle = (
     width: 260,
     minHeight: 75,
     position: "relative",
-    background: theme.primitives.white,
-    border: `2px solid ${highlightColor ?? resolvedAccentColor}`,
+    background: theme.node.bg,
+    border: `2px solid ${highlightColor ?? (accentColor?.trim() ? resolvedAccentColor : theme.node.borderColor)}`,
     padding: 10,
     boxShadow: highlightColor
       ? `0 0 0 3px ${highlightColor}, ${theme.node.highlightShadow}`
