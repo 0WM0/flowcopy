@@ -377,13 +377,13 @@ export const theme = {
 
   // ── Top Bar (fixed top-left) ───────────────────────────────
   topBar: {
-    bg: primitives.white,
-    border: border(primitives.slate300),
+    bg: roles.surface.panel,
+    border: border(roles.border.default),
     shadow: shadows.md,
     radius: radii.xl,
-    separator: primitives.slate200,
+    separator: roles.border.default,
     disabledOpacity: opacities.disabled,
-    text: primitives.slate500,
+    text: roles.text.secondary,
     statusTextFontSize: fontSizes.body,
   },
 
