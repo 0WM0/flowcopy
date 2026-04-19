@@ -2632,7 +2632,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     ...(useDarkCompactPalette
       ? {
           borderRadius: 8,
-          border: `2px solid ${defaultNodeHighlightColor ?? theme.node.border}`,
+          border: `2px solid ${defaultNodeHighlightColor ?? theme.node.borderColor}`,
           background: theme.node.bg,
           boxShadow: defaultNodeHighlightColor
             ? `0 0 0 3px ${defaultNodeHighlightColor}, ${theme.node.highlightShadow}`
@@ -3389,4 +3389,5 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
 export type { FlowCopyNodeProps };
 export { FlowCopyNode, BodyTextPreview };
+
 

@@ -1030,7 +1030,6 @@ export const getNodeShapeStyle = (
     glossaryHighlighted?: boolean;
   } = {}
 ): React.CSSProperties => {
-  const resolvedAccentColor = accentColor?.trim() || theme.primitives.indigo600;
   const highlightColor = resolveNodeHighlightColor({
     selected,
     uiJourneyHighlighted: options.uiJourneyHighlighted ?? false,
@@ -1044,7 +1043,7 @@ export const getNodeShapeStyle = (
     minHeight: 75,
     position: "relative",
     background: theme.node.bg,
-    border: `2px solid ${highlightColor ?? (accentColor?.trim() ? resolvedAccentColor : theme.node.borderColor)}`,
+    border: `2px solid ${highlightColor ?? theme.node.borderColor}`,
     padding: 10,
     boxShadow: highlightColor
       ? `0 0 0 3px ${highlightColor}, ${theme.node.highlightShadow}`
@@ -1102,7 +1101,7 @@ export const getDiamondBorderLayerStyle = (accentColor: string): React.CSSProper
 export const getDiamondSurfaceLayerStyle = (): React.CSSProperties => ({
   position: "absolute",
   inset: 6,
-  background: theme.primitives.white,
+  background: theme.node.bg,
   clipPath: DIAMOND_CLIP_PATH,
   zIndex: 1,
   pointerEvents: "none",
