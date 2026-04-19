@@ -9323,6 +9323,17 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           >
             ?
           </button>
+          <button
+            type="button"
+            style={{
+              ...buttonStyle,
+              fontSize: theme.fontSizes.sectionTitle,
+            }}
+            onClick={openFeedbackModal}
+            title="Send feedback"
+          >
+            ✉
+          </button>
           <span
             style={{
               fontSize: theme.topBar.statusTextFontSize,
