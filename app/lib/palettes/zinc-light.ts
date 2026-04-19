@@ -6,7 +6,7 @@ export const zincLight: Palette = {
   card: "#FFFFFF",
   panel: "#FFFFFF",
   tier1: "#F4F4F5",
-  borderDefault: "#A1A1AA",
+  borderDefault: "#71717A",
   borderStrong: "#71717A",
   textPrimary: "#18181B",
   textSecondary: "#52525B",
