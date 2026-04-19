@@ -9886,9 +9886,31 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             Multiple nodes selected. Select a single node to edit its data.
           </p>
         ) : !hasExactlyOneSelectedNode || !selectedNode ? (
-          <p style={{ fontSize: theme.inspector.card.emptyTextAltFontSize, color: theme.inspector.card.emptyTextAlt }}>
-            No selection. Click a node or edge on the canvas.
-          </p>
+          <div style={{ height: "100%", display: "flex", justifyContent: "center" }}>
+            <div
+              style={{
+                width: "100%",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                paddingTop: "33%",
+                boxSizing: "border-box",
+              }}
+            >
+              <img src="/termpath-logo.png" alt="Termpath logo" style={{ height: 40 }} />
+              <p
+                style={{
+                  margin: "18px 0 0",
+                  maxWidth: 280,
+                  textAlign: "center",
+                  fontSize: theme.inspector.card.emptyTextAltFontSize,
+                  color: theme.inspector.card.emptyTextAlt,
+                }}
+              >
+                This panel is empty because no card is selected. Select a card to see and edit its properties in the inspector.
+              </p>
+            </div>
+          </div>
         ) : (
           <div style={{ display: "grid", gap: 10 }}>
 
