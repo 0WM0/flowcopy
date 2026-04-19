@@ -9320,7 +9320,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               background: theme.primitives.red50,
               borderColor: theme.primitives.red500,
               color: theme.primitives.red700,
-              fontWeight: 700,
             }}
             onClick={openHelpModal}
             title="Help"
@@ -9335,7 +9334,6 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
               background: theme.primitives.green50,
               borderColor: theme.primitives.green200,
               color: theme.primitives.green900,
-              fontWeight: 700,
             }}
             onClick={openFeedbackModal}
             title="Send feedback"
