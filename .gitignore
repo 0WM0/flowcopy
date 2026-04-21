@@ -42,3 +42,6 @@ next-env.d.ts
 
 lint_output.txt
 tsc_out.txt
+# Cline crash debris
+.tmp-*
+**/.tmp-*
