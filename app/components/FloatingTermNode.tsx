@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import type { NodeProps } from "@xyflow/react";
 
 import { theme } from "../lib/theme";
@@ -27,18 +27,8 @@ const BASE_PILL_STYLE: CSSProperties = {
 
 export default function FloatingTermNode({ data }: NodeProps) {
   const floatingTermData = data as FloatingTermNodeData;
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const isCancelingRef = useRef(false);
   const [inputValue, setInputValue] = useState(floatingTermData.value);
-
-  useEffect(() => {
-    if (!floatingTermData.editing) {
-      return;
-    }
-
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, [floatingTermData.editing]);
 
   if (!floatingTermData.editing) {
     return <div style={BASE_PILL_STYLE}>{floatingTermData.value}</div>;
@@ -46,7 +36,8 @@ export default function FloatingTermNode({ data }: NodeProps) {
 
   return (
     <input
-      ref={inputRef}
+      className="nodrag"
+      autoFocus
       value={inputValue}
       onChange={(event) => setInputValue(event.target.value)}
       onKeyDown={(event) => {
@@ -72,6 +63,9 @@ export default function FloatingTermNode({ data }: NodeProps) {
 
         floatingTermData.onCommit?.(inputValue.trim());
       }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
       style={{
         ...BASE_PILL_STYLE,
         outline: "none",
