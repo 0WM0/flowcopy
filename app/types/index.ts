@@ -9,7 +9,7 @@ export type NodeType =
   | "vertical_multi_term"
   | "frame"
   | "horizontal_multi_term"
-  | "horizontal_multi_term";
+  | "floating_term";
 export type NodeControlledLanguageFieldType =
   | "primary_cta"
   | "secondary_cta"
@@ -135,6 +135,7 @@ export type PersistedCanvasState = {
   controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
   uiJourneySnapshotPresets: UiJourneySnapshotPreset[];
   termRegistry: TermRegistryEntry[];
+  floatingTermAutoLabelCounter?: number;
 };
 
 export type ControlledLanguageGlossaryEntry = {

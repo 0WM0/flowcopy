@@ -139,6 +139,7 @@ import {
 } from "./constants";
 
 import { FlowCopyNode, BodyTextPreview, SlotTermTypeEditor } from "./components/FlowCopyNode";
+import FloatingTermNode from "./components/FloatingTermNode";
 import { HelpModal } from "./components/HelpModal";
 
 
@@ -1573,7 +1574,20 @@ const getMenuTermSlotValueFromContentConfig = (
 const createEmptyProjectData = (): Record<string, unknown> =>
   createEmptyCanvasState() as unknown as Record<string, unknown>;
 
+const normalizeFloatingTermAutoLabelCounter = (value: unknown): number => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 1;
+  }
+
+  const normalizedValue = Math.floor(value);
+  return normalizedValue >= 1 ? normalizedValue : 1;
+};
+
 const mapDbProjectToAppProject = (project: DbProjectRecord): ProjectRecord => {
+  const normalizedFloatingTermAutoLabelCounter = normalizeFloatingTermAutoLabelCounter(
+    (project.data as { floatingTermAutoLabelCounter?: unknown } | null | undefined)
+      ?.floatingTermAutoLabelCounter
+  );
   const sanitizedProject = sanitizeProjectRecord({
     id: project.id,
     name: project.title,
@@ -1583,13 +1597,24 @@ const mapDbProjectToAppProject = (project: DbProjectRecord): ProjectRecord => {
   });
 
   return (
-    sanitizedProject ?? {
-      id: project.id,
-      name: project.title || "Untitled Project",
-      createdAt: project.created_at,
-      updatedAt: project.updated_at,
-      canvas: createEmptyCanvasState(),
-    }
+    sanitizedProject
+      ? {
+          ...sanitizedProject,
+          canvas: {
+            ...sanitizedProject.canvas,
+            floatingTermAutoLabelCounter: normalizedFloatingTermAutoLabelCounter,
+          },
+        }
+      : {
+          id: project.id,
+          name: project.title || "Untitled Project",
+          createdAt: project.created_at,
+          updatedAt: project.updated_at,
+          canvas: {
+            ...createEmptyCanvasState(),
+            floatingTermAutoLabelCounter: normalizedFloatingTermAutoLabelCounter,
+          },
+        }
   );
 };
 
@@ -1620,6 +1645,7 @@ type EditorSnapshot = {
   adminOptions: GlobalOptionConfig;
   controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
   termRegistry: TermRegistryEntry[];
+  floatingTermAutoLabelCounter: number;
   uiJourneySnapshotPresets: UiJourneySnapshotPreset[];
   uiJourneyConversationSnapshot: UiJourneyConversationEntry[];
   isUiJourneyConversationOpen: boolean;
@@ -1671,6 +1697,10 @@ export default function Page() {
     ControlledLanguageGlossaryEntry[]
   >([]);
   const [termRegistry, setTermRegistry] = useState<TermRegistryEntry[]>([]);
+  const [editingFloatingTermId, setEditingFloatingTermId] = useState<string | null>(
+    null
+  );
+  const [floatingTermAutoLabelCounter, setFloatingTermAutoLabelCounter] = useState(1);
   const [glossaryHighlightedNodeIds, setGlossaryHighlightedNodeIds] = useState<string[]>(
     []
   );
@@ -2021,6 +2051,7 @@ export default function Page() {
       controlledLanguageGlossary:
         sanitizeControlledLanguageGlossary(controlledLanguageGlossary),
       termRegistry: [...termRegistry],
+      floatingTermAutoLabelCounter,
       uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(
         sanitizeUiJourneySnapshotPresets(uiJourneySnapshotPresets)
       ),
@@ -2034,6 +2065,7 @@ export default function Page() {
     store.session.activeProjectId,
     store.session.view,
     termRegistry,
+    floatingTermAutoLabelCounter,
     uiJourneySnapshotPresets,
   ]);
 
@@ -2071,6 +2103,7 @@ export default function Page() {
         cloneControlledLanguageGlossary(snapshot.controlledLanguageGlossary)
       );
       setTermRegistry(snapshot.termRegistry.map((entry) => ({ ...entry })));
+      setFloatingTermAutoLabelCounter(snapshot.floatingTermAutoLabelCounter);
       setUiJourneySnapshotPresets(
         cloneUiJourneySnapshotPresets(snapshot.uiJourneySnapshotPresets)
       );
@@ -2098,6 +2131,7 @@ export default function Page() {
         controlledLanguageGlossary
       ),
       termRegistry: termRegistry.map((entry) => ({ ...entry })),
+      floatingTermAutoLabelCounter,
       uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(uiJourneySnapshotPresets),
       uiJourneyConversationSnapshot: cloneUiJourneyConversationEntries(
         uiJourneyConversationSnapshot
@@ -2115,6 +2149,7 @@ export default function Page() {
       adminOptions,
       controlledLanguageGlossary,
       edges,
+      floatingTermAutoLabelCounter,
       isUiJourneyConversationOpen,
       nodes,
       recalledUiJourneyEdgeIds,
@@ -2300,6 +2335,9 @@ export default function Page() {
       const normalizedTermRegistry = Array.isArray(project.canvas.termRegistry)
         ? project.canvas.termRegistry
         : [];
+      const normalizedFloatingTermAutoLabelCounter = normalizeFloatingTermAutoLabelCounter(
+        project.canvas.floatingTermAutoLabelCounter
+      );
 
       const hydratedNodes = sanitizePersistedNodes(
         project.canvas.nodes,
@@ -2313,6 +2351,8 @@ export default function Page() {
       setAdminOptions(normalizedAdminOptions);
       setControlledLanguageGlossary(normalizedControlledLanguageGlossary);
       setTermRegistry(normalizedTermRegistry);
+      setFloatingTermAutoLabelCounter(normalizedFloatingTermAutoLabelCounter);
+      setEditingFloatingTermId(null);
       setControlledLanguageDraftRow(createEmptyControlledLanguageDraftRow());
       setOpenControlledLanguageFieldType(null);
       setInspectorRegistryPickerSearchQuery("");
@@ -2337,6 +2377,7 @@ export default function Page() {
           normalizedControlledLanguageGlossary
         ),
         termRegistry: normalizedTermRegistry.map((entry) => ({ ...entry })),
+        floatingTermAutoLabelCounter: normalizedFloatingTermAutoLabelCounter,
         uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(
           normalizedUiJourneySnapshotPresets
         ),
@@ -2382,6 +2423,7 @@ export default function Page() {
       controlledLanguageGlossary
     );
     const serializedTermRegistry = [...termRegistry];
+    const serializedFloatingTermAutoLabelCounter = floatingTermAutoLabelCounter;
     const serializedUiJourneySnapshotPresets = cloneUiJourneySnapshotPresets(
       sanitizeUiJourneySnapshotPresets(uiJourneySnapshotPresets)
     );
@@ -2415,6 +2457,7 @@ export default function Page() {
           adminOptions: serializedAdminOptions,
           controlledLanguageGlossary: serializedControlledLanguageGlossary,
           termRegistry: serializedTermRegistry,
+          floatingTermAutoLabelCounter: serializedFloatingTermAutoLabelCounter,
           uiJourneySnapshotPresets: serializedUiJourneySnapshotPresets,
         },
       };
@@ -2434,6 +2477,7 @@ export default function Page() {
     adminOptions,
     controlledLanguageGlossary,
     edges,
+    floatingTermAutoLabelCounter,
     nodes,
     store.session,
     termRegistry,
@@ -2464,6 +2508,7 @@ export default function Page() {
         controlledLanguageGlossary
       ),
       termRegistry: [...termRegistry],
+      floatingTermAutoLabelCounter,
       uiJourneySnapshotPresets: cloneUiJourneySnapshotPresets(uiJourneySnapshotPresets),
       uiJourneyConversationSnapshot: cloneUiJourneyConversationEntries(
         uiJourneyConversationSnapshot
@@ -2483,6 +2528,7 @@ export default function Page() {
     adminOptions,
     controlledLanguageGlossary,
     edges,
+    floatingTermAutoLabelCounter,
     isUiJourneyConversationOpen,
     nodes,
     recalledUiJourneyEdgeIds,
@@ -2533,6 +2579,7 @@ export default function Page() {
         cloneControlledLanguageGlossary(previousSnapshot.controlledLanguageGlossary)
       );
       setTermRegistry([...previousSnapshot.termRegistry]);
+      setFloatingTermAutoLabelCounter(previousSnapshot.floatingTermAutoLabelCounter);
       setUiJourneySnapshotPresets(
         cloneUiJourneySnapshotPresets(previousSnapshot.uiJourneySnapshotPresets)
       );
@@ -3166,6 +3213,62 @@ export default function Page() {
     [addNodeAtClientPosition]
   );
 
+  const handleFloatingTermCommit = useCallback(
+    (entryId: string, value: string) => {
+      const trimmed = value.trim();
+      const now = new Date().toISOString();
+
+      if (trimmed.length === 0) {
+        const label = `Term ${floatingTermAutoLabelCounter}`;
+        setTermRegistry((prev) =>
+          prev.map((entry) =>
+            entry.id === entryId
+              ? {
+                  ...entry,
+                  value: label,
+                  isAutoGenerated: true,
+                  updatedAt: now,
+                }
+              : entry
+          )
+        );
+        setFloatingTermAutoLabelCounter((currentCounter) => currentCounter + 1);
+      } else {
+        setTermRegistry((prev) =>
+          prev.map((entry) =>
+            entry.id === entryId
+              ? {
+                  ...entry,
+                  value: trimmed,
+                  isAutoGenerated: false,
+                  updatedAt: now,
+                }
+              : entry
+          )
+        );
+      }
+
+      setEditingFloatingTermId(null);
+    },
+    [floatingTermAutoLabelCounter]
+  );
+
+  const handleFloatingTermCancel = useCallback((entryId: string) => {
+    setTermRegistry((prev) => {
+      const targetEntry = prev.find((entry) => entry.id === entryId);
+      if (!targetEntry) {
+        return prev;
+      }
+
+      if (targetEntry.value.trim().length > 0) {
+        return prev;
+      }
+
+      return prev.filter((entry) => entry.id !== entryId);
+    });
+    setEditingFloatingTermId(null);
+  }, []);
+
   const handleQuickAddFromSideTab = useCallback(
     (nodeType: "default" | "vertical_multi_term" | "horizontal_multi_term") => {
       addNodeAtClientPosition(getCanvasFallbackClientPosition(), nodeType);
@@ -3663,25 +3766,64 @@ export default function Page() {
     []
   );
 
+  const onPaneDoubleClick = useCallback(
+    (event: React.MouseEvent) => {
+      const rf = rfRef.current;
+      if (!rf) {
+        return;
+      }
+
+      pushToHistory();
+
+      const now = new Date().toISOString();
+      const entryId = crypto.randomUUID();
+      const canvasPosition = rf.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      const newEntry: TermRegistryEntry = {
+        id: entryId,
+        value: "",
+        friendlyId: null,
+        friendlyIdLocked: false,
+        termType: null,
+        assignedNodeId: null,
+        assignedSlotId: null,
+        canvasPosition,
+        isAutoGenerated: false,
+        deduplicationSuffix: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      setTermRegistry((prev) => [...prev, newEntry]);
+      setEditingFloatingTermId(entryId);
+      setSelectedNodeId(null);
+      setSelectedNodeIds([]);
+      setSelectedEdgeId(null);
+    },
+    [pushToHistory]
+  );
+
   const onPaneClick = useCallback(
     (event: React.MouseEvent) => {
       clearMenuTermDeleteError();
       clearGlossaryHighlights();
 
       if (event.detail === 2) {
-        setOpenControlledLanguageFieldType(null);
-        setInspectorRegistryPickerSearchQuery("");
-        addNodeAtEvent(event);
+        onPaneDoubleClick(event);
         return;
       }
 
       setOpenControlledLanguageFieldType(null);
       setInspectorRegistryPickerSearchQuery("");
+      setEditingFloatingTermId(null);
       setSelectedNodeId(null);
       setSelectedNodeIds([]);
       setSelectedEdgeId(null);
     },
-    [addNodeAtEvent, clearGlossaryHighlights, clearMenuTermDeleteError]
+    [clearGlossaryHighlights, clearMenuTermDeleteError, onPaneDoubleClick]
   );
 
   const onNodeClick = useCallback(
@@ -4379,6 +4521,31 @@ export default function Page() {
       recalledUiJourneyNodeIdSet,
       uiJourneyHighlightedNodeIdSet,
     ]
+  );
+
+  const floatingTermNodes = useMemo(
+    () =>
+      termRegistry
+        .filter(
+          (entry) =>
+            entry.canvasPosition !== null &&
+            entry.assignedNodeId === null &&
+            entry.assignedSlotId === null
+        )
+        .map((entry) => ({
+          id: `floating-term-${entry.id}`,
+          type: "floating_term" as const,
+          position: entry.canvasPosition!,
+          data: { value: entry.value },
+          draggable: false,
+          selectable: false,
+        })),
+    [termRegistry]
+  );
+
+  const nodesForCanvas = useMemo(
+    () => [...nodesWithSequence, ...floatingTermNodes] as unknown as FlowNode[],
+    [floatingTermNodes, nodesWithSequence]
   );
 
   const displayEdges = useMemo(
@@ -6728,6 +6895,7 @@ nodeCallbacksRef.current = {
         }
       />
     ),
+    floating_term: FloatingTermNode,
   }),
   [glossaryHighlightedNodeIdSet, showNodeIdsOnCanvas]
 );
@@ -9234,7 +9402,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         }}
       >
         <ReactFlow<FlowNode, FlowEdge>
-          nodes={nodesWithSequence}
+          nodes={nodesForCanvas}
           elevateNodesOnSelect={false}
           edges={displayEdges}
           nodeTypes={nodeTypes}
