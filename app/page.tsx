@@ -3789,7 +3789,6 @@ export default function Page() {
 
       setOpenControlledLanguageFieldType(null);
       setInspectorRegistryPickerSearchQuery("");
-      setEditingFloatingTermId(null);
       setSelectedNodeId(null);
       setSelectedNodeIds([]);
       setSelectedEdgeId(null);

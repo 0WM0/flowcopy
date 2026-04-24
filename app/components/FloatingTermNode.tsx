@@ -28,6 +28,7 @@ const BASE_PILL_STYLE: CSSProperties = {
 export default function FloatingTermNode({ data }: NodeProps) {
   const floatingTermData = data as FloatingTermNodeData;
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const isCancelingRef = useRef(false);
   const [inputValue, setInputValue] = useState(floatingTermData.value);
 
   useEffect(() => {
@@ -57,10 +58,19 @@ export default function FloatingTermNode({ data }: NodeProps) {
         }
 
         if (event.key === "Escape") {
+          isCancelingRef.current = true;
           event.preventDefault();
           event.stopPropagation();
           floatingTermData.onCancel?.();
         }
+      }}
+      onBlur={() => {
+        if (isCancelingRef.current) {
+          isCancelingRef.current = false;
+          return;
+        }
+
+        floatingTermData.onCommit?.(inputValue.trim());
       }}
       style={{
         ...BASE_PILL_STYLE,
