@@ -1,10 +1,13 @@
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { NodeProps } from "@xyflow/react";
 
 import { theme } from "../lib/theme";
 
 type FloatingTermNodeData = {
   value: string;
+  editing: boolean;
+  onCommit?: (value: string) => void;
+  onCancel?: () => void;
 };
 
 const BASE_PILL_STYLE: CSSProperties = {
@@ -24,5 +27,45 @@ const BASE_PILL_STYLE: CSSProperties = {
 
 export default function FloatingTermNode({ data }: NodeProps) {
   const floatingTermData = data as FloatingTermNodeData;
-  return <div style={BASE_PILL_STYLE}>{floatingTermData.value}</div>;
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [inputValue, setInputValue] = useState(floatingTermData.value);
+
+  useEffect(() => {
+    if (!floatingTermData.editing) {
+      return;
+    }
+
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [floatingTermData.editing]);
+
+  if (!floatingTermData.editing) {
+    return <div style={BASE_PILL_STYLE}>{floatingTermData.value}</div>;
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      value={inputValue}
+      onChange={(event) => setInputValue(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.stopPropagation();
+          floatingTermData.onCommit?.(inputValue.trim());
+          return;
+        }
+
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          floatingTermData.onCancel?.();
+        }
+      }}
+      style={{
+        ...BASE_PILL_STYLE,
+        outline: "none",
+      }}
+    />
+  );
 }
