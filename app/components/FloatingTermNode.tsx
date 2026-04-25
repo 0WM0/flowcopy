@@ -25,34 +25,36 @@ const BASE_PILL_STYLE: CSSProperties = {
   textOverflow: "ellipsis",
 };
 
-export default function FloatingTermNode({ data }: NodeProps) {
-  const floatingTermData = data as FloatingTermNodeData;
+function PillEditor({
+  initialValue,
+  onCommit,
+  onCancel,
+}: {
+  initialValue: string;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const [inputValue, setInputValue] = useState(initialValue);
   const isCancelingRef = useRef(false);
-  const [inputValue, setInputValue] = useState(floatingTermData.value);
-
-  if (!floatingTermData.editing) {
-    return <div style={BASE_PILL_STYLE}>{floatingTermData.value}</div>;
-  }
 
   return (
     <input
       className="nodrag"
       autoFocus
       value={inputValue}
-      onChange={(event) => setInputValue(event.target.value)}
+      onChange={(e) => setInputValue(e.target.value)}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
           event.preventDefault();
           event.stopPropagation();
-          floatingTermData.onCommit?.(inputValue.trim());
+          onCommit(inputValue.trim());
           return;
         }
-
         if (event.key === "Escape") {
           isCancelingRef.current = true;
           event.preventDefault();
           event.stopPropagation();
-          floatingTermData.onCancel?.();
+          onCancel();
         }
       }}
       onBlur={() => {
@@ -60,16 +62,28 @@ export default function FloatingTermNode({ data }: NodeProps) {
           isCancelingRef.current = false;
           return;
         }
+        onCommit(inputValue.trim());
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      style={{ ...BASE_PILL_STYLE, outline: "none" }}
+    />
+  );
+}
 
-        floatingTermData.onCommit?.(inputValue.trim());
-      }}
-      onPointerDown={(event) => event.stopPropagation()}
-      onMouseDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-      style={{
-        ...BASE_PILL_STYLE,
-        outline: "none",
-      }}
+export default function FloatingTermNode({ data }: NodeProps) {
+  const floatingTermData = data as FloatingTermNodeData;
+
+  if (!floatingTermData.editing) {
+    return <div style={BASE_PILL_STYLE}>{floatingTermData.value}</div>;
+  }
+
+  return (
+    <PillEditor
+      initialValue={floatingTermData.value}
+      onCommit={(v) => floatingTermData.onCommit?.(v)}
+      onCancel={() => floatingTermData.onCancel?.()}
     />
   );
 }
