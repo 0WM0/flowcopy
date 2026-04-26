@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { NodeProps } from "@xyflow/react";
 
 import { theme } from "../lib/theme";
@@ -36,11 +36,17 @@ function PillEditor({
 }) {
   const [inputValue, setInputValue] = useState(initialValue);
   const isCancelingRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
 
   return (
     <input
       className="nodrag"
-      autoFocus
+      ref={inputRef}
       value={inputValue}
       onChange={(e) => setInputValue(e.target.value)}
       onKeyDown={(event) => {
