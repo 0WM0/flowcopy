@@ -1698,11 +1698,22 @@ export default function Page() {
     ControlledLanguageGlossaryEntry[]
   >([]);
   const [termRegistry, setTermRegistry] = useState<TermRegistryEntry[]>([]);
-  const [pillInputOverlay, setPillInputOverlay] = useState<{
-    clientX: number;
-    clientY: number;
-    flowPosition: { x: number; y: number };
-  } | null>(null);
+  const [pillInputOverlay, setPillInputOverlay] = useState<
+    | {
+        mode: "create";
+        clientX: number;
+        clientY: number;
+        flowPosition: { x: number; y: number };
+      }
+    | {
+        mode: "edit";
+        entryId: string;
+        clientX: number;
+        clientY: number;
+        flowPosition: { x: number; y: number };
+      }
+    | null
+  >(null);
   const [floatingTermAutoLabelCounter, setFloatingTermAutoLabelCounter] = useState(1);
   const [glossaryHighlightedNodeIds, setGlossaryHighlightedNodeIds] = useState<string[]>(
     []
@@ -3221,10 +3232,33 @@ export default function Page() {
       if (!pillInputOverlay) return;
 
       const trimmed = value.trim();
+      if (pillInputOverlay.mode === "edit") {
+        const existingEntry = termRegistry.find((entry) => entry.id === pillInputOverlay.entryId);
+        if (!existingEntry) {
+          setPillInputOverlay(null);
+          return;
+        }
+
+        if (trimmed.length > 0 && trimmed !== existingEntry.value) {
+          pushToHistory();
+          setTermRegistry((previousEntries) =>
+            previousEntries.map((entry) =>
+              entry.id === existingEntry.id
+                ? {
+                    ...entry,
+                    value: trimmed,
+                  }
+                : entry
+            )
+          );
+        }
+
+        setPillInputOverlay(null);
+        return;
+      }
+
       const isBlank = trimmed.length === 0;
-      const finalValue = isBlank
-        ? `Term ${floatingTermAutoLabelCounter}`
-        : trimmed;
+      const finalValue = isBlank ? `Term ${floatingTermAutoLabelCounter}` : trimmed;
 
       const now = new Date().toISOString();
       const entryId = crypto.randomUUID();
@@ -3250,12 +3284,45 @@ export default function Page() {
       }
       setPillInputOverlay(null);
     },
-    [floatingTermAutoLabelCounter, pillInputOverlay, pushToHistory, setTermRegistry]
+    [
+      floatingTermAutoLabelCounter,
+      pillInputOverlay,
+      pushToHistory,
+      setTermRegistry,
+      termRegistry,
+    ]
   );
 
   const handlePillOverlayCancel = useCallback(() => {
     setPillInputOverlay(null);
   }, []);
+
+  const handlePillClick = useCallback(
+    (entryId: string) => {
+      const entry = termRegistry.find((candidate) => candidate.id === entryId);
+      if (!entry || !entry.canvasPosition) {
+        return;
+      }
+
+      const rf = rfRef.current;
+      if (!rf) {
+        return;
+      }
+
+      const clientPosition = rf.flowToScreenPosition(entry.canvasPosition);
+      setPillInputOverlay({
+        mode: "edit",
+        entryId,
+        clientX: clientPosition.x,
+        clientY: clientPosition.y,
+        flowPosition: entry.canvasPosition,
+      });
+      setSelectedNodeId(null);
+      setSelectedNodeIds([]);
+      setSelectedEdgeId(null);
+    },
+    [termRegistry]
+  );
 
   const handleQuickAddFromSideTab = useCallback(
     (nodeType: "default" | "vertical_multi_term" | "horizontal_multi_term") => {
@@ -3766,6 +3833,7 @@ export default function Page() {
         y: event.clientY,
       });
       setPillInputOverlay({
+        mode: "create",
         clientX: event.clientX,
         clientY: event.clientY,
         flowPosition,
@@ -4506,11 +4574,15 @@ export default function Page() {
           id: `floating-term-${entry.id}`,
           type: "floating_term" as const,
           position: entry.canvasPosition!,
-          data: { value: entry.value },
+          data: {
+            entryId: entry.id,
+            value: entry.value,
+            onPillClick: handlePillClick,
+          },
           draggable: false,
-          selectable: false,
+          selectable: true,
         })),
-    [termRegistry]
+    [handlePillClick, termRegistry]
   );
 
   const nodesForCanvas = useMemo(
@@ -12679,6 +12751,11 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         <FloatingTermInputOverlay
           clientX={pillInputOverlay.clientX}
           clientY={pillInputOverlay.clientY}
+          initialValue={
+            pillInputOverlay.mode === "edit"
+              ? termRegistry.find((entry) => entry.id === pillInputOverlay.entryId)?.value ?? ""
+              : ""
+          }
           onCommit={handlePillOverlayCommit}
           onCancel={handlePillOverlayCancel}
         />

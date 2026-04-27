@@ -1,10 +1,11 @@
-import { useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { theme } from "../lib/theme";
 
 type Props = {
   clientX: number;
   clientY: number;
+  initialValue?: string;
   onCommit: (value: string) => void;
   onCancel: () => void;
 };
@@ -12,11 +13,16 @@ type Props = {
 export default function FloatingTermInputOverlay({
   clientX,
   clientY,
+  initialValue = "",
   onCommit,
   onCancel,
 }: Props) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initialValue);
   const isCancelingRef = useRef(false);
+
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
 
   const overlayStyle: CSSProperties = {
     position: "fixed",
