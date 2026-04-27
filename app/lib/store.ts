@@ -107,6 +107,15 @@ const sanitizeTermRegistry = (value: unknown): TermRegistryEntry[] => {
   return entries;
 };
 
+const sanitizeFloatingTermAutoLabelCounter = (value: unknown): number => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 1;
+  }
+
+  const normalizedValue = Math.floor(value);
+  return normalizedValue >= 1 ? normalizedValue : 1;
+};
+
 export type SidePanelSection = "card" | "clp" | "journey" | "admin";
 
 export const DEFAULT_PANEL_WIDTHS: Record<SidePanelSection, number> = {
@@ -311,6 +320,7 @@ export const createEmptyCanvasState = (): PersistedCanvasState => ({
   controlledLanguageGlossary: [],
   uiJourneySnapshotPresets: [],
   termRegistry: [],
+  floatingTermAutoLabelCounter: 1,
 });
 
 export const readLegacyCanvasState = (): PersistedCanvasState | null => {
@@ -331,6 +341,7 @@ export const readLegacyCanvasState = (): PersistedCanvasState | null => {
       controlledLanguageGlossary?: unknown;
       uiJourneySnapshotPresets?: unknown;
       termRegistry?: unknown;
+      floatingTermAutoLabelCounter?: unknown;
     };
 
     return {
@@ -344,6 +355,9 @@ export const readLegacyCanvasState = (): PersistedCanvasState | null => {
         parsed.uiJourneySnapshotPresets
       ),
       termRegistry: sanitizeTermRegistry(parsed.termRegistry),
+      floatingTermAutoLabelCounter: sanitizeFloatingTermAutoLabelCounter(
+        parsed.floatingTermAutoLabelCounter
+      ),
     };
   } catch (error) {
     console.error("Failed to parse legacy canvas state", error);
@@ -373,6 +387,9 @@ export const createProjectRecord = (
         canvas.uiJourneySnapshotPresets
       ),
       termRegistry: sanitizeTermRegistry(canvas.termRegistry),
+      floatingTermAutoLabelCounter: sanitizeFloatingTermAutoLabelCounter(
+        canvas.floatingTermAutoLabelCounter
+      ),
     },
   };
 };
@@ -434,6 +451,9 @@ export const sanitizeProjectRecord = (value: unknown): ProjectRecord | null => {
         source.canvas?.uiJourneySnapshotPresets
       ),
       termRegistry: sanitizeTermRegistry(source.canvas?.termRegistry),
+      floatingTermAutoLabelCounter: sanitizeFloatingTermAutoLabelCounter(
+        source.canvas?.floatingTermAutoLabelCounter
+      ),
     },
   };
 };

@@ -135,7 +135,7 @@ export type PersistedCanvasState = {
   controlledLanguageGlossary: ControlledLanguageGlossaryEntry[];
   uiJourneySnapshotPresets: UiJourneySnapshotPreset[];
   termRegistry: TermRegistryEntry[];
-  floatingTermAutoLabelCounter?: number;
+  floatingTermAutoLabelCounter: number;
 };
 
 export type ControlledLanguageGlossaryEntry = {
