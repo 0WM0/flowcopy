@@ -10187,7 +10187,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           <p style={{ fontSize: theme.inspector.card.emptyTextAltFontSize, color: theme.inspector.card.emptyTextAlt }}>
             Multiple nodes selected. Select a single node to edit its data.
           </p>
-        ) : !hasExactlyOneSelectedNode || !selectedNode ? (
+        ) : !hasExactlyOneSelectedNode || !selectedNode || (selectedNode as { type?: string }).type === "floating_term" ? (
           <div style={{ height: "100%", display: "flex", justifyContent: "center" }}>
             <div
               style={{
