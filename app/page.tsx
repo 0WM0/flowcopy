@@ -2335,6 +2335,33 @@ export default function Page() {
     store.session.view,
   ]);
 
+  const handleHydratedFloatingTermPillClick = useCallback(
+    (entryId: string) => {
+      const entry = termRegistry.find((candidate) => candidate.id === entryId);
+      if (!entry || !entry.canvasPosition) {
+        return;
+      }
+
+      const rf = rfRef.current;
+      if (!rf) {
+        return;
+      }
+
+      const clientPosition = rf.flowToScreenPosition(entry.canvasPosition);
+      setPillInputOverlay({
+        mode: "edit",
+        entryId,
+        clientX: clientPosition.x,
+        clientY: clientPosition.y,
+        flowPosition: entry.canvasPosition,
+      });
+      setSelectedNodeId(null);
+      setSelectedNodeIds([]);
+      setSelectedEdgeId(null);
+    },
+    [termRegistry]
+  );
+
   const loadProjectIntoEditor = useCallback(
     (project: ProjectRecord) => {
       const normalizedAdminOptions = normalizeGlobalOptionConfig(
@@ -2361,6 +2388,18 @@ export default function Page() {
       const hydratedEdges = sanitizeEdges(project.canvas.edges, prunedHydratedNodes);
       const initialSelectedNodeId = prunedHydratedNodes[0]?.id ?? null;
       const initialSelectedNodeIds = initialSelectedNodeId ? [initialSelectedNodeId] : [];
+      const hydratedNodesWithCallbacks = prunedHydratedNodes.map((node) => {
+        if ((node as { type?: unknown }).type === "floating_term") {
+          return {
+            ...node,
+            data: {
+              ...(node.data ?? {}),
+              onPillClick: handleHydratedFloatingTermPillClick,
+            },
+          };
+        }
+        return node;
+      });
 
       setAdminOptions(normalizedAdminOptions);
       setControlledLanguageGlossary(normalizedControlledLanguageGlossary);
@@ -2370,7 +2409,7 @@ export default function Page() {
       setControlledLanguageDraftRow(createEmptyControlledLanguageDraftRow());
       setOpenControlledLanguageFieldType(null);
       setInspectorRegistryPickerSearchQuery("");
-      setNodes(prunedHydratedNodes);
+      setNodes(hydratedNodesWithCallbacks);
       setEdges(hydratedEdges);
       setUiJourneySnapshotPresets(normalizedUiJourneySnapshotPresets);
       setSelectedUiJourneySnapshotPresetId(null);
@@ -2384,7 +2423,7 @@ export default function Page() {
       setSelectedEdgeId(null);
 
       setHistoryBaseline({
-        nodes: cloneFlowNodes(prunedHydratedNodes),
+        nodes: cloneFlowNodes(hydratedNodesWithCallbacks),
         edges: cloneEdges(hydratedEdges),
         adminOptions: cloneGlobalOptions(normalizedAdminOptions),
         controlledLanguageGlossary: cloneControlledLanguageGlossary(
@@ -2412,7 +2451,13 @@ export default function Page() {
       clearMenuTermDeleteError();
       setPendingOptionInputs(createEmptyPendingOptionInputs());
     },
-    [clearMenuTermDeleteError, setEdges, setHistoryBaseline, setNodes]
+    [
+      clearMenuTermDeleteError,
+      handleHydratedFloatingTermPillClick,
+      setEdges,
+      setHistoryBaseline,
+      setNodes,
+    ]
   );
 
   const persistCurrentProjectState = useCallback(() => {

@@ -860,10 +860,30 @@ export const normalizeNode = (
   node: SerializableFlowNode,
   globalOptions: GlobalOptionConfig
 ): FlowNode => {
+  const nodeType = (node as { type?: unknown }).type;
   const sourceData =
     node.data && typeof node.data === "object"
       ? (node.data as Partial<PersistableMicrocopyNodeData>)
       : {};
+
+  if (nodeType === "floating_term") {
+    const sourceFloatingData =
+      node.data && typeof node.data === "object"
+        ? (node.data as { entryId?: unknown; value?: unknown })
+        : {};
+    const entryId =
+      typeof sourceFloatingData.entryId === "string" ? sourceFloatingData.entryId : "";
+    const value = typeof sourceFloatingData.value === "string" ? sourceFloatingData.value : "";
+    return {
+      id: node.id,
+      type: "floating_term",
+      position: node.position ?? { x: 0, y: 0 },
+      data: { entryId, value },
+      draggable: true,
+      selectable: true,
+    } as unknown as FlowNode;
+  }
+
   const defaultData = createDefaultNodeData(globalOptions, sourceData);
 
   return {
