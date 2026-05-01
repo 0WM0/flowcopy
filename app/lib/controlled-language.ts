@@ -219,6 +219,10 @@ export const buildMenuTermSelectorTerms = (
   const terms = new Set<string>(buildControlledLanguageTermsByField(glossary).menu_term);
 
   nodes.forEach((node) => {
+    if (!node.data || !("content_config" in node.data)) {
+      return;
+    }
+
     collectControlledLanguageTermsFromNode(node)
       .filter((entry) => entry.field_type === "menu_term")
       .forEach(({ term: rawTerm }) => {
@@ -238,6 +242,10 @@ export const buildControlledLanguageNodeIdsByGlossaryKey = (
   const nodeIdsByKey = new Map<string, Set<string>>();
 
   nodes.forEach((node) => {
+    if (!node.data || !("content_config" in node.data)) {
+      return;
+    }
+
     collectControlledLanguageTermsFromNode(node).forEach(({ field_type, term: rawTerm }) => {
       const term = normalizeControlledLanguageTerm(rawTerm);
       if (!term) {
@@ -263,6 +271,10 @@ export const buildControlledLanguageAuditRows = (
   const rowByKey = new Map<string, ControlledLanguageAuditRow>();
 
   nodes.forEach((node) => {
+    if (!node.data || !("content_config" in node.data)) {
+      return;
+    }
+
     collectControlledLanguageTermsFromNode(node).forEach(({ field_type, term: rawTerm }) => {
       const term = normalizeControlledLanguageTerm(rawTerm);
       if (!term) {

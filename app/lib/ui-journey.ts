@@ -605,6 +605,10 @@ export const resolveUiJourneyConversationIncludedNodeIds = ({
   const frameIdsByMemberNodeId = new Map<string, Set<string>>();
 
   nodes.forEach((node) => {
+    if (!node.data || !("content_config" in node.data)) {
+      return;
+    }
+
     if (node.data.node_type !== "frame") {
       return;
     }
@@ -699,6 +703,10 @@ export const buildUiJourneyConversationEntries = ({
     .flatMap((nodeId) => {
       const node = nodeById.get(nodeId);
       if (!node) {
+        return [];
+      }
+
+      if (!node.data || !("content_config" in node.data)) {
         return [];
       }
 
