@@ -758,12 +758,15 @@ export const sanitizeSerializableFlowNodes = (value: unknown): SerializableFlowN
         ? { x: source.position.x, y: source.position.y }
         : { x: 0, y: 0 };
 
+    const sourceType = (source as { type?: unknown }).type;
+    const type = typeof sourceType === "string" ? sourceType : undefined;
+
     const data =
       source.data && typeof source.data === "object"
         ? (source.data as Partial<PersistableMicrocopyNodeData>)
         : undefined;
 
-    return [{ id, position, data }];
+    return [{ id, type, position, data } as SerializableFlowNode];
   });
 };
 
@@ -1147,6 +1150,25 @@ export const serializeNodesForStorage = (
   parallelGroupByNodeId: Partial<Record<string, string>> = {}
 ): SerializableFlowNode[] =>
   nodes.map((node) => {
+    const sourceType = (node as { type?: unknown }).type;
+    const nodeType = typeof sourceType === "string" ? sourceType : node.type;
+
+    if (nodeType === "floating_term") {
+      const data =
+        node.data && typeof node.data === "object"
+          ? (node.data as { entryId?: unknown; value?: unknown })
+          : {};
+      const entryId = typeof data.entryId === "string" ? data.entryId : "";
+      const value = typeof data.value === "string" ? data.value : "";
+
+      return {
+        id: node.id,
+        type: "floating_term",
+        position: node.position,
+        data: { entryId, value },
+      } as SerializableFlowNode;
+    }
+
     const persistableData: PersistableMicrocopyNodeData = {
       title: node.data.title,
       showTitle: node.data.showTitle,
@@ -1173,7 +1195,8 @@ export const serializeNodesForStorage = (
 
     return {
       id: node.id,
+      type: nodeType,
       position: node.position,
       data: persistableData,
-    };
+    } as SerializableFlowNode;
   });
