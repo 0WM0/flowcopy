@@ -1725,7 +1725,7 @@ export default function Page() {
   const [clpActiveView, setClpActiveView] = useState<"audit" | "registry">("audit");
   const [registrySearchQuery, setRegistrySearchQuery] = useState<string>("");
   const [registryFilterStatus, setRegistryFilterStatus] = useState<
-    "all" | "assigned" | "unassigned"
+    "all" | "assigned" | "floating" | "unassigned"
   >("all");
   const [registryFilterType, setRegistryFilterType] = useState<string>("all");
   const [registryDraftValue, setRegistryDraftValue] = useState("");
@@ -7075,9 +7075,19 @@ nodeCallbacksRef.current = {
     [maxRibbonCellColumnCount]
   );
 
+  const floatingEntryIdSet = useMemo(
+    () =>
+      new Set(
+        nodes
+          .filter((node) => node.id.startsWith("floating-term-"))
+          .map((node) => node.id.slice("floating-term-".length))
+      ),
+    [nodes]
+  );
+
   const controlledLanguageAuditRows = useMemo(
-    () => buildControlledLanguageAuditRows(nodes, controlledLanguageGlossary),
-    [nodes, controlledLanguageGlossary]
+    () => buildControlledLanguageAuditRows(nodes, controlledLanguageGlossary, termRegistry),
+    [nodes, controlledLanguageGlossary, termRegistry]
   );
 
   const filteredRegistryEntries = useMemo(() => {
@@ -7085,8 +7095,14 @@ nodeCallbacksRef.current = {
 
     if (registryFilterStatus === "assigned") {
       entries = entries.filter((entry) => entry.assignedNodeId !== null);
+    } else if (registryFilterStatus === "floating") {
+      entries = entries.filter(
+        (entry) => entry.assignedNodeId === null && floatingEntryIdSet.has(entry.id)
+      );
     } else if (registryFilterStatus === "unassigned") {
-      entries = entries.filter((entry) => entry.assignedNodeId === null);
+      entries = entries.filter(
+        (entry) => entry.assignedNodeId === null && !floatingEntryIdSet.has(entry.id)
+      );
     }
 
     if (registryFilterType !== "all") {
@@ -7114,11 +7130,17 @@ nodeCallbacksRef.current = {
     });
 
     return entries;
-  }, [termRegistry, registryFilterStatus, registryFilterType, registrySearchQuery]);
+  }, [
+    floatingEntryIdSet,
+    termRegistry,
+    registryFilterStatus,
+    registryFilterType,
+    registrySearchQuery,
+  ]);
 
   const controlledLanguageNodeIdsByGlossaryKey = useMemo(
-    () => buildControlledLanguageNodeIdsByGlossaryKey(nodes),
-    [nodes]
+    () => buildControlledLanguageNodeIdsByGlossaryKey(nodes, termRegistry),
+    [nodes, termRegistry]
   );
 
   useEffect(() => {
@@ -7618,11 +7640,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
     : null;
   const nodeTitle = assignedNode?.data?.title;
   const trimmedNodeTitle = typeof nodeTitle === "string" ? nodeTitle.trim() : "";
+        const isFloating = floatingEntryIdSet.has(entry.id);
         const assignmentStatus = entry.assignedNodeId
           ? trimmedNodeTitle
             ? `Assigned to: ${trimmedNodeTitle}`
             : "Assigned"
-          : "Unassigned";
+          : isFloating
+            ? "Floating"
+            : "Unassigned";
         const sequenceNumberValue =
           entry.assignedNodeId && ordering.sequenceByNodeId[entry.assignedNodeId] !== undefined
             ? String(ordering.sequenceByNodeId[entry.assignedNodeId])
@@ -7689,6 +7714,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
       nodes,
       ordering.sequenceByNodeId,
       termRegistry,
+      floatingEntryIdSet,
     ]
   );
 
@@ -11572,8 +11598,15 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                     </tr>
                   ) : (
                     controlledLanguageAuditRows.map((row) => {
+                      const rowFieldType = row.field_type as string;
+                      const fieldTypeLabel =
+                        rowFieldType === "untyped"
+                          ? "Untyped"
+                          : CONTROLLED_LANGUAGE_FIELD_LABELS[
+                              row.field_type as ControlledLanguageFieldType
+                            ] ?? rowFieldType;
                       const rowKey = buildControlledLanguageGlossaryKey(
-                        row.field_type,
+                        rowFieldType,
                         row.term
                       );
 
@@ -11594,7 +11627,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                                 color: theme.clp.audit.fieldText,
                                 cursor: "default",
                               }}
-                              value={CONTROLLED_LANGUAGE_FIELD_LABELS[row.field_type]}
+                              value={fieldTypeLabel}
                               readOnly={true}
                               aria-label="Field Type"
                             >
@@ -11816,12 +11849,17 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         value={registryFilterStatus}
                         onChange={(event) =>
                           setRegistryFilterStatus(
-                            event.target.value as "all" | "assigned" | "unassigned"
+                            event.target.value as
+                              | "all"
+                              | "assigned"
+                              | "floating"
+                              | "unassigned"
                           )
                         }
                       >
                         <option value="all">All</option>
                         <option value="assigned">Assigned</option>
+                        <option value="floating">Floating</option>
                         <option value="unassigned">Unassigned</option>
                       </select>
                       <select
@@ -11883,11 +11921,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                           : null;
                         const nodeTitle = assignedNode?.data?.title;
                         const trimmedNodeTitle = typeof nodeTitle === "string" ? nodeTitle.trim() : "";
+                        const isFloating = floatingEntryIdSet.has(entry.id);
                         const assignmentStatus = entry.assignedNodeId
                           ? trimmedNodeTitle
                             ? `Assigned to: ${trimmedNodeTitle}`
                             : "Assigned"
-                          : "Unassigned";
+                          : isFloating
+                            ? "Floating"
+                            : "Unassigned";
 
                         return (
                           <button
@@ -12042,11 +12083,14 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
                         : null;
                       const nodeTitle = assignedNode?.data?.title;
                       const trimmedNodeTitle = typeof nodeTitle === "string" ? nodeTitle.trim() : "";
+                      const isFloating = floatingEntryIdSet.has(entry.id);
                       const assignmentStatus = entry.assignedNodeId
                         ? trimmedNodeTitle
                           ? `Assigned to: ${trimmedNodeTitle}`
                           : "Assigned"
-                        : "Unassigned";
+                        : isFloating
+                          ? "Floating"
+                          : "Unassigned";
                       const hasFriendlyId = (entry.friendlyId ?? "").trim().length > 0;
                       const showEditableFriendlyId = !entry.friendlyIdLocked || !hasFriendlyId;
 

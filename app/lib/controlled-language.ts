@@ -7,6 +7,7 @@ import type {
   ControlledLanguageAuditRow,
   ControlledLanguageDraftRow,
   ControlledLanguageAuditTermEntry,
+  TermRegistryEntry,
 } from "../types";
 import {
   CONTROLLED_LANGUAGE_FIELDS,
@@ -72,7 +73,7 @@ export const collectControlledLanguageTermsFromNode = (
 export const normalizeControlledLanguageTerm = (value: string): string => value.trim();
 
 export const buildControlledLanguageGlossaryKey = (
-  fieldType: ControlledLanguageFieldType,
+  fieldType: string,
   term: string
 ): string => `${fieldType}\u241F${term}`;
 
@@ -237,9 +238,11 @@ export const buildMenuTermSelectorTerms = (
 };
 
 export const buildControlledLanguageNodeIdsByGlossaryKey = (
-  nodes: FlowNode[]
+  nodes: FlowNode[],
+  termRegistry: TermRegistryEntry[]
 ): Map<string, string[]> => {
   const nodeIdsByKey = new Map<string, Set<string>>();
+  const nodeIdSet = new Set(nodes.map((node) => node.id));
 
   nodes.forEach((node) => {
     if (!node.data || !("content_config" in node.data)) {
@@ -259,6 +262,28 @@ export const buildControlledLanguageNodeIdsByGlossaryKey = (
     });
   });
 
+  termRegistry.forEach((entry) => {
+    const floatingNodeId = `floating-term-${entry.id}`;
+    if (!nodeIdSet.has(floatingNodeId)) {
+      return;
+    }
+
+    if (entry.assignedNodeId !== null) {
+      return;
+    }
+
+    const fieldType = entry.termType ?? "untyped";
+    const term = normalizeControlledLanguageTerm(entry.value);
+    if (!term) {
+      return;
+    }
+
+    const key = buildControlledLanguageGlossaryKey(fieldType, term);
+    const nodeIds = nodeIdsByKey.get(key) ?? new Set<string>();
+    nodeIds.add(floatingNodeId);
+    nodeIdsByKey.set(key, nodeIds);
+  });
+
   return new Map(
     Array.from(nodeIdsByKey.entries()).map(([key, nodeIds]) => [key, Array.from(nodeIds)])
   );
@@ -266,9 +291,19 @@ export const buildControlledLanguageNodeIdsByGlossaryKey = (
 
 export const buildControlledLanguageAuditRows = (
   nodes: FlowNode[],
-  glossary: ControlledLanguageGlossaryEntry[]
+  glossary: ControlledLanguageGlossaryEntry[],
+  termRegistry: TermRegistryEntry[]
 ): ControlledLanguageAuditRow[] => {
-  const rowByKey = new Map<string, ControlledLanguageAuditRow>();
+  const rowByKey = new Map<
+    string,
+    {
+      field_type: string;
+      term: string;
+      include: boolean;
+      occurrences: number;
+    }
+  >();
+  const nodeIdSet = new Set(nodes.map((node) => node.id));
 
   nodes.forEach((node) => {
     if (!node.data || !("content_config" in node.data)) {
@@ -301,6 +336,41 @@ export const buildControlledLanguageAuditRows = (
     });
   });
 
+  termRegistry.forEach((entry) => {
+    const floatingNodeId = `floating-term-${entry.id}`;
+    if (!nodeIdSet.has(floatingNodeId)) {
+      return;
+    }
+
+    if (entry.assignedNodeId !== null) {
+      return;
+    }
+
+    const fieldType = entry.termType ?? "untyped";
+    const term = normalizeControlledLanguageTerm(entry.value);
+    if (!term) {
+      return;
+    }
+
+    const key = buildControlledLanguageGlossaryKey(fieldType, term);
+    const existing = rowByKey.get(key);
+
+    if (existing) {
+      rowByKey.set(key, {
+        ...existing,
+        occurrences: existing.occurrences + 1,
+      });
+      return;
+    }
+
+    rowByKey.set(key, {
+      field_type: fieldType,
+      term,
+      include: false,
+      occurrences: 1,
+    });
+  });
+
   sanitizeControlledLanguageGlossary(glossary).forEach((entry) => {
     const key = buildControlledLanguageGlossaryKey(entry.field_type, entry.term);
     const existing = rowByKey.get(key);
@@ -313,7 +383,35 @@ export const buildControlledLanguageAuditRows = (
     });
   });
 
-  return sortControlledLanguageEntries(Array.from(rowByKey.values()));
+  const sortedRows = Array.from(rowByKey.values()).sort((a, b) => {
+    const aFieldType = normalizeControlledLanguageFieldType(a.field_type);
+    const bFieldType = normalizeControlledLanguageFieldType(b.field_type);
+    const aOrder =
+      aFieldType !== null
+        ? CONTROLLED_LANGUAGE_FIELD_ORDER[aFieldType]
+        : a.field_type === "untyped"
+          ? Number.MAX_SAFE_INTEGER - 1
+          : Number.MAX_SAFE_INTEGER;
+    const bOrder =
+      bFieldType !== null
+        ? CONTROLLED_LANGUAGE_FIELD_ORDER[bFieldType]
+        : b.field_type === "untyped"
+          ? Number.MAX_SAFE_INTEGER - 1
+          : Number.MAX_SAFE_INTEGER;
+
+    if (aOrder !== bOrder) {
+      return aOrder - bOrder;
+    }
+
+    const fieldTypeComparison = a.field_type.localeCompare(b.field_type);
+    if (fieldTypeComparison !== 0) {
+      return fieldTypeComparison;
+    }
+
+    return a.term.localeCompare(b.term);
+  });
+
+  return sortedRows as ControlledLanguageAuditRow[];
 };
 
 export const replaceLiteralTerm = (
