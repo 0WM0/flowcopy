@@ -142,6 +142,7 @@ import { FlowCopyNode, BodyTextPreview, SlotTermTypeEditor } from "./components/
 import FloatingTermInputOverlay from "./components/FloatingTermInputOverlay";
 import FloatingTermNode from "./components/FloatingTermNode";
 import { HelpModal } from "./components/HelpModal";
+import { FloatingTermCallbacksContext } from "./lib/floating-term-context";
 
 
 import {
@@ -2335,39 +2336,6 @@ export default function Page() {
     store.session.view,
   ]);
 
-  const handleHydratedFloatingTermPillClick = useCallback(
-    (entryId: string) => {
-      const entry = termRegistry.find((candidate) => candidate.id === entryId);
-      if (!entry) {
-        return;
-      }
-
-      const floatingTermNode = nodes.find((node) => node.id === `floating-term-${entryId}`);
-      const flowPosition = floatingTermNode?.position ?? entry.canvasPosition;
-      if (!flowPosition) {
-        return;
-      }
-
-      const rf = rfRef.current;
-      if (!rf) {
-        return;
-      }
-
-      const clientPosition = rf.flowToScreenPosition(flowPosition);
-      setPillInputOverlay({
-        mode: "edit",
-        entryId,
-        clientX: clientPosition.x,
-        clientY: clientPosition.y,
-        flowPosition,
-      });
-      setSelectedNodeId(null);
-      setSelectedNodeIds([]);
-      setSelectedEdgeId(null);
-    },
-    [nodes, termRegistry]
-  );
-
   const loadProjectIntoEditor = useCallback(
     (project: ProjectRecord) => {
       const normalizedAdminOptions = normalizeGlobalOptionConfig(
@@ -2394,18 +2362,6 @@ export default function Page() {
       const hydratedEdges = sanitizeEdges(project.canvas.edges, prunedHydratedNodes);
       const initialSelectedNodeId = prunedHydratedNodes[0]?.id ?? null;
       const initialSelectedNodeIds = initialSelectedNodeId ? [initialSelectedNodeId] : [];
-      const hydratedNodesWithCallbacks = prunedHydratedNodes.map((node) => {
-        if ((node as { type?: unknown }).type === "floating_term") {
-          return {
-            ...node,
-            data: {
-              ...(node.data ?? {}),
-              onPillClick: handleHydratedFloatingTermPillClick,
-            },
-          };
-        }
-        return node;
-      });
 
       setAdminOptions(normalizedAdminOptions);
       setControlledLanguageGlossary(normalizedControlledLanguageGlossary);
@@ -2415,7 +2371,7 @@ export default function Page() {
       setControlledLanguageDraftRow(createEmptyControlledLanguageDraftRow());
       setOpenControlledLanguageFieldType(null);
       setInspectorRegistryPickerSearchQuery("");
-      setNodes(hydratedNodesWithCallbacks);
+      setNodes(prunedHydratedNodes);
       setEdges(hydratedEdges);
       setUiJourneySnapshotPresets(normalizedUiJourneySnapshotPresets);
       setSelectedUiJourneySnapshotPresetId(null);
@@ -2429,7 +2385,7 @@ export default function Page() {
       setSelectedEdgeId(null);
 
       setHistoryBaseline({
-        nodes: cloneFlowNodes(hydratedNodesWithCallbacks),
+        nodes: cloneFlowNodes(prunedHydratedNodes),
         edges: cloneEdges(hydratedEdges),
         adminOptions: cloneGlobalOptions(normalizedAdminOptions),
         controlledLanguageGlossary: cloneControlledLanguageGlossary(
@@ -2459,7 +2415,6 @@ export default function Page() {
     },
     [
       clearMenuTermDeleteError,
-      handleHydratedFloatingTermPillClick,
       setEdges,
       setHistoryBaseline,
       setNodes,
@@ -3311,6 +3266,11 @@ export default function Page() {
     [nodes, termRegistry]
   );
 
+  const floatingTermCallbacksContextValue = useMemo(
+    () => ({ onPillClick: handlePillClick }),
+    [handlePillClick]
+  );
+
   const handlePillOverlayCommit = useCallback(
     (value: string) => {
       if (!pillInputOverlay) return;
@@ -3383,7 +3343,6 @@ export default function Page() {
         data: {
           entryId,
           value: finalValue,
-          onPillClick: handlePillClick,
         },
         draggable: true,
         selectable: true,
@@ -3399,7 +3358,6 @@ export default function Page() {
     },
     [
       floatingTermAutoLabelCounter,
-      handlePillClick,
       pillInputOverlay,
       pushToHistory,
       setNodes,
@@ -9510,34 +9468,36 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             : "none",
         }}
       >
-        <ReactFlow<FlowNode, FlowEdge>
-          nodes={nodesForCanvas}
-          elevateNodesOnSelect={false}
-          edges={displayEdges}
-          nodeTypes={nodeTypes}
-          defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
-          colorMode="light"
-          onInit={onInit}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeDragStart={onNodeDragStart}
-          onNodeDragStop={onNodeDragStop}
-          onConnect={onConnect}
-          onReconnect={onReconnect}
-          onPaneClick={onPaneClick}
-          onNodeClick={onNodeClick}
-          onEdgeClick={onEdgeClick}
-          onSelectionChange={onSelectionChange}
-          onMoveStart={closeAllPopups}
-          onMoveEnd={closeAllPopups}
-          zoomOnDoubleClick={false}
-          fitView
-          connectionLineStyle={EDGE_BASE_STYLE}
-        >
-          <Background />
-          <MiniMap />
-          <Controls />
-        </ReactFlow>
+        <FloatingTermCallbacksContext.Provider value={floatingTermCallbacksContextValue}>
+          <ReactFlow<FlowNode, FlowEdge>
+            nodes={nodesForCanvas}
+            elevateNodesOnSelect={false}
+            edges={displayEdges}
+            nodeTypes={nodeTypes}
+            defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
+            colorMode="light"
+            onInit={onInit}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeDragStart={onNodeDragStart}
+            onNodeDragStop={onNodeDragStop}
+            onConnect={onConnect}
+            onReconnect={onReconnect}
+            onPaneClick={onPaneClick}
+            onNodeClick={onNodeClick}
+            onEdgeClick={onEdgeClick}
+            onSelectionChange={onSelectionChange}
+            onMoveStart={closeAllPopups}
+            onMoveEnd={closeAllPopups}
+            zoomOnDoubleClick={false}
+            fitView
+            connectionLineStyle={EDGE_BASE_STYLE}
+          >
+            <Background />
+            <MiniMap />
+            <Controls />
+          </ReactFlow>
+        </FloatingTermCallbacksContext.Provider>
 
         <div
           className="nodrag nopan nowheel"

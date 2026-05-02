@@ -1,12 +1,12 @@
-import type { CSSProperties } from "react";
+import { useContext, type CSSProperties } from "react";
 import type { NodeProps } from "@xyflow/react";
 
+import { FloatingTermCallbacksContext } from "../lib/floating-term-context";
 import { theme } from "../lib/theme";
 
 type FloatingTermNodeData = {
   value: string;
   entryId: string;
-  onPillClick: (entryId: string) => void;
 };
 
 const BASE_PILL_STYLE: CSSProperties = {
@@ -27,12 +27,13 @@ const BASE_PILL_STYLE: CSSProperties = {
 
 export default function FloatingTermNode({ data }: NodeProps) {
   const d = data as FloatingTermNodeData;
+  const callbacks = useContext(FloatingTermCallbacksContext);
   return (
     <div
       style={BASE_PILL_STYLE}
       onClick={(event) => {
         event.stopPropagation();
-        d.onPillClick(d.entryId);
+        callbacks?.onPillClick(d.entryId);
       }}
     >
       {d.value}
