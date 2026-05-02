@@ -3505,50 +3505,54 @@ export default function Page() {
         return;
       }
 
-      const droppedNodeType: "default" | "vertical_multi_term" | "horizontal_multi_term" =
-        payload.nodeType === "vertical_multi_term" || payload.nodeType === "horizontal_multi_term"
-          ? payload.nodeType
-          : "default";
+      const entry = termRegistry.find((candidate) => candidate.id === payload.entryId);
+      if (!entry) {
+        return;
+      }
 
-      console.log("[CLP Drag] creating node", {
-        droppedNodeType,
-        primaryTextValue: payload.termValue,
+      if (entry.assignedNodeId !== null) {
+        return;
+      }
+
+      const rf = rfRef.current;
+      if (!rf) {
+        return;
+      }
+
+      const flowPosition = rf.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
       });
 
-      const createdNodeId = addNodeAtClientPosition(
-        {
-          x: event.clientX,
-          y: event.clientY,
-        },
-        droppedNodeType,
-        {
-          primaryTextValue: payload.termValue,
-          onNodeCreated: (createdNodeId, createdNode) => {
-            const now = new Date().toISOString();
+      const existingFloatingNodeId = `floating-term-${entry.id}`;
 
-            setTermRegistry((currentRegistry) =>
-              currentRegistry.map((entry) =>
-                entry.id === payload.entryId
-                  ? {
-                      ...entry,
-                      assignedNodeId: createdNodeId,
-                      assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
-                        "primary_cta",
-                        createdNode,
-                        "primary_cta"
-                      ),
-                      updatedAt: now,
-                    }
-                  : entry
-              )
-            );
-          },
+      setNodes((currentNodes) => {
+        const existingIndex = currentNodes.findIndex(
+          (node) => node.id === existingFloatingNodeId
+        );
+
+        if (existingIndex >= 0) {
+          return currentNodes.map((node, index) =>
+            index === existingIndex ? { ...node, position: flowPosition } : node
+          );
         }
-      );
 
-      console.log("[CLP Drag] node creation result", { createdNodeId });
+        const newFloatingTermNode = {
+          id: existingFloatingNodeId,
+          type: "floating_term" as const,
+          position: flowPosition,
+          data: {
+            entryId: entry.id,
+            value: entry.value,
+          },
+          draggable: true,
+          selectable: true,
+        } as unknown as FlowNode;
+
+        return [...currentNodes, newFloatingTermNode];
+      });
     },
-    [addNodeAtClientPosition, setTermRegistry]
+    [setNodes, termRegistry]
   );
 
   const canDropRegistryEntryOnNodeField = useCallback(
