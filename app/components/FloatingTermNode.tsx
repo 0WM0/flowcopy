@@ -42,10 +42,6 @@ export default function FloatingTermNode({ data, selected }: NodeProps) {
   return (
     <div
       style={style}
-      onClick={(event) => {
-        event.stopPropagation();
-        // ReactFlow handles selection; do not open overlay on single-click.
-      }}
       onDoubleClick={(event) => {
         event.stopPropagation();
         callbacks?.onPillClick(d.entryId);
