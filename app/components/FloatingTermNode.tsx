@@ -25,13 +25,28 @@ const BASE_PILL_STYLE: CSSProperties = {
   cursor: "pointer",
 };
 
-export default function FloatingTermNode({ data }: NodeProps) {
+export default function FloatingTermNode({ data, selected }: NodeProps) {
   const d = data as FloatingTermNodeData;
   const callbacks = useContext(FloatingTermCallbacksContext);
+  const style: CSSProperties = {
+    ...BASE_PILL_STYLE,
+    ...(selected
+      ? {
+          outline: theme.node.borderSelected,
+          outlineOffset: 2,
+          boxShadow: `${theme.toast.shadow}, ${theme.node.selectedShadow}`,
+        }
+      : {}),
+  };
+
   return (
     <div
-      style={BASE_PILL_STYLE}
+      style={style}
       onClick={(event) => {
+        event.stopPropagation();
+        // ReactFlow handles selection; do not open overlay on single-click.
+      }}
+      onDoubleClick={(event) => {
         event.stopPropagation();
         callbacks?.onPillClick(d.entryId);
       }}
