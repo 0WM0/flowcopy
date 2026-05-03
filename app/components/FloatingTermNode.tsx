@@ -25,9 +25,11 @@ const BASE_PILL_STYLE: CSSProperties = {
   cursor: "pointer",
 };
 
-export default function FloatingTermNode({ data, selected }: NodeProps) {
+export default function FloatingTermNode({ data, selected, id }: NodeProps) {
   const d = data as FloatingTermNodeData;
   const callbacks = useContext(FloatingTermCallbacksContext);
+  const highlightedNodeIds = callbacks?.highlightedNodeIds;
+  const isHighlighted = highlightedNodeIds?.has(id) ?? false;
   const style: CSSProperties = {
     ...BASE_PILL_STYLE,
     ...(selected
@@ -35,6 +37,12 @@ export default function FloatingTermNode({ data, selected }: NodeProps) {
           outline: theme.node.borderSelected,
           outlineOffset: 2,
           boxShadow: `${theme.toast.shadow}, ${theme.node.selectedShadow}`,
+        }
+      : {}),
+    ...(isHighlighted
+      ? {
+          outline: `2px solid ${theme.clp.audit.highlight.borderColor}`,
+          outlineOffset: 2,
         }
       : {}),
   };

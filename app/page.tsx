@@ -3266,9 +3266,17 @@ export default function Page() {
     [nodes, termRegistry]
   );
 
+  const glossaryHighlightedNodeIdSet = useMemo(
+    () => new Set(glossaryHighlightedNodeIds),
+    [glossaryHighlightedNodeIds]
+  );
+
   const floatingTermCallbacksContextValue = useMemo(
-    () => ({ onPillClick: handlePillClick }),
-    [handlePillClick]
+    () => ({
+      onPillClick: handlePillClick,
+      highlightedNodeIds: glossaryHighlightedNodeIdSet,
+    }),
+    [handlePillClick, glossaryHighlightedNodeIdSet]
   );
 
   const handlePillOverlayCommit = useCallback(
@@ -6896,11 +6904,6 @@ export default function Page() {
   useEffect(() => {
     createFrameFromSelectionRef.current = createFrameFromSelection;
   }, [createFrameFromSelection]);
-
-  const glossaryHighlightedNodeIdSet = useMemo(
-    () => new Set(glossaryHighlightedNodeIds),
-    [glossaryHighlightedNodeIds]
-  );
 
   const handleFlowCopyNodeBeforeChange = useCallback(() => {
     startTextEditHistoryBurstRef.current();
