@@ -2971,20 +2971,6 @@ export default function Page() {
     [createHistorySnapshot, pushToHistory]
   );
 
-  const onNodeDragStop = useCallback<OnNodeDrag<FlowNode>>(
-    () => {
-      const snapshotBeforeMove = nodeMoveHistorySnapshotRef.current;
-
-      if (!nodeMoveHistoryCapturedOnStartRef.current && snapshotBeforeMove) {
-        pushToHistory(snapshotBeforeMove);
-      }
-
-      nodeMoveHistorySnapshotRef.current = null;
-      nodeMoveHistoryCapturedOnStartRef.current = false;
-    },
-    [pushToHistory]
-  );
-
   const onConnect = useCallback(
     (params: Connection) => {
       if (!params.source || !params.target) {
@@ -3720,6 +3706,92 @@ export default function Page() {
       activeRegistryDragPayloadRef.current = null;
     },
     [nodes, pushToHistory, setNodes, setTermRegistry]
+  );
+
+  const onNodeDragStop = useCallback<OnNodeDrag<FlowNode>>(
+    (event, draggedNode) => {
+      if ((draggedNode as unknown as { type?: string }).type === "floating_term") {
+        const targetElement = document.elementFromPoint(event.clientX, event.clientY);
+        const slotElement =
+          targetElement?.closest<HTMLElement>("[data-default-slot-id]") ?? null;
+
+        if (slotElement) {
+          const targetSlotId = slotElement.dataset.defaultSlotId ?? null;
+          const targetNodeId = slotElement.dataset.defaultSlotNodeId ?? null;
+
+          if (targetSlotId && targetNodeId) {
+            const entryId = (draggedNode.data as { entryId?: string }).entryId ?? null;
+
+            if (entryId) {
+              const entry = termRegistry.find((registryEntry) => registryEntry.id === entryId) ?? null;
+
+              if (entry) {
+                const targetCardNode = nodes.find((node) => node.id === targetNodeId) ?? null;
+
+                if (targetCardNode && targetCardNode.data.node_type === "default") {
+                  const targetSlot =
+                    targetCardNode.data.content_config.slots.find((slot) => slot.id === targetSlotId) ??
+                    null;
+
+                  if (targetSlot) {
+                    const slotIsOccupied = targetSlot.value.trim().length > 0;
+                    const normalizeType = (t: string | null | undefined) => (t ?? "").trim();
+                    const typesDiffer =
+                      normalizeType(entry.termType).length > 0 &&
+                      normalizeType(targetSlot.termType).length > 0 &&
+                      normalizeType(entry.termType) !== normalizeType(targetSlot.termType);
+
+                    if (slotIsOccupied || typesDiffer) {
+                      const message =
+                        slotIsOccupied && typesDiffer
+                          ? "This slot already has a value, and its term type differs from the pill. Replace the slot's value and change the term's type to match the slot?"
+                          : slotIsOccupied
+                            ? "This slot already has a value. Replace it?"
+                            : "The slot's term type differs from this pill. Change the term's type to match the slot?";
+                      const confirmed = window.confirm(message);
+
+                      if (!confirmed) {
+                        const snapshotBeforeMove = nodeMoveHistorySnapshotRef.current;
+
+                        if (!nodeMoveHistoryCapturedOnStartRef.current && snapshotBeforeMove) {
+                          pushToHistory(snapshotBeforeMove);
+                        }
+
+                        nodeMoveHistorySnapshotRef.current = null;
+                        nodeMoveHistoryCapturedOnStartRef.current = false;
+                        return;
+                      }
+                    }
+
+                    activeRegistryDragPayloadRef.current = {
+                      entryId: entry.id,
+                      termValue: entry.value,
+                    } as TermRegistryDragPayload;
+                    handleDropRegistryEntryOnNodeField(
+                      targetNodeId,
+                      `slot:[${targetSlotId}]` as SlotRegistryField,
+                      null
+                    );
+                    setNodes((current) => current.filter((node) => node.id !== draggedNode.id));
+                    return;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const snapshotBeforeMove = nodeMoveHistorySnapshotRef.current;
+
+      if (!nodeMoveHistoryCapturedOnStartRef.current && snapshotBeforeMove) {
+        pushToHistory(snapshotBeforeMove);
+      }
+
+      nodeMoveHistorySnapshotRef.current = null;
+      nodeMoveHistoryCapturedOnStartRef.current = false;
+    },
+    [handleDropRegistryEntryOnNodeField, nodes, pushToHistory, setNodes, termRegistry]
   );
 
   const resolveDroppedRegistryTerm = useCallback(
