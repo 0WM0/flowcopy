@@ -3205,6 +3205,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               defaultNodeDisplaySlots.map(({ slot, field, normalizedTermType, label }) => (
                   <div
                     key={`default-slot:${slot.id}`}
+                    data-default-slot-id={slot.id}
+                    data-default-slot-node-id={id}
                     style={{
                       marginTop: 4,
                       paddingTop: 4,
@@ -3389,5 +3391,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
 export type { FlowCopyNodeProps };
 export { FlowCopyNode, BodyTextPreview };
+
 
 
