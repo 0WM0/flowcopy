@@ -3711,9 +3711,19 @@ export default function Page() {
   const onNodeDragStop = useCallback<OnNodeDrag<FlowNode>>(
     (event, draggedNode) => {
       if ((draggedNode as unknown as { type?: string }).type === "floating_term") {
-        const targetElement = document.elementFromPoint(event.clientX, event.clientY);
+        const elementsAtPoint = document.elementsFromPoint(event.clientX, event.clientY);
+        const draggedNodeElement =
+          document.querySelector<HTMLElement>(
+            `.react-flow__node[data-id="${draggedNode.id}"]`
+          ) ?? null;
         const slotElement =
-          targetElement?.closest<HTMLElement>("[data-default-slot-id]") ?? null;
+          elementsAtPoint
+            .map((el) => el.closest<HTMLElement>("[data-default-slot-id]"))
+            .find(
+              (candidate): candidate is HTMLElement =>
+                candidate !== null &&
+                (draggedNodeElement === null || !draggedNodeElement.contains(candidate))
+            ) ?? null;
 
         if (slotElement) {
           const targetSlotId = slotElement.dataset.defaultSlotId ?? null;
