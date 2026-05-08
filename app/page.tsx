@@ -3571,14 +3571,59 @@ export default function Page() {
       nodeId: string,
       field: RegistryTrackedField | SlotRegistryField,
       dataTransfer: DataTransfer | null
-    ) => {
+    ): boolean => {
       const payload =
         parseTermRegistryDragPayload(dataTransfer) ??
         activeRegistryDragPayloadRef.current;
 
       if (!payload) {
         activeRegistryDragPayloadRef.current = null;
-        return;
+        return false;
+      }
+
+      // Slot-occupied / type-mismatch confirmation. Slot always wins on type;
+      // confirms are informational so the user knows a type change or value replacement is happening.
+      const slotIdForConfirm = parseSlotRegistryField(field);
+      if (slotIdForConfirm) {
+        const targetNodeForConfirm = nodes.find((node) => node.id === nodeId) ?? null;
+        if (targetNodeForConfirm && targetNodeForConfirm.data.node_type === "default") {
+          const targetSlotForConfirm =
+            targetNodeForConfirm.data.content_config.slots.find(
+              (slot) => slot.id === slotIdForConfirm
+            ) ?? null;
+          const draggedEntryForConfirm =
+            termRegistry.find((entry) => entry.id === payload.entryId) ?? null;
+
+          if (targetSlotForConfirm && draggedEntryForConfirm) {
+            const slotIsOccupied = targetSlotForConfirm.value.trim().length > 0;
+            const normalizeType = (t: string | null | undefined) => (t ?? "").trim();
+            const draggedType = normalizeType(draggedEntryForConfirm.termType);
+            const slotType = normalizeType(targetSlotForConfirm.termType);
+            const typesDiffer =
+              draggedType.length > 0 && slotType.length > 0 && draggedType !== slotType;
+
+            if (slotIsOccupied || typesDiffer) {
+              const occupiedSentence = slotIsOccupied
+                ? "This slot already has a value and will be replaced."
+                : "";
+              const typeSentence = typesDiffer
+                ? `This will change the term's type from "${draggedType}" to "${slotType}" to match the slot.`
+                : "";
+              const message = [occupiedSentence, typeSentence, "Continue?"]
+                .filter((s) => s.length > 0)
+                .join(" ");
+              const confirmed = window.confirm(message);
+
+              if (!confirmed) {
+                activeRegistryDragPayloadRef.current = null;
+                setIsCanvasRegistryDropActive(false);
+                setIsRegistryDragActive(false);
+                setRegistryDragPreview(null);
+                return false;
+              }
+            }
+          }
+        }
       }
 
       const targetNode = nodes.find((node) => node.id === nodeId) ?? null;
@@ -3704,8 +3749,9 @@ export default function Page() {
       setIsRegistryDragActive(false);
       setRegistryDragPreview(null);
       activeRegistryDragPayloadRef.current = null;
+      return true;
     },
-    [nodes, pushToHistory, setNodes, setTermRegistry]
+    [nodes, pushToHistory, setNodes, setTermRegistry, termRegistry]
   );
 
   const onNodeDragStop = useCallback<OnNodeDrag<FlowNode>>(
@@ -3744,45 +3790,26 @@ export default function Page() {
                     null;
 
                   if (targetSlot) {
-                    const slotIsOccupied = targetSlot.value.trim().length > 0;
-                    const normalizeType = (t: string | null | undefined) => (t ?? "").trim();
-                    const typesDiffer =
-                      normalizeType(entry.termType).length > 0 &&
-                      normalizeType(targetSlot.termType).length > 0 &&
-                      normalizeType(entry.termType) !== normalizeType(targetSlot.termType);
-
-                    if (slotIsOccupied || typesDiffer) {
-                      const message =
-                        slotIsOccupied && typesDiffer
-                          ? "This slot already has a value, and its term type differs from the pill. Replace the slot's value and change the term's type to match the slot?"
-                          : slotIsOccupied
-                            ? "This slot already has a value. Replace it?"
-                            : "The slot's term type differs from this pill. Change the term's type to match the slot?";
-                      const confirmed = window.confirm(message);
-
-                      if (!confirmed) {
-                        const snapshotBeforeMove = nodeMoveHistorySnapshotRef.current;
-
-                        if (!nodeMoveHistoryCapturedOnStartRef.current && snapshotBeforeMove) {
-                          pushToHistory(snapshotBeforeMove);
-                        }
-
-                        nodeMoveHistorySnapshotRef.current = null;
-                        nodeMoveHistoryCapturedOnStartRef.current = false;
-                        return;
-                      }
-                    }
-
                     activeRegistryDragPayloadRef.current = {
                       entryId: entry.id,
                       termValue: entry.value,
                     } as TermRegistryDragPayload;
-                    handleDropRegistryEntryOnNodeField(
+                    const dropCommitted = handleDropRegistryEntryOnNodeField(
                       targetNodeId,
                       `slot:[${targetSlotId}]` as SlotRegistryField,
                       null
                     );
-                    setNodes((current) => current.filter((node) => node.id !== draggedNode.id));
+                    if (dropCommitted) {
+                      setNodes((current) => current.filter((node) => node.id !== draggedNode.id));
+                    } else {
+                      // User cancelled — preserve drag-end snapshot for undo of the reposition.
+                      const snapshotBeforeMove = nodeMoveHistorySnapshotRef.current;
+                      if (!nodeMoveHistoryCapturedOnStartRef.current && snapshotBeforeMove) {
+                        pushToHistory(snapshotBeforeMove);
+                      }
+                      nodeMoveHistorySnapshotRef.current = null;
+                      nodeMoveHistoryCapturedOnStartRef.current = false;
+                    }
                     return;
                   }
                 }
