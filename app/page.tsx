@@ -3606,12 +3606,16 @@ export default function Page() {
               const occupiedSentence = slotIsOccupied
                 ? "This slot already has a value and will be replaced."
                 : "";
+              const labelForType = (raw: string) =>
+                TERM_REGISTRY_TERM_TYPE_LABELS[raw] ??
+                TERM_REGISTRY_TERM_TYPE_LABELS[raw.toLowerCase()] ??
+                raw;
               const typeSentence = typesDiffer
-                ? `This will change the term's type from "${draggedType}" to "${slotType}" to match the slot.`
+                ? `This will change the term's type from "${labelForType(draggedType)}" to "${labelForType(slotType)}" to match the slot.`
                 : "";
               const message = [occupiedSentence, typeSentence, "Continue?"]
                 .filter((s) => s.length > 0)
-                .join(" ");
+                .join("\n");
               const confirmed = window.confirm(message);
 
               if (!confirmed) {
