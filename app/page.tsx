@@ -1286,6 +1286,12 @@ type TermRegistryDragPreview = {
   clientY: number;
 };
 
+type PillSlotPickerHoverState = {
+  cardNodeId: string;
+  groupId: string;
+  anchorRect: DOMRect;
+} | null;
+
 const parseTermRegistryDragPayload = (
   dataTransfer: DataTransfer | null
 ): TermRegistryDragPayload | null => {
@@ -1716,6 +1722,9 @@ export default function Page() {
     | null
   >(null);
   const [floatingTermAutoLabelCounter, setFloatingTermAutoLabelCounter] = useState(1);
+  const [pillSlotPickerHover, setPillSlotPickerHover] = useState<PillSlotPickerHoverState>(
+    null
+  );
   const [glossaryHighlightedNodeIds, setGlossaryHighlightedNodeIds] = useState<string[]>(
     []
   );
@@ -1829,6 +1838,7 @@ export default function Page() {
   const menuTermGlossaryTermsRef = useRef<string[]>([]);
   const canvasClipboardRef = useRef<CanvasClipboardSnapshot | null>(null);
   const activeRegistryDragPayloadRef = useRef<TermRegistryDragPayload | null>(null);
+  const pillDragHitTestRafRef = useRef<number | null>(null);
   const pasteInvocationCountRef = useRef(0);
   const historyStackRef = useRef<HistorySnapshot[]>([]);
   const historyIndexRef = useRef(-1);
@@ -2971,6 +2981,94 @@ export default function Page() {
     [createHistorySnapshot, pushToHistory]
   );
 
+  const findPillDragHoverTarget = useCallback(
+    (clientX: number, clientY: number, draggedNodeId: string): PillSlotPickerHoverState => {
+      const draggedNodeElement =
+        document.querySelector<HTMLElement>(`.react-flow__node[data-id="${draggedNodeId}"]`) ??
+        null;
+
+      const stack = document.elementsFromPoint(clientX, clientY);
+
+      for (const el of stack) {
+        if (draggedNodeElement && draggedNodeElement.contains(el)) {
+          continue;
+        }
+
+        const ribbonCellAncestor = el.closest<HTMLElement>("[data-ribbon-cell-id]");
+        if (ribbonCellAncestor) {
+          const groupId = ribbonCellAncestor.dataset.ribbonCellId ?? null;
+          const cardWrapper = ribbonCellAncestor.closest<HTMLElement>(
+            ".react-flow__node[data-id]"
+          );
+          const cardNodeId = cardWrapper?.dataset.id ?? null;
+          if (groupId && cardNodeId) {
+            return {
+              cardNodeId,
+              groupId,
+              anchorRect: ribbonCellAncestor.getBoundingClientRect(),
+            };
+          }
+        }
+
+        const verticalRowAncestor = el.closest<HTMLElement>("[data-vertical-group-row-id]");
+        if (verticalRowAncestor) {
+          const groupId = verticalRowAncestor.dataset.verticalGroupRowId ?? null;
+          const cardWrapper = verticalRowAncestor.closest<HTMLElement>(
+            ".react-flow__node[data-id]"
+          );
+          const cardNodeId = cardWrapper?.dataset.id ?? null;
+          if (groupId && cardNodeId) {
+            return {
+              cardNodeId,
+              groupId,
+              anchorRect: verticalRowAncestor.getBoundingClientRect(),
+            };
+          }
+        }
+      }
+
+      return null;
+    },
+    []
+  );
+
+  const onNodeDrag = useCallback<OnNodeDrag<FlowNode>>(
+    (event, draggedNode) => {
+      if ((draggedNode as unknown as { type?: string }).type !== "floating_term") {
+        return;
+      }
+
+      if (pillDragHitTestRafRef.current !== null) {
+        return;
+      }
+
+      const clientX = event.clientX;
+      const clientY = event.clientY;
+
+      pillDragHitTestRafRef.current = window.requestAnimationFrame(() => {
+        pillDragHitTestRafRef.current = null;
+        const next = findPillDragHoverTarget(clientX, clientY, draggedNode.id);
+        setPillSlotPickerHover((current) => {
+          if (current === null && next === null) return current;
+          if (
+            current !== null &&
+            next !== null &&
+            current.cardNodeId === next.cardNodeId &&
+            current.groupId === next.groupId
+          ) {
+            return current;
+          }
+          console.log("[4b-i hover]", {
+            from: current ? `${current.cardNodeId}/${current.groupId}` : null,
+            to: next ? `${next.cardNodeId}/${next.groupId}` : null,
+          });
+          return next;
+        });
+      });
+    },
+    [findPillDragHoverTarget]
+  );
+
   const onConnect = useCallback(
     (params: Connection) => {
       if (!params.source || !params.target) {
@@ -3761,6 +3859,12 @@ export default function Page() {
   const onNodeDragStop = useCallback<OnNodeDrag<FlowNode>>(
     (event, draggedNode) => {
       if ((draggedNode as unknown as { type?: string }).type === "floating_term") {
+        if (pillDragHitTestRafRef.current !== null) {
+          window.cancelAnimationFrame(pillDragHitTestRafRef.current);
+          pillDragHitTestRafRef.current = null;
+        }
+        setPillSlotPickerHover(null);
+
         const elementsAtPoint = document.elementsFromPoint(event.clientX, event.clientY);
         const draggedNodeElement =
           document.querySelector<HTMLElement>(
@@ -9626,6 +9730,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeDragStart={onNodeDragStart}
+            onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
             onConnect={onConnect}
             onReconnect={onReconnect}
