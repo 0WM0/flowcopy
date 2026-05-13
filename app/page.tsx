@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   ReactFlow,
   addEdge,
@@ -1292,6 +1293,14 @@ type PillSlotPickerHoverState = {
   anchorRect: DOMRect;
 } | null;
 
+type PillSlotPickerOpenState = {
+  cardNodeId: string;
+  groupId: string;
+  anchorRect: DOMRect;
+  pillNodeId: string;
+  pillEntryId: string;
+} | null;
+
 const parseTermRegistryDragPayload = (
   dataTransfer: DataTransfer | null
 ): TermRegistryDragPayload | null => {
@@ -1725,6 +1734,9 @@ export default function Page() {
   const [pillSlotPickerHover, setPillSlotPickerHover] = useState<PillSlotPickerHoverState>(
     null
   );
+  const [pillSlotPickerOpen, setPillSlotPickerOpen] = useState<PillSlotPickerOpenState>(
+    null
+  );
   const [glossaryHighlightedNodeIds, setGlossaryHighlightedNodeIds] = useState<string[]>(
     []
   );
@@ -1839,6 +1851,11 @@ export default function Page() {
   const canvasClipboardRef = useRef<CanvasClipboardSnapshot | null>(null);
   const activeRegistryDragPayloadRef = useRef<TermRegistryDragPayload | null>(null);
   const pillDragHitTestRafRef = useRef<number | null>(null);
+  const pillPreDragPositionRef = useRef<{
+    nodeId: string;
+    position: { x: number; y: number };
+  } | null>(null);
+  const slotPickerPopupRef = useRef<HTMLDivElement | null>(null);
   const pasteInvocationCountRef = useRef(0);
   const historyStackRef = useRef<HistorySnapshot[]>([]);
   const historyIndexRef = useRef(-1);
@@ -2966,7 +2983,7 @@ export default function Page() {
   );
 
   const onNodeDragStart = useCallback<OnNodeDrag<FlowNode>>(
-    (_event, _node, draggedNodes) => {
+    (_event, draggedNode, draggedNodes) => {
       const snapshotBeforeMove = createHistorySnapshot();
       nodeMoveHistorySnapshotRef.current = snapshotBeforeMove;
 
@@ -2977,6 +2994,13 @@ export default function Page() {
       }
 
       nodeMoveHistoryCapturedOnStartRef.current = false;
+
+      if ((draggedNode as unknown as { type?: string }).type === "floating_term") {
+        pillPreDragPositionRef.current = {
+          nodeId: draggedNode.id,
+          position: { x: draggedNode.position.x, y: draggedNode.position.y },
+        };
+      }
     },
     [createHistorySnapshot, pushToHistory]
   );
@@ -3058,10 +3082,6 @@ export default function Page() {
           ) {
             return current;
           }
-          console.log("[4b-i hover]", {
-            from: current ? `${current.cardNodeId}/${current.groupId}` : null,
-            to: next ? `${next.cardNodeId}/${next.groupId}` : null,
-          });
           return next;
         });
       });
@@ -3856,6 +3876,70 @@ export default function Page() {
     [nodes, pushToHistory, setNodes, setTermRegistry, termRegistry]
   );
 
+  const handlePillSlotPickerPick = useCallback(
+    (slotId: string) => {
+      if (!pillSlotPickerOpen) return;
+      const { cardNodeId, pillNodeId, pillEntryId } = pillSlotPickerOpen;
+      const entry = termRegistry.find((registryEntry) => registryEntry.id === pillEntryId) ?? null;
+      if (!entry) {
+        setPillSlotPickerOpen(null);
+        return;
+      }
+      activeRegistryDragPayloadRef.current = {
+        entryId: entry.id,
+        termValue: entry.value,
+      } as TermRegistryDragPayload;
+      const dropCommitted = handleDropRegistryEntryOnNodeField(
+        cardNodeId,
+        `slot:[${slotId}]` as SlotRegistryField,
+        null
+      );
+      if (dropCommitted) {
+        setNodes((current) => current.filter((node) => node.id !== pillNodeId));
+        pillPreDragPositionRef.current = null;
+      }
+      setPillSlotPickerOpen(null);
+    },
+    [handleDropRegistryEntryOnNodeField, pillSlotPickerOpen, setNodes, termRegistry]
+  );
+
+  const handlePillSlotPickerCancel = useCallback(() => {
+    if (!pillSlotPickerOpen) return;
+    const preDrag = pillPreDragPositionRef.current;
+    if (preDrag && preDrag.nodeId === pillSlotPickerOpen.pillNodeId) {
+      setNodes((current) =>
+        current.map((node) =>
+          node.id === preDrag.nodeId
+            ? { ...node, position: { x: preDrag.position.x, y: preDrag.position.y } }
+            : node
+        )
+      );
+    }
+    pillPreDragPositionRef.current = null;
+    setPillSlotPickerOpen(null);
+  }, [pillSlotPickerOpen, setNodes]);
+
+  useEffect(() => {
+    if (!pillSlotPickerOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (slotPickerPopupRef.current?.contains(target)) return;
+      handlePillSlotPickerCancel();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      handlePillSlotPickerCancel();
+    };
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [pillSlotPickerOpen, handlePillSlotPickerCancel]);
+
   const onNodeDragStop = useCallback<OnNodeDrag<FlowNode>>(
     (event, draggedNode) => {
       if ((draggedNode as unknown as { type?: string }).type === "floating_term") {
@@ -3863,7 +3947,28 @@ export default function Page() {
           window.cancelAnimationFrame(pillDragHitTestRafRef.current);
           pillDragHitTestRafRef.current = null;
         }
+        const hoverAtDrop = pillSlotPickerHover;
         setPillSlotPickerHover(null);
+
+        if (hoverAtDrop) {
+          const entryId = (draggedNode.data as { entryId?: string }).entryId ?? null;
+          if (entryId) {
+            setPillSlotPickerOpen({
+              cardNodeId: hoverAtDrop.cardNodeId,
+              groupId: hoverAtDrop.groupId,
+              anchorRect: hoverAtDrop.anchorRect,
+              pillNodeId: draggedNode.id,
+              pillEntryId: entryId,
+            });
+            const snapshotBeforeMove = nodeMoveHistorySnapshotRef.current;
+            if (!nodeMoveHistoryCapturedOnStartRef.current && snapshotBeforeMove) {
+              pushToHistory(snapshotBeforeMove);
+            }
+            nodeMoveHistorySnapshotRef.current = null;
+            nodeMoveHistoryCapturedOnStartRef.current = false;
+            return;
+          }
+        }
 
         const elementsAtPoint = document.elementsFromPoint(event.clientX, event.clientY);
         const draggedNodeElement =
@@ -3936,7 +4041,14 @@ export default function Page() {
       nodeMoveHistorySnapshotRef.current = null;
       nodeMoveHistoryCapturedOnStartRef.current = false;
     },
-    [handleDropRegistryEntryOnNodeField, nodes, pushToHistory, setNodes, termRegistry]
+    [
+      handleDropRegistryEntryOnNodeField,
+      nodes,
+      pillSlotPickerHover,
+      pushToHistory,
+      setNodes,
+      termRegistry,
+    ]
   );
 
   const resolveDroppedRegistryTerm = useCallback(
@@ -13056,6 +13168,117 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
           onCancel={handlePillOverlayCancel}
         />
       )}
+
+      {pillSlotPickerOpen && (() => {
+        const targetCardNode = nodes.find((node) => node.id === pillSlotPickerOpen.cardNodeId) ?? null;
+        if (
+          !targetCardNode ||
+          (targetCardNode.data.node_type !== "horizontal_multi_term" &&
+            targetCardNode.data.node_type !== "vertical_multi_term")
+        ) {
+          return null;
+        }
+        const slotsInGroup = targetCardNode.data.content_config.slots
+          .filter((slot) => slot.groupId === pillSlotPickerOpen.groupId)
+          .sort((a, b) => a.position - b.position);
+        const labelForType = (raw: string | null | undefined): string => {
+          const value = (raw ?? "").trim();
+          if (value.length === 0) return "Untyped";
+          return (
+            TERM_REGISTRY_TERM_TYPE_LABELS[value] ??
+            TERM_REGISTRY_TERM_TYPE_LABELS[value.toLowerCase()] ??
+            value
+          );
+        };
+        return createPortal(
+          <div
+            ref={slotPickerPopupRef}
+            className="nodrag nopan"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              position: "fixed",
+              left: pillSlotPickerOpen.anchorRect.left + 8,
+              top: pillSlotPickerOpen.anchorRect.bottom + 6,
+              width: 220,
+              background: theme.node.popup.bg,
+              border: theme.node.popup.border,
+              borderRadius: 8,
+              boxShadow: theme.node.popup.shadow,
+              padding: "8px 10px",
+              zIndex: 9999,
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            {slotsInGroup.length === 0 ? (
+              <div style={{ fontSize: theme.node.popup.fieldFontSize, color: theme.node.popup.fieldText }}>
+                No slots in this group.
+              </div>
+            ) : (
+              slotsInGroup.map((slot) => {
+                const valuePreview = slot.value.trim();
+                return (
+                  <button
+                    key={`pill-picker-slot:${slot.id}`}
+                    type="button"
+                    className="nodrag"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handlePillSlotPickerPick(slot.id);
+                    }}
+                    onMouseEnter={(event) => {
+                      event.currentTarget.style.background = theme.node.popup.termBadge.bg;
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.background = "transparent";
+                    }}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      border: "none",
+                      background: "transparent",
+                      borderRadius: 6,
+                      padding: "2px 4px",
+                      margin: "0 -4px",
+                      cursor: "pointer",
+                      font: "inherit",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: theme.node.field.labelFontSize,
+                        fontWeight: 700,
+                        color: theme.node.popup.fieldText,
+                      }}
+                    >
+                      {labelForType(slot.termType)}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: theme.node.field.inputFontSize,
+                        color:
+                          valuePreview.length > 0
+                            ? theme.node.field.value
+                            : theme.node.field.placeholder,
+                        fontStyle: valuePreview.length > 0 ? "normal" : "italic",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        marginTop: 2,
+                      }}
+                    >
+                      {valuePreview.length > 0 ? valuePreview : "empty"}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>,
+          document.body
+        );
+      })()}
 
       <HelpModal isOpen={isHelpModalOpen} onClose={closeHelpModal} />
 
