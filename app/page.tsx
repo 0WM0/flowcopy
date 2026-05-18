@@ -31,6 +31,8 @@ import "@xyflow/react/dist/style.css";
 import type {
   NodeShape,
   NodeContentConfig,
+  NodeContentGroup,
+  NodeContentSlot,
   EdgeKind,
   EdgeLineStyle,
   FrameShade,
@@ -1280,6 +1282,31 @@ type PendingRibbonRegistryTerm = {
   referenceKey: string | null;
 };
 
+type ActiveRibbonPopupTarget = {
+  nodeId: string;
+  cellId: string;
+};
+
+type ActiveVerticalPopupTarget = {
+  nodeId: string;
+  groupId: string;
+};
+
+type HorizontalCellView = {
+  id: string;
+  row: number;
+  column: number;
+  label: string;
+  key_command: string;
+  tool_tip: string;
+};
+
+type VerticalTermRow = {
+  group: NodeContentGroup;
+  slots: NodeContentSlot[];
+  primarySlot: NodeContentSlot | null;
+};
+
 type TermRegistryDragPreview = {
   termValue: string;
   clientX: number;
@@ -1562,6 +1589,49 @@ const sortContentSlotsByPosition = (
   slotB: { position: number }
 ): number => slotA.position - slotB.position;
 
+const buildHorizontalCellViews = (
+  contentConfig: NodeContentConfig
+): HorizontalCellView[] => {
+  const sortedGroups = [...contentConfig.groups].sort(sortContentGroupsByRowColumn);
+
+  return sortedGroups.map((group) => {
+    const groupSlots = contentConfig.slots
+      .filter((slot) => slot.groupId === group.id)
+      .sort(sortContentSlotsByPosition);
+    const labelSlot = groupSlots.find((slot) => slot.position === 0) ?? groupSlots[0] ?? null;
+    const keyCommandSlot = groupSlots.find((slot) => slot.position === 1) ?? null;
+    const toolTipSlot = groupSlots.find((slot) => slot.position === 2) ?? null;
+
+    return {
+      id: group.id,
+      row: group.row,
+      column: group.column,
+      label: labelSlot?.value ?? "",
+      key_command: keyCommandSlot?.value ?? "",
+      tool_tip: toolTipSlot?.value ?? "",
+    };
+  });
+};
+
+const buildVerticalTermRows = (
+  contentConfig: NodeContentConfig
+): VerticalTermRow[] => {
+  const sortedGroups = [...contentConfig.groups].sort(sortContentGroupsByRowColumn);
+
+  return sortedGroups.map((group) => {
+    const slots = contentConfig.slots
+      .filter((slot) => slot.groupId === group.id)
+      .sort(sortContentSlotsByPosition);
+    const primarySlot = slots.find((slot) => slot.position === 0) ?? slots[0] ?? null;
+
+    return {
+      group,
+      slots,
+      primarySlot,
+    };
+  });
+};
+
 const getMenuTermSlotValueFromContentConfig = (
   contentConfig: NodeContentConfig,
   groupId: string
@@ -1685,6 +1755,7 @@ type HistorySnapshot = EditorSnapshot & {
 export default function Page() {
   const supabase = useMemo(() => createClient(), []);
   const closeAllPopups = useUiStore((state) => state.closeAllPopups);
+  const closeAllPopupsTick = useUiStore((state) => state.closeAllPopupsTick);
 
   const [store, setStore] = useState<AppStore>(createEmptyStore);
   const [newProjectName, setNewProjectName] = useState("");
@@ -1699,6 +1770,20 @@ export default function Page() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [editingCellId, setEditingCellId] = useState<ActiveRibbonPopupTarget | null>(null);
+  const [cellPopupPosition, setCellPopupPosition] = useState<{ x: number; y: number } | null>(null);
+  const [pendingRibbonRegistryTerm, setPendingRibbonRegistryTerm] =
+    useState<PendingRibbonRegistryTerm | null>(null);
+  const [activeRibbonDropCellId, setActiveRibbonDropCellId] =
+    useState<ActiveRibbonPopupTarget | null>(null);
+  const [editingVerticalGroupId, setEditingVerticalGroupId] =
+    useState<ActiveVerticalPopupTarget | null>(null);
+  const [verticalTermPopupPosition, setVerticalTermPopupPosition] =
+    useState<{ x: number; y: number } | null>(null);
+  const [pendingVerticalRegistryTerm, setPendingVerticalRegistryTerm] =
+    useState<PendingRibbonRegistryTerm | null>(null);
+  const [activeVerticalDropGroupId, setActiveVerticalDropGroupId] =
+    useState<ActiveVerticalPopupTarget | null>(null);
   const [adminOptions, setAdminOptions] =
     useState<GlobalOptionConfig>(DEFAULT_GLOBAL_OPTIONS);
   const [controlledLanguageGlossary, setControlledLanguageGlossary] = useState<
@@ -7122,6 +7207,311 @@ export default function Page() {
     createFrameFromSelectionRef.current = createFrameFromSelection;
   }, [createFrameFromSelection]);
 
+  const closeRibbonCellPopup = useCallback(() => {
+    setEditingCellId(null);
+    setCellPopupPosition(null);
+    setPendingRibbonRegistryTerm(null);
+    setActiveRibbonDropCellId(null);
+  }, []);
+
+  const closeVerticalTermPopup = useCallback(() => {
+    setEditingVerticalGroupId(null);
+    setVerticalTermPopupPosition(null);
+    setPendingVerticalRegistryTerm(null);
+    setActiveVerticalDropGroupId(null);
+  }, []);
+
+  const openRibbonCellEditor = useCallback(
+    (
+      nodeId: string,
+      cellElement: HTMLDivElement,
+      cellId: string,
+      pendingTerm: PendingRibbonRegistryTerm | null = null
+    ) => {
+      if (editingCellId?.nodeId === nodeId && editingCellId.cellId === cellId) {
+        closeRibbonCellPopup();
+        return;
+      }
+
+      const rect = cellElement.getBoundingClientRect();
+      closeVerticalTermPopup();
+      setCellPopupPosition({
+        x: rect.left + 8,
+        y: rect.bottom + 6,
+      });
+      setEditingCellId({ nodeId, cellId });
+      setPendingRibbonRegistryTerm(pendingTerm);
+      setActiveRibbonDropCellId(null);
+    },
+    [closeRibbonCellPopup, closeVerticalTermPopup, editingCellId]
+  );
+
+  const openVerticalTermEditor = useCallback(
+    (
+      nodeId: string,
+      rowElement: HTMLDivElement,
+      groupId: string,
+      pendingTerm: PendingRibbonRegistryTerm | null = null
+    ) => {
+      if (
+        editingVerticalGroupId?.nodeId === nodeId &&
+        editingVerticalGroupId.groupId === groupId
+      ) {
+        closeVerticalTermPopup();
+        return;
+      }
+
+      const rect = rowElement.getBoundingClientRect();
+      closeRibbonCellPopup();
+      setVerticalTermPopupPosition({
+        x: rect.left + 8,
+        y: rect.bottom + 6,
+      });
+      setEditingVerticalGroupId({ nodeId, groupId });
+      setPendingVerticalRegistryTerm(pendingTerm);
+      setActiveVerticalDropGroupId(null);
+    },
+    [closeRibbonCellPopup, closeVerticalTermPopup, editingVerticalGroupId]
+  );
+
+  useEffect(() => {
+    if (closeAllPopupsTick === 0) {
+      return;
+    }
+
+    closeRibbonCellPopup();
+    closeVerticalTermPopup();
+  }, [closeAllPopupsTick, closeRibbonCellPopup, closeVerticalTermPopup]);
+
+  const editingRibbonCell = useMemo(() => {
+    if (!editingCellId) {
+      return null;
+    }
+
+    const activeNode = nodes.find(
+      (node) =>
+        node.id === editingCellId.nodeId &&
+        node.data.node_type === "horizontal_multi_term"
+    );
+
+    if (!activeNode) {
+      return null;
+    }
+
+    const contentConfig = normalizeNodeContentConfig(activeNode.data.content_config, "horizontal");
+    return (
+      buildHorizontalCellViews(contentConfig).find(
+        (cell) => cell.id === editingCellId.cellId
+      ) ?? null
+    );
+  }, [editingCellId, nodes]);
+
+  const editingRibbonSlots = useMemo<NodeContentSlot[]>(() => {
+    if (!editingCellId) {
+      return [];
+    }
+
+    const activeNode = nodes.find(
+      (node) =>
+        node.id === editingCellId.nodeId &&
+        node.data.node_type === "horizontal_multi_term"
+    );
+
+    if (!activeNode) {
+      return [];
+    }
+
+    const contentConfig = normalizeNodeContentConfig(activeNode.data.content_config, "horizontal");
+    return contentConfig.slots
+      .filter((slot) => slot.groupId === editingCellId.cellId)
+      .sort(sortContentSlotsByPosition);
+  }, [editingCellId, nodes]);
+
+  const editingVerticalRow = useMemo(() => {
+    if (!editingVerticalGroupId) {
+      return null;
+    }
+
+    const activeNode = nodes.find(
+      (node) =>
+        node.id === editingVerticalGroupId.nodeId &&
+        node.data.node_type === "vertical_multi_term"
+    );
+
+    if (!activeNode) {
+      return null;
+    }
+
+    const contentConfig = normalizeNodeContentConfig(activeNode.data.content_config, "vertical");
+    return (
+      buildVerticalTermRows(contentConfig).find(
+        (row) => row.group.id === editingVerticalGroupId.groupId
+      ) ?? null
+    );
+  }, [editingVerticalGroupId, nodes]);
+
+  useEffect(() => {
+    if (!editingCellId) {
+      return;
+    }
+
+    const activeNode = nodes.find((node) => node.id === editingCellId.nodeId);
+    if (!activeNode || activeNode.data.node_type !== "horizontal_multi_term") {
+      closeRibbonCellPopup();
+      return;
+    }
+
+    const contentConfig = normalizeNodeContentConfig(activeNode.data.content_config, "horizontal");
+    const matchingGroupExists = contentConfig.groups.some(
+      (group) => group.id === editingCellId.cellId
+    );
+    const matchingGroupHasSlots = contentConfig.slots.some(
+      (slot) => slot.groupId === editingCellId.cellId
+    );
+
+    if (!matchingGroupExists || !matchingGroupHasSlots) {
+      closeRibbonCellPopup();
+    }
+  }, [closeRibbonCellPopup, editingCellId, nodes]);
+
+  useEffect(() => {
+    if (!editingVerticalGroupId) {
+      return;
+    }
+
+    const activeNode = nodes.find((node) => node.id === editingVerticalGroupId.nodeId);
+    if (!activeNode || activeNode.data.node_type !== "vertical_multi_term") {
+      closeVerticalTermPopup();
+      return;
+    }
+
+    const contentConfig = normalizeNodeContentConfig(activeNode.data.content_config, "vertical");
+    const matchingGroupExists = contentConfig.groups.some(
+      (group) => group.id === editingVerticalGroupId.groupId
+    );
+    const matchingGroupHasSlots = contentConfig.slots.some(
+      (slot) => slot.groupId === editingVerticalGroupId.groupId
+    );
+
+    if (!matchingGroupExists || !matchingGroupHasSlots) {
+      closeVerticalTermPopup();
+    }
+  }, [closeVerticalTermPopup, editingVerticalGroupId, nodes]);
+
+  useEffect(() => {
+    if (!activeRibbonDropCellId) {
+      return;
+    }
+
+    const activeNode = nodes.find((node) => node.id === activeRibbonDropCellId.nodeId);
+    if (!activeNode || activeNode.data.node_type !== "horizontal_multi_term") {
+      setActiveRibbonDropCellId(null);
+      return;
+    }
+
+    const contentConfig = normalizeNodeContentConfig(activeNode.data.content_config, "horizontal");
+    if (!contentConfig.groups.some((group) => group.id === activeRibbonDropCellId.cellId)) {
+      setActiveRibbonDropCellId(null);
+    }
+  }, [activeRibbonDropCellId, nodes]);
+
+  useEffect(() => {
+    if (!activeVerticalDropGroupId) {
+      return;
+    }
+
+    const activeNode = nodes.find((node) => node.id === activeVerticalDropGroupId.nodeId);
+    if (!activeNode || activeNode.data.node_type !== "vertical_multi_term") {
+      setActiveVerticalDropGroupId(null);
+      return;
+    }
+
+    const contentConfig = normalizeNodeContentConfig(activeNode.data.content_config, "vertical");
+    if (!contentConfig.groups.some((group) => group.id === activeVerticalDropGroupId.groupId)) {
+      setActiveVerticalDropGroupId(null);
+    }
+  }, [activeVerticalDropGroupId, nodes]);
+
+  useEffect(() => {
+    if (!editingCellId) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+
+      if (target.closest('[data-ribbon-cell-popup="true"]')) {
+        return;
+      }
+
+      if (target.closest("[data-ribbon-cell-id]")) {
+        return;
+      }
+
+      closeRibbonCellPopup();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      closeRibbonCellPopup();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeRibbonCellPopup, editingCellId]);
+
+  useEffect(() => {
+    if (!editingVerticalGroupId) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+
+      if (target.closest('[data-vertical-term-popup="true"]')) {
+        return;
+      }
+
+      if (target.closest("[data-vertical-group-row-id]")) {
+        return;
+      }
+
+      closeVerticalTermPopup();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      closeVerticalTermPopup();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeVerticalTermPopup, editingVerticalGroupId]);
+
   const handleFlowCopyNodeBeforeChange = useCallback(() => {
     startTextEditHistoryBurstRef.current();
   }, []);
@@ -7184,11 +7574,78 @@ nodeCallbacksRef.current = {
         onVerticalContentConfigChange={
           nodeCallbacksRef.current.handleFlowCopyNodeVerticalContentConfigChange
         }
+        editingCellId={editingCellId?.nodeId === props.id ? editingCellId.cellId : null}
+        cellPopupPosition={editingCellId?.nodeId === props.id ? cellPopupPosition : null}
+        pendingRibbonRegistryTerm={
+          editingCellId?.nodeId === props.id ? pendingRibbonRegistryTerm : null
+        }
+        activeRibbonDropCellId={
+          activeRibbonDropCellId?.nodeId === props.id
+            ? activeRibbonDropCellId.cellId
+            : null
+        }
+        editingVerticalGroupId={
+          editingVerticalGroupId?.nodeId === props.id
+            ? editingVerticalGroupId.groupId
+            : null
+        }
+        verticalTermPopupPosition={
+          editingVerticalGroupId?.nodeId === props.id ? verticalTermPopupPosition : null
+        }
+        pendingVerticalRegistryTerm={
+          editingVerticalGroupId?.nodeId === props.id ? pendingVerticalRegistryTerm : null
+        }
+        activeVerticalDropGroupId={
+          activeVerticalDropGroupId?.nodeId === props.id
+            ? activeVerticalDropGroupId.groupId
+            : null
+        }
+        editingRibbonCell={editingRibbonCell?.id && editingCellId?.nodeId === props.id ? editingRibbonCell : null}
+        editingRibbonSlots={editingCellId?.nodeId === props.id ? editingRibbonSlots : []}
+        editingVerticalRow={
+          editingVerticalGroupId?.nodeId === props.id ? editingVerticalRow : null
+        }
+        onOpenRibbonCellEditor={openRibbonCellEditor}
+        onCloseRibbonCellPopup={closeRibbonCellPopup}
+        onSetPendingRibbonRegistryTerm={setPendingRibbonRegistryTerm}
+        onSetActiveRibbonDropCellId={(cellId) => {
+          setActiveRibbonDropCellId(
+            cellId ? { nodeId: props.id, cellId } : null
+          );
+        }}
+        onOpenVerticalTermEditor={openVerticalTermEditor}
+        onCloseVerticalTermPopup={closeVerticalTermPopup}
+        onSetPendingVerticalRegistryTerm={setPendingVerticalRegistryTerm}
+        onSetActiveVerticalDropGroupId={(groupId) => {
+          setActiveVerticalDropGroupId(
+            groupId ? { nodeId: props.id, groupId } : null
+          );
+        }}
       />
     ),
     floating_term: FloatingTermNode,
   }),
-  [glossaryHighlightedNodeIdSet, showNodeIdsOnCanvas]
+  [
+    activeRibbonDropCellId,
+    activeVerticalDropGroupId,
+    cellPopupPosition,
+    closeRibbonCellPopup,
+    closeVerticalTermPopup,
+    editingCellId,
+    editingRibbonCell,
+    editingRibbonSlots,
+    editingVerticalGroupId,
+    editingVerticalRow,
+    glossaryHighlightedNodeIdSet,
+    openRibbonCellEditor,
+    openVerticalTermEditor,
+    pendingRibbonRegistryTerm,
+    pendingVerticalRegistryTerm,
+    setPendingRibbonRegistryTerm,
+    setPendingVerticalRegistryTerm,
+    showNodeIdsOnCanvas,
+    verticalTermPopupPosition,
+  ]
 );
 
   const updatePendingOptionInput = useCallback(
