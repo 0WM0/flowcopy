@@ -307,6 +307,15 @@ import {
 import { useAutoSave } from "./hooks/useAutoSave";
 import { createClient } from "@/lib/supabase/client";
 import { useUiStore } from "./lib/ui-store";
+import {
+  FlowCopyPopupContext,
+  type ActiveRibbonPopupTarget,
+  type ActiveVerticalPopupTarget,
+  type FlowCopyPopupContextValue,
+  type HorizontalCellView,
+  type PendingRibbonRegistryTerm,
+  type VerticalTermRow,
+} from "./lib/flowcopy-popup-context";
 
 
 type ImportFeedback = {
@@ -1274,37 +1283,6 @@ type TermRegistryDragPayload = {
   termValue: string;
   referenceKey: string | null;
   nodeType: NodeType | null;
-};
-
-type PendingRibbonRegistryTerm = {
-  entryId: string;
-  termValue: string;
-  referenceKey: string | null;
-};
-
-type ActiveRibbonPopupTarget = {
-  nodeId: string;
-  cellId: string;
-};
-
-type ActiveVerticalPopupTarget = {
-  nodeId: string;
-  groupId: string;
-};
-
-type HorizontalCellView = {
-  id: string;
-  row: number;
-  column: number;
-  label: string;
-  key_command: string;
-  tool_tip: string;
-};
-
-type VerticalTermRow = {
-  group: NodeContentGroup;
-  slots: NodeContentSlot[];
-  primarySlot: NodeContentSlot | null;
 };
 
 type TermRegistryDragPreview = {
@@ -7398,6 +7376,35 @@ export default function Page() {
     }
   }, [closeVerticalTermPopup, editingVerticalGroupId, nodes]);
 
+  const flowCopyPopupContextValue = useMemo<FlowCopyPopupContextValue>(
+    () => ({
+      editingCellId,
+      cellPopupPosition,
+      pendingRibbonRegistryTerm,
+      activeRibbonDropCellId,
+      editingVerticalGroupId,
+      verticalTermPopupPosition,
+      pendingVerticalRegistryTerm,
+      activeVerticalDropGroupId,
+      editingRibbonCell,
+      editingRibbonSlots,
+      editingVerticalRow,
+    }),
+    [
+      activeRibbonDropCellId,
+      activeVerticalDropGroupId,
+      cellPopupPosition,
+      editingCellId,
+      editingRibbonCell,
+      editingRibbonSlots,
+      editingVerticalGroupId,
+      editingVerticalRow,
+      pendingRibbonRegistryTerm,
+      pendingVerticalRegistryTerm,
+      verticalTermPopupPosition,
+    ]
+  );
+
   useEffect(() => {
     if (!activeRibbonDropCellId) {
       return;
@@ -7530,6 +7537,30 @@ export default function Page() {
     },
     []
   );
+  const handleFlowCopyNodeSetPendingRibbonRegistryTerm = useCallback(
+    (pendingTerm: PendingRibbonRegistryTerm | null) => {
+      setPendingRibbonRegistryTerm(pendingTerm);
+    },
+    []
+  );
+  const handleFlowCopyNodeSetPendingVerticalRegistryTerm = useCallback(
+    (pendingTerm: PendingRibbonRegistryTerm | null) => {
+      setPendingVerticalRegistryTerm(pendingTerm);
+    },
+    []
+  );
+  const handleFlowCopyNodeSetActiveRibbonDropCellId = useCallback(
+    (nodeId: string, cellId: string | null) => {
+      setActiveRibbonDropCellId(cellId ? { nodeId, cellId } : null);
+    },
+    []
+  );
+  const handleFlowCopyNodeSetActiveVerticalDropGroupId = useCallback(
+    (nodeId: string, groupId: string | null) => {
+      setActiveVerticalDropGroupId(groupId ? { nodeId, groupId } : null);
+    },
+    []
+  );
 const nodeCallbacksRef = useRef({
   handleFlowCopyNodeBeforeChange,
   handleFlowCopyNodeTextEditBlur,
@@ -7541,6 +7572,14 @@ const nodeCallbacksRef = useRef({
   handleAssignPendingRibbonTermToField,
   showMenuTermDeleteBlockedMessage,
   handleFlowCopyNodeVerticalContentConfigChange,
+  openRibbonCellEditor,
+  closeRibbonCellPopup,
+  handleFlowCopyNodeSetPendingRibbonRegistryTerm,
+  handleFlowCopyNodeSetActiveRibbonDropCellId,
+  openVerticalTermEditor,
+  closeVerticalTermPopup,
+  handleFlowCopyNodeSetPendingVerticalRegistryTerm,
+  handleFlowCopyNodeSetActiveVerticalDropGroupId,
 });
 nodeCallbacksRef.current = {
   handleFlowCopyNodeBeforeChange,
@@ -7553,6 +7592,14 @@ nodeCallbacksRef.current = {
   handleAssignPendingRibbonTermToField,
   showMenuTermDeleteBlockedMessage,
   handleFlowCopyNodeVerticalContentConfigChange,
+  openRibbonCellEditor,
+  closeRibbonCellPopup,
+  handleFlowCopyNodeSetPendingRibbonRegistryTerm,
+  handleFlowCopyNodeSetActiveRibbonDropCellId,
+  openVerticalTermEditor,
+  closeVerticalTermPopup,
+  handleFlowCopyNodeSetPendingVerticalRegistryTerm,
+  handleFlowCopyNodeSetActiveVerticalDropGroupId,
 };
  const nodeTypes = useMemo(
   () => ({
@@ -7574,78 +7621,27 @@ nodeCallbacksRef.current = {
         onVerticalContentConfigChange={
           nodeCallbacksRef.current.handleFlowCopyNodeVerticalContentConfigChange
         }
-        editingCellId={editingCellId?.nodeId === props.id ? editingCellId.cellId : null}
-        cellPopupPosition={editingCellId?.nodeId === props.id ? cellPopupPosition : null}
-        pendingRibbonRegistryTerm={
-          editingCellId?.nodeId === props.id ? pendingRibbonRegistryTerm : null
+        onOpenRibbonCellEditor={nodeCallbacksRef.current.openRibbonCellEditor}
+        onCloseRibbonCellPopup={nodeCallbacksRef.current.closeRibbonCellPopup}
+        onSetPendingRibbonRegistryTerm={
+          nodeCallbacksRef.current.handleFlowCopyNodeSetPendingRibbonRegistryTerm
         }
-        activeRibbonDropCellId={
-          activeRibbonDropCellId?.nodeId === props.id
-            ? activeRibbonDropCellId.cellId
-            : null
+        onSetActiveRibbonDropCellId={
+          nodeCallbacksRef.current.handleFlowCopyNodeSetActiveRibbonDropCellId
         }
-        editingVerticalGroupId={
-          editingVerticalGroupId?.nodeId === props.id
-            ? editingVerticalGroupId.groupId
-            : null
+        onOpenVerticalTermEditor={nodeCallbacksRef.current.openVerticalTermEditor}
+        onCloseVerticalTermPopup={nodeCallbacksRef.current.closeVerticalTermPopup}
+        onSetPendingVerticalRegistryTerm={
+          nodeCallbacksRef.current.handleFlowCopyNodeSetPendingVerticalRegistryTerm
         }
-        verticalTermPopupPosition={
-          editingVerticalGroupId?.nodeId === props.id ? verticalTermPopupPosition : null
+        onSetActiveVerticalDropGroupId={
+          nodeCallbacksRef.current.handleFlowCopyNodeSetActiveVerticalDropGroupId
         }
-        pendingVerticalRegistryTerm={
-          editingVerticalGroupId?.nodeId === props.id ? pendingVerticalRegistryTerm : null
-        }
-        activeVerticalDropGroupId={
-          activeVerticalDropGroupId?.nodeId === props.id
-            ? activeVerticalDropGroupId.groupId
-            : null
-        }
-        editingRibbonCell={editingRibbonCell?.id && editingCellId?.nodeId === props.id ? editingRibbonCell : null}
-        editingRibbonSlots={editingCellId?.nodeId === props.id ? editingRibbonSlots : []}
-        editingVerticalRow={
-          editingVerticalGroupId?.nodeId === props.id ? editingVerticalRow : null
-        }
-        onOpenRibbonCellEditor={openRibbonCellEditor}
-        onCloseRibbonCellPopup={closeRibbonCellPopup}
-        onSetPendingRibbonRegistryTerm={setPendingRibbonRegistryTerm}
-        onSetActiveRibbonDropCellId={(cellId) => {
-          setActiveRibbonDropCellId(
-            cellId ? { nodeId: props.id, cellId } : null
-          );
-        }}
-        onOpenVerticalTermEditor={openVerticalTermEditor}
-        onCloseVerticalTermPopup={closeVerticalTermPopup}
-        onSetPendingVerticalRegistryTerm={setPendingVerticalRegistryTerm}
-        onSetActiveVerticalDropGroupId={(groupId) => {
-          setActiveVerticalDropGroupId(
-            groupId ? { nodeId: props.id, groupId } : null
-          );
-        }}
       />
     ),
     floating_term: FloatingTermNode,
   }),
-  [
-    activeRibbonDropCellId,
-    activeVerticalDropGroupId,
-    cellPopupPosition,
-    closeRibbonCellPopup,
-    closeVerticalTermPopup,
-    editingCellId,
-    editingRibbonCell,
-    editingRibbonSlots,
-    editingVerticalGroupId,
-    editingVerticalRow,
-    glossaryHighlightedNodeIdSet,
-    openRibbonCellEditor,
-    openVerticalTermEditor,
-    pendingRibbonRegistryTerm,
-    pendingVerticalRegistryTerm,
-    setPendingRibbonRegistryTerm,
-    setPendingVerticalRegistryTerm,
-    showNodeIdsOnCanvas,
-    verticalTermPopupPosition,
-  ]
+  [glossaryHighlightedNodeIdSet, showNodeIdsOnCanvas]
 );
 
   const updatePendingOptionInput = useCallback(
@@ -10176,35 +10172,37 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
         }}
       >
         <FloatingTermCallbacksContext.Provider value={floatingTermCallbacksContextValue}>
-          <ReactFlow<FlowNode, FlowEdge>
-            nodes={nodesForCanvas}
-            elevateNodesOnSelect={false}
-            edges={displayEdges}
-            nodeTypes={nodeTypes}
-            defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
-            colorMode="light"
-            onInit={onInit}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onNodeDragStart={onNodeDragStart}
-            onNodeDrag={onNodeDrag}
-            onNodeDragStop={onNodeDragStop}
-            onConnect={onConnect}
-            onReconnect={onReconnect}
-            onPaneClick={onPaneClick}
-            onNodeClick={onNodeClick}
-            onEdgeClick={onEdgeClick}
-            onSelectionChange={onSelectionChange}
-            onMoveStart={closeAllPopups}
-            onMoveEnd={closeAllPopups}
-            zoomOnDoubleClick={false}
-            fitView
-            connectionLineStyle={EDGE_BASE_STYLE}
-          >
-            <Background />
-            <MiniMap />
-            <Controls />
-          </ReactFlow>
+          <FlowCopyPopupContext.Provider value={flowCopyPopupContextValue}>
+            <ReactFlow<FlowNode, FlowEdge>
+              nodes={nodesForCanvas}
+              elevateNodesOnSelect={false}
+              edges={displayEdges}
+              nodeTypes={nodeTypes}
+              defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
+              colorMode="light"
+              onInit={onInit}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeDragStart={onNodeDragStart}
+              onNodeDrag={onNodeDrag}
+              onNodeDragStop={onNodeDragStop}
+              onConnect={onConnect}
+              onReconnect={onReconnect}
+              onPaneClick={onPaneClick}
+              onNodeClick={onNodeClick}
+              onEdgeClick={onEdgeClick}
+              onSelectionChange={onSelectionChange}
+              onMoveStart={closeAllPopups}
+              onMoveEnd={closeAllPopups}
+              zoomOnDoubleClick={false}
+              fitView
+              connectionLineStyle={EDGE_BASE_STYLE}
+            >
+              <Background />
+              <MiniMap />
+              <Controls />
+            </ReactFlow>
+          </FlowCopyPopupContext.Provider>
         </FloatingTermCallbacksContext.Provider>
 
         <div

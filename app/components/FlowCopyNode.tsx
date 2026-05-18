@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Handle,
@@ -61,6 +61,12 @@ import {
 } from "../lib/node-utils";
 import { syncSequentialEdgesForContentConfig } from "../lib/edge-utils";
 import { theme } from "../lib/theme";
+import {
+  FlowCopyPopupContext,
+  type HorizontalCellView,
+  type PendingRibbonRegistryTerm,
+  type VerticalTermRow,
+} from "../lib/flowcopy-popup-context";
 
 function BodyTextPreview({ value }: { value: string }) {
   if (value.trim().length === 0) {
@@ -143,17 +149,6 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
       referenceKey: string | null;
     }
   ) => void;
-  editingCellId: string | null;
-  cellPopupPosition: { x: number; y: number } | null;
-  pendingRibbonRegistryTerm: PendingRibbonRegistryTerm | null;
-  activeRibbonDropCellId: string | null;
-  editingVerticalGroupId: string | null;
-  verticalTermPopupPosition: { x: number; y: number } | null;
-  pendingVerticalRegistryTerm: PendingRibbonRegistryTerm | null;
-  activeVerticalDropGroupId: string | null;
-  editingRibbonCell: HorizontalCellView | null;
-  editingRibbonSlots: NodeContentSlot[];
-  editingVerticalRow: VerticalTermRow | null;
   onOpenRibbonCellEditor: (
     nodeId: string,
     cellElement: HTMLDivElement,
@@ -162,7 +157,7 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   ) => void;
   onCloseRibbonCellPopup: () => void;
   onSetPendingRibbonRegistryTerm: (pendingTerm: PendingRibbonRegistryTerm | null) => void;
-  onSetActiveRibbonDropCellId: (cellId: string | null) => void;
+  onSetActiveRibbonDropCellId: (nodeId: string, cellId: string | null) => void;
   onOpenVerticalTermEditor: (
     nodeId: string,
     rowElement: HTMLDivElement,
@@ -171,7 +166,7 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   ) => void;
   onCloseVerticalTermPopup: () => void;
   onSetPendingVerticalRegistryTerm: (pendingTerm: PendingRibbonRegistryTerm | null) => void;
-  onSetActiveVerticalDropGroupId: (groupId: string | null) => void;
+  onSetActiveVerticalDropGroupId: (nodeId: string, groupId: string | null) => void;
 };
 
 const REGISTRY_TRACKED_FIELDS = [
@@ -187,27 +182,6 @@ const REGISTRY_TRACKED_FIELDS = [
 type RegistryTrackedField = (typeof REGISTRY_TRACKED_FIELDS)[number];
 type SlotRegistryField = `slot:[${string}]`;
 type DefaultNodeRegistryField = RegistryTrackedField | SlotRegistryField;
-
-type PendingRibbonRegistryTerm = {
-  entryId: string;
-  termValue: string;
-  referenceKey: string | null;
-};
-
-type HorizontalCellView = {
-  id: string;
-  row: number;
-  column: number;
-  label: string;
-  key_command: string;
-  tool_tip: string;
-};
-
-type VerticalTermRow = {
-  group: NodeContentGroup;
-  slots: NodeContentSlot[];
-  primarySlot: NodeContentSlot | null;
-};
 
 type DefaultNodeDisplaySlot = {
   slot: NodeContentSlot;
@@ -492,17 +466,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   onDropRegistryEntryOnField,
   onResolveDroppedRegistryTerm,
   onAssignPendingRibbonTermToField,
-  editingCellId,
-  cellPopupPosition,
-  pendingRibbonRegistryTerm,
-  activeRibbonDropCellId,
-  editingVerticalGroupId,
-  verticalTermPopupPosition,
-  pendingVerticalRegistryTerm,
-  activeVerticalDropGroupId,
-  editingRibbonCell,
-  editingRibbonSlots,
-  editingVerticalRow,
   onOpenRibbonCellEditor,
   onCloseRibbonCellPopup,
   onSetPendingRibbonRegistryTerm,
@@ -524,6 +487,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
   const [activeRegistryDropField, setActiveRegistryDropField] =
     useState<DefaultNodeRegistryField | null>(null);
   const isGlossaryHighlighted = glossaryHighlightedNodeIds.has(id);
+  const flowCopyPopupState = useContext(FlowCopyPopupContext);
 
   const isMenuNode = data.node_type === "vertical_multi_term";
   const isVerticalMultiTermNode = data.node_type === "vertical_multi_term";
@@ -589,6 +553,50 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       };
     });
   }, [contentConfig.groups, contentConfig.slots, isVerticalTermsNode]);
+  const editingCellId =
+    flowCopyPopupState?.editingCellId?.nodeId === id
+      ? flowCopyPopupState.editingCellId.cellId
+      : null;
+  const cellPopupPosition =
+    flowCopyPopupState?.editingCellId?.nodeId === id
+      ? flowCopyPopupState.cellPopupPosition
+      : null;
+  const pendingRibbonRegistryTerm =
+    flowCopyPopupState?.editingCellId?.nodeId === id
+      ? flowCopyPopupState.pendingRibbonRegistryTerm
+      : null;
+  const activeRibbonDropCellId =
+    flowCopyPopupState?.activeRibbonDropCellId?.nodeId === id
+      ? flowCopyPopupState.activeRibbonDropCellId.cellId
+      : null;
+  const editingVerticalGroupId =
+    flowCopyPopupState?.editingVerticalGroupId?.nodeId === id
+      ? flowCopyPopupState.editingVerticalGroupId.groupId
+      : null;
+  const verticalTermPopupPosition =
+    flowCopyPopupState?.editingVerticalGroupId?.nodeId === id
+      ? flowCopyPopupState.verticalTermPopupPosition
+      : null;
+  const pendingVerticalRegistryTerm =
+    flowCopyPopupState?.editingVerticalGroupId?.nodeId === id
+      ? flowCopyPopupState.pendingVerticalRegistryTerm
+      : null;
+  const activeVerticalDropGroupId =
+    flowCopyPopupState?.activeVerticalDropGroupId?.nodeId === id
+      ? flowCopyPopupState.activeVerticalDropGroupId.groupId
+      : null;
+  const editingRibbonCell =
+    flowCopyPopupState?.editingCellId?.nodeId === id
+      ? flowCopyPopupState.editingRibbonCell
+      : null;
+  const editingRibbonSlots =
+    flowCopyPopupState?.editingCellId?.nodeId === id
+      ? flowCopyPopupState.editingRibbonSlots
+      : [];
+  const editingVerticalRow =
+    flowCopyPopupState?.editingVerticalGroupId?.nodeId === id
+      ? flowCopyPopupState.editingVerticalRow
+      : null;
 
   const defaultNodeDisplaySlots = useMemo<DefaultNodeDisplaySlot[]>(() => {
     if (data.node_type !== "default") {
@@ -1092,10 +1100,16 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       event.dataTransfer.dropEffect = "copy";
 
       if (activeRibbonDropCellId !== cellId) {
-        onSetActiveRibbonDropCellId(cellId);
+        onSetActiveRibbonDropCellId(id, cellId);
       }
     },
-    [activeRibbonDropCellId, isRibbonNode, onCanDropRegistryEntry, onSetActiveRibbonDropCellId]
+    [
+      activeRibbonDropCellId,
+      id,
+      isRibbonNode,
+      onCanDropRegistryEntry,
+      onSetActiveRibbonDropCellId,
+    ]
   );
 
   const handleRibbonCellDragLeave = useCallback(
@@ -1110,10 +1124,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       }
 
       if (activeRibbonDropCellId === cellId) {
-        onSetActiveRibbonDropCellId(null);
+        onSetActiveRibbonDropCellId(id, null);
       }
     },
-    [activeRibbonDropCellId, onSetActiveRibbonDropCellId]
+    [activeRibbonDropCellId, id, onSetActiveRibbonDropCellId]
   );
 
   const handleRibbonCellDrop = useCallback(
@@ -1133,7 +1147,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       const pendingTerm = onResolveDroppedRegistryTerm(event.dataTransfer);
 
       if (!pendingTerm) {
-        onSetActiveRibbonDropCellId(null);
+        onSetActiveRibbonDropCellId(id, null);
         return;
       }
 
@@ -1165,11 +1179,12 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       event.dataTransfer.dropEffect = "copy";
 
       if (activeVerticalDropGroupId !== groupId) {
-        onSetActiveVerticalDropGroupId(groupId);
+        onSetActiveVerticalDropGroupId(id, groupId);
       }
     },
     [
       activeVerticalDropGroupId,
+      id,
       isVerticalTermsNode,
       onCanDropRegistryEntry,
       onSetActiveVerticalDropGroupId,
@@ -1188,10 +1203,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       }
 
       if (activeVerticalDropGroupId === groupId) {
-        onSetActiveVerticalDropGroupId(null);
+        onSetActiveVerticalDropGroupId(id, null);
       }
     },
-    [activeVerticalDropGroupId, onSetActiveVerticalDropGroupId]
+    [activeVerticalDropGroupId, id, onSetActiveVerticalDropGroupId]
   );
 
   const handleVerticalRowDrop = useCallback(
@@ -1211,7 +1226,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       const pendingTerm = onResolveDroppedRegistryTerm(event.dataTransfer);
 
       if (!pendingTerm) {
-        onSetActiveVerticalDropGroupId(null);
+        onSetActiveVerticalDropGroupId(id, null);
         return;
       }
 
@@ -3197,6 +3212,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
 export type { FlowCopyNodeProps };
 export { FlowCopyNode, BodyTextPreview };
+
 
 
 
