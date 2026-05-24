@@ -1297,6 +1297,14 @@ type PillSlotPickerHoverState = {
   anchorRect: DOMRect;
 } | null;
 
+type RegistryEntryAssignmentRequest = {
+  sourceEntryId: string;
+  destinationNodeId: string;
+  destinationAssignedSlotId: string | null;
+  destinationTermType: string | null;
+  destinationValue: string;
+};
+
 const parseTermRegistryDragPayload = (
   dataTransfer: DataTransfer | null
 ): TermRegistryDragPayload | null => {
@@ -1398,6 +1406,29 @@ const resolveAssignedSlotIdForRegistryAssignment = (
   );
 
   return matchingSlot?.id ?? null;
+};
+
+const resolveRegistryAssignmentFieldValue = (
+  field: DynamicRegistryTrackedField,
+  node: FlowNode | null
+): string => {
+  if (!node) {
+    return "";
+  }
+
+  const slotId = parseSlotRegistryField(field);
+  if (slotId) {
+    return (
+      node.data.content_config.slots.find((slot) => slot.id === slotId)?.value ?? ""
+    );
+  }
+
+  if (isRegistryTrackedField(field)) {
+    const fieldValue = node.data[field];
+    return typeof fieldValue === "string" ? fieldValue : "";
+  }
+
+  return "";
 };
 
 const getSlotTermTypeForNode = (node: FlowNode | null, slotId: string): string | null => {
@@ -3481,6 +3512,7 @@ export default function Page() {
         value: finalValue,
         friendlyId: null,
         friendlyIdLocked: false,
+        keyInherited: false,
         termType: null,
         assignedNodeId: null,
         assignedSlotId: null,
@@ -3742,58 +3774,31 @@ export default function Page() {
         return false;
       }
 
-      // Slot-occupied / type-mismatch confirmation. Slot always wins on type;
-      // confirms are informational so the user knows a type change or value replacement is happening.
-      const slotIdForConfirm = parseSlotRegistryField(field);
-      if (slotIdForConfirm) {
-        const targetNodeForConfirm = nodes.find((node) => node.id === nodeId) ?? null;
-        if (targetNodeForConfirm && targetNodeForConfirm.data.node_type === "default") {
-          const targetSlotForConfirm =
-            targetNodeForConfirm.data.content_config.slots.find(
-              (slot) => slot.id === slotIdForConfirm
-            ) ?? null;
-          const draggedEntryForConfirm =
-            termRegistry.find((entry) => entry.id === payload.entryId) ?? null;
-
-          if (targetSlotForConfirm && draggedEntryForConfirm) {
-            const slotIsOccupied = targetSlotForConfirm.value.trim().length > 0;
-            const normalizeType = (t: string | null | undefined) => (t ?? "").trim();
-            const draggedType = normalizeType(draggedEntryForConfirm.termType);
-            const slotType = normalizeType(targetSlotForConfirm.termType);
-            const typesDiffer =
-              draggedType.length > 0 && slotType.length > 0 && draggedType !== slotType;
-
-            if (slotIsOccupied || typesDiffer) {
-              const occupiedSentence = slotIsOccupied
-                ? "This slot already has a value and will be replaced."
-                : "";
-              const labelForType = (raw: string) =>
-                TERM_REGISTRY_TERM_TYPE_LABELS[raw] ??
-                TERM_REGISTRY_TERM_TYPE_LABELS[raw.toLowerCase()] ??
-                raw;
-              const typeSentence = typesDiffer
-                ? `This will change the term's type from "${labelForType(draggedType)}" to "${labelForType(slotType)}" to match the slot.`
-                : "";
-              const message = [occupiedSentence, typeSentence, "Continue?"]
-                .filter((s) => s.length > 0)
-                .join("\n");
-              const confirmed = window.confirm(message);
-
-              if (!confirmed) {
-                activeRegistryDragPayloadRef.current = null;
-                setIsCanvasRegistryDropActive(false);
-                setIsRegistryDragActive(false);
-                setRegistryDragPreview(null);
-                return false;
-              }
-            }
-          }
-        }
-      }
-
       const targetNode = nodes.find((node) => node.id === nodeId) ?? null;
 
-      pushToHistory();
+      const nextTermType = getRegistryTermTypeFromField(field, targetNode);
+      const targetAssignedSlotId = resolveAssignedSlotIdForRegistryAssignment(
+        field,
+        targetNode,
+        nextTermType
+      );
+      const targetValue = resolveRegistryAssignmentFieldValue(field, targetNode);
+
+      const assignmentCommitted = assignRegistryEntryToDestination({
+        sourceEntryId: payload.entryId,
+        destinationNodeId: nodeId,
+        destinationAssignedSlotId: targetAssignedSlotId,
+        destinationTermType: nextTermType,
+        destinationValue: targetValue,
+      });
+
+      if (!assignmentCommitted) {
+        activeRegistryDragPayloadRef.current = null;
+        setIsCanvasRegistryDropActive(false);
+        setIsRegistryDragActive(false);
+        setRegistryDragPreview(null);
+        return false;
+      }
 
       setNodes((currentNodes) =>
         currentNodes.map((node) => {
@@ -3850,74 +3855,122 @@ export default function Page() {
         })
       );
 
-      setTermRegistry((currentRegistry) => {
-        const draggedEntryIndex = currentRegistry.findIndex(
-          (entry) => entry.id === payload.entryId
-        );
-
-        if (draggedEntryIndex === -1) {
-          return currentRegistry;
-        }
-
-        const now = new Date().toISOString();
-        let hasChanges = false;
-        const nextTermType = getRegistryTermTypeFromField(field, targetNode);
-        const targetAssignedSlotId = resolveAssignedSlotIdForRegistryAssignment(
-          field,
-          targetNode,
-          nextTermType
-        );
-
-        const nextRegistry = currentRegistry.map((entry, entryIndex) => {
-          if (
-            entryIndex !== draggedEntryIndex &&
-            entry.assignedNodeId === nodeId &&
-            entry.assignedSlotId === targetAssignedSlotId
-          ) {
-            hasChanges = true;
-            return {
-              ...entry,
-              assignedNodeId: null,
-              assignedSlotId: null,
-              updatedAt: now,
-            };
-          }
-
-          return entry;
-        });
-
-        const draggedEntry = nextRegistry[draggedEntryIndex];
-
-        if (
-          draggedEntry.assignedNodeId !== nodeId ||
-          draggedEntry.assignedSlotId !== targetAssignedSlotId ||
-          draggedEntry.termType !== nextTermType
-        ) {
-          hasChanges = true;
-          nextRegistry[draggedEntryIndex] = {
-            ...draggedEntry,
-            termType: nextTermType,
-            assignedNodeId: nodeId,
-            assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
-              field,
-              targetNode,
-              nextTermType
-            ),
-            updatedAt: now,
-          };
-        }
-
-        return hasChanges ? nextRegistry : currentRegistry;
-      });
-
       setIsCanvasRegistryDropActive(false);
       setIsRegistryDragActive(false);
       setRegistryDragPreview(null);
       activeRegistryDragPayloadRef.current = null;
       return true;
     },
-    [nodes, pushToHistory, setNodes, setTermRegistry, termRegistry]
+    [assignRegistryEntryToDestination, nodes, setNodes]
   );
+
+  function assignRegistryEntryToDestination({
+    sourceEntryId,
+    destinationNodeId,
+    destinationAssignedSlotId,
+    destinationTermType,
+    destinationValue,
+  }: RegistryEntryAssignmentRequest): boolean {
+    const sourceEntry = termRegistry.find((entry) => entry.id === sourceEntryId) ?? null;
+
+    if (!sourceEntry) {
+      return false;
+    }
+
+    if (
+      sourceEntry.assignedNodeId === destinationNodeId &&
+      sourceEntry.assignedSlotId === destinationAssignedSlotId
+    ) {
+      return true;
+    }
+
+    if (destinationValue.trim().length > 0) {
+      const confirmed = window.confirm(
+        "This slot already has a value and will be replaced.\nContinue?"
+      );
+
+      if (!confirmed) {
+        return false;
+      }
+    }
+
+    const now = new Date().toISOString();
+
+    pushToHistory();
+
+    setTermRegistry((currentRegistry) => {
+      const sourceEntryIndex = currentRegistry.findIndex(
+        (entry) => entry.id === sourceEntryId
+      );
+
+      if (sourceEntryIndex === -1) {
+        return currentRegistry;
+      }
+
+      const currentSourceEntry = currentRegistry[sourceEntryIndex];
+
+      if (
+        currentSourceEntry.assignedNodeId === destinationNodeId &&
+        currentSourceEntry.assignedSlotId === destinationAssignedSlotId
+      ) {
+        return currentRegistry;
+      }
+
+      const nextRegistry = currentRegistry.map((entry) => {
+        if (
+          entry.id !== currentSourceEntry.id &&
+          entry.assignedNodeId === destinationNodeId &&
+          entry.assignedSlotId === destinationAssignedSlotId
+        ) {
+          return {
+            ...entry,
+            assignedNodeId: null,
+            assignedSlotId: null,
+            updatedAt: now,
+          };
+        }
+
+        return entry;
+      });
+
+      if (currentSourceEntry.assignedNodeId) {
+        const hasFriendlyId =
+          typeof currentSourceEntry.friendlyId === "string" &&
+          currentSourceEntry.friendlyId.trim().length > 0;
+
+        const clonedEntry: TermRegistryEntry = {
+          id: crypto.randomUUID(),
+          value: currentSourceEntry.value,
+          friendlyId: hasFriendlyId ? currentSourceEntry.friendlyId : null,
+          friendlyIdLocked: hasFriendlyId ? currentSourceEntry.friendlyIdLocked : false,
+          keyInherited: hasFriendlyId,
+          termType: destinationTermType,
+          assignedNodeId: destinationNodeId,
+          assignedSlotId: destinationAssignedSlotId,
+          canvasPosition: null,
+          isAutoGenerated: currentSourceEntry.isAutoGenerated,
+          deduplicationSuffix: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        return [...nextRegistry, clonedEntry];
+      }
+
+      nextRegistry[sourceEntryIndex] = {
+        ...nextRegistry[sourceEntryIndex],
+        termType: destinationTermType,
+        assignedNodeId: destinationNodeId,
+        assignedSlotId: destinationAssignedSlotId,
+        canvasPosition: null,
+        updatedAt: now,
+      };
+
+      return nextRegistry;
+    });
+
+    return true;
+  }
 
   const onNodeDragStop = useCallback<OnNodeDrag<FlowNode>>(
     (event, draggedNode) => {
@@ -4030,74 +4083,57 @@ export default function Page() {
   const handleAssignPendingRibbonTermToField = useCallback(
     (
       nodeId: string,
-      field: RibbonCellRegistryField,
+      field: DynamicRegistryTrackedField,
       pendingTerm: PendingRibbonRegistryTerm
     ) => {
-      pushToHistory();
+      const targetNode = nodes.find((node) => node.id === nodeId) ?? null;
+      const nextTermType = getRegistryTermTypeFromField(field, targetNode);
+      const targetAssignedSlotId = resolveAssignedSlotIdForRegistryAssignment(
+        field,
+        targetNode,
+        nextTermType
+      );
+      const targetValue = resolveRegistryAssignmentFieldValue(field, targetNode);
 
-      setTermRegistry((currentRegistry) => {
-        const draggedEntryIndex = currentRegistry.findIndex(
-          (entry) => entry.id === pendingTerm.entryId
-        );
-
-        if (draggedEntryIndex === -1) {
-          return currentRegistry;
-        }
-
-        const now = new Date().toISOString();
-        let hasChanges = false;
-        const targetNode = nodes.find((node) => node.id === nodeId) ?? null;
-        const nextTermType = getRegistryTermTypeFromField(field, targetNode);
-        const targetAssignedSlotId = resolveAssignedSlotIdForRegistryAssignment(
-          field,
-          targetNode,
-          nextTermType
-        );
-
-        const nextRegistry = currentRegistry.map((entry, entryIndex) => {
-          if (
-            entryIndex !== draggedEntryIndex &&
-            entry.assignedNodeId === nodeId &&
-            entry.assignedSlotId === targetAssignedSlotId
-          ) {
-            hasChanges = true;
-            return {
-              ...entry,
-              assignedNodeId: null,
-              assignedSlotId: null,
-              updatedAt: now,
-            };
-          }
-
-          return entry;
-        });
-
-        const draggedEntry = nextRegistry[draggedEntryIndex];
-
-        if (
-          draggedEntry.assignedNodeId !== nodeId ||
-          draggedEntry.assignedSlotId !== targetAssignedSlotId ||
-          draggedEntry.termType !== nextTermType
-        ) {
-          hasChanges = true;
-          nextRegistry[draggedEntryIndex] = {
-            ...draggedEntry,
-            termType: nextTermType,
-            assignedNodeId: nodeId,
-            assignedSlotId: targetAssignedSlotId,
-            updatedAt: now,
-          };
-        }
-
-        return hasChanges ? nextRegistry : currentRegistry;
+      const assignmentCommitted = assignRegistryEntryToDestination({
+        sourceEntryId: pendingTerm.entryId,
+        destinationNodeId: nodeId,
+        destinationAssignedSlotId: targetAssignedSlotId,
+        destinationTermType: nextTermType,
+        destinationValue: targetValue,
       });
+
+      if (!assignmentCommitted && targetAssignedSlotId) {
+        setNodes((currentNodes) =>
+          currentNodes.map((node) => {
+            if (node.id !== nodeId) {
+              return node;
+            }
+
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                content_config: {
+                  ...node.data.content_config,
+                  slots: node.data.content_config.slots.map((slot) =>
+                    slot.id === targetAssignedSlotId
+                      ? { ...slot, value: targetValue }
+                      : slot
+                  ),
+                },
+              },
+            };
+          })
+        );
+      }
 
       setIsCanvasRegistryDropActive(false);
       setIsRegistryDragActive(false);
       setRegistryDragPreview(null);
       activeRegistryDragPayloadRef.current = null;
     },
-    [pushToHistory, setTermRegistry]
+    [assignRegistryEntryToDestination, nodes, setNodes]
   );
 
   const handleCanvasPointerMove = useCallback(
@@ -4441,6 +4477,7 @@ export default function Page() {
             value: fieldValue,
             friendlyId: null,
             friendlyIdLocked: false,
+            keyInherited: false,
             termType: field,
             assignedNodeId: pastedNode.id,
             assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
@@ -5506,6 +5543,7 @@ export default function Page() {
             value,
             friendlyId: null,
             friendlyIdLocked: false,
+            keyInherited: false,
             termType: getRegistryTermTypeFromField(field, targetNode),
             assignedNodeId: nodeId,
             assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
@@ -5862,6 +5900,7 @@ export default function Page() {
         value: nextValue,
         friendlyId: null,
         friendlyIdLocked: false,
+        keyInherited: false,
         termType: nextTermType,
         assignedNodeId: null,
         assignedSlotId: null,
@@ -6883,6 +6922,7 @@ export default function Page() {
             {
               ...entry,
               id: crypto.randomUUID(),
+                  keyInherited: entry.keyInherited,
               termType: targetTermType,
               assignedNodeId: effectiveSelectedNodeId,
               assignedSlotId: resolveAssignedSlotIdForRegistryAssignment(
@@ -8531,6 +8571,7 @@ const registryRows: Record<ClpExportFieldKey, string>[] = termRegistry.map((entr
             ? mappedReferenceKeyValue || null
             : createAutoFriendlyId(nextTermValue),
           friendlyIdLocked: false,
+          keyInherited: false,
           termType: mappedNodeTypeValue.length > 0 ? mappedNodeTypeValue : null,
           assignedNodeId: hasExplicitValidUnassignedStatus ? null : null,
           assignedSlotId: null,

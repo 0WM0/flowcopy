@@ -42,6 +42,7 @@ const sanitizeTermRegistry = (value: unknown): TermRegistryEntry[] => {
       value?: unknown;
       friendlyId?: unknown;
       friendlyIdLocked?: unknown;
+      keyInherited?: unknown;
       termType?: unknown;
       assignedNodeId?: unknown;
       assignedSlotId?: unknown;
@@ -77,6 +78,7 @@ const sanitizeTermRegistry = (value: unknown): TermRegistryEntry[] => {
       friendlyId:
         typeof source.friendlyId === "string" ? source.friendlyId : null,
       friendlyIdLocked: source.friendlyIdLocked === true,
+      keyInherited: source.keyInherited === true,
       termType:
         typeof source.termType === "string" ? source.termType : null,
       assignedNodeId:

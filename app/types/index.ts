@@ -176,6 +176,9 @@ export type TermRegistryEntry = {
   /** Whether the friendly ID is locked against accidental editing */
   friendlyIdLocked: boolean;
 
+  /** Whether the friendly ID was inherited from another assigned term during clone-on-drag */
+  keyInherited: boolean;
+
   /**
    * Term type — corresponds to the field type this term is used in.
    * Uses the existing ControlledLanguageFieldType values:
