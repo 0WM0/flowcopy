@@ -140,6 +140,7 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
   onAssignPendingRibbonTermToField: (
     nodeId: string,
     field:
+      | `slot:[${string}]`
       | `ribbon_cell:[${string}]:label`
       | `ribbon_cell:[${string}]:key_command`
       | `ribbon_cell:[${string}]:tool_tip`,
@@ -148,7 +149,7 @@ type FlowCopyNodeProps = NodeProps<FlowNode> & {
       termValue: string;
       referenceKey: string | null;
     }
-  ) => void;
+  ) => boolean;
   onOpenRibbonCellEditor: (
     nodeId: string,
     cellElement: HTMLDivElement,
@@ -565,6 +566,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     flowCopyPopupState?.editingCellId?.nodeId === id
       ? flowCopyPopupState.pendingRibbonRegistryTerm
       : null;
+  const stagedPopupSlotId =
+    flowCopyPopupState &&
+    (flowCopyPopupState.editingCellId?.nodeId === id ||
+      flowCopyPopupState.editingVerticalGroupId?.nodeId === id)
+      ? flowCopyPopupState.stagedPopupSlotId
+      : null;
+  const setStagedPopupSlotId = flowCopyPopupState?.setStagedPopupSlotId;
   const activeRibbonDropCellId =
     flowCopyPopupState?.activeRibbonDropCellId?.nodeId === id
       ? flowCopyPopupState.activeRibbonDropCellId.cellId
@@ -1619,6 +1627,56 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       updateRibbonCellField,
     ]
   );
+  const commitStagedRibbonPopupAssignment = useCallback(() => {
+    if (!pendingRibbonRegistryTerm || !stagedPopupSlotId) {
+      return;
+    }
+
+    const assignmentCommitted = onAssignPendingRibbonTermToField(
+      id,
+      buildContentSlotRegistryField(stagedPopupSlotId),
+      pendingRibbonRegistryTerm
+    );
+
+    if (!assignmentCommitted) {
+      return;
+    }
+
+    onSetPendingRibbonRegistryTerm(null);
+    onCloseRibbonCellPopup();
+  }, [
+    id,
+    onAssignPendingRibbonTermToField,
+    onCloseRibbonCellPopup,
+    onSetPendingRibbonRegistryTerm,
+    pendingRibbonRegistryTerm,
+    stagedPopupSlotId,
+  ]);
+  const commitStagedVerticalPopupAssignment = useCallback(() => {
+    if (!pendingVerticalRegistryTerm || !stagedPopupSlotId) {
+      return;
+    }
+
+    const assignmentCommitted = onAssignPendingRibbonTermToField(
+      id,
+      buildContentSlotRegistryField(stagedPopupSlotId),
+      pendingVerticalRegistryTerm
+    );
+
+    if (!assignmentCommitted) {
+      return;
+    }
+
+    onSetPendingVerticalRegistryTerm(null);
+    onCloseVerticalTermPopup();
+  }, [
+    id,
+    onAssignPendingRibbonTermToField,
+    onCloseVerticalTermPopup,
+    onSetPendingVerticalRegistryTerm,
+    pendingVerticalRegistryTerm,
+    stagedPopupSlotId,
+  ]);
 
   if (isFrameNode) {
     const frameTitle = data.title.trim();
@@ -2305,7 +2363,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   </div>
                 )}
                 <div style={{ fontSize: theme.node.field.labelFontSize, color: theme.node.popup.fieldText }}>
-                  Click a field below to place this term.
+                  Select a field below, then click Done.
                 </div>
               </div>
             )}
@@ -2319,23 +2377,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   }
 
                   stopNodeSelectionPropagation(event);
-                  updateRibbonSlotValue(slot.id, pendingRibbonRegistryTerm.termValue);
-                  onAssignPendingRibbonTermToField(
-                    id,
-                    buildContentSlotRegistryField(slot.id) as unknown as `ribbon_cell:[${string}]:label`,
-                    pendingRibbonRegistryTerm
-                  );
-                  onSetPendingRibbonRegistryTerm(null);
-                }}
-                onMouseEnter={(event) => {
-                  if (!pendingRibbonRegistryTerm) {
+                  if (stagedPopupSlotId === slot.id) {
                     return;
                   }
 
-                  event.currentTarget.style.background = theme.node.popup.termBadge.bg;
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = "transparent";
+                  setStagedPopupSlotId?.(slot.id);
                 }}
                 style={{
                   display: "block",
@@ -2343,7 +2389,14 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   padding: "2px 4px",
                   margin: "0 -4px",
                   cursor: pendingRibbonRegistryTerm ? "pointer" : "default",
-                  background: "transparent",
+                  background:
+                    stagedPopupSlotId === slot.id
+                      ? theme.node.popup.termBadge.bg
+                      : "transparent",
+                  boxShadow:
+                    stagedPopupSlotId === slot.id
+                      ? `inset 0 0 0 1px ${theme.node.popup.termBadge.border}`
+                      : "none",
                 }}
               >
                 <SlotTermTypeEditor
@@ -2419,8 +2472,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   ...buttonStyle,
                   fontSize: theme.node.field.inputFontSize,
                   padding: "4px 10px",
+                  opacity: stagedPopupSlotId ? 1 : 0.5,
+                  cursor: stagedPopupSlotId ? "pointer" : "not-allowed",
                 }}
-                onClick={onCloseRibbonCellPopup}
+                disabled={!stagedPopupSlotId}
+                onClick={commitStagedRibbonPopupAssignment}
               >
                 Done
               </button>
@@ -2893,7 +2949,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         </div>
                       )}
                       <div style={{ fontSize: theme.node.field.labelFontSize, color: theme.node.popup.fieldText }}>
-                        Click a field below to place this term.
+                        Select a field below, then click Done.
                       </div>
                     </div>
                   )}
@@ -2909,23 +2965,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         }
 
                         stopNodeSelectionPropagation(event);
-                        updateVerticalSlotValue(slot.id, pendingVerticalRegistryTerm.termValue);
-                        onAssignPendingRibbonTermToField(
-                          id,
-                          buildContentSlotRegistryField(slot.id) as unknown as `ribbon_cell:[${string}]:label`,
-                          pendingVerticalRegistryTerm
-                        );
-                        onSetPendingVerticalRegistryTerm(null);
-                      }}
-                      onMouseEnter={(event) => {
-                        if (!pendingVerticalRegistryTerm) {
+                        if (stagedPopupSlotId === slot.id) {
                           return;
                         }
 
-                        event.currentTarget.style.background = theme.node.popup.termBadge.bg;
-                      }}
-                      onMouseLeave={(event) => {
-                        event.currentTarget.style.background = "transparent";
+                        setStagedPopupSlotId?.(slot.id);
                       }}
                       style={{
                         display: "block",
@@ -2933,7 +2977,14 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         padding: "2px 4px",
                         margin: "0 -4px",
                         cursor: pendingVerticalRegistryTerm ? "pointer" : "default",
-                        background: "transparent",
+                        background:
+                          stagedPopupSlotId === slot.id
+                            ? theme.node.popup.termBadge.bg
+                            : "transparent",
+                        boxShadow:
+                          stagedPopupSlotId === slot.id
+                            ? `inset 0 0 0 1px ${theme.node.popup.termBadge.border}`
+                            : "none",
                       }}
                     >
                       <SlotTermTypeEditor
@@ -3009,8 +3060,11 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         ...buttonStyle,
                         fontSize: theme.node.field.inputFontSize,
                         padding: "4px 10px",
+                          opacity: stagedPopupSlotId ? 1 : 0.5,
+                          cursor: stagedPopupSlotId ? "pointer" : "not-allowed",
                       }}
-                      onClick={onCloseVerticalTermPopup}
+                        disabled={!stagedPopupSlotId}
+                        onClick={commitStagedVerticalPopupAssignment}
                     >
                       Done
                     </button>
@@ -3212,6 +3266,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
 export type { FlowCopyNodeProps };
 export { FlowCopyNode, BodyTextPreview };
+
 
 
 

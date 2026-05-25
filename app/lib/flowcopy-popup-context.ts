@@ -39,6 +39,8 @@ export type FlowCopyPopupContextValue = {
   editingCellId: ActiveRibbonPopupTarget | null;
   cellPopupPosition: { x: number; y: number } | null;
   pendingRibbonRegistryTerm: PendingRibbonRegistryTerm | null;
+  stagedPopupSlotId: string | null;
+  setStagedPopupSlotId: (slotId: string | null) => void;
   activeRibbonDropCellId: ActiveRibbonPopupTarget | null;
   editingVerticalGroupId: ActiveVerticalPopupTarget | null;
   verticalTermPopupPosition: { x: number; y: number } | null;

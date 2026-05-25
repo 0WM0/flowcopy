@@ -1783,6 +1783,7 @@ export default function Page() {
   const [cellPopupPosition, setCellPopupPosition] = useState<{ x: number; y: number } | null>(null);
   const [pendingRibbonRegistryTerm, setPendingRibbonRegistryTerm] =
     useState<PendingRibbonRegistryTerm | null>(null);
+  const [stagedPopupSlotId, setStagedPopupSlotId] = useState<string | null>(null);
   const [activeRibbonDropCellId, setActiveRibbonDropCellId] =
     useState<ActiveRibbonPopupTarget | null>(null);
   const [editingVerticalGroupId, setEditingVerticalGroupId] =
@@ -4132,6 +4133,8 @@ export default function Page() {
       setIsRegistryDragActive(false);
       setRegistryDragPreview(null);
       activeRegistryDragPayloadRef.current = null;
+
+      return assignmentCommitted;
     },
     [assignRegistryEntryToDestination, nodes, setNodes]
   );
@@ -7229,6 +7232,7 @@ export default function Page() {
     setEditingCellId(null);
     setCellPopupPosition(null);
     setPendingRibbonRegistryTerm(null);
+    setStagedPopupSlotId(null);
     setActiveRibbonDropCellId(null);
   }, []);
 
@@ -7236,6 +7240,7 @@ export default function Page() {
     setEditingVerticalGroupId(null);
     setVerticalTermPopupPosition(null);
     setPendingVerticalRegistryTerm(null);
+    setStagedPopupSlotId(null);
     setActiveVerticalDropGroupId(null);
   }, []);
 
@@ -7259,6 +7264,7 @@ export default function Page() {
       });
       setEditingCellId({ nodeId, cellId });
       setPendingRibbonRegistryTerm(pendingTerm);
+      setStagedPopupSlotId(null);
       setActiveRibbonDropCellId(null);
     },
     [closeRibbonCellPopup, closeVerticalTermPopup, editingCellId]
@@ -7287,6 +7293,7 @@ export default function Page() {
       });
       setEditingVerticalGroupId({ nodeId, groupId });
       setPendingVerticalRegistryTerm(pendingTerm);
+      setStagedPopupSlotId(null);
       setActiveVerticalDropGroupId(null);
     },
     [closeRibbonCellPopup, closeVerticalTermPopup, editingVerticalGroupId]
@@ -7421,6 +7428,8 @@ export default function Page() {
       editingCellId,
       cellPopupPosition,
       pendingRibbonRegistryTerm,
+      stagedPopupSlotId,
+      setStagedPopupSlotId,
       activeRibbonDropCellId,
       editingVerticalGroupId,
       verticalTermPopupPosition,
@@ -7441,6 +7450,7 @@ export default function Page() {
       editingVerticalRow,
       pendingRibbonRegistryTerm,
       pendingVerticalRegistryTerm,
+      stagedPopupSlotId,
       verticalTermPopupPosition,
     ]
   );
