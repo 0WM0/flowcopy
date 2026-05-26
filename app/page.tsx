@@ -4104,25 +4104,40 @@ export default function Page() {
         destinationValue: targetValue,
       });
 
-      if (!assignmentCommitted && targetAssignedSlotId) {
+      if (assignmentCommitted) {
         setNodes((currentNodes) =>
           currentNodes.map((node) => {
-            if (node.id !== nodeId) {
+            if (node.id !== nodeId || node.data.node_type !== "default") {
               return node;
+            }
+
+            const slotId = parseSlotRegistryField(field);
+
+            if (slotId) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  content_config: {
+                    ...node.data.content_config,
+                    slots: node.data.content_config.slots.map((slot) =>
+                      slot.id === slotId
+                        ? {
+                            ...slot,
+                            value: pendingTerm.termValue,
+                          }
+                        : slot
+                    ),
+                  },
+                },
+              };
             }
 
             return {
               ...node,
               data: {
                 ...node.data,
-                content_config: {
-                  ...node.data.content_config,
-                  slots: node.data.content_config.slots.map((slot) =>
-                    slot.id === targetAssignedSlotId
-                      ? { ...slot, value: targetValue }
-                      : slot
-                  ),
-                },
+                [field]: pendingTerm.termValue,
               },
             };
           })
