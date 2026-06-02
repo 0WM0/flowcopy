@@ -974,26 +974,6 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
     });
   }, [isVerticalTermsNode, updateVerticalTermsContentConfig]);
 
-  const updateVerticalSlotValue = useCallback(
-    (slotId: string, value: string) => {
-      updateVerticalTermsContentConfig(
-        (currentConfig) => ({
-          ...currentConfig,
-          slots: currentConfig.slots.map((slot) =>
-            slot.id === slotId
-              ? {
-                  ...slot,
-                  value,
-                }
-              : slot
-          ),
-        }),
-        "text"
-      );
-    },
-    [updateVerticalTermsContentConfig]
-  );
-
   const deleteVerticalTermGroup = useCallback(
     (groupId: string) => {
       if (!isVerticalTermsNode) {
@@ -2368,14 +2348,10 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               </div>
             )}
 {editingRibbonSlots.map((slot, slotIndex) => (
-              <label
+              <div
                 key={`ribbon-slot:${slot.id}`}
                 className={pendingRibbonRegistryTerm ? "ribbon-slot-assignable" : undefined}
                 onClick={(event) => {
-                  if (!pendingRibbonRegistryTerm) {
-                    return;
-                  }
-
                   stopNodeSelectionPropagation(event);
                   if (stagedPopupSlotId === slot.id) {
                     return;
@@ -2386,9 +2362,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                 style={{
                   display: "block",
                   borderRadius: 6,
-                  padding: "2px 4px",
+                  padding: "4px 6px",
                   margin: "0 -4px",
-                  cursor: pendingRibbonRegistryTerm ? "pointer" : "default",
+                  cursor: "pointer",
                   background:
                     stagedPopupSlotId === slot.id
                       ? theme.node.popup.termBadge.bg
@@ -2404,65 +2380,24 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   slotIndex={slotIndex}
                   onChangeTermType={updateSlotTermType}
                 />
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <input
-                    className="nodrag"
-                    style={{
-                      ...inputStyle,
-                      flex: 1,
-                      minWidth: 0,
-                      width: "100%",
-                      maxWidth: "100%",
-                      fontSize: theme.node.field.inputFontSize,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      pointerEvents: pendingRibbonRegistryTerm ? "none" : undefined,
-                    }}
-                    value={slot.value}
-                    onPointerDown={stopNodeSelectionPropagation}
-                    onMouseDown={stopNodeSelectionPropagation}
-                    onClick={stopNodeSelectionPropagation}
-                    onChange={(event) =>
-                      updateRibbonSlotValue(slot.id, event.target.value)
-                    }
-                    onBlur={(event) =>
-                      commitContentSlotRegistryField(slot.id, event.currentTarget.value)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") {
-                        return;
-                      }
-
-                      event.preventDefault();
-                      event.currentTarget.blur();
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="nodrag"
-                    style={{
-                      ...getCanvasRegistryButtonStyle(),
-                      pointerEvents: pendingRibbonRegistryTerm ? "none" : undefined,
-                    }}
-                    title="Open CLP registry"
-                    aria-label="Open CLP registry"
-                    onPointerDown={stopNodeSelectionPropagation}
-                    onMouseDown={stopNodeSelectionPropagation}
-                    onClick={(event) => {
-                      stopNodeSelectionPropagation(event);
-                      onRegistryPickerOpen(
-                        id,
-                        buildContentSlotRegistryField(
-                          slot.id
-                        ) as unknown as `ribbon_cell:[${string}]:label`
-                      );
-                    }}
-                  >
-                    📋
-                  </button>
+                <div
+                  style={{
+                    minWidth: 0,
+                    fontSize: theme.node.field.inputFontSize,
+                    color:
+                      slot.value.trim().length > 0
+                        ? theme.node.popup.fieldText
+                        : theme.node.field.placeholder,
+                    fontStyle: slot.value.trim().length > 0 ? "normal" : "italic",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={slot.value}
+                >
+                  {slot.value.trim().length > 0 ? slot.value : ""}
                 </div>
-              </label>
+              </div>
             ))}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button
@@ -2954,16 +2889,12 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                     </div>
                   )}
                   {editingVerticalRow.slots.map((slot, slotIndex) => (
-                    <label
+                    <div
                       key={`vertical-slot:${slot.id}`}
                       className={
                         pendingVerticalRegistryTerm ? "ribbon-slot-assignable" : undefined
                       }
                       onClick={(event) => {
-                        if (!pendingVerticalRegistryTerm) {
-                          return;
-                        }
-
                         stopNodeSelectionPropagation(event);
                         if (stagedPopupSlotId === slot.id) {
                           return;
@@ -2974,9 +2905,9 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       style={{
                         display: "block",
                         borderRadius: 6,
-                        padding: "2px 4px",
+                        padding: "4px 6px",
                         margin: "0 -4px",
-                        cursor: pendingVerticalRegistryTerm ? "pointer" : "default",
+                        cursor: "pointer",
                         background:
                           stagedPopupSlotId === slot.id
                             ? theme.node.popup.termBadge.bg
@@ -2992,65 +2923,24 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         slotIndex={slotIndex}
                         onChangeTermType={updateSlotTermType}
                       />
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <input
-                          className="nodrag"
-                          style={{
-                            ...inputStyle,
-                            flex: 1,
-                            minWidth: 0,
-                            width: "100%",
-                            maxWidth: "100%",
-                            fontSize: theme.node.field.inputFontSize,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            pointerEvents: pendingVerticalRegistryTerm ? "none" : undefined,
-                          }}
-                          value={slot.value}
-                          onPointerDown={stopNodeSelectionPropagation}
-                          onMouseDown={stopNodeSelectionPropagation}
-                          onClick={stopNodeSelectionPropagation}
-                          onChange={(event) =>
-                            updateVerticalSlotValue(slot.id, event.target.value)
-                          }
-                          onBlur={(event) =>
-                            commitContentSlotRegistryField(slot.id, event.currentTarget.value)
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key !== "Enter") {
-                              return;
-                            }
-
-                            event.preventDefault();
-                            event.currentTarget.blur();
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className="nodrag"
-                          style={{
-                            ...getCanvasRegistryButtonStyle(),
-                            pointerEvents: pendingVerticalRegistryTerm ? "none" : undefined,
-                          }}
-                          title="Open CLP registry"
-                          aria-label="Open CLP registry"
-                          onPointerDown={stopNodeSelectionPropagation}
-                          onMouseDown={stopNodeSelectionPropagation}
-                          onClick={(event) => {
-                            stopNodeSelectionPropagation(event);
-                            onRegistryPickerOpen(
-                              id,
-                              buildContentSlotRegistryField(
-                                slot.id
-                              ) as unknown as `menu_term:[${string}]`
-                            );
-                          }}
-                        >
-                          📋
-                        </button>
+                      <div
+                        style={{
+                          minWidth: 0,
+                          fontSize: theme.node.field.inputFontSize,
+                          color:
+                            slot.value.trim().length > 0
+                              ? theme.node.popup.fieldText
+                              : theme.node.field.placeholder,
+                          fontStyle: slot.value.trim().length > 0 ? "normal" : "italic",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                        title={slot.value}
+                      >
+                        {slot.value.trim().length > 0 ? slot.value : ""}
                       </div>
-                    </label>
+                    </div>
                   ))}
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
                     <button
@@ -3266,6 +3156,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
 export type { FlowCopyNodeProps };
 export { FlowCopyNode, BodyTextPreview };
+
 
 
 
