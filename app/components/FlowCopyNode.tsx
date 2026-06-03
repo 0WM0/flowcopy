@@ -2371,6 +2371,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               <label
                 key={`ribbon-slot:${slot.id}`}
                 className={pendingRibbonRegistryTerm ? "ribbon-slot-assignable" : undefined}
+                onMouseDown={(event) => {
+                  if (!pendingRibbonRegistryTerm) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                }}
                 onClick={(event) => {
                   if (!pendingRibbonRegistryTerm) {
                     return;
@@ -2959,6 +2966,13 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       className={
                         pendingVerticalRegistryTerm ? "ribbon-slot-assignable" : undefined
                       }
+                      onMouseDown={(event) => {
+                        if (!pendingVerticalRegistryTerm) {
+                          return;
+                        }
+
+                        event.preventDefault();
+                      }}
                       onClick={(event) => {
                         if (!pendingVerticalRegistryTerm) {
                           return;
@@ -3266,6 +3280,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
 export type { FlowCopyNodeProps };
 export { FlowCopyNode, BodyTextPreview };
+
 
 
 
