@@ -320,10 +320,12 @@ export function SlotTermTypeEditor({
   slot,
   slotIndex,
   onChangeTermType,
+  disabled = false,
 }: {
   slot: NodeContentSlot;
   slotIndex: number;
   onChangeTermType: (slotId: string, termType: string) => void;
+  disabled?: boolean;
 }) {
   const [mode, setMode] = useState<"display" | "select" | "custom">("display");
   const [customValue, setCustomValue] = useState("");
@@ -332,6 +334,31 @@ export function SlotTermTypeEditor({
   const currentLabel = getContentSlotLabel(slot, slotIndex);
 
   const termTypeOptions = TERM_REGISTRY_TERM_TYPE_OPTIONS;
+
+  useEffect(() => {
+    if (disabled) {
+      setMode("display");
+    }
+  }, [disabled]);
+
+  if (disabled) {
+    return (
+      <div
+        style={{
+          fontSize: theme.node.field.labelFontSize,
+          fontWeight: theme.node.field.labelWeight,
+          color: theme.node.field.termType,
+          marginBottom: 4,
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+        }}
+      >
+        {currentLabel}
+        <span style={{ fontSize: theme.node.dropdownArrowFontSize, color: theme.node.field.termTypeIcon }}>▼</span>
+      </div>
+    );
+  }
 
   if (mode === "custom") {
     return (
@@ -633,6 +660,17 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
       if (event.type === "click") {
         event.stopPropagation();
       }
+    },
+    []
+  );
+
+  const suppressPopupSlotInputFocus = useCallback(
+    (event: React.SyntheticEvent<HTMLElement>, isPendingAssignmentActive: boolean) => {
+      if (!isPendingAssignmentActive) {
+        return;
+      }
+
+      event.preventDefault();
     },
     []
   );
@@ -2371,18 +2409,18 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
               <label
                 key={`ribbon-slot:${slot.id}`}
                 className={pendingRibbonRegistryTerm ? "ribbon-slot-assignable" : undefined}
+                onPointerDown={(event) => {
+                  suppressPopupSlotInputFocus(event, Boolean(pendingRibbonRegistryTerm));
+                }}
                 onMouseDown={(event) => {
-                  if (!pendingRibbonRegistryTerm) {
-                    return;
-                  }
-
-                  event.preventDefault();
+                  suppressPopupSlotInputFocus(event, Boolean(pendingRibbonRegistryTerm));
                 }}
                 onClick={(event) => {
                   if (!pendingRibbonRegistryTerm) {
                     return;
                   }
 
+                  event.preventDefault();
                   stopNodeSelectionPropagation(event);
                   if (stagedPopupSlotId === slot.id) {
                     return;
@@ -2410,6 +2448,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                   slot={slot}
                   slotIndex={slotIndex}
                   onChangeTermType={updateSlotTermType}
+                  disabled={Boolean(pendingRibbonRegistryTerm)}
                 />
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <input
@@ -2966,18 +3005,18 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                       className={
                         pendingVerticalRegistryTerm ? "ribbon-slot-assignable" : undefined
                       }
+                      onPointerDown={(event) => {
+                        suppressPopupSlotInputFocus(event, Boolean(pendingVerticalRegistryTerm));
+                      }}
                       onMouseDown={(event) => {
-                        if (!pendingVerticalRegistryTerm) {
-                          return;
-                        }
-
-                        event.preventDefault();
+                        suppressPopupSlotInputFocus(event, Boolean(pendingVerticalRegistryTerm));
                       }}
                       onClick={(event) => {
                         if (!pendingVerticalRegistryTerm) {
                           return;
                         }
 
+                        event.preventDefault();
                         stopNodeSelectionPropagation(event);
                         if (stagedPopupSlotId === slot.id) {
                           return;
@@ -3005,6 +3044,7 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
                         slot={slot}
                         slotIndex={slotIndex}
                         onChangeTermType={updateSlotTermType}
+                        disabled={Boolean(pendingVerticalRegistryTerm)}
                       />
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <input
@@ -3280,6 +3320,8 @@ const FlowCopyNode = React.memo(function FlowCopyNode({
 
 export type { FlowCopyNodeProps };
 export { FlowCopyNode, BodyTextPreview };
+
+
 
 
 
